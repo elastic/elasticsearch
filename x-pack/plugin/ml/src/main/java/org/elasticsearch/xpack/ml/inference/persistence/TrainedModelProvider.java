@@ -38,6 +38,7 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
@@ -112,9 +113,9 @@ public class TrainedModelProvider {
     public static final Set<String> MODELS_STORED_AS_RESOURCE = Collections.singleton("lang_ident_model_1");
     private static final String MODEL_RESOURCE_PATH = "/org/elasticsearch/xpack/ml/inference/persistence/";
     private static final String MODEL_RESOURCE_FILE_EXT = ".json";
-    private static final int COMPRESSED_STRING_CHUNK_SIZE = 16 * 1024 * 1024;
+    private static final int COMPRESSED_MODEL_CHUNK_SIZE = 16 * 1024 * 1024;
     private static final int MAX_NUM_DEFINITION_DOCS = 100;
-    private static final int MAX_COMPRESSED_STRING_SIZE = COMPRESSED_STRING_CHUNK_SIZE * MAX_NUM_DEFINITION_DOCS;
+    private static final int MAX_COMPRESSED_MODEL_SIZE = COMPRESSED_MODEL_CHUNK_SIZE * MAX_NUM_DEFINITION_DOCS;
 
     private static final Logger logger = LogManager.getLogger(TrainedModelProvider.class);
     private final Client client;
@@ -291,25 +292,25 @@ public class TrainedModelProvider {
 
         List<TrainedModelDefinitionDoc> trainedModelDefinitionDocs = new ArrayList<>();
         try {
-            String compressedString = trainedModelConfig.getCompressedDefinition();
-            if (compressedString.length() > MAX_COMPRESSED_STRING_SIZE) {
+            BytesReference compressedDefinition = trainedModelConfig.getCompressedDefinition();
+            if (compressedDefinition.length() > MAX_COMPRESSED_MODEL_SIZE) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
-                        "Unable to store model as compressed definition has length [{}] the limit is [{}]",
-                        compressedString.length(),
-                        MAX_COMPRESSED_STRING_SIZE));
+                        "Unable to store model as compressed definition of size [{}] bytes the limit is [{}] bytes",
+                        compressedDefinition.length(),
+                        MAX_COMPRESSED_MODEL_SIZE));
                 return;
             }
-            List<String> chunkedStrings = chunkStringWithSize(compressedString, COMPRESSED_STRING_CHUNK_SIZE);
-            for(int i = 0; i < chunkedStrings.size(); ++i) {
+            List<BytesReference> chunkedDefinition = chunkDefinitionWithSize(compressedDefinition, COMPRESSED_MODEL_CHUNK_SIZE);
+            for(int i = 0; i < chunkedDefinition.size(); ++i) {
                 trainedModelDefinitionDocs.add(new TrainedModelDefinitionDoc.Builder()
                     .setDocNum(i)
                     .setModelId(trainedModelConfig.getModelId())
-                    .setCompressedString(chunkedStrings.get(i))
+                    .setBinaryData(chunkedDefinition.get(i))
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
-                    .setDefinitionLength(chunkedStrings.get(i).length())
+                    .setDefinitionLength(chunkedDefinition.get(i).length())
                     // If it is the last doc, it is the EOS
-                    .setEos(i == chunkedStrings.size() - 1)
+                    .setEos(i == chunkedDefinition.size() - 1)
                     .build());
             }
         } catch (IOException ex) {
@@ -416,9 +417,9 @@ public class TrainedModelProvider {
         modelRestorer.restoreModelDefinition(docs::add,
             success -> {
                 try {
-                    String compressedString = getDefinitionFromDocs(docs, modelId);
+                    BytesReference compressedData = getDefinitionFromDocs(docs, modelId);
                     InferenceDefinition inferenceDefinition = InferenceToXContentCompressor.inflate(
-                        compressedString,
+                        compressedData,
                         InferenceDefinition::fromXContent,
                         xContentRegistry);
 
@@ -534,8 +535,8 @@ public class TrainedModelProvider {
                                 ChunkedTrainedModelRestorer.parseModelDefinitionDocLenientlyFromSource(
                                     bytes, resourceId, xContentRegistry));
                         try {
-                            String compressedString = getDefinitionFromDocs(docs, modelId);
-                            builder.setDefinitionFromString(compressedString);
+                            BytesReference compressedData = getDefinitionFromDocs(docs, modelId);
+                            builder.setDefinitionFromBytes(compressedData);
                         } catch (ElasticsearchException elasticsearchException) {
                             getTrainedModelListener.onFailure(elasticsearchException);
                             return;
@@ -1086,32 +1087,36 @@ public class TrainedModelProvider {
         return results;
     }
 
-    private static String getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs, String modelId) throws ElasticsearchException {
-        String compressedString = docs.stream()
-            .map(TrainedModelDefinitionDoc::getCompressedString)
-            .collect(Collectors.joining());
-        // BWC for when we tracked the total definition length
-        // TODO: remove in 9
+    private static BytesReference getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs,
+                                                        String modelId) throws ElasticsearchException {
+
+        BytesReference[] bb = new BytesReference[docs.size()];
+        for (int i = 0; i < docs.size(); i++) {
+            bb[i] = docs.get(i).getBinaryData();
+        }
+        BytesReference bytes = CompositeBytesReference.of(bb);
+
         if (docs.get(0).getTotalDefinitionLength() != null) {
-            if (compressedString.length() != docs.get(0).getTotalDefinitionLength()) {
-                throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
-            }
-        } else {
-            TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
-            // Either we are missing the last doc, or some previous doc
-            if(lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+            if (bytes.length() != docs.get(0).getTotalDefinitionLength()) {
                 throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
             }
         }
-        return compressedString;
+
+        TrainedModelDefinitionDoc lastDoc = docs.get(docs.size() - 1);
+        // Either we are missing the last doc, or some previous doc
+        if (lastDoc.isEos() == false || lastDoc.getDocNum() != docs.size() - 1) {
+            throw ExceptionsHelper.serverError(Messages.getMessage(Messages.MODEL_DEFINITION_TRUNCATED, modelId));
+        }
+        return bytes;
     }
 
-    static List<String> chunkStringWithSize(String str, int chunkSize) {
-        List<String> subStrings = new ArrayList<>((int)Math.ceil(str.length()/(double)chunkSize));
-        for (int i = 0; i < str.length();i += chunkSize) {
-            subStrings.add(str.substring(i, Math.min(i + chunkSize, str.length())));
+    public static List<BytesReference> chunkDefinitionWithSize(BytesReference definition, int chunkSize) {
+        List<BytesReference> chunks = new ArrayList<>((int)Math.ceil(definition.length()/(double)chunkSize));
+        for (int i = 0; i < definition.length();i += chunkSize) {
+            BytesReference chunk = definition.slice(i, Math.min(chunkSize, definition.length() - i));
+            chunks.add(chunk);
         }
-        return subStrings;
+        return chunks;
     }
 
     private TrainedModelConfig.Builder parseModelConfigLenientlyFromSource(BytesReference source, String modelId) throws IOException {

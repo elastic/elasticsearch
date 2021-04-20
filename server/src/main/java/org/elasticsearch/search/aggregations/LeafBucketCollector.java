@@ -49,28 +49,28 @@ public abstract class LeafBucketCollector implements LeafCollector {
             .filter(c -> c != NO_OP_COLLECTOR);
         final LeafBucketCollector[] colls = actualCollectors.toArray(size -> new LeafBucketCollector[size]);
         switch (colls.length) {
-            case 0:
-                return NO_OP_COLLECTOR;
-            case 1:
-                return colls[0];
-            default:
-                return new LeafBucketCollector() {
+        case 0:
+            return NO_OP_COLLECTOR;
+        case 1:
+            return colls[0];
+        default:
+            return new LeafBucketCollector() {
 
-                    @Override
-                    public void setScorer(Scorable s) throws IOException {
-                        for (LeafBucketCollector c : colls) {
-                            c.setScorer(s);
-                        }
+                @Override
+                public void setScorer(Scorable s) throws IOException {
+                    for (LeafBucketCollector c : colls) {
+                        c.setScorer(s);
                     }
+                }
 
-                    @Override
-                    public void collect(int doc, long bucket) throws IOException {
-                        for (LeafBucketCollector c : colls) {
-                            c.collect(doc, bucket);
-                        }
+                @Override
+                public void collect(int doc, long bucket) throws IOException {
+                    for (LeafBucketCollector c : colls) {
+                        c.collect(doc, bucket);
                     }
+                }
 
-                };
+            };
         }
     }
 

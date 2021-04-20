@@ -93,8 +93,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
 
     private Settings partial_7_13plus() {
         Settings settings = searchableSnapshotSettings(
-            // todo: lower bound version should be 7_13 after shard limit validator is backported.
-            VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT),
+            VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT),
             true
         );
         if (randomBoolean()) {

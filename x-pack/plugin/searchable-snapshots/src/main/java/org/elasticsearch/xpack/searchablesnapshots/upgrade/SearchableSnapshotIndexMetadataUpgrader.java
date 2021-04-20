@@ -92,8 +92,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
 
     static boolean needsUpgrade(ClusterState state) {
         return StreamSupport.stream(state.metadata().spliterator(), false)
-            // todo fix upper bound version after shard limit validator is finally backported.
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
+            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_7_13_0))
             .map(IndexMetadata::getSettings)
             .filter(SearchableSnapshotsConstants::isPartialSearchableSnapshotIndex)
             .anyMatch(SearchableSnapshotIndexMetadataUpgrader::notFrozenShardLimitGroup);

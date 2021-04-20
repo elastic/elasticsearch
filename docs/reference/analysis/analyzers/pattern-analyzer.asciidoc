@@ -159,8 +159,8 @@ The `pattern` analyzer accepts the following parameters:
 
 `stopwords`::
 
-    A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `_none_`.
+    A pre-defined stop words list like `_english_` or an array containing a
+    list of stop words. Defaults to `_none_`.
 
 `stopwords_path`::
 

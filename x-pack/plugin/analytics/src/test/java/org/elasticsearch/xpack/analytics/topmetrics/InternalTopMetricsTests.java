@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -217,27 +218,41 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     }
 
     public void testGetProperty() {
-        InternalTopMetrics metrics = new InternalTopMetrics(
+        InternalTopMetrics metrics = resultWithAllTypes();
+        assertThat(metrics.getProperty("int"), equalTo(1L));
+        assertThat(metrics.getProperty("double"), equalTo(5.0));
+        assertThat(metrics.getProperty("bytes"), equalTo(new BytesRef("cat")));
+        assertThat((Double) metrics.getProperty("null"), notANumber());
+    }
+
+    public void testValue() {
+        InternalTopMetrics metrics = resultWithAllTypes();
+        assertThat(metrics.value("int"), equalTo(1.0));
+        assertThat(metrics.value("double"), equalTo(5.0));
+        assertThat(metrics.value("bytes"), notANumber());
+        assertThat(metrics.value("null"), notANumber());
+    }
+
+    private InternalTopMetrics resultWithAllTypes() {
+        return new InternalTopMetrics(
             "test",
             SortOrder.ASC,
-            Arrays.asList("foo", "bar", "baz"),
+            List.of("int", "double", "bytes", "null"),
             1,
-            Arrays.asList(
+            List.of(
                 new InternalTopMetrics.TopMetric(
                     DocValueFormat.RAW,
                     SortValue.from(1),
                     Arrays.asList(
-                        new MetricValue(DocValueFormat.RAW, SortValue.from(1)),   // foo
-                        new MetricValue(DocValueFormat.RAW, SortValue.from(5.0)), // bar
-                        null                                                      // baz
+                        new MetricValue(DocValueFormat.RAW, SortValue.from(1)),   // int
+                        new MetricValue(DocValueFormat.RAW, SortValue.from(5.0)), // double
+                        new MetricValue(DocValueFormat.RAW, SortValue.from(new BytesRef("cat"))), // str
+                        null                                                      // null
                     )
                 )
             ),
             null
         );
-        assertThat(metrics.getProperty("foo"), equalTo(1L));
-        assertThat(metrics.getProperty("bar"), equalTo(5.0));
-        assertThat((Double) metrics.getProperty("baz"), notANumber());
     }
 
     @Override

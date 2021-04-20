@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.datastreams.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -18,9 +18,8 @@ import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
@@ -40,7 +39,7 @@ import static org.mockito.Mockito.when;
 
 public class DeleteDataStreamTransportActionTests extends ESTestCase {
 
-    private final IndexNameExpressionResolver iner = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+    private final IndexNameExpressionResolver iner = TestIndexNameExpressionResolver.newInstance();
 
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";

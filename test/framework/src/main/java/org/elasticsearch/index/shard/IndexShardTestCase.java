@@ -69,6 +69,7 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
@@ -81,6 +82,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -569,7 +571,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected DiscoveryNode getFakeDiscoNode(String id) {
-        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), DiscoveryNodeRole.BUILT_IN_ROLES,
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), DiscoveryNodeRole.roles(),
             Version.CURRENT);
     }
 
@@ -732,7 +734,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                                           String routing)
         throws IOException {
         SourceToParse sourceToParse = new SourceToParse(
-            shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing);
+            shard.shardId().getIndexName(), id, new BytesArray(source), xContentType, routing, Map.of());
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
@@ -832,13 +834,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(
             ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository).shardGenerations().getShardGen(
                 indexId, shard.shardId().getId()));
-        final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
         final String shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(shard.store(), shard.mapperService(), snapshot.getSnapshotId(), indexId,
                 indexCommitRef.getIndexCommit(), null, snapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future);
-            shardGen = future.actionGet();
+            shardGen = future.actionGet().getGeneration();
         }
 
         final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();

@@ -36,6 +36,7 @@ public abstract class AbstractRefCounted implements RefCounted {
             int i = refCount.get();
             if (i > 0) {
                 if (refCount.compareAndSet(i, i + 1)) {
+                    touch();
                     return true;
                 }
             } else {
@@ -46,13 +47,26 @@ public abstract class AbstractRefCounted implements RefCounted {
 
     @Override
     public final boolean decRef() {
+        touch();
         int i = refCount.decrementAndGet();
         assert i >= 0;
         if (i == 0) {
-            closeInternal();
+            try {
+                closeInternal();
+            } catch (Exception e) {
+                assert false : e;
+                throw e;
+            }
             return true;
         }
         return false;
+    }
+
+    /**
+     * Called whenever the ref count is incremented or decremented. Can be implemented by implementations to a record of access to the
+     * instance for debugging purposes.
+     */
+    protected void touch() {
     }
 
     protected void alreadyClosed() {
@@ -72,5 +86,9 @@ public abstract class AbstractRefCounted implements RefCounted {
         return name;
     }
 
+    /**
+     * Method that is invoked once the reference count reaches zero.
+     * Implementations of this method must handle all exceptions and may not throw any exceptions.
+     */
     protected abstract void closeInternal();
 }

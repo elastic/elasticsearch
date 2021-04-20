@@ -32,7 +32,7 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
             }
 
             repositories {
-                jcenter()
+                mavenCentral()
             }
 
             dependencies {

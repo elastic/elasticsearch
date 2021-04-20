@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -373,14 +372,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        Set<DiscoveryNodeRole> roles = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> roles.addAll(p.getRoles()));
-        roles.addAll(super.getRoles());
-        return roles;
-    }
-
-    @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
         Set<IndexSettingProvider> providers = new HashSet<>();
         filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
@@ -544,6 +535,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         return suppliers;
     }
 
+    @SuppressWarnings("unchecked")
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());

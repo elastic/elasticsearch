@@ -20,6 +20,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,14 +48,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -172,6 +169,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
+    }
+
     protected final MapperService createMapperService(Version version,
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled) {
@@ -179,12 +180,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         MapperRegistry mapperRegistry = new IndicesModule(
             getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
         ).getMapperRegistry();
-        ScriptModule scriptModule = new ScriptModule(
-            Settings.EMPTY,
-            getPlugins().stream().filter(p -> p instanceof ScriptPlugin).map(p -> (ScriptPlugin) p).collect(toList())
-        );
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
-        SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
+
+
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
@@ -193,7 +191,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             mapperRegistry,
             () -> { throw new UnsupportedOperationException(); },
             idFieldDataEnabled,
-            scriptService
+            this::compileScript
         );
     }
 
@@ -236,7 +234,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing);
+        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, Map.of());
+    }
+
+    protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build,
+                                         @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        build.accept(builder);
+        builder.endObject();
+        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
     protected final SourceToParse source(String source) {
@@ -371,6 +377,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public Collection<MappedFieldType> getFieldTypes() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
                 throw new UnsupportedOperationException();
             }
@@ -382,6 +393,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public Query buildQuery(QueryBuilder builder) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query filterQuery(Query query) {
                 throw new UnsupportedOperationException();
             }
 
@@ -509,6 +525,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
+
+        SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
+        when(searchExecutionContext.getDefaultSimilarity()).thenReturn(similarityService.getDefaultSimilarity());
+
         return searchExecutionContext;
     }
 }

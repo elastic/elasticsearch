@@ -14,6 +14,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.metrics.MinAggregator;
+import org.elasticsearch.search.aggregations.metrics.SumAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
@@ -154,11 +157,49 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * Get a {@link LeafBucketCollector} for the given ctx, which should
-     * delegate to the given collector.
+     * Collect results for this leaf.
+     * <p>
+     * Most {@linkplain Aggregator}s will return a custom
+     * {@link LeafBucketCollector} that collects document information for
+     * every hit. Callers of this method will make sure to call
+     * {@link LeafBucketCollector#collect(int, long) collect} for every hit. So any
+     * {@link Aggregator} that returns a customer {@linkplain LeafBucketCollector}
+     * from this method runs at best {@code O(hits)} time. See the
+     * {@link SumAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) sum}
+     * {@linkplain Aggregator} for a fairly strait forward example of this.
+     * <p>
+     * Some {@linkplain Aggregator}s are able to correctly collect results on
+     * their own, without being iterated by the top level query or the rest
+     * of the aggregations framework. These aggregations collect what they
+     * need by calling methods on {@link LeafReaderContext} and then they
+     * return {@link LeafBucketCollector#NO_OP_COLLECTOR} to signal that they've
+     * done their own collection. These aggregations can do better than
+     * {@code O(hits)}. See the
+     * {@link MinAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) min}
+     * {@linkplain Aggregator} for an example of an aggregation that does this. It
+     * happens to run in constant time in some cases.
+     * <p>
+     * In other cases {@link MinAggregator} can't get correct results by
+     * taking the constant time path so instead it returns a custom
+     * {@link LeafBucketCollector}. This is fairly common for aggregations
+     * that have these fast paths because most of these fast paths are
+     * only possible when the aggregation is at the root of the tree.
+     * <p>
+     * Its also useful to look at the {@link FiltersAggregator#build filters}
+     * {@linkplain Aggregator} chooses whether or not it can use the fast
+     * path before building the {@linkplain Aggregator} rather than on each
+     * leaf. Either is fine.
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
+    /**
+     * Collect results for this leaf.
+     * <p>
+     * Implemented by the {@linkplain Aggregator} base class to correctly set
+     * up sub {@linkplain Aggregator}s. See the
+     * {@link #getLeafCollector(LeafReaderContext, LeafBucketCollector) abstract delegate}
+     * for more details on what this does.
+     */
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
         preGetSubLeafCollectors(ctx);
@@ -181,8 +222,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final void preCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         doPreCollection();
         collectableSubAggregators.preCollection();
     }

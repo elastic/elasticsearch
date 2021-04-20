@@ -65,6 +65,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
             .stream()
             .filter(o -> o.isEmpty() == false)
             .map(Optional::get)
+            .sorted(Comparator.comparing(CacheIndexInputStats::getFileExt))
             .collect(toList());
     }
 

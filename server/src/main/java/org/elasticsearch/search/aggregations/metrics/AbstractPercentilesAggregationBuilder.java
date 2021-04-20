@@ -36,10 +36,10 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
     extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, T> {
 
     public static final ParseField KEYED_FIELD = new ParseField("keyed");
+    private final ParseField valuesField;
     protected boolean keyed = true;
     protected double[] values;
     private PercentilesConfig percentilesConfig;
-    private ParseField valuesField;
 
     public static <T extends AbstractPercentilesAggregationBuilder<T>> ConstructingObjectParser<T, String> createParser(String aggName,
                                                          TriFunction<String, double[], PercentilesConfig, T> ctor,
@@ -129,8 +129,9 @@ public abstract class AbstractPercentilesAggregationBuilder<T extends AbstractPe
         this.valuesField = clone.valuesField;
     }
 
-    AbstractPercentilesAggregationBuilder(StreamInput in) throws IOException {
+    AbstractPercentilesAggregationBuilder(ParseField valuesField, StreamInput in) throws IOException {
         super(in);
+        this.valuesField = valuesField;
         values = in.readDoubleArray();
         keyed = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_7_8_0)) {

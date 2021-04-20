@@ -889,6 +889,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(key, nextStepKey, null);
         }
 
+        @Override
+        public boolean isRetryable() {
+            return false;
+        }
+
         void setException(Exception exception) {
             this.exception = exception;
         }
@@ -938,6 +943,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(key, nextStepKey, null);
         }
 
+        @Override
+        public boolean isRetryable() {
+            return false;
+        }
+
         void setException(Exception exception) {
             this.exception = exception;
         }
@@ -975,6 +985,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
             super(key, nextStepKey);
         }
 
+        @Override
+        public boolean isRetryable() {
+            return false;
+        }
+
         public void setException(RuntimeException exception) {
             this.exception = exception;
         }
@@ -1009,6 +1024,11 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         MockClusterStateWaitStep(StepKey key, StepKey nextStepKey) {
             super(key, nextStepKey);
+        }
+
+        @Override
+        public boolean isRetryable() {
+            return false;
         }
 
         public void setException(RuntimeException exception) {

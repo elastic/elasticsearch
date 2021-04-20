@@ -21,12 +21,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.DataTier.DATA_FROZEN;
 
 /**
  * The {@code DataTierAllocationDecider} is a custom allocation decider that behaves similar to the
@@ -45,6 +54,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final String INDEX_ROUTING_PREFER = "index.routing.allocation.include._tier_preference";
     public static final String INDEX_ROUTING_EXCLUDE = "index.routing.allocation.exclude._tier";
 
+    private static final DataTierValidator VALIDATOR = new DataTierValidator();
     public static final Setting<String> CLUSTER_ROUTING_REQUIRE_SETTING = Setting.simpleString(CLUSTER_ROUTING_REQUIRE,
         DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> CLUSTER_ROUTING_INCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_INCLUDE,
@@ -52,13 +62,13 @@ public class DataTierAllocationDecider extends AllocationDecider {
     public static final Setting<String> CLUSTER_ROUTING_EXCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_EXCLUDE,
         DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> INDEX_ROUTING_REQUIRE_SETTING = Setting.simpleString(INDEX_ROUTING_REQUIRE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_INCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_INCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
-    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = Setting.simpleString(INDEX_ROUTING_PREFER,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+    public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
+        DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
 
     private static void validateTierSetting(String setting) {
         if (Strings.hasText(setting)) {
@@ -68,6 +78,46 @@ public class DataTierAllocationDecider extends AllocationDecider {
             if (invalidTiers.size() > 0) {
                 throw new IllegalArgumentException("invalid tier names: " + invalidTiers);
             }
+        }
+    }
+
+    private static class DataTierValidator implements Setting.Validator<String> {
+        private static final Collection<Setting<?>> dependencies = List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
+            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
+
+        public static String getDefaultTierPreference(Settings settings) {
+            if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
+                return DATA_FROZEN;
+            } else {
+                return "";
+            }
+        }
+
+        @Override
+        public void validate(String value) {
+            validateTierSetting(value);
+        }
+
+        @Override
+        public void validate(String value, Map<Setting<?>, Object> settings, boolean exists) {
+            if (exists && value != null) {
+                if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(settings)) {
+                    if (value.equals(DATA_FROZEN) == false) {
+                        throw new IllegalArgumentException("only the [" + DATA_FROZEN +
+                            "] tier preference may be used for partial searchable snapshots (got: [" + value + "])");
+                    }
+                } else {
+                    String[] split = value.split(",");
+                    if (Arrays.stream(split).anyMatch(DATA_FROZEN::equals)) {
+                        throw new IllegalArgumentException("[" + DATA_FROZEN + "] tier can only be used for partial searchable snapshots");
+                    }
+                }
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return dependencies.iterator();
         }
     }
 

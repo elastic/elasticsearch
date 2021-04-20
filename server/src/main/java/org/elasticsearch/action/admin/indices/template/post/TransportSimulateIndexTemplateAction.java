@@ -167,12 +167,15 @@ public class TransportSimulateIndexTemplateAction
                 .put(indexMetadata, true)
                 .build())
             .build();
+
         List<AliasMetadata> aliases = indicesService.withTempIndexService(indexMetadata, tempIndexService ->
             MetadataCreateIndexService.resolveAndValidateAliases(indexName, Set.of(),
                 resolvedAliases, tempClusterState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())));
+                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                tempIndexService.dateMathExpressionResolverAt()));
+
         Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(
             Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 

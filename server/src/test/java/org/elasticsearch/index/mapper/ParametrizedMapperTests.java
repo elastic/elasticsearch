@@ -23,6 +23,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -202,10 +203,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 return BinaryFieldMapper.PARSER;
             }
             return null;
-        }, name -> null, version, () -> null, null, null,
+        }, name -> null, version, () -> null, null, ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
-        }, false);
+        });
         if (fromDynamicTemplate) {
             pc = pc.createDynamicTemplateFieldContext(pc);
         }

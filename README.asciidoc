@@ -1,201 +1,51 @@
 = Elasticsearch
 
-== A Distributed RESTful Search Engine
+Elasticsearch is the distributed, RESTful search and analytics engine at the
+heart of the https://www.elastic.co/products[Elastic Stack]. You can use
+Elasticsearch to store, search, and manage data for:
 
-=== https://www.elastic.co/products/elasticsearch[https://www.elastic.co/products/elasticsearch]
+* Logs
+* Metrics
+* A search backend
+* Application monitoring
+* Endpoint security
 
-Elasticsearch is a distributed RESTful search engine built for the cloud. Features include:
+\... and more!
 
-* Distributed and Highly Available Search Engine.
-** Each index is fully sharded with a configurable number of shards.
-** Each shard can have one or more replicas.
-** Read / Search operations performed on any of the replica shards.
-* Multi-tenant.
-** Support for more than one index.
-** Index level configuration (number of shards, index storage, etc.).
-* Various set of APIs
-** HTTP RESTful API
-** All APIs perform automatic node operation rerouting.
-* Document oriented
-** No need for upfront schema definition.
-** Schema can be defined for customization of the indexing process.
-* Reliable, Asynchronous Write Behind for long term persistency.
-* Near real-time search.
-* Built on top of Apache Lucene
-** Each shard is a fully functional Lucene index
-** All the power of Lucene easily exposed through simple configuration and plugins.
-* Per operation consistency
-** Single document-level operations are atomic, consistent, isolated, and durable.
+To learn more about Elasticsearch's features and capabilities, see our
+https://www.elastic.co/products/elasticsearch[product page].
 
-== Getting Started
+[[get-started]]
+== Get started
 
-First of all, DON'T PANIC. It will take 5 minutes to get the gist of what Elasticsearch is all about.
+The simplest way to set up Elasticsearch is to create a managed deployment with
+https://www.elastic.co/cloud/as-a-service[Elasticsearch Service on Elastic
+Cloud].
 
-=== Installation
+If you prefer to install and manage Elasticsearch yourself, you can download
+the latest version from 
+https://www.elastic.co/downloads/elasticsearch[elastic.co/downloads/elasticsearch].
 
-* https://www.elastic.co/downloads/elasticsearch[Download] and unpack the Elasticsearch official distribution.
-* Run `bin/elasticsearch` on Linux or macOS. Run `bin\elasticsearch.bat` on Windows.
-* Run `curl -X GET http://localhost:9200/` to verify Elasticsearch is running.
+For more installation options, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html[Elasticsearch installation
+documentation].
 
-=== Indexing
+[[upgrade]]
+== Upgrade
 
-First, index some sample JSON documents. The first request automatically creates
-the `my-index-000001` index.
+To upgrade from an earlier version of Elasticsearch, see the
+https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[Elasticsearch upgrade
+documentation].
 
-----
-curl -X POST 'http://localhost:9200/my-index-000001/_doc?pretty' -H 'Content-Type: application/json' -d '
-{
-  "@timestamp": "2099-11-15T13:12:00",
-  "message": "GET /search HTTP/1.1 200 1070000",
-  "user": {
-    "id": "kimchy"
-  }
-}'
-
-curl -X POST 'http://localhost:9200/my-index-000001/_doc?pretty' -H 'Content-Type: application/json' -d '
-{
-  "@timestamp": "2099-11-15T14:12:12",
-  "message": "GET /search HTTP/1.1 200 1070000",
-  "user": {
-    "id": "elkbee"
-  }
-}'
-
-curl -X POST 'http://localhost:9200/my-index-000001/_doc?pretty' -H 'Content-Type: application/json' -d '
-{
-  "@timestamp": "2099-11-15T01:46:38",
-  "message": "GET /search HTTP/1.1 200 1070000",
-  "user": {
-    "id": "elkbee"
-  }
-}'
-----
-
-=== Search
-
-Next, use a search request to find any documents with a `user.id` of `kimchy`.
-
-----
-curl -X GET 'http://localhost:9200/my-index-000001/_search?q=user.id:kimchy&pretty=true'
-----
-
-Instead of a query string, you can use Elasticsearch's
-https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl.html[Query
-DSL] in the request body.
-
-----
-curl -X GET 'http://localhost:9200/my-index-000001/_search?pretty=true' -H 'Content-Type: application/json' -d '
-{
-  "query" : {
-    "match" : { "user.id": "kimchy" }
-  }
-}'
-----
-
-You can also retrieve all documents in `my-index-000001`.
-
-----
-curl -X GET 'http://localhost:9200/my-index-000001/_search?pretty=true' -H 'Content-Type: application/json' -d '
-{
-  "query" : {
-    "match_all" : {}
-  }
-}'
-----
-
-During indexing, Elasticsearch automatically mapped the `@timestamp` field as a
-date. This lets you run a range search.
-
-----
-curl -X GET 'http://localhost:9200/my-index-000001/_search?pretty=true' -H 'Content-Type: application/json' -d '
-{
-  "query" : {
-    "range" : {
-      "@timestamp": {
-        "from": "2099-11-15T13:00:00",
-        "to": "2099-11-15T14:00:00"
-      }
-    }
-  }
-}'
-----
-
-=== Multiple indices
-
-Elasticsearch supports multiple indices. The previous examples used an index
-called `my-index-000001`. You can create another index, `my-index-000002`, to
-store additional data when `my-index-000001` reaches a certain age or size. You
-can also use separate indices to store different types of data.
-
-You can configure each index differently. The following request
-creates `my-index-000002` with two primary shards rather than the default of
-one. This may be helpful for larger indices.
-
-----
-curl -X PUT 'http://localhost:9200/my-index-000002?pretty' -H 'Content-Type: application/json' -d '
-{
-  "settings" : {
-    "index.number_of_shards" : 2
-  }
-}'
-----
-
-You can then add a document to `my-index-000002`.
-
-----
-curl -X POST 'http://localhost:9200/my-index-000002/_doc?pretty' -H 'Content-Type: application/json' -d '
-{
-  "@timestamp": "2099-11-16T13:12:00",
-  "message": "GET /search HTTP/1.1 200 1070000",
-  "user": {
-    "id": "kimchy"
-  }
-}'
-----
-
-You can search and perform other operations on multiple indices with a single
-request. The following request searches `my-index-000001` and `my-index-000002`.
-
-----
-curl -X GET 'http://localhost:9200/my-index-000001,my-index-000002/_search?pretty=true' -H 'Content-Type: application/json' -d '
-{
-  "query" : {
-    "match_all" : {}
-  }
-}'
-----
-
-You can omit the index from the request path to search all indices.
-
-----
-curl -X GET 'http://localhost:9200/_search?pretty=true' -H 'Content-Type: application/json' -d '
-{
-  "query" : {
-    "match_all" : {}
-  }
-}'
-----
-
-=== Distributed, highly available
-
-Let's face it; things will fail...
-
-Elasticsearch is a highly available and distributed search engine. Each index is broken down into shards, and each shard can have one or more replicas. By default, an index is created with 1 shard and 1 replica per shard (1/1). Many topologies can be used, including 1/10 (improve search performance) or 20/1 (improve indexing performance, with search executed in a MapReduce fashion across shards).
-
-To play with the distributed nature of Elasticsearch, bring more nodes up and shut down nodes. The system will continue to serve requests (ensure you use the correct HTTP port) with the latest data indexed.
-
-=== Where to go from here?
-
-We have just covered a tiny portion of what Elasticsearch is all about. For more information, please refer to the https://www.elastic.co/products/elasticsearch[elastic.co] website. General questions can be asked on the https://discuss.elastic.co[Elastic Forum] or https://ela.st/slack[on Slack]. The Elasticsearch GitHub repository is reserved for bug reports and feature requests only.
-
-=== Building from source
+[[build-source]]
+== Build from source
 
 Elasticsearch uses https://gradle.org[Gradle] for its build system.
 
-To build a distribution for your local OS and print its output location upon 
+To build a distribution for your local OS and print its output location upon
 completion, run:
 ----
-./gradlew localDistro 
+./gradlew localDistro
 ----
 
 To build a distribution for another platform, run the related command:
@@ -210,10 +60,31 @@ To build distributions for all supported platforms, run:
 ./gradlew assemble
 ----
 
-Finished distributions are output to `distributions/archives`.
+Distributions are output to `distributions/archives`.
 
-See the xref:TESTING.asciidoc[TESTING] for more information about running the Elasticsearch test suite.
+To run the test suite, see xref:TESTING.asciidoc[TESTING].
 
-=== Upgrading from older Elasticsearch versions
+[[docs]]
+== Documentation
 
-To ensure a smooth upgrade process from earlier versions of Elasticsearch, please see our https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html[upgrade documentation] for more details on the upgrade process.
+For the complete Elasticsearch documentation visit
+https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html[elastic.co].
+
+For information about our documentation processes, see the
+xref:docs/README.asciidoc[docs README].
+
+[[contribute]]
+== Contribute
+
+For contribution guidelines, see xref:CONTRIBUTING.md[CONTRIBUTING]. 
+
+[[questions]]
+== Questions? Problems? Suggestions?
+
+* To report a bug or request a feature, create a
+https://github.com/elastic/elasticsearch/issues/new/choose[GitHub Issue]. Please
+ensure someone else hasn't created an issue for the same topic.
+
+* Need help using Elasticsearch? Reach out on the
+https://discuss.elastic.co[Elastic Forum] or https://ela.st/slack[Slack]. A
+fellow community member or Elastic engineer will be happy to help you out.

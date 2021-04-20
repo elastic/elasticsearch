@@ -406,7 +406,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {
         internalCluster().startMasterOnlyNode();
-        final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0));
+        final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0, Settings.EMPTY));
 
         // create the index with our mapping
         client(primaryNode)
@@ -433,7 +433,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
 
         // start the replica node; we do this after indexing so a file-based recovery is triggered to ensure the files are identical
-        final String replicaNode = internalCluster().startDataOnlyNode(nodeSettings(1));
+        final String replicaNode = internalCluster().startDataOnlyNode(nodeSettings(1, Settings.EMPTY));
         ensureGreen();
 
         final RecoveryResponse initialRecoveryReponse = client().admin().indices().prepareRecoveries("test").get();

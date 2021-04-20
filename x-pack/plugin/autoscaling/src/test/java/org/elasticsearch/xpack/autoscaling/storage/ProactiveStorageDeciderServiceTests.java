@@ -11,7 +11,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -355,7 +355,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ClusterInfo randomClusterInfo(ClusterState state) {
-        Map<String, Long> collect = state.routingTable()
+        Map<String, Long> shardSizes = state.routingTable()
             .allShards()
             .stream()
             .map(ClusterInfo::shardIdentifierFromRouting)
@@ -369,7 +369,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return new ClusterInfo(
             diskUsage,
             diskUsage,
-            ImmutableOpenMap.<String, Long>builder().putAll(collect).build(),
+            ImmutableOpenMap.<String, Long>builder().putAll(shardSizes).build(),
+            ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of()
         );

@@ -48,7 +48,7 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
 
     /**
      * Get status from the stored eql search response
-     * @param storedResponse
+     * @param storedResponse - a response from a stored search
      * @param expirationTimeMillis – expiration time in milliseconds
      * @param id – encoded async search id
      * @return a status response

@@ -105,7 +105,10 @@ public class Archives {
 
         sh.chown(fullInstallPath);
 
-        return Installation.ofArchive(sh, distribution, fullInstallPath);
+        Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
+        ServerUtils.disableGeoIpDownloader(installation);
+
+        return installation;
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {
@@ -147,9 +150,7 @@ public class Archives {
 
     public static void verifyArchiveInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation, distribution, ARCHIVE_OWNER);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
-        }
+        verifyDefaultInstallation(installation, distribution, ARCHIVE_OWNER);
     }
 
     private static void verifyOssInstallation(Installation es, Distribution distribution, String owner) {
@@ -200,6 +201,7 @@ public class Archives {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"

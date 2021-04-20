@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -94,7 +95,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
         float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(Version.CURRENT, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals(
             "Decoded dense vector values is not equal to the indexed one.",
@@ -152,5 +153,11 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         MapperParsingException e2 = expectThrows(MapperParsingException.class,
             () -> mapper.parse(source(b -> b.array("field", invalidVector2))));
         assertThat(e2.getCause().getMessage(), containsString("has number of dimensions [2] less than defined in the mapping [3]"));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

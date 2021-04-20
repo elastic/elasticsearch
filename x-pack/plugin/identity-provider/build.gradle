@@ -13,10 +13,9 @@ archivesBaseName = 'x-pack-identity-provider'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
   // So that we can extend LocalStateCompositeXPackPlugin
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-
+  testImplementation(testArtifact(project(xpackModule('security'))))
   // the following are all SAML dependencies - might as well download the whole internet
   api "org.opensaml:opensaml-core:3.4.5"
   api "org.opensaml:opensaml-saml-api:3.4.5"

@@ -614,7 +614,8 @@ public class TransportStartDataFrameAnalyticsAction
         @Override
         public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params, ClusterState clusterState) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+            Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
+                getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
             if (optionalAssignment.isPresent()) {
                 return optionalAssignment.get();
             }

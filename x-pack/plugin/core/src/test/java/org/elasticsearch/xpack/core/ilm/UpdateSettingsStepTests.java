@@ -102,7 +102,7 @@ public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<U
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
         assertSame(exception, expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, null, null, f))));
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

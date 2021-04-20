@@ -5,15 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put trained models API
+=== Create trained models API
 
-beta::[]
 
 Creates a new trained model for inference.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put trained models request
+==== Request
 
 A +{request}+ requires the following argument:
 

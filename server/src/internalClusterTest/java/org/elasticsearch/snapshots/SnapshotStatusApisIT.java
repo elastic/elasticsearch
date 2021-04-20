@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -41,8 +42,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -51,8 +54,8 @@ import static org.hamcrest.Matchers.not;
 public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
                 .build();
     }
@@ -170,6 +173,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final SnapshotInfo found = snapshotInfos.get(0);
         assertThat(found.snapshotId(), is(snapshotInfo.snapshotId()));
         assertThat(found.state(), is(SnapshotState.SUCCESS));
+        assertThat(found.indexSnapshotDetails(), anEmptyMap());
     }
 
     /**
@@ -256,7 +260,14 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
 
         unblockAllDataNodes(repoName);
-        assertThat(responseSnapshotTwo.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        final SnapshotInfo snapshotInfo = responseSnapshotTwo.get().getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+
+        assertTrue(snapshotInfo.indexSnapshotDetails().toString(), snapshotInfo.indexSnapshotDetails().containsKey(indexOne));
+        final SnapshotInfo.IndexSnapshotDetails indexSnapshotDetails = snapshotInfo.indexSnapshotDetails().get(indexOne);
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getShardCount(), equalTo(1));
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getMaxSegmentsPerShard(), greaterThanOrEqualTo(1));
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getSize().getBytes(), greaterThan(0L));
     }
 
     public void testGetSnapshotsNoRepos() {
@@ -281,6 +292,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> create an index and index some documents");
         final String indexName = "test-idx";
         createIndexWithRandomDocs(indexName, 10);
+        final int numberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
+            client.admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName));
 
         for (int repoIndex = 0; repoIndex < randomIntBetween(2, 5); repoIndex++) {
             final String repoName = "repo" + repoIndex;
@@ -307,7 +320,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                         .setWaitForCompletion(true)
                         .setIndices(indexName)
                         .get();
-                assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+                final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+                assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+                assertTrue(snapshotInfo.indexSnapshotDetails().containsKey(indexName));
+                final SnapshotInfo.IndexSnapshotDetails indexSnapshotDetails = snapshotInfo.indexSnapshotDetails().get(indexName);
+                assertThat(indexSnapshotDetails.getShardCount(), equalTo(numberOfShards));
+                assertThat(indexSnapshotDetails.getMaxSegmentsPerShard(), greaterThanOrEqualTo(1));
+                assertThat(indexSnapshotDetails.getSize().getBytes(), greaterThan(0L));
                 snapshotNames.add(snapshotName);
             }
         }

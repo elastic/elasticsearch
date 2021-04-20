@@ -91,7 +91,6 @@ public class RestoreModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         job.setDataDescription(dataDescription);
-
         putJob(job);
         return job;
     }

@@ -50,7 +50,6 @@ public class InterimResultsIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-
         putJob(job);
         openJob(job.getId());
 
@@ -117,7 +116,6 @@ public class InterimResultsIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = new Job.Builder(jobId);
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
-
 
         putJob(job);
         openJob(job.getId());

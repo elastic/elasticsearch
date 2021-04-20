@@ -112,7 +112,6 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
                     new DataDescription.Builder()
                         .setTimeFormat("epoch"));
 
-
         putJob(job);
     }
 

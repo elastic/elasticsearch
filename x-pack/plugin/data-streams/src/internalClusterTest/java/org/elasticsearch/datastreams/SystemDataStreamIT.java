@@ -38,7 +38,6 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
@@ -58,6 +57,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@ESIntegTestCase.ClusterScope(transportClientRatio = 0)
 public class SystemDataStreamIT extends ESIntegTestCase {
 
     private static String nodeHttpTypeKey;
@@ -79,14 +79,6 @@ public class SystemDataStreamIT extends ESIntegTestCase {
         plugins.add(DataStreamsPlugin.class);
         plugins.add(TestSystemDataStreamPlugin.class);
         plugins.add(Netty4Plugin.class);
-        return plugins;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.transportClientPlugins());
-        plugins.add(XPackClientPlugin.class);
-        plugins.add(DataStreamsPlugin.class);
         return plugins;
     }
 

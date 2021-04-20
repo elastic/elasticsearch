@@ -246,6 +246,9 @@ The API returns:
               "full": "Mac OS X 10.11.6"
             },
             "name": "Chrome",
+            "device": {
+              "name": "Mac"
+            },
             "version": "52.0.2743.116"
           }
         }

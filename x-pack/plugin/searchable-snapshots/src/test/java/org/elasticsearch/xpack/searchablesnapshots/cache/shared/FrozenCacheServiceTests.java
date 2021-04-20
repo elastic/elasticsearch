@@ -12,13 +12,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,12 +23,8 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.CacheFileRegion;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -207,9 +199,8 @@ public class FrozenCacheServiceTests extends ESTestCase {
     }
 
     public void testCacheSizeRejectedOnNonFrozenNodes() {
-        String cacheSize = randomBoolean() ? new ByteSizeValue(size(500)).getStringRep() : new RatioValue(between(1, 100)).toString();
         final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
             .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName())
             .build();
@@ -225,94 +216,9 @@ public class FrozenCacheServiceTests extends ESTestCase {
                 "setting ["
                     + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
                     + "] to be positive ["
-                    + cacheSize
+                    + new ByteSizeValue(size(500)).getStringRep()
                     + "] is only permitted on nodes with the data_frozen role, roles are [data_hot]"
             )
-        );
-    }
-
-    public void testDedicateFrozenCacheSizeDefaults() {
-        final Settings settings = Settings.builder()
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
-            .build();
-
-        RelativeByteSizeValue relativeCacheSize = FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        assertThat(relativeCacheSize.isAbsolute(), is(false));
-        assertThat(relativeCacheSize.isNonZeroSize(), is(true));
-        assertThat(relativeCacheSize.calculateValue(ByteSizeValue.ofBytes(10000), null), equalTo(ByteSizeValue.ofBytes(9000)));
-        assertThat(FrozenCacheService.SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofGb(100)));
-    }
-
-    public void testNotDedicatedFrozenCacheSizeDefaults() {
-        final Settings settings = Settings.builder()
-            .putList(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                Sets.union(
-                    Set.of(
-                        randomFrom(
-                            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
-                            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
-                            DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
-                            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE
-                        )
-                    ),
-                    new HashSet<>(
-                        randomSubsetOf(
-                            between(0, 3),
-                            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
-                            DiscoveryNodeRole.INGEST_ROLE,
-                            DiscoveryNodeRole.MASTER_ROLE
-                        )
-                    )
-                ).stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
-            )
-            .build();
-
-        RelativeByteSizeValue relativeCacheSize = FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        assertThat(relativeCacheSize.isNonZeroSize(), is(false));
-        assertThat(relativeCacheSize.isAbsolute(), is(true));
-        assertThat(relativeCacheSize.getAbsolute(), equalTo(ByteSizeValue.ZERO));
-        assertThat(FrozenCacheService.SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings), equalTo(ByteSizeValue.ofBytes(-1)));
-    }
-
-    public void testMaxHeadroomRejectedForAbsoluteCacheSize() {
-        String cacheSize = new ByteSizeValue(size(500)).getStringRep();
-        final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey(), new ByteSizeValue(size(100)).getStringRep())
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
-            .build();
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> FrozenCacheService.SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.get(settings)
-        );
-        assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(
-            e.getCause().getMessage(),
-            is(
-                "setting ["
-                    + FrozenCacheService.SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING.getKey()
-                    + "] cannot be specified for absolute ["
-                    + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-                    + "="
-                    + cacheSize
-                    + "]"
-            )
-        );
-    }
-
-    public void testCalculateCacheSize() {
-        FsInfo.Path smallPathInfo = new FsInfo.Path("ignored", null, 10000, 0, 0);
-        FsInfo.Path largePathInfo = new FsInfo.Path("ignored", null, ByteSizeValue.ofTb(10).getBytes(), 0, 0);
-        assertThat(FrozenCacheService.calculateCacheSize(Settings.EMPTY, smallPathInfo), equalTo(0L));
-        final Settings settings = Settings.builder()
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
-            .build();
-        assertThat(FrozenCacheService.calculateCacheSize(settings, smallPathInfo), equalTo(9000L));
-        assertThat(
-            FrozenCacheService.calculateCacheSize(settings, largePathInfo),
-            equalTo(largePathInfo.getTotal().getBytes() - ByteSizeValue.ofGb(100).getBytes())
         );
     }
 

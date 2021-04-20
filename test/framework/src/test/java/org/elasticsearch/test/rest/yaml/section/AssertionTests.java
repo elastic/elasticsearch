@@ -159,4 +159,44 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(o, instanceOf(String.class));
         assertThat(o.toString(), equalTo("bar"));
     }
+
+    public void testCloseTo() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { value: 42.2, error: 0.001 } }"
+        );
+
+        CloseToAssertion closeToAssertion = CloseToAssertion.parse(parser);
+
+        assertThat(closeToAssertion, notNullValue());
+        assertThat(closeToAssertion.getField(), equalTo("field"));
+        assertThat(closeToAssertion.getExpectedValue(), instanceOf(Double.class));
+        assertThat((Double) closeToAssertion.getExpectedValue(), equalTo(42.2));
+        assertThat(closeToAssertion.getError(), equalTo(0.001));
+    }
+
+    public void testInvalidCloseTo() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: 42 }"
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("expected a map with value and error but got Integer"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: {  } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("expected a map with value and error but got a map with 0 fields"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { foo: 13, value: 15 } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("error is missing or not a number"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { foo: 13, bar: 15 } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
+    }
 }

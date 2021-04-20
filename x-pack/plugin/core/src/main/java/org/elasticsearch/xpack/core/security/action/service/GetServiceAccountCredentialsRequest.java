@@ -18,17 +18,17 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class GetServiceAccountTokensRequest extends ActionRequest {
+public class GetServiceAccountCredentialsRequest extends ActionRequest {
 
     private final String namespace;
     private final String serviceName;
 
-    public GetServiceAccountTokensRequest(String namespace, String serviceName) {
+    public GetServiceAccountCredentialsRequest(String namespace, String serviceName) {
         this.namespace = namespace;
         this.serviceName = serviceName;
     }
 
-    public GetServiceAccountTokensRequest(StreamInput in) throws IOException {
+    public GetServiceAccountCredentialsRequest(StreamInput in) throws IOException {
         super(in);
         this.namespace = in.readString();
         this.serviceName = in.readString();
@@ -48,7 +48,7 @@ public class GetServiceAccountTokensRequest extends ActionRequest {
             return true;
         if (o == null || getClass() != o.getClass())
             return false;
-        GetServiceAccountTokensRequest that = (GetServiceAccountTokensRequest) o;
+        GetServiceAccountCredentialsRequest that = (GetServiceAccountCredentialsRequest) o;
         return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName);
     }
 

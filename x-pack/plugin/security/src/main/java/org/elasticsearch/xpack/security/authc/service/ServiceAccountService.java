@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -78,9 +78,9 @@ public class ServiceAccountService {
         }
     }
 
-    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountTokensResponse> listener) {
+    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountCredentialsResponse> listener) {
         serviceAccountsTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
-            listener.onResponse(new GetServiceAccountTokensResponse(accountId.asPrincipal(), nodeName, tokenInfos));
+            listener.onResponse(new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), nodeName, tokenInfos));
         }, listener::onFailure));
     }
 

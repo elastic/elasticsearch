@@ -28,33 +28,33 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class GetServiceAccountTokensResponseTests extends AbstractWireSerializingTestCase<GetServiceAccountTokensResponse> {
+public class GetServiceAccountCredentialsResponseTests extends AbstractWireSerializingTestCase<GetServiceAccountCredentialsResponse> {
 
     @Override
-    protected Writeable.Reader<GetServiceAccountTokensResponse> instanceReader() {
-        return GetServiceAccountTokensResponse::new;
+    protected Writeable.Reader<GetServiceAccountCredentialsResponse> instanceReader() {
+        return GetServiceAccountCredentialsResponse::new;
     }
 
     @Override
-    protected GetServiceAccountTokensResponse createTestInstance() {
+    protected GetServiceAccountCredentialsResponse createTestInstance() {
         final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
         final List<TokenInfo> tokenInfos = IntStream.range(0, randomIntBetween(0, 10))
             .mapToObj(i -> randomTokenInfo())
             .collect(Collectors.toUnmodifiableList());
-        return new GetServiceAccountTokensResponse(principal, nodeName, tokenInfos);
+        return new GetServiceAccountCredentialsResponse(principal, nodeName, tokenInfos);
     }
 
     @Override
-    protected GetServiceAccountTokensResponse mutateInstance(GetServiceAccountTokensResponse instance) throws IOException {
+    protected GetServiceAccountCredentialsResponse mutateInstance(GetServiceAccountCredentialsResponse instance) throws IOException {
 
         switch (randomIntBetween(0, 2)) {
             case 0:
-                return new GetServiceAccountTokensResponse(randomValueOtherThan(instance.getPrincipal(),
+                return new GetServiceAccountCredentialsResponse(randomValueOtherThan(instance.getPrincipal(),
                     () -> randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
                     instance.getNodeName(), instance.getTokenInfos());
             case 1:
-                return new GetServiceAccountTokensResponse(instance.getPrincipal(),
+                return new GetServiceAccountCredentialsResponse(instance.getPrincipal(),
                     randomValueOtherThan(instance.getNodeName(), () -> randomAlphaOfLengthBetween(3, 8)),
                     instance.getTokenInfos());
             default:
@@ -80,22 +80,22 @@ public class GetServiceAccountTokensResponseTests extends AbstractWireSerializin
                             tokenInfos.add(randomTokenInfo());
                         }
                 }
-                return new GetServiceAccountTokensResponse(instance.getPrincipal(), instance.getNodeName(),
+                return new GetServiceAccountCredentialsResponse(instance.getPrincipal(), instance.getNodeName(),
                     tokenInfos.stream().collect(Collectors.toUnmodifiableList()));
         }
     }
 
     public void testEquals() {
-        final GetServiceAccountTokensResponse response = createTestInstance();
+        final GetServiceAccountCredentialsResponse response = createTestInstance();
         final ArrayList<TokenInfo> tokenInfos = new ArrayList<>(response.getTokenInfos());
         Collections.shuffle(tokenInfos, random());
-        assertThat(new GetServiceAccountTokensResponse(
+        assertThat(new GetServiceAccountCredentialsResponse(
             response.getPrincipal(), response.getNodeName(), tokenInfos.stream().collect(Collectors.toUnmodifiableList())),
             equalTo(response));
     }
 
     public void testToXContent() throws IOException {
-        final GetServiceAccountTokensResponse response = createTestInstance();
+        final GetServiceAccountCredentialsResponse response = createTestInstance();
         final Map<String, TokenInfo> nameToTokenInfos = response.getTokenInfos().stream()
             .collect(Collectors.toMap(TokenInfo::getName, Function.identity()));
         XContentBuilder builder = XContentFactory.jsonBuilder();

@@ -15,33 +15,33 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensAction;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensRequest;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
-public class TransportGetServiceAccountTokensAction
-    extends HandledTransportAction<GetServiceAccountTokensRequest, GetServiceAccountTokensResponse> {
+public class TransportGetServiceAccountCredentialsAction
+    extends HandledTransportAction<GetServiceAccountCredentialsRequest, GetServiceAccountCredentialsResponse> {
 
     private final ServiceAccountService serviceAccountService;
     private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
     private final String nodeName;
 
     @Inject
-    public TransportGetServiceAccountTokensAction(TransportService transportService, ActionFilters actionFilters,
-                                                  Settings settings,
-                                                  ServiceAccountService serviceAccountService,
-                                                  HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
-        super(GetServiceAccountTokensAction.NAME, transportService, actionFilters, GetServiceAccountTokensRequest::new);
+    public TransportGetServiceAccountCredentialsAction(TransportService transportService, ActionFilters actionFilters,
+                                                       Settings settings,
+                                                       ServiceAccountService serviceAccountService,
+                                                       HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
+        super(GetServiceAccountCredentialsAction.NAME, transportService, actionFilters, GetServiceAccountCredentialsRequest::new);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.serviceAccountService = serviceAccountService;
         this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     @Override
-    protected void doExecute(Task task, GetServiceAccountTokensRequest request, ActionListener<GetServiceAccountTokensResponse> listener) {
+    protected void doExecute(Task task, GetServiceAccountCredentialsRequest request, ActionListener<GetServiceAccountCredentialsResponse> listener) {
         httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "get service account tokens", () -> {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
             serviceAccountService.findTokensFor(accountId, nodeName, listener);

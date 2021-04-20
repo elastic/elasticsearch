@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.security.action.service;
 
 import org.elasticsearch.action.ActionType;
 
-public class GetServiceAccountTokensAction extends ActionType<GetServiceAccountTokensResponse> {
+public class GetServiceAccountCredentialsAction extends ActionType<GetServiceAccountCredentialsResponse> {
 
     public static final String NAME = "cluster:admin/xpack/security/service_account/token/get";
-    public static final GetServiceAccountTokensAction INSTANCE = new GetServiceAccountTokensAction();
+    public static final GetServiceAccountCredentialsAction INSTANCE = new GetServiceAccountCredentialsAction();
 
-    public GetServiceAccountTokensAction() {
-        super(NAME, GetServiceAccountTokensResponse::new);
+    public GetServiceAccountCredentialsAction() {
+        super(NAME, GetServiceAccountCredentialsResponse::new);
     }
 }

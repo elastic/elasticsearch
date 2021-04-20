@@ -51,6 +51,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -456,13 +457,26 @@ public class AzureBlobStore implements BlobStore {
     /**
      * Converts the provided input stream into a Flux of ByteBuffer. To avoid having large amounts of outstanding
      * memory this Flux reads the InputStream into ByteBuffers of {@code chunkSize} size.
-     * @param inputStream the InputStream to convert
+     * @param delegate the InputStream to convert
      * @param length the InputStream length
      * @param chunkSize the chunk size in bytes
      * @return a Flux of ByteBuffers
      */
-    private Flux<ByteBuffer> convertStreamToByteBuffer(InputStream inputStream, long length, int chunkSize) {
-        assert inputStream.markSupported() : "An InputStream with mark support was expected";
+    private Flux<ByteBuffer> convertStreamToByteBuffer(InputStream delegate, long length, int chunkSize) {
+        assert delegate.markSupported() : "An InputStream with mark support was expected";
+        // We need to introduce a read barrier in order to provide visibility for the underlying
+        // input stream state as the input stream can be read from different threads.
+        final InputStream inputStream = new FilterInputStream(delegate) {
+            @Override
+            public synchronized int read(byte[] b, int off, int len) throws IOException {
+                return super.read(b, off, len);
+            }
+
+            @Override
+            public synchronized int read() throws IOException {
+                return super.read();
+            }
+        };
         // We need to mark the InputStream as it's possible that we need to retry for the same chunk
         inputStream.mark(Integer.MAX_VALUE);
         return Flux.defer(() -> {

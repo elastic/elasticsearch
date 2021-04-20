@@ -138,15 +138,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
         ClientStats(StreamInput in) throws IOException {
             this.id = in.readInt();
             this.agent = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                this.localAddress = in.readOptionalString();
-                this.remoteAddress = in.readOptionalString();
-                this.lastUri = in.readOptionalString();
-            } else {
-                this.localAddress = in.readString();
-                this.remoteAddress = in.readString();
-                this.lastUri = in.readString();
-            }
+            this.localAddress = in.readOptionalString();
+            this.remoteAddress = in.readOptionalString();
+            this.lastUri = in.readOptionalString();
             this.forwardedFor = in.readOptionalString();
             this.opaqueId = in.readOptionalString();
             this.openedTimeMillis = in.readLong();
@@ -192,15 +186,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(id);
             out.writeOptionalString(agent);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalString(localAddress);
-                out.writeOptionalString(remoteAddress);
-                out.writeOptionalString(lastUri);
-            } else {
-                out.writeString(localAddress);
-                out.writeString(remoteAddress);
-                out.writeString(lastUri);
-            }
+            out.writeOptionalString(localAddress);
+            out.writeOptionalString(remoteAddress);
+            out.writeOptionalString(lastUri);
             out.writeOptionalString(forwardedFor);
             out.writeOptionalString(opaqueId);
             out.writeLong(openedTimeMillis);

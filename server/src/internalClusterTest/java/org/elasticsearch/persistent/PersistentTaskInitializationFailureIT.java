@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.empty;
 public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(FailingInitializationPersistentTasksPlugin.class);
+        return Collections.singletonList(FailingInitializationPersistentTasksPlugin.class);
     }
 
     public void testPersistentTasksThatFailDuringInitializationAreRemovedFromClusterState() throws Exception {
@@ -68,12 +69,12 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
                                                                            Client client,
                                                                            SettingsModule settingsModule,
                                                                            IndexNameExpressionResolver expressionResolver) {
-            return List.of(new FailingInitializationPersistentTaskExecutor());
+            return Collections.singletonList(new FailingInitializationPersistentTaskExecutor());
         }
 
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return List.of(
+            return Collections.singletonList(
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class,
                     FailingInitializationPersistentTaskExecutor.TASK_NAME,
                     FailingInitializationTaskParams::new

@@ -12,6 +12,7 @@ import org.apache.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -34,6 +35,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final AtomicBoolean upgraded = new AtomicBoolean();
+    private final ClusterStateListener listener = this::clusterChanged;
 
     public SearchableSnapshotIndexMetadataUpgrader(ClusterService clusterService, ThreadPool threadPool) {
         this.clusterService = clusterService;
@@ -41,7 +43,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
     }
 
     public void initialize() {
-        clusterService.addListener(this::clusterChanged);
+        clusterService.addListener(listener);
     }
 
     private void clusterChanged(ClusterChangedEvent event) {
@@ -69,12 +71,22 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                 }
 
                 @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    clusterService.removeListener(listener);
+                }
+
+                @Override
                 public void onFailure(String source, Exception e) {
-                    logger.warn("upgrading frozen indices to have frozen shard limit group failed", e);
+                    logger.warn(
+                        "upgrading frozen indices to have frozen shard limit group failed, will retry on the next cluster state update",
+                        e
+                    );
                     // let us try again later.
                     upgraded.set(false);
                 }
             });
+        } else {
+            clusterService.removeListener(listener);
         }
     }
 
@@ -84,7 +96,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
             .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
             .map(IndexMetadata::getSettings)
             .filter(SearchableSnapshotsConstants::isPartialSearchableSnapshotIndex)
-            .anyMatch(SearchableSnapshotIndexMetadataUpgrader::wrongShardLimitGroup);
+            .anyMatch(SearchableSnapshotIndexMetadataUpgrader::notFrozenShardLimitGroup);
     }
 
     static ClusterState upgradeIndices(ClusterState currentState) {
@@ -96,14 +108,14 @@ public class SearchableSnapshotIndexMetadataUpgrader {
             .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
             .filter(
                 imd -> SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(imd.getSettings())
-                    && wrongShardLimitGroup(imd.getSettings())
+                    && notFrozenShardLimitGroup(imd.getSettings())
             )
             .map(SearchableSnapshotIndexMetadataUpgrader::setShardLimitGroupFrozen)
             .forEach(imd -> builder.put(imd, true));
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 
-    private static boolean wrongShardLimitGroup(org.elasticsearch.common.settings.Settings settings) {
+    private static boolean notFrozenShardLimitGroup(org.elasticsearch.common.settings.Settings settings) {
         return ShardLimitValidator.FROZEN_GROUP.equals(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.get(settings)) == false;
     }
 

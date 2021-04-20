@@ -47,7 +47,7 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
             List<SnapshotFeatureInfo> featureInfos = randomList(0, () -> randomSnapshotFeatureInfo());
             snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), Collections.singletonList("ds"),
                 featureInfos, reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
-                SnapshotInfoTestUtils.randomUserMetadata(), System.currentTimeMillis()
+                SnapshotInfoTestUtils.randomUserMetadata(), System.currentTimeMillis(), Collections.emptyMap()
             ));
         }
         return new GetSnapshotsResponse(snapshots);

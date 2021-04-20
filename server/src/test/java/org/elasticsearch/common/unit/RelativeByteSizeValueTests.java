@@ -27,8 +27,7 @@ public class RelativeByteSizeValueTests extends ESTestCase {
     public void testRatio() {
         double value = (double) randomIntBetween(1, 100) / 100;
         RelativeByteSizeValue parsed = RelativeByteSizeValue.parseRelativeByteSizeValue(Double.toString(value), "test");
-        assertThat(parsed.getRatio().getAsRatio(),
-            equalTo(value));
+        assertThat(parsed.getRatio().getAsRatio(), equalTo(value));
         assertThat(parsed.isAbsolute(), is(false));
         assertThat(parsed.isNonZeroSize(), is(true));
     }

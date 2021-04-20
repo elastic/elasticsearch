@@ -11,8 +11,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
-import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
-import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
@@ -24,13 +22,14 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.junit.After;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
+public class TransformNoRemoteClusterClientNodeIT extends TransformSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest").build();
+        return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform").build();
     }
 
     @After
@@ -41,51 +40,31 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         waitForPendingTasks();
     }
 
-    public void testGetTransformStats() {
-        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request("_all");
+    public void testPreviewTransformWithRemoteIndex() {
+        String transformId = "transform-with-remote-index";
+        TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
+        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config);
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> client().execute(GetTransformStatsAction.INSTANCE, request).actionGet());
+                () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet());
         assertThat(
             e.getMessage(),
-            is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
-
-        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+            allOf(
+                containsString("No appropriate node to run on"),
+                containsString("transform requires a remote connection but remote is disabled")));
     }
 
-    public void testGetTransform() {
-        GetTransformAction.Request request = new GetTransformAction.Request("_all");
-        GetTransformAction.Response response = client().execute(GetTransformAction.INSTANCE, request).actionGet();
-        assertEquals(0, response.getTransformConfigurations().size());
-
-        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
-    }
-
-    public void testPreviewTransform() {
-        String transformId = "transform-1";
-        TransformConfig config = randomConfig(transformId);
-        PreviewTransformAction.Request request = new PreviewTransformAction.Request(config);
-        ElasticsearchStatusException e =
-            expectThrows(ElasticsearchStatusException.class, () -> client().execute(PreviewTransformAction.INSTANCE, request).actionGet());
-        assertThat(
-            e.getMessage(),
-            is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
-    }
-
-    public void testPutTransform_DeferValidation() {
-        String transformId = "transform-2";
-        TransformConfig config = randomConfig(transformId);
+    public void testPutTransformWithRemoteIndex_DeferValidation() {
+        String transformId = "transform-with-remote-index";
+        TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
         PutTransformAction.Request request = new PutTransformAction.Request(config, true);
-        AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
-        assertThat(response.isAcknowledged(), is(true));
-
-        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
+        client().execute(PutTransformAction.INSTANCE, request).actionGet();
     }
 
-    public void testPutTransform_NoDeferValidation() {
-        String transformId = "transform-2";
-        TransformConfig config = randomConfig(transformId);
+    public void testPutTransformWithRemoteIndex_NoDeferValidation() {
+        String transformId = "transform-with-remote-index";
+        TransformConfig config = randomConfig(transformId, "remote_cluster:my-index");
         PutTransformAction.Request request = new PutTransformAction.Request(config, false);
         ElasticsearchStatusException e =
             expectThrows(
@@ -93,38 +72,37 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
                 () -> client().execute(PutTransformAction.INSTANCE, request).actionGet());
         assertThat(
             e.getMessage(),
-            is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
+            allOf(
+                containsString("No appropriate node to run on"),
+                containsString("transform requires a remote connection but remote is disabled")));
     }
 
-    public void testUpdateTransform_DeferValidation() {
-        String transformId = "transform-3";
+    public void testUpdateTransformWithRemoteIndex_DeferValidation() {
+        String transformId = "transform-with-local-index";
         {
-            TransformConfig config = randomConfig(transformId);
+            TransformConfig config = randomConfig(transformId, "my-index");
             PutTransformAction.Request request = new PutTransformAction.Request(config, true);
             AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
             assertThat(response.isAcknowledged(), is(true));
         }
 
         TransformConfigUpdate update =
-            new TransformConfigUpdate(new SourceConfig("my-index", "my-index-2"), null, null, null, null, null, null);
+            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null);
         UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, true);
         client().execute(UpdateTransformAction.INSTANCE, request).actionGet();
-
-        assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
 
-    public void testUpdateTransform_NoDeferValidation() {
-        String transformId = "transform-3";
+    public void testUpdateTransformWithRemoteIndex_NoDeferValidation() {
+        String transformId = "transform-with-local-index";
         {
-            TransformConfig config = randomConfig(transformId);
+            TransformConfig config = randomConfig(transformId, "my-index");
             PutTransformAction.Request request = new PutTransformAction.Request(config, true);
             AcknowledgedResponse response = client().execute(PutTransformAction.INSTANCE, request).actionGet();
             assertThat(response.isAcknowledged(), is(true));
-            assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
         }
 
         TransformConfigUpdate update =
-            new TransformConfigUpdate(new SourceConfig("my-index", "my-index-2"), null, null, null, null, null, null);
+            new TransformConfigUpdate(new SourceConfig("remote_cluster:my-index"), null, null, null, null, null, null);
         UpdateTransformAction.Request request = new UpdateTransformAction.Request(update, transformId, false);
         ElasticsearchStatusException e =
             expectThrows(
@@ -132,13 +110,15 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
                 () -> client().execute(UpdateTransformAction.INSTANCE, request).actionGet());
         assertThat(
             e.getMessage(),
-            is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
+            allOf(
+                containsString("No appropriate node to run on"),
+                containsString("transform requires a remote connection but remote is disabled")));
     }
 
-    private static TransformConfig randomConfig(String transformId) {
+    private static TransformConfig randomConfig(String transformId, String sourceIndex) {
         return new TransformConfig.Builder()
             .setId(transformId)
-            .setSource(new SourceConfig("my-index"))
+            .setSource(new SourceConfig(sourceIndex))
             .setDest(new DestConfig("my-dest-index", null))
             .setPivotConfig(PivotConfigTests.randomPivotConfig())
             .build();

@@ -41,18 +41,24 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final String targetField;
     private final Set<Property> properties;
     private final UserAgentParser parser;
+    private final boolean extractDeviceType;
     private final boolean ignoreMissing;
     private final boolean useECS;
 
     public UserAgentProcessor(String tag, String description, String field, String targetField, UserAgentParser parser,
-                              Set<Property> properties, boolean ignoreMissing, boolean useECS) {
+                              Set<Property> properties, boolean extractDeviceType, boolean ignoreMissing, boolean useECS) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.parser = parser;
         this.properties = properties;
+        this.extractDeviceType = extractDeviceType;
         this.ignoreMissing = ignoreMissing;
         this.useECS = useECS;
+    }
+
+    boolean isExtractDeviceType() {
+        return extractDeviceType;
     }
 
     boolean isIgnoreMissing() {
@@ -69,7 +75,7 @@ public class UserAgentProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse user-agent.");
         }
 
-        Details uaClient = parser.parse(userAgent);
+        Details uaClient = parser.parse(userAgent, extractDeviceType);
 
         Map<String, Object> uaDetails = new HashMap<>();
 
@@ -126,22 +132,26 @@ public class UserAgentProcessor extends AbstractProcessor {
                                 uaDetails.put("os", osDetails);
                             }
                         }
-                        break;
-                    case DEVICE:
-                        Map<String, String> deviceDetails = new HashMap<>(1);
-                        if (uaClient.device != null && uaClient.device.name != null) {
-                            deviceDetails.put("name", uaClient.device.name);
+                    break;
+                case DEVICE:
+                    Map<String, String> deviceDetails = new HashMap<>(1);
+                    if (uaClient.device != null && uaClient.device.name != null) {
+                        deviceDetails.put("name", uaClient.device.name);
+                        if (extractDeviceType) {
                             deviceDetails.put("type", uaClient.deviceType);
-                        } else {
-                            deviceDetails.put("name", "Other");
+                        }
+                    } else {
+                        deviceDetails.put("name", "Other");
+                        if (extractDeviceType) {
                             if (uaClient.deviceType != null) {
                                 deviceDetails.put("type", uaClient.deviceType);
                             } else {
                                 deviceDetails.put("type", "Other");
                             }
                         }
-                        uaDetails.put("device", deviceDetails);
-                        break;
+                    }
+                    uaDetails.put("device", deviceDetails);
+                    break;
                 }
             }
         } else {
@@ -204,13 +214,17 @@ public class UserAgentProcessor extends AbstractProcessor {
                         Map<String, String> deviceDetails = new HashMap<>(1);
                         if (uaClient.device != null && uaClient.device.name != null) {
                             deviceDetails.put("name", uaClient.device.name);
-                            deviceDetails.put("type", uaClient.deviceType);
+                            if (extractDeviceType) {
+                                deviceDetails.put("type", uaClient.deviceType);
+                            }
                         } else {
                             deviceDetails.put("name", "Other");
-                            if (uaClient.deviceType != null) {
-                                deviceDetails.put("type", uaClient.deviceType);
-                            } else {
-                                deviceDetails.put("type", "Other");
+                            if (extractDeviceType) {
+                                if (uaClient.deviceType != null) {
+                                    deviceDetails.put("type", uaClient.deviceType);
+                                } else {
+                                    deviceDetails.put("type", "Other");
+                                }
                             }
                         }
                         uaDetails.put("device", deviceDetails);
@@ -294,6 +308,7 @@ public class UserAgentProcessor extends AbstractProcessor {
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
+            boolean extractDeviceType = readBooleanProperty(TYPE, processorTag, config, "extract_device_type", false);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean useECS = readBooleanProperty(TYPE, processorTag, config, "ecs", true);
 
@@ -323,7 +338,17 @@ public class UserAgentProcessor extends AbstractProcessor {
                     "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format");
             }
 
-            return new UserAgentProcessor(processorTag, description, field, targetField, parser, properties, ignoreMissing, useECS);
+            return new UserAgentProcessor(
+                processorTag,
+                description,
+                field,
+                targetField,
+                parser,
+                properties,
+                extractDeviceType,
+                ignoreMissing,
+                useECS
+            );
         }
     }
 

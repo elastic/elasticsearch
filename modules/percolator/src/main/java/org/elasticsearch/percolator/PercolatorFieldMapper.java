@@ -366,8 +366,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
                 out.setVersion(indexVersion);
                 out.writeNamedWriteable(queryBuilder);
-                byte[] queryBuilderAsBytes = stream.toByteArray();
-                qbField.parse(context.createExternalValueContext(queryBuilderAsBytes));
+                qbField.indexValue(context, stream.toByteArray());
             }
         }
     }

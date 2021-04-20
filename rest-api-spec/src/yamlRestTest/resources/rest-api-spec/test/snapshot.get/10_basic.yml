@@ -225,18 +225,18 @@ setup:
   - do:
       snapshot.create:
         repository: test_repo_get_1
-        snapshot: test_snapshot_with_metadata
+        snapshot: test_snapshot_with_index_details
         wait_for_completion: true
 
   - do:
       snapshot.get:
         repository: test_repo_get_1
-        snapshot: test_snapshot_with_metadata
+        snapshot: test_snapshot_with_index_details
         index_details: true
         human: true
 
   - is_true: responses.0.snapshots
-  - match: { responses.0.snapshots.0.snapshot: test_snapshot_with_metadata }
+  - match: { responses.0.snapshots.0.snapshot: test_snapshot_with_index_details }
   - match: { responses.0.snapshots.0.state: SUCCESS }
   - gt:  { responses.0.snapshots.0.index_details.test_index.shard_count: 0 }
   - gt:  { responses.0.snapshots.0.index_details.test_index.size_in_bytes: 0 }
@@ -246,4 +246,4 @@ setup:
   - do:
       snapshot.delete:
         repository: test_repo_get_1
-        snapshot: test_snapshot_with_metadata
+        snapshot: test_snapshot_with_index_details

@@ -8,13 +8,18 @@
 package org.elasticsearch.xpack.security.authc.service;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
@@ -97,6 +102,40 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(cache.count(), equalTo(0));
     }
 
+    public void testClearCache() {
+        final IndexServiceAccountsTokenStore indexStore = node().injector().getInstance(IndexServiceAccountsTokenStore.class);
+        final Cache<String, ListenableFuture<CachingServiceAccountsTokenStore.CachedResult>> cache = indexStore.getCache();
+        final SecureString secret1 = createApiServiceToken("api-token-1");
+        final SecureString secret2 = createApiServiceToken("api-token-2");
+        assertThat(cache.count(), equalTo(0));
+
+        authenticateWithApiToken("api-token-1", secret1);
+        assertThat(cache.count(), equalTo(1));
+        authenticateWithApiToken("api-token-2", secret2);
+        assertThat(cache.count(), equalTo(2));
+
+        final ClearSecurityCacheRequest clearSecurityCacheRequest1 = new ClearSecurityCacheRequest().cacheName("service");
+        if (randomBoolean()) {
+            clearSecurityCacheRequest1.keys("elastic/fleet-server/");
+        }
+        final PlainActionFuture<ClearSecurityCacheResponse> future1 = new PlainActionFuture<>();
+        client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest1, future1);
+        assertThat(future1.actionGet().failures().isEmpty(), is(true));
+        assertThat(cache.count(), equalTo(0));
+
+        authenticateWithApiToken("api-token-1", secret1);
+        assertThat(cache.count(), equalTo(1));
+        authenticateWithApiToken("api-token-2", secret2);
+        assertThat(cache.count(), equalTo(2));
+
+        final ClearSecurityCacheRequest clearSecurityCacheRequest2
+            = new ClearSecurityCacheRequest().cacheName("service").keys("elastic/fleet-server/api-token-" + randomFrom("1", "2"));
+        final PlainActionFuture<ClearSecurityCacheResponse> future2 = new PlainActionFuture<>();
+        client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest2, future2);
+        assertThat(future2.actionGet().failures().isEmpty(), is(true));
+        assertThat(cache.count(), equalTo(1));
+    }
+
     private Client createServiceAccountClient() {
         return createServiceAccountClient(BEARER_TOKEN);
     }
@@ -114,5 +153,22 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
             null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
             org.elasticsearch.common.collect.Map.of("_token_name", tokenName)
         );
+    }
+
+    private SecureString createApiServiceToken(String tokenName) {
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", tokenName);
+        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
+            client().execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest).actionGet();
+        assertThat(createServiceAccountTokenResponse.getName(), equalTo(tokenName));
+        return createServiceAccountTokenResponse.getValue();
+    }
+
+    private void authenticateWithApiToken(String tokenName, SecureString secret) {
+        final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet-server");
+        final AuthenticateResponse authenticateResponse =
+            createServiceAccountClient(secret.toString())
+                .execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
+        assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication(tokenName)));
     }
 }

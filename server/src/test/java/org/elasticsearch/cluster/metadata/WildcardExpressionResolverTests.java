@@ -20,15 +20,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SystemIndexAccessLevel.NONE;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class WildcardExpressionResolverTests extends ESTestCase {
+
+    private static final Predicate<String> NONE = name -> false;
+
     public void testConvertWildcardsJustIndicesTests() {
         Metadata.Builder mdBuilder = Metadata.builder()
                 .put(indexBuilder("testXXX"))

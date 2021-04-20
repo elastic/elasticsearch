@@ -59,7 +59,7 @@ a number of clients that have been contributed by the community for various lang
 [[coldfusion]]
 == ColdFusion (CFML)
 
-* https://www.forgebox.io/view/cbelasticsearch[cbElasticSearch]
+* https://www.forgebox.io/view/cbelasticsearch[cbElasticSearch]:
   Native ColdFusion (CFML) support for the ColdBox MVC Platform which provides you with a fluent search interface for Elasticsearch, in addition to a CacheBox Cache provider and a Logbox Appender for logging.
 
 [[erlang]]
@@ -87,7 +87,7 @@ Also see the {client}/go-api/current/index.html[official Elasticsearch Go client
 * https://github.com/olivere/elastic[elastic]:
   Elasticsearch client for Google Go.
 
-* https://github.com/softctrl/elk[elk]
+* https://github.com/softctrl/elk[elk]:
   Golang lib for Elasticsearch client.
 
 
@@ -148,9 +148,9 @@ Also see the {client}/php-api/current/index.html[official Elasticsearch PHP clie
 * https://github.com/ruflin/Elastica[Elastica]:
   PHP client.
 
-* https://github.com/nervetattoo/elasticsearch[elasticsearch] PHP client.
+* https://github.com/nervetattoo/elasticsearch[elasticsearch]: PHP client.
 
-* https://github.com/madewithlove/elasticsearcher[elasticsearcher] Agnostic lightweight package on top of the Elasticsearch PHP client. Its main goal is to allow for easier structuring of queries and indices in your application. It does not want to hide or replace functionality of the Elasticsearch PHP client.
+* https://github.com/madewithlove/elasticsearcher[elasticsearcher]: Agnostic lightweight package on top of the Elasticsearch PHP client. Its main goal is to allow for easier structuring of queries and indices in your application. It does not want to hide or replace functionality of the Elasticsearch PHP client.
 
 [[python]]
 == Python
@@ -215,7 +215,7 @@ Also see the {client}/rust-api/current/index.html[official Elasticsearch Rust cl
 [[smalltalk]]
 == Smalltalk
 
-* https://github.com/newapplesho/elasticsearch-smalltalk[elasticsearch-smalltalk] -
+* https://github.com/newapplesho/elasticsearch-smalltalk[elasticsearch-smalltalk]:
   Pharo Smalltalk client for Elasticsearch
 
 [[vertx]]

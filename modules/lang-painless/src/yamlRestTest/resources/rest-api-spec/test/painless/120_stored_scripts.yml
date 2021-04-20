@@ -16,6 +16,9 @@
 ---
 
 "Test runtime field contexts not allowed as stored script":
+  - skip:
+      version:     " - 8.99.99"
+      reason:      Script while the string_field script context gets renamed
 
   - do:
       catch: bad_request

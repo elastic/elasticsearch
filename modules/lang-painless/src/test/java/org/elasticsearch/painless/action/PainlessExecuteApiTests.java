@@ -252,7 +252,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['test_point'].value.lat.toString().substring(0, 5)); " +
                         "emit(doc['test_point'].value.lon.toString().substring(0, 5));", emptyMap()),
-                "string_field", contextSetup);
+                "keyword_field", contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
         assertArrayEquals((String[])response.getResult(), new String[] {"30.19", "40.19"});
 

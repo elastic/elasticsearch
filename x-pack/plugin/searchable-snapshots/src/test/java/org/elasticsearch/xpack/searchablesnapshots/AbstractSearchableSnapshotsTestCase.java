@@ -31,9 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -90,7 +88,6 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected ThreadPool threadPool;
     protected ClusterService clusterService;
     protected NodeEnvironment nodeEnvironment;
-    protected NodeEnvironment singlePathNodeEnvironment;
 
     @Before
     public void setUpTest() throws Exception {
@@ -104,13 +101,11 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders(Settings.EMPTY));
         clusterService = ClusterServiceUtils.createClusterService(threadPool, node, CLUSTER_SETTINGS);
         nodeEnvironment = newNodeEnvironment();
-        singlePathNodeEnvironment = newSinglePathNodeEnvironment();
     }
 
     @After
     public void tearDownTest() throws Exception {
         IOUtils.close(nodeEnvironment, clusterService);
-        IOUtils.close(singlePathNodeEnvironment, clusterService);
         assertTrue(ThreadPool.terminate(threadPool, 30L, TimeUnit.SECONDS));
     }
 
@@ -162,7 +157,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
-        return new FrozenCacheService(singlePathNodeEnvironment, cacheSettings.build(), threadPool);
+        return new FrozenCacheService(nodeEnvironment, cacheSettings.build(), threadPool);
     }
 
     /**
@@ -179,21 +174,13 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     protected FrozenCacheService createFrozenCacheService(final ByteSizeValue cacheSize, final ByteSizeValue cacheRangeSize) {
         return new FrozenCacheService(
-            singlePathNodeEnvironment,
+            nodeEnvironment,
             Settings.builder()
                 .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
             threadPool
         );
-    }
-
-    private NodeEnvironment newSinglePathNodeEnvironment() throws IOException {
-        Settings build = Settings.builder()
-            .put(buildEnvSettings(Settings.EMPTY))
-            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-            .build();
-        return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
     /**

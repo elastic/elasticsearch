@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -256,7 +256,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
 
         // Block the repository for the node holding the searchable snapshot shards
         // to delay its restore
-        blockDataNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+        blockNodeOnAnyFiles(repositoryName, dataNodeHoldingSearchableSnapshot);
 
         // Force the searchable snapshot to be allocated in a particular node
         Settings restoredIndexSettings = Settings.builder()

@@ -95,24 +95,33 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
         private final String index;
         private final boolean waitForAdvance;
+        private final boolean waitForIndex;
         private final long[] checkpoints;
         private final TimeValue timeout;
 
-        public Request(String index, boolean waitForAdvance, long[] checkpoints, TimeValue timeout) {
+        public Request(String index, boolean waitForAdvance, boolean waitForIndex, long[] checkpoints, TimeValue timeout) {
             this.index = index;
             this.waitForAdvance = waitForAdvance;
+            this.waitForIndex = waitForIndex;
             this.checkpoints = checkpoints;
             this.timeout = timeout;
         }
 
         @Override
         public ActionRequestValidationException validate() {
+            ActionRequestValidationException e = null;
+            if (waitForIndex && waitForAdvance == false) {
+                e = new ActionRequestValidationException();
+                e.addValidationError("If wait_for_index is set to true, wait_for_advance must also be set to true.");
+            }
             if (Arrays.stream(checkpoints).anyMatch(l -> l < -1)) {
-                ActionRequestValidationException e = new ActionRequestValidationException();
+                if (e == null) {
+                    e = new ActionRequestValidationException();
+                }
                 e.addValidationError("All checkpoints must be >= -1. Found: " + Arrays.toString(checkpoints));
                 return e;
             }
-            return null;
+            return e;
         }
 
         public TimeValue timeout() {
@@ -121,6 +130,10 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
         public boolean waitForAdvance() {
             return waitForAdvance;
+        }
+
+        public boolean waitForIndex() {
+            return waitForIndex;
         }
 
         public long[] checkpoints() {
@@ -166,7 +179,11 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             try {
                 index = resolver.concreteSingleIndex(state, request);
             } catch (IndexNotFoundException e) {
-                handleIndexNotReady(request, listener);
+                if (request.waitForIndex()) {
+                    handleIndexNotReady(request, listener);
+                } else {
+                    listener.onFailure(e);
+                }
                 return;
             }
 
@@ -176,7 +193,15 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             if (routingTable.allPrimaryShardsActive()) {
                 new CheckpointFetcher(client, request, listener, indexMetadata, request.timeout()).run();
             } else {
-                handleIndexNotReady(request, listener);
+                if (request.waitForIndex()) {
+                    handleIndexNotReady(request, listener);
+                } else {
+                    int active = routingTable.primaryShardsActive();
+                    int total = indexMetadata.getNumberOfShards();
+                    listener.onFailure(
+                        new UnavailableShardsException(null, "Primary shards were not active [shards={}, active={}]", total, active)
+                    );
+                }
             }
         }
 

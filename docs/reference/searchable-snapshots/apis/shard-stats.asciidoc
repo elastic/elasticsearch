@@ -3,7 +3,7 @@
 [[searchable-snapshots-api-stats]]
 === Searchable snapshot statistics API
 ++++
-<titleabbrev>Shard statistics</titleabbrev>
+<titleabbrev>Searchable snapshot statistics</titleabbrev>
 ++++
 
 experimental[]

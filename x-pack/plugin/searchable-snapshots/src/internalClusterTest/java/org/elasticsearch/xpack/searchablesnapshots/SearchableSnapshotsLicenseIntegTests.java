@@ -17,6 +17,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +35,7 @@ import org.elasticsearch.license.PostStartTrialAction;
 import org.elasticsearch.license.PostStartTrialRequest;
 import org.elasticsearch.license.PostStartTrialResponse;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -43,6 +45,8 @@ import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapsho
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
+import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodeCachesStatsResponse;
 import org.junit.Before;
 
 import java.util.concurrent.ExecutionException;
@@ -162,5 +166,23 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
         assertEquals(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL, resp.getStatus());
         // check if cluster goes green again after valid license has been put in place
         ensureGreen(indexName);
+    }
+
+    public void testCachesStatsRequiresLicense() throws Exception {
+        final ActionFuture<TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse> future = client().execute(
+            TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
+            new TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest(Strings.EMPTY_ARRAY)
+        );
+
+        final TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse response = future.get();
+        assertThat(response.failures().size(), equalTo(internalCluster().numDataNodes()));
+        assertTrue(response.hasFailures());
+
+        for (FailedNodeException nodeException : response.failures()) {
+            final Throwable cause = ExceptionsHelper.unwrap(nodeException.getCause(), ElasticsearchSecurityException.class);
+            assertThat(cause, notNullValue());
+            assertThat(cause, instanceOf(ElasticsearchSecurityException.class));
+            assertThat(cause.getMessage(), containsString("current license is non-compliant for [searchable-snapshots]"));
+        }
     }
 }

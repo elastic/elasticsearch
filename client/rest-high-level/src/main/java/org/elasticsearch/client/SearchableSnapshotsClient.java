@@ -10,6 +10,8 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.client.searchable_snapshots.CachesStatsRequest;
+import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 
 import java.io.IOException;
@@ -74,4 +76,47 @@ public class SearchableSnapshotsClient {
         );
     }
 
+    /**
+     * Executes the cache stats API, which provides statistics about searchable snapshot cache.
+     *
+     *  See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-api-cache-stats.html"> the
+     *  docs</a> for more information.
+     *
+     * @param request the request
+     * @param options the request options
+     * @return the response
+     * @throws IOException if an I/O exception occurred sending the request, or receiving or parsing the response
+     */
+    public CachesStatsResponse cacheStats(final CachesStatsRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            SearchableSnapshotsRequestConverters::cacheStats,
+            options,
+            CachesStatsResponse::fromXContent,
+            Collections.emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously executes the cache stats API, which provides statistics about searchable snapshot cache.
+     *
+     * @param request the request
+     * @param options the request options
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable cacheStatsAsync(
+        final CachesStatsRequest request,
+        final RequestOptions options,
+        final ActionListener<CachesStatsResponse> listener)
+    {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            SearchableSnapshotsRequestConverters::cacheStats,
+            options,
+            CachesStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
+    }
 }

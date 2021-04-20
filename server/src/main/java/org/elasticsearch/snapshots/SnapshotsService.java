@@ -64,6 +64,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -76,6 +77,7 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -117,8 +119,6 @@ import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
  */
 public class SnapshotsService extends AbstractLifecycleComponent implements ClusterStateApplier {
 
-    public static final Version CLONE_SNAPSHOT_VERSION = Version.V_7_10_0;
-
     public static final Version SHARD_GEN_IN_REPO_DATA_VERSION = Version.V_7_6_0;
 
     public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_7_9_0;
@@ -126,8 +126,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final Version UUIDS_IN_REPO_DATA_VERSION = Version.V_7_12_0;
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
-
-    public static final Version FEATURE_STATES_VERSION = Version.V_7_12_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
@@ -239,35 +237,25 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // node taking over and causing problems. Therefore, if we're in a mixed cluster with versions that don't know how to handle
         // feature states, skip all feature states logic, and if `feature_states` is explicitly configured, throw an exception.
         final List<String> requestedStates = Arrays.asList(request.featureStates());
-        final Version initialMinNodeVersion = clusterService.state().nodes().getMinNodeVersion();
         final Set<String> featureStatesSet;
-        if (initialMinNodeVersion.onOrAfter(FEATURE_STATES_VERSION)) {
-            if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
-                if (request.includeGlobalState() && requestedStates.isEmpty()) {
-                    // If we're including global state and feature states aren't specified, include all of them
-                    featureStatesSet = systemIndexDescriptorMap.keySet();
-                } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
-                    // If there's exactly one value and it's "none", include no states
-                    featureStatesSet = Collections.emptySet();
-                } else {
-                    // Otherwise, check for "none" then use the list of requested states
-                    if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
-                        listener.onFailure(new IllegalArgumentException("the feature_states value [" +
-                                SnapshotsService.NO_FEATURE_STATES_VALUE + "] indicates that no feature states should be snapshotted, " +
-                                "but other feature states were requested: " + requestedStates));
-                        return;
-                    }
-                    featureStatesSet = new HashSet<>(requestedStates);
-                    featureStatesSet.retainAll(systemIndexDescriptorMap.keySet());
-                }
-            } else {
+        if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
+            if (request.includeGlobalState() && requestedStates.isEmpty()) {
+                // If we're including global state and feature states aren't specified, include all of them
+                featureStatesSet = systemIndexDescriptorMap.keySet();
+            } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
+                // If there's exactly one value and it's "none", include no states
                 featureStatesSet = Collections.emptySet();
+            } else {
+                // Otherwise, check for "none" then use the list of requested states
+                if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
+                    listener.onFailure(new IllegalArgumentException("the feature_states value [" +
+                            SnapshotsService.NO_FEATURE_STATES_VALUE + "] indicates that no feature states should be snapshotted, " +
+                            "but other feature states were requested: " + requestedStates));
+                    return;
+                }
+                featureStatesSet = new HashSet<>(requestedStates);
+                featureStatesSet.retainAll(systemIndexDescriptorMap.keySet());
             }
-        } else if (requestedStates.isEmpty() == false) {
-            listener.onFailure(new SnapshotException(snapshot, "feature_states can only be used when all nodes in cluster are version ["
-                    + FEATURE_STATES_VERSION + "] or higher, but at least one node in this cluster is on version ["
-                    + initialMinNodeVersion + "]"));
-            return;
         } else {
             featureStatesSet = Collections.emptySet();
         }
@@ -621,9 +609,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String localNodeId = clusterService.localNode().getId();
         if (currentlyCloning.add(repoShardId)) {
             repository.cloneShardSnapshot(sourceSnapshot, targetSnapshot, repoShardId, shardStatusBefore.generation(), ActionListener.wrap(
-                    generation -> innerUpdateSnapshotState(
-                            new ShardSnapshotUpdate(target, repoShardId,
-                                    new ShardSnapshotStatus(localNodeId, ShardState.SUCCESS, generation)),
+                    shardSnapshotResult -> innerUpdateSnapshotState(
+                            new ShardSnapshotUpdate(target, repoShardId, ShardSnapshotStatus.success(localNodeId, shardSnapshotResult)),
                             ActionListener.runBefore(
                                     ActionListener.wrap(
                                             v -> logger.trace("Marked [{}] as successfully cloned from [{}] to [{}]", repoShardId,
@@ -1269,15 +1256,59 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
             metadataListener.whenComplete(meta -> {
                         final Metadata metaForSnapshot = metadataForSnapshot(entry, meta);
-                        final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshot.getSnapshotId(),
+
+                        final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = new HashMap<>(finalIndices.size());
+                        for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards()) {
+                            indexSnapshotDetails.compute(shardEntry.key.getIndexName(), (indexName, current) -> {
+                                if (current == SnapshotInfo.IndexSnapshotDetails.SKIPPED) {
+                                    // already found an unsuccessful shard in this index, skip this shard
+                                    return current;
+                                }
+
+                                final ShardSnapshotStatus shardSnapshotStatus = shardEntry.value;
+                                if (shardSnapshotStatus.state() != ShardState.SUCCESS) {
+                                    // first unsuccessful shard in this index found, record that this index should be skipped
+                                    return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
+                                }
+
+                                final ShardSnapshotResult result = shardSnapshotStatus.shardSnapshotResult();
+                                if (result == null) {
+                                    // detailed result not recorded, skip this index
+                                    return SnapshotInfo.IndexSnapshotDetails.SKIPPED;
+                                }
+
+                                if (current == null) {
+                                    return new SnapshotInfo.IndexSnapshotDetails(
+                                        1,
+                                        result.getSize(),
+                                        result.getSegmentCount()
+                                    );
+                                } else {
+                                    return new SnapshotInfo.IndexSnapshotDetails(
+                                        current.getShardCount() + 1,
+                                        new ByteSizeValue(current.getSize().getBytes() + result.getSize().getBytes()),
+                                        Math.max(current.getMaxSegmentsPerShard(), result.getSegmentCount())
+                                    );
+                                }
+                            });
+                        }
+                        indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
+
+                        final SnapshotInfo snapshotInfo = new SnapshotInfo(
+                                snapshot.getSnapshotId(),
                                 finalIndices,
                                 entry.partial() ? entry.dataStreams().stream()
                                         .filter(metaForSnapshot.dataStreams()::containsKey)
                                         .collect(Collectors.toList()) : entry.dataStreams(),
                                 entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
-                                failure, threadPool.absoluteTimeInMillis(),
-                                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(), shardFailures,
-                                entry.includeGlobalState(), entry.userMetadata(), entry.startTime());
+                                failure,
+                                threadPool.absoluteTimeInMillis(),
+                                entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
+                                shardFailures,
+                                entry.includeGlobalState(),
+                                entry.userMetadata(),
+                                entry.startTime(),
+                                indexSnapshotDetails);
                         repo.finalizeSnapshot(
                                 shardGenerations,
                                 repositoryData.getGenId(),

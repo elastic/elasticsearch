@@ -280,7 +280,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         for (InternalAggregation aggregation : aggregations) {
             InternalHistogram histogram = (InternalHistogram) aggregation;
             if (histogram.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent(histogram.buckets.iterator()));
+                pq.add(new IteratorAndCurrent<Bucket>(histogram.buckets.iterator()));
             }
         }
 
@@ -348,25 +348,45 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     }
 
     private void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
+        /*
+         * Make sure we have space for the empty buckets we're going to add by
+         * counting all of the empties we plan to add and firing them into
+         * consumeBucketsAndMaybeBreak.
+         *
+         * We don't count all of the buckets we plan to allocate and then report
+         * them all at once because we you can configure the histogram to create
+         * more buckets than there are hydrogen atoms in the universe. It'd take
+         * a while to count that high only to abort. So we report every couple
+         * thousand buckets. It's be simpler to report every single bucket we plan
+         * to allocate one at a time but that'd cause needless overhead on the
+         * circuit breakers. Counting a couple thousand buckets is plenty fast
+         * to fail this quickly in pathological cases and plenty large to keep
+         * the overhead minimal.
+         */
+        int reportEmptyEvery = 10000;
         class Counter implements DoubleConsumer {
             private int size = list.size();
 
             @Override
             public void accept(double key) {
                 size++;
-                if (size >= 10000) {
+                if (size >= reportEmptyEvery) {
                     reduceContext.consumeBucketsAndMaybeBreak(size);
                     size = 0;
                 }
             }
         }
         Counter counter = new Counter();
-        iterateEmptyBuckets(list, list.listIterator(), counter);
         reduceContext.consumeBucketsAndMaybeBreak(counter.size);
+        iterateEmptyBuckets(list, list.listIterator(), counter);
 
+        /*
+         * Now that we're sure we have space we allocate all the buckets.
+         */
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
-                Collections.singletonList(emptyBucketInfo.subAggregations),
-                reduceContext);
+            Collections.singletonList(emptyBucketInfo.subAggregations),
+            reduceContext
+        );
         ListIterator<Bucket> iter = list.listIterator();
         iterateEmptyBuckets(list, iter, key -> iter.add(new Bucket(key, 0, keyed, format, reducedEmptySubAggs)));
     }

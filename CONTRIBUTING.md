@@ -437,7 +437,7 @@ is to be helpful, not to turn writing code into a chore.
        has extensive [user documentation](./docs), and it is not the role
        of Javadoc to replace that.
         * If a method's performance is "unexpected" then it's good to call that
-           out in the javadoc. Especially if its usually fast but sometimes
+           out in the Javadoc. This is especially helpful if the method is usually fast but sometimes
            very slow (shakes fist at caching).
    12. Please still try to make class, method or variable names as
        descriptive and concise as possible, as opposed to relying solely on

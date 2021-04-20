@@ -20,10 +20,10 @@ Clear the cache of searchable snapshots.
 [[searchable-snapshots-api-clear-cache-prereqs]]
 ==== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the
-`manage` cluster privilege and the `manage` index privilege
-for any included indices to use this API.
-For more information, see <<security-privileges>>.
+If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API. You must also
+have the `manage` <<privileges-list-indices,index privileges>> for the target
+data stream or index.
 
 [[searchable-snapshots-api-clear-cache-path-params]]
 ==== {api-path-parms-title}

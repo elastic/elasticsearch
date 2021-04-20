@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -257,20 +256,6 @@ public class FrozenCacheService implements Releasable {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public FrozenCacheService(NodeEnvironment environment, Settings settings, ThreadPool threadPool) {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
-        RelativeByteSizeValue relativeCacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        if (relativeCacheSize.isNonZeroSize() && environment.nodeDataPaths().length != 1) {
-            // todo: throw instead in a follow-up.
-            logger.warn(
-                "cannot specify ["
-                    + SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-                    + "="
-                    + relativeCacheSize
-                    + "] "
-                    + "on this node with multiple data paths ["
-                    + Arrays.toString(environment.nodePaths())
-                    + "]"
-            );
-        }
         FsInfo.Path pathInfo;
         try {
             pathInfo = FsProbe.getFSInfo(environment.nodePaths()[0]);

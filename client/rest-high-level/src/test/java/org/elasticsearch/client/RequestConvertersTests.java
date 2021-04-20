@@ -495,6 +495,10 @@ public class RequestConvertersTests extends ESTestCase {
         } else {
             expectedParams.put("slices", "1");
         }
+        if (randomBoolean()) {
+            reindexRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
+        }
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
         setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
@@ -735,6 +739,11 @@ public class RequestConvertersTests extends ESTestCase {
             }
         }
 
+        if (randomBoolean()) {
+            indexRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
+        }
+
         XContentType xContentType = randomFrom(XContentType.values());
         int nbFields = randomIntBetween(0, 10);
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
@@ -865,6 +874,11 @@ public class RequestConvertersTests extends ESTestCase {
         }
         if (randomBoolean()) {
             randomizeFetchSourceContextParams(updateRequest::fetchSource, expectedParams);
+        }
+
+        if (randomBoolean()) {
+            updateRequest.setRequireAlias(true);
+            expectedParams.put("require_alias", "true");
         }
 
         Request request = RequestConverters.update(updateRequest);

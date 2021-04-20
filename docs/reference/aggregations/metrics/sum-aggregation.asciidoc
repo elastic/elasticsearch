@@ -45,6 +45,10 @@ Resulting in:
 
 The name of the aggregation (`hat_prices` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
+[[sum-aggregation-0-not-null]]
+[NOTE]
+When `sum` runs on an unmapped field or when the query filters out all matches, the `sum`'s value will be `0`. Not `null` as you might expect if you are used to relatoinal databases.
+
 ==== Script
 
 If you need to get the `sum` for something more complex than a single

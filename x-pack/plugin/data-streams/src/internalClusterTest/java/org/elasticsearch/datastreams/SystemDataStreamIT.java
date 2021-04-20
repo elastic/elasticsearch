@@ -38,6 +38,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
@@ -83,7 +84,8 @@ public class SystemDataStreamIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.transportClientPlugins());
+        plugins.add(XPackClientPlugin.class);
         plugins.add(DataStreamsPlugin.class);
         return plugins;
     }

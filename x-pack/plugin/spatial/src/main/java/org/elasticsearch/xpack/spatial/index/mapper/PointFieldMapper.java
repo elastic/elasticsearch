@@ -12,11 +12,14 @@ import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -36,6 +39,8 @@ import java.util.Map;
  */
 public class PointFieldMapper extends AbstractPointGeometryFieldMapper<ParsedCartesianPoint> {
     public static final String CONTENT_TYPE = "point";
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
 
     public static class CartesianPointParser extends PointParser<ParsedCartesianPoint> {
 
@@ -92,6 +97,13 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<ParsedCar
 
         @Override
         public FieldMapper build(ContentPath contentPath) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.deprecate(
+                    DeprecationCategory.MAPPINGS,
+                    "point_multifields",
+                    "Adding multifields to point mappers has no effect and will be forbidden in future"
+                );
+            }
             CartesianPointParser parser
                 = new CartesianPointParser(name, nullValue.get(), ignoreZValue.get().value(), ignoreMalformed.get().value());
             PointFieldType ft

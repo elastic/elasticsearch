@@ -116,21 +116,24 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
         }
     }
 
+    /**
+     * Invalidate cache entries with keys matching to the specified qualified token names.
+     * @param qualifiedTokenNames The list of qualified toke names. If a name has trailing
+     *                            slash, it is treated as a prefix wildcard, i.e. all keys
+     *                            with this prefix are considered matching.
+     */
     @Override
     public final void invalidate(Collection<String> qualifiedTokenNames) {
         if (cache != null) {
             logger.trace("invalidating cache for service token [{}]",
                 Strings.collectionToCommaDelimitedString(qualifiedTokenNames));
-            if (qualifiedTokenNames.size() == 1) {
-                final String qualifiedTokenName = qualifiedTokenNames.iterator().next();
+            for (String qualifiedTokenName : qualifiedTokenNames) {
                 if (qualifiedTokenName.endsWith("/")) {
                     // Wildcard case of invalidating all tokens for a service account, e.g. "elastic/fleet-server/"
                     cacheIteratorHelper.removeKeysIf(key -> key.startsWith(qualifiedTokenName));
                 } else {
                     cache.invalidate(qualifiedTokenName);
                 }
-            } else {
-                qualifiedTokenNames.forEach(cache::invalidate);
             }
         }
     }

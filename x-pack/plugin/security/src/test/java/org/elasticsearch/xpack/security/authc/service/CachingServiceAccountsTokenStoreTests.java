@@ -184,7 +184,8 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
 
         final ArrayList<ServiceAccountToken> tokens = new ArrayList<>();
         IntStream.range(0, randomIntBetween(3, 8)).forEach(i -> {
-            final ServiceAccountToken token = ServiceAccountToken.newToken(accountId, ValidationTests.randomTokenName());
+            final ServiceAccountToken token = ServiceAccountToken.newToken(accountId,
+                randomValueOtherThanMany(n -> n.length() > 248, ValidationTests::randomTokenName));
             tokens.add(token);
             store.authenticate(token, mock(ActionListener.class));
 
@@ -211,11 +212,15 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
         final List<String> tokenIdsToInvalidate = randomSubsetOf(nInvalidation, tokens).stream()
             .map(ServiceAccountToken::getQualifiedName)
             .collect(Collectors.toList());
-        if (randomBoolean()) {
-            // The prefix will not be treated as a wildcard if it is not the only element of the collection
+        final boolean hasPrefixWildcard = randomBoolean();
+        if (hasPrefixWildcard) {
             tokenIdsToInvalidate.add(accountId.asPrincipal() + "/");
         }
         store.invalidate(tokenIdsToInvalidate);
-        assertThat(store.getCache().count(), equalTo(tokens.size() - nInvalidation));
+        if (hasPrefixWildcard) {
+            assertThat(store.getCache().count(), equalTo(0));
+        } else {
+            assertThat(store.getCache().count(), equalTo(tokens.size() - nInvalidation));
+        }
     }
 }

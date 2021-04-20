@@ -14,11 +14,13 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -49,7 +51,14 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
             // This is the wildcard case for tokenNames
             req.keys(namespace + "/" + service + "/");
         } else {
-            req.keys(Arrays.stream(tokenNames).map(name -> namespace + "/" + service + "/" + name).toArray(String[]::new));
+            final Set<String> qualifiedTokenNames = new HashSet<>(tokenNames.length);
+            for (String name: tokenNames) {
+                if (false == Validation.isValidServiceAccountTokenName(name)) {
+                    throw new IllegalArgumentException(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE + " got: [" + name + "]");
+                }
+                qualifiedTokenNames.add(namespace + "/" + service + "/" + name);
+            }
+            req.keys(qualifiedTokenNames.toArray(String[]::new));
         }
         return channel -> client.execute(ClearSecurityCacheAction.INSTANCE, req, new RestActions.NodesResponseRestListener<>(channel));
     }

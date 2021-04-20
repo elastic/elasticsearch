@@ -12,7 +12,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/service/{namespace}/{service}/credential/{name}/_clear_cache",
+          "path":"/_security/service/{namespace}/{service}/credential/token/{name}/_clear_cache",
           "methods":[
             "POST"
           ],

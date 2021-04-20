@@ -92,10 +92,9 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
     }
 
     private Settings partial_7_13plus() {
-        return shardLimitGroupFrozen(searchableSnapshotSettings(
-            VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT),
-            true
-        ));
+        return shardLimitGroupFrozen(
+            searchableSnapshotSettings(VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT), true)
+        );
     }
 
     private Settings full() {

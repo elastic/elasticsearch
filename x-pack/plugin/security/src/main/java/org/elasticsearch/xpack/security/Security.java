@@ -267,6 +267,7 @@ import org.elasticsearch.xpack.security.rest.action.saml.RestSamlInvalidateSessi
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlLogoutAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlPrepareAuthenticationAction;
 import org.elasticsearch.xpack.security.rest.action.saml.RestSamlSpMetadataAction;
+import org.elasticsearch.xpack.security.rest.action.service.RestClearServiceAccountTokenStoreCacheAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestCreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestDeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.security.rest.action.service.RestGetServiceAccountAction;
@@ -524,6 +525,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityIndex.get().addIndexStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
+        cacheInvalidatorRegistry.registerAlias("service",
+            org.elasticsearch.common.collect.Set.of("file_service_account_token", "index_service_account_token"));
         components.add(cacheInvalidatorRegistry);
         securityIndex.get().addIndexStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
 
@@ -554,7 +557,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         components.add(indexServiceAccountsTokenStore);
 
         final FileServiceAccountsTokenStore fileServiceAccountsTokenStore =
-            new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool);
+            new FileServiceAccountsTokenStore(environment, resourceWatcherService, threadPool, cacheInvalidatorRegistry);
 
         final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountsTokenStore(
             org.elasticsearch.common.collect.List.of(fileServiceAccountsTokenStore, indexServiceAccountsTokenStore),
@@ -619,6 +622,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, auditTrailService, getLicenseState(),
             threadPool, securityContext.get(), destructiveOperations));
+
+        cacheInvalidatorRegistry.validate();
 
         return components;
     }
@@ -948,6 +953,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestClearRolesCacheAction(settings, getLicenseState()),
                 new RestClearPrivilegesCacheAction(settings, getLicenseState()),
                 new RestClearApiKeyCacheAction(settings, getLicenseState()),
+                new RestClearServiceAccountTokenStoreCacheAction(settings, getLicenseState()),
                 new RestGetUsersAction(settings, getLicenseState()),
                 new RestPutUserAction(settings, getLicenseState()),
                 new RestDeleteUserAction(settings, getLicenseState()),

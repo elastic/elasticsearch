@@ -1,5 +1,5 @@
 [role="xpack"]
-[[security-api-get-service-account-tokens]]
+[[security-api-get-service-tokens]]
 === Get service account tokens information API
 
 beta::[]
@@ -10,17 +10,17 @@ beta::[]
 
 Retrieves information of all service tokens for a service account.
 
-[[security-api-get-service-account-tokens-request]]
+[[security-api-get-service-tokens-request]]
 ==== {api-request-title}
 
 `GET /_security/service/<namespace>/<service>/credential`
 
-[[security-api-get-service-account-tokens-prereqs]]
+[[security-api-get-service-tokens-prereqs]]
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_service_account` cluster privilege.
 
-[[security-api-get-service-account-tokens-desc]]
+[[security-api-get-service-tokens-desc]]
 ==== {api-description-title}
 
 When you are running in production mode, the service account feature requires TLS on the HTTP interface.
@@ -28,14 +28,14 @@ See <<encrypt-http-communication>>. A runtime check prevents you from invoking a
 related APIs or authenticating with a service account token unless TLS is enabled on the HTTP interface.
 
 The information for the service account tokens created by
-<<security-api-create-service-account-token>> or
+<<security-api-create-service-token>> or
 <<service-tokens-command,elasticsearch-service-tokens>> CLI tool
 can be retrieved using this API.
 
 NOTE: For tokens backed the `service_tokens` file, the API only returns those
 tokens defined in the file local to the coordinating node.
 
-[[security-api-get-service-account-tokens-path-params]]
+[[security-api-get-service-tokens-path-params]]
 ==== {api-path-parms-title}
 
 `namespace`::
@@ -44,7 +44,7 @@ tokens defined in the file local to the coordinating node.
 `service`::
 (Required, string) An identifier for the service name.
 
-[[security-api-get-service-account-tokens-example]]
+[[security-api-get-service-tokens-example]]
 ==== {api-examples-title}
 
 If you create a service account token as follows:

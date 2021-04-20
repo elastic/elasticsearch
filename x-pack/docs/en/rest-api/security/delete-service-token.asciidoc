@@ -1,26 +1,26 @@
 [role="xpack"]
-[[security-api-delete-service-account-tokens]]
+[[security-api-delete-service-token]]
 === Delete service account tokens API
 
 beta::[]
 
 ++++
-<titleabbrev>Delete service account tokens</titleabbrev>
+<titleabbrev>Delete service account token</titleabbrev>
 ++++
 
 Deletes service account tokens
 
-[[security-api-delete-service-account-tokens-request]]
+[[security-api-delete-service-token-request]]
 ==== {api-request-title}
 
 `DELETE /_security/service/<namespace>/<service>/credential/token/<name>`
 
-[[security-api-delete-service-account-tokens-prereqs]]
+[[security-api-delete-service-token-prereqs]]
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_service_account` cluster privilege.
 
-[[security-api-delete-service-account-tokens-desc]]
+[[security-api-delete-service-token-desc]]
 ==== {api-description-title}
 
 When you are running in production mode, the service account feature requires TLS on the HTTP interface.
@@ -32,7 +32,7 @@ For more information about service accounts, see <<service-accounts>>.
 The response of the API returns the information about whether the service account token is found and deleted
 or not found.
 
-[[security-api-delete-service-account-tokens-path-params]]
+[[security-api-delete-service-token-path-params]]
 ==== {api-path-parms-title}
 
 `namespace`::
@@ -42,9 +42,9 @@ or not found.
 (Required, string) An identifier for the service name.
 
 `name`::
-(Optional, string) An identifier for the token name.
+(Required, string) An identifier for the token name.
 
-[[security-api-delete-service-account-tokens-example]]
+[[security-api-delete-service-token-example]]
 ==== {api-examples-title}
 
 The following example deletes the service account `elastic/fleet-server/token1`:

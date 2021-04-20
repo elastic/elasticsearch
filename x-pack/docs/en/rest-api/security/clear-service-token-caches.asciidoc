@@ -1,5 +1,5 @@
 [role="xpack"]
-[[security-api-clear-service-account-token-caches]]
+[[security-api-clear-service-token-caches]]
 === Clear service account token caches API
 
 beta::[]
@@ -17,24 +17,24 @@ automatically cleared on state changes of the security index
 and the cache for `service_tokens` file backed tokens is
 automatically cleared on file changes.
 
-[[security-api-clear-service-account-token-caches-request]]
+[[security-api-clear-service-token-caches-request]]
 ==== {api-request-title}
 
 `POST /_security/service/{namespace}/{service}/credential/{name}/_clear_cache`
 
-[[security-api-clear-service-account-token-caches-prereqs]]
+[[security-api-clear-service-token-caches-prereqs]]
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_security` cluster
 privilege.
 
-[[security-api-clear-service-account-token-caches-desc]]
+[[security-api-clear-service-token-caches-desc]]
 ==== {api-description-title}
 
-For more information about service account tokens, see <<security-api-create-service-account-token>>,
-<<security-api-get-service-account-tokens>>, and <<security-api-delete-service-account-tokens>>.
+For more information about service account tokens, see <<security-api-create-service-token>>,
+<<security-api-get-service-tokens>>, and <<security-api-delete-service-token>>.
 
-[[security-api-clear-service-account-token-caches-path-params]]
+[[security-api-clear-service-token-caches-path-params]]
 ==== {api-path-parms-title}
 
 `namespace`::
@@ -47,7 +47,7 @@ For more information about service account tokens, see <<security-api-create-ser
 (Required, string) Comma-separated list of token names to evict from the service account token caches.
 To evict all tokens belong to a service account, use `*`. Does not support other wildcard patterns.
 
-[[security-api-clear-service-account-token-caches-example]]
+[[security-api-clear-service-token-caches-example]]
 ==== {api-examples-title}
 
 The clear service account token caches API evicts entries from the service account token cache.

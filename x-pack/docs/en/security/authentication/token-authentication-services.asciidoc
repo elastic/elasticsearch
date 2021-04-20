@@ -16,7 +16,7 @@ beta::["The service accounts feature is in beta and subject to change. The desig
 
 _service-accounts_::
 The <<service-accounts,service accounts>> feature uses either the
-<<security-api-create-service-account-token,create service account token API>>
+<<security-api-create-service-token,create service account token API>>
 or the <<service-tokens-command,elasticsearch-service-tokens>> CLI tool
 to generate service account tokens.
 You can use it by sending a request with an `Authorization`

@@ -147,7 +147,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
                 builder.regex(randomAlphaOfLength(10), RegexOptionsTests.randomRegexOptions());
                 break;
             case 5:
-                builder.skipDuplicates(!builder.skipDuplicates);
+                builder.skipDuplicates(builder.skipDuplicates == false);
                 break;
             default:
                 throw new IllegalStateException("should not through");

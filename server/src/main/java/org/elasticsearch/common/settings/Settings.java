@@ -1112,7 +1112,7 @@ public final class Settings implements ToXContentFragment {
 
                 @Override
                 public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
-                    return !placeholderName.startsWith("prompt.");
+                    return placeholderName.startsWith("prompt.") == false;
                 }
             };
 

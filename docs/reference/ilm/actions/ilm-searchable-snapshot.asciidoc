@@ -2,9 +2,7 @@
 [[ilm-searchable-snapshot]]
 === Searchable snapshot
 
-beta::[]
-
-Phases allowed: hot, cold.
+Phases allowed: hot, cold, frozen.
 
 Takes a snapshot of the managed index in the configured repository
 and mounts it as a searchable snapshot.
@@ -17,7 +15,7 @@ will reject the policy.
 
 IMPORTANT: If the `searchable_snapshot` action is used in the `hot` phase the
 subsequent phases cannot define any of the `shrink`, `forcemerge`, `freeze` or
-`searchable_snapshot` (also available in the cold phase) actions.
+`searchable_snapshot` (also available in the cold and frozen phases) actions.
 
 [NOTE]
 This action cannot be performed on a data stream's write index. Attempts to do
@@ -38,7 +36,8 @@ To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete 
 `snapshot_repository`::
 (Required, string)
 Specifies where to store the snapshot. 
-See <<snapshots-register-repository>> for more information.
+See <<snapshots-register-repository>> for more information. In non-frozen phases the snapshot will
+be mounted as a `full_copy`, and in frozen phases mounted with the `shared_cache` storage type.
 
 `force_merge_index`::
 (Optional, Boolean)

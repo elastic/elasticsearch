@@ -23,12 +23,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
+import static org.elasticsearch.packaging.util.DockerRun.getImageName;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
-import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
@@ -81,6 +82,7 @@ public class Docker {
      * successfully.
      *
      * @param distribution details about the docker image being tested
+     * @return an installation that models the running container
      */
     public static Installation runContainer(Distribution distribution) {
         return runContainer(distribution, DockerRun.builder());
@@ -92,6 +94,7 @@ public class Docker {
      *
      * @param distribution details about the docker image being tested
      * @param builder the command to run
+     * @return an installation that models the running container
      */
     public static Installation runContainer(Distribution distribution, DockerRun builder) {
         executeDockerRun(distribution, builder);
@@ -289,6 +292,8 @@ public class Docker {
 
     /**
      * Checks whether a path exists in the Docker container.
+     * @param path the path that ought to exist
+     * @return whether the path exists
      */
     public static boolean existsInContainer(Path path) {
         return existsInContainer(path.toString());
@@ -296,6 +301,8 @@ public class Docker {
 
     /**
      * Checks whether a path exists in the Docker container.
+     * @param path the path that ought to exist
+     * @return whether the path exists
      */
     public static boolean existsInContainer(String path) {
         logger.debug("Checking whether file " + path + " exists in container");
@@ -394,6 +401,8 @@ public class Docker {
 
     /**
      * Checks that the specified path's permissions and ownership match those specified.
+     * @param path the path to check
+     * @param expectedPermissions the unix permissions that the path ought to have
      */
     public static void assertPermissionsAndOwnership(Path path, Set<PosixFilePermission> expectedPermissions) {
         logger.debug("Checking permissions and ownership of [" + path + "]");
@@ -415,6 +424,7 @@ public class Docker {
 
     /**
      * Waits for up to 20 seconds for a path to exist in the container.
+     * @param path the path to await
      */
     public static void waitForPathToExist(Path path) throws InterruptedException {
         int attempt = 0;
@@ -432,12 +442,12 @@ public class Docker {
 
     /**
      * Perform a variety of checks on an installation. If the current distribution is not OSS, additional checks are carried out.
+     * @param installation the installation to verify
+     * @param distribution the distribution to verify
      */
     public static void verifyContainerInstallation(Installation installation, Distribution distribution) {
         verifyOssInstallation(installation);
-        if (distribution.flavor == Distribution.Flavor.DEFAULT) {
-            verifyDefaultInstallation(installation);
-        }
+        verifyDefaultInstallation(installation);
     }
 
     private static void verifyOssInstallation(Installation es) {
@@ -451,8 +461,6 @@ public class Docker {
         Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
 
         Stream.of(es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
-
-        assertPermissionsAndOwnership(es.config("elasticsearch.keystore"), p660);
 
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
@@ -479,7 +487,7 @@ public class Docker {
             .forEach(
                 cliBinary -> assertTrue(
                     cliBinary + " ought to be available.",
-                    dockerShell.runIgnoreExitCode("hash " + cliBinary).isSuccess()
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
                 )
             );
     }
@@ -494,6 +502,7 @@ public class Docker {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
@@ -538,22 +547,33 @@ public class Docker {
         return containerId;
     }
 
+    /**
+     * Performs an HTTP GET to <code>http://localhost:9200/</code> with the supplied path.
+     * @param path the path to fetch, which must start with <code>/</code>
+     * @return the parsed response
+     */
     public static JsonNode getJson(String path) throws Exception {
-        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200/" + path));
+        path = Objects.requireNonNull(path).trim();
+        if (path.isEmpty()) {
+            throw new IllegalArgumentException("path must be supplied");
+        }
+        if (path.startsWith("/") == false) {
+            throw new IllegalArgumentException("path must start with /");
+        }
+        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path));
 
         ObjectMapper mapper = new ObjectMapper();
 
         return mapper.readTree(pluginsResponse);
     }
 
+    /**
+     * Fetches all the labels for a Docker image
+     * @param distribution required to derive the image name
+     * @return a mapping from label name to value
+     */
     public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
-        // The format below extracts the .Config.Labels value, and prints it as json. Without the json
-        // modifier, a stringified Go map is printed instead, which isn't helpful.
-        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + getImageName(distribution)).stdout;
-
-        ObjectMapper mapper = new ObjectMapper();
-
-        final JsonNode jsonNode = mapper.readTree(labelsJson);
+        final JsonNode jsonNode = getImageInspectionJson(distribution).at("/Config/Labels");
 
         Map<String, String> labels = new HashMap<>();
 
@@ -562,11 +582,34 @@ public class Docker {
         return labels;
     }
 
-    public static Shell.Result getContainerLogs() {
-        return sh.run("docker logs " + containerId);
+    /**
+     * Fetches the <code>HEALTHCHECK</code> command for a Docker image
+     * @param distribution required to derive the image name
+     * @return a list of values from `docker inspect`, or null if there is no healthcheck defined
+     */
+    public static List<String> getImageHealthcheck(Distribution distribution) throws Exception {
+        final JsonNode jsonNode = getImageInspectionJson(distribution).at("/Config/Healthcheck/Test");
+
+        if (jsonNode.isMissingNode()) {
+            return null;
+        }
+
+        List<String> healthcheck = new ArrayList<>(jsonNode.size());
+
+        for (JsonNode node : jsonNode) {
+            healthcheck.add(node.textValue());
+        }
+
+        return healthcheck;
     }
 
-    public static String getImageName(Distribution distribution) {
-        return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
+    private static JsonNode getImageInspectionJson(Distribution distribution) throws Exception {
+        String labelsJson = sh.run("docker inspect " + getImageName(distribution)).stdout;
+        ObjectMapper mapper = new ObjectMapper();
+        return mapper.readTree(labelsJson).get(0);
+    }
+
+    public static Shell.Result getContainerLogs() {
+        return sh.run("docker logs " + containerId);
     }
 }

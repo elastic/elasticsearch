@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +25,7 @@ import static org.elasticsearch.test.TestMatchers.matchesPattern;
 
 public class TransformCheckpointTests extends AbstractSerializingTransformTestCase<TransformCheckpoint> {
 
-    public static TransformCheckpoint randomTransformCheckpoints() {
+    public static TransformCheckpoint randomTransformCheckpoint() {
         return new TransformCheckpoint(
             randomAlphaOfLengthBetween(1, 10),
             randomNonNegativeLong(),
@@ -41,7 +42,7 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
 
     @Override
     protected TransformCheckpoint createTestInstance() {
-        return randomTransformCheckpoints();
+        return randomTransformCheckpoint();
     }
 
     @Override
@@ -50,7 +51,7 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
     }
 
     public void testXContentForInternalStorage() throws IOException {
-        TransformCheckpoint transformCheckpoints = randomTransformCheckpoints();
+        TransformCheckpoint transformCheckpoints = randomTransformCheckpoint();
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = transformCheckpoints.toXContent(xContentBuilder, getToXContentParams());

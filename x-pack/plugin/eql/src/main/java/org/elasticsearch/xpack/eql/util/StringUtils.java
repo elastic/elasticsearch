@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.eql.util;
 
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 public final class StringUtils {
 
@@ -28,5 +31,12 @@ public final class StringUtils {
             .replace("?", "_");
 
         return new LikePattern(likeString, escape);
+    }
+
+    public static LikePattern toLikePattern(Expression expression) {
+        if (expression.foldable() == false || DataTypes.isString(expression.dataType()) == false) {
+            throw new EqlIllegalArgumentException("Invalid like pattern received {}", expression);
+        }
+        return toLikePattern(expression.fold().toString());
     }
 }

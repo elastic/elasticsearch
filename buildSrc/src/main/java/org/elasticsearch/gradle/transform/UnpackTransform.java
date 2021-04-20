@@ -16,6 +16,7 @@ import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -25,6 +26,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.function.Function;
 
 public interface UnpackTransform extends TransformAction<UnpackTransform.Parameters> {
@@ -35,6 +37,26 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         String getTrimmedPrefixPattern();
 
         void setTrimmedPrefixPattern(String pattern);
+
+        @Input
+        @Optional
+        List<String> getKeepStructureFor();
+
+        /**
+         * Mark output as handled like a filetree meaning that
+         * each file will be part of the output and not the singular ouptut directory.
+         * */
+        @Input
+        boolean getAsFiletreeOutput();
+
+        void setAsFiletreeOutput(boolean asFiletreeOutput);
+
+        @Internal
+        File getTargetDirectory();
+
+        void setTargetDirectory(File targetDirectory);
+
+        void setKeepStructureFor(List<String> pattern);
     }
 
     @PathSensitive(PathSensitivity.NAME_ONLY)
@@ -48,17 +70,18 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         try {
             Logging.getLogger(UnpackTransform.class)
                 .info("Unpacking " + archiveFile.getName() + " using " + getClass().getSimpleName() + ".");
-            unpack(archiveFile, extractedDir);
+            unpack(archiveFile, extractedDir, outputs, getParameters().getAsFiletreeOutput());
         } catch (IOException e) {
             throw UncheckedException.throwAsUncheckedException(e);
         }
     }
 
-    void unpack(File archiveFile, File targetDir) throws IOException;
+    void unpack(File archiveFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException;
 
     default Function<String, Path> pathResolver() {
+        List<String> keepPatterns = getParameters().getKeepStructureFor();
         String trimmedPrefixPattern = getParameters().getTrimmedPrefixPattern();
-        return trimmedPrefixPattern != null ? (i) -> trimArchiveExtractPath(trimmedPrefixPattern, i) : (i) -> Path.of(i);
+        return trimmedPrefixPattern != null ? (i) -> trimArchiveExtractPath(keepPatterns, trimmedPrefixPattern, i) : (i) -> Path.of(i);
     }
 
     /*
@@ -75,9 +98,22 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
      *   ./jdk-12.0.1/Contents
      *
      * so we account for this and search the path components until we find the jdk-12.0.1, and strip the leading components.
+     *
+     * Azul jdk linux arm distribution is packaged differently and missed the in between layer.
+     * For now we just resolve this by having a keep pattern for distributions that root folder name
+     * matches certain pattern giving us a hint on which distro we're dealing with.
      */
-    static Path trimArchiveExtractPath(String ignoredPattern, String relativePath) {
+    static Path trimArchiveExtractPath(List<String> keepPatterns, String ignoredPattern, String relativePath) {
         final Path entryName = Paths.get(relativePath);
+        // Do we want to keep the origin packaging just without the root folder?
+        if (keepPatterns != null && keepPatterns.stream().anyMatch(keepPattern -> entryName.getName(0).toString().matches(keepPattern))) {
+            if (entryName.getNameCount() == 1) {
+                return null;
+            } else {
+                return entryName.subpath(1, entryName.getNameCount());
+            }
+        }
+
         int index = 0;
         for (; index < entryName.getNameCount(); index++) {
             if (entryName.getName(index).toString().matches(ignoredPattern)) {

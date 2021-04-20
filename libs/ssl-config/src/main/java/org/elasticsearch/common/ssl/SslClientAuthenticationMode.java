@@ -29,8 +29,8 @@ public enum SslClientAuthenticationMode {
 
         public void configure(SSLParameters sslParameters) {
             // nothing to do here
-            assert !sslParameters.getWantClientAuth();
-            assert !sslParameters.getNeedClientAuth();
+            assert sslParameters.getWantClientAuth() == false;
+            assert sslParameters.getNeedClientAuth() == false;
         }
     },
     /**

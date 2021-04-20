@@ -109,7 +109,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             }
             break;
         case 7:
-            builder.collatePrune(builder.collatePrune() == null ? randomBoolean() : !builder.collatePrune() );
+            builder.collatePrune(builder.collatePrune() == null ? randomBoolean() : builder.collatePrune() == false );
             break;
         case 8:
             // preTag, postTag
@@ -122,7 +122,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             }
             break;
         case 9:
-            builder.forceUnigrams(builder.forceUnigrams() == null ? randomBoolean() : ! builder.forceUnigrams());
+            builder.forceUnigrams(builder.forceUnigrams() == null ? randomBoolean() : builder.forceUnigrams() == false);
             break;
         case 10:
             Map<String, Object> collateParams = builder.collateParams() == null ? new HashMap<>(1) : builder.collateParams();

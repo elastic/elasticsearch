@@ -20,6 +20,7 @@ import org.elasticsearch.license.License.OperationMode;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Objects;
 
 /**
  * Contains metadata about registered licenses
@@ -92,8 +93,8 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
         LicensesMetadata that = (LicensesMetadata) o;
 
-        if (license != null ? !license.equals(that.license) : that.license != null) return false;
-        return trialVersion != null ? trialVersion.equals(that.trialVersion) : that.trialVersion == null;
+        return Objects.equals(license, that.license)
+            && Objects.equals(trialVersion, that.trialVersion);
     }
 
     @Override

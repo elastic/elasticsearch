@@ -128,8 +128,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         } else {
             assertEquals(0, result.get().get(0).shardId().id());
             assertEquals(1, result.get().get(1).shardId().id());
-            assertEquals(shard1, !result.get().get(0).skip());
-            assertEquals(shard2, !result.get().get(1).skip());
+            assertEquals(shard1, result.get().get(0).skip() == false);
+            assertEquals(shard2, result.get().get(1).skip() == false);
         }
     }
 
@@ -188,7 +188,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         assertEquals(0, result.get().get(0).shardId().id());
         assertEquals(1, result.get().get(1).shardId().id());
-        assertEquals(shard1, !result.get().get(0).skip());
+        assertEquals(shard1, result.get().get(0).skip() == false);
         assertFalse(result.get().get(1).skip()); // never skip the failure
     }
 
@@ -356,7 +356,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .sorted(Comparator.comparing(minAndMaxes::get, MinAndMax.getComparator(order)).thenComparing(shardIds::get))
                 .map(shardIds::get)
                 .toArray(ShardId[]::new);
-
+            if (shardToSkip.size() == expected.length) {
+                // we need at least one shard to produce the empty result for aggs
+                shardToSkip.remove(new ShardId("logs", "_na_", 0));
+            }
             int pos = 0;
             for (SearchShardIterator i : result.get()) {
                 assertEquals(shardToSkip.contains(i.shardId()), i.skip());

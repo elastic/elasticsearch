@@ -27,6 +27,7 @@ import org.elasticsearch.ingest.Pipeline;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -175,7 +176,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 dataMap, Metadata.ROUTING.getFieldName());
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
-                String versionValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                String versionValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
                     dataMap, Metadata.VERSION.getFieldName());
                 if (versionValue != null) {
                     version = Long.valueOf(versionValue);
@@ -191,7 +192,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             IngestDocument ingestDocument =
                 new IngestDocument(index, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
-                String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
                     dataMap, Metadata.IF_SEQ_NO.getFieldName());
                 if (ifSeqNoValue != null) {
                     Long ifSeqNo = Long.valueOf(ifSeqNoValue);
@@ -201,13 +202,22 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 }
             }
             if (dataMap.containsKey(Metadata.IF_PRIMARY_TERM.getFieldName())) {
-                String ifPrimaryTermValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                String ifPrimaryTermValue = ConfigurationUtils.readOptionalStringOrLongProperty(null, null,
                     dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
                 if (ifPrimaryTermValue != null) {
                     Long ifPrimaryTerm = Long.valueOf(ifPrimaryTermValue);
                     ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
                 } else {
                     throw new IllegalArgumentException("[_if_primary_term] cannot be null");
+                }
+            }
+            if (dataMap.containsKey(Metadata.DYNAMIC_TEMPLATES.getFieldName())) {
+                Map<String, String> dynamicTemplates = ConfigurationUtils.readMap(
+                    null, null, dataMap, Metadata.DYNAMIC_TEMPLATES.getFieldName());
+                if (dynamicTemplates != null) {
+                    ingestDocument.setFieldValue(Metadata.DYNAMIC_TEMPLATES.getFieldName(), new HashMap<>(dynamicTemplates));
+                } else {
+                    throw new IllegalArgumentException("[_dynamic_templates] cannot be null");
                 }
             }
             ingestDocumentList.add(ingestDocument);

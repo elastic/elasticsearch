@@ -163,6 +163,7 @@ public class ElasticsearchMappings {
                 String mapping = mappingSupplier.get();
                 PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                 putMappingRequest.source(mapping, XContentType.JSON);
+                putMappingRequest.origin(ML_ORIGIN);
                 executeAsyncWithOrigin(client, ML_ORIGIN, PutMappingAction.INSTANCE, putMappingRequest,
                     ActionListener.wrap(response -> {
                         if (response.isAcknowledged()) {

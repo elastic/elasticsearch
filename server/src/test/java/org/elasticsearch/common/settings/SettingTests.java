@@ -939,8 +939,14 @@ public class SettingTests extends ESTestCase {
 
     public void testRejectConflictingDynamicAndFinalProperties() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> Setting.simpleString("foo.bar", Property.Final, Property.Dynamic));
+            () -> Setting.simpleString("foo.bar", Property.Final, randomFrom(Property.Dynamic, Property.OperatorDynamic)));
         assertThat(ex.getMessage(), containsString("final setting [foo.bar] cannot be dynamic"));
+    }
+
+    public void testRejectConflictingDynamicAndOperatorDynamicProperties() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.Dynamic, Property.OperatorDynamic));
+        assertThat(ex.getMessage(), containsString("setting [foo.bar] cannot be both dynamic and operator dynamic"));
     }
 
     public void testRejectNonIndexScopedNotCopyableOnResizeSetting() {
@@ -1239,5 +1245,12 @@ public class SettingTests extends ESTestCase {
             Loggers.removeAppender(logger, mockLogAppender);
             mockLogAppender.stop();
         }
+    }
+
+    public void testDynamicTest() {
+        final Property property = randomFrom(Property.Dynamic, Property.OperatorDynamic);
+        final Setting<String> setting = Setting.simpleString("foo.bar", property);
+        assertTrue(setting.isDynamic());
+        assertEquals(setting.isOperatorOnly(), property == Property.OperatorDynamic);
     }
 }

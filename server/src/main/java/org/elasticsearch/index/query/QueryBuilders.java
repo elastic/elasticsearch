@@ -101,6 +101,16 @@ public final class QueryBuilders {
     }
 
     /**
+     * Creates a combined fields query for the provided field names and text.
+     *
+     * @param text       The query text (to be analyzed).
+     * @param fieldNames The field names.
+     */
+    public static CombinedFieldsQueryBuilder combinedFieldsQuery(Object text, String... fieldNames) {
+        return new CombinedFieldsQueryBuilder(text, fieldNames);
+    }
+
+    /**
      * A query to boost scores based on their proximity to the given origin for date, date_nanos and geo_point field types.
      * @param name The field name
      * @param origin The origin of the distance calculation. Can be a long, string or {@link GeoPoint}, depending on field type.
@@ -613,7 +623,9 @@ public final class QueryBuilders {
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *
      * @param name The location field name.
+     * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
      */
+    @Deprecated
     public static GeoPolygonQueryBuilder geoPolygonQuery(String name, List<GeoPoint> points) {
         return new GeoPolygonQueryBuilder(name, points);
     }

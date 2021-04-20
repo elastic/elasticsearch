@@ -155,7 +155,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         case DATE_NANOSECONDS:
             return dateNanosComparatorSource(missingValue, sortMode, nested);
         default:
-            assert !targetNumericType.isFloatingPoint();
+            assert targetNumericType.isFloatingPoint() == false;
             return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
         }
     }

@@ -45,7 +45,10 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
 
         @Override
         public String toString() {
-            return node + " reason: " + reason;
+            final StringBuilder stringBuilder = new StringBuilder();
+            node.appendDescriptionWithoutAttributes(stringBuilder);
+            stringBuilder.append(" reason: ").append(reason);
+            return stringBuilder.toString();
         }
     }
 

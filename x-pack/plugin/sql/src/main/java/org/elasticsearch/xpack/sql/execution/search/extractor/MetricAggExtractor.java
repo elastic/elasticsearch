@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Buck
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
+import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.util.DateUtils;
-
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
@@ -110,6 +110,8 @@ public class MetricAggExtractor implements BucketExtractor {
         } else if (agg instanceof InternalFilter) {
             // COUNT(expr) and COUNT(ALL expr) uses this type of aggregation to account for non-null values only
             return ((InternalFilter) agg).getDocCount();
+        } else if (agg instanceof InternalCardinality) {
+            return ((InternalCardinality) agg).getValue();
         }
 
         Object v = agg.getProperty(property);

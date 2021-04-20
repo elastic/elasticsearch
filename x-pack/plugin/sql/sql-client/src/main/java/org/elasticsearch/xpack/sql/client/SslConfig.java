@@ -72,7 +72,7 @@ public class SslConfig {
         if (isSSLPropertyPresent == false && isSchemaPresent == false) {
             enabled = StringUtils.parseBoolean(SSL_DEFAULT);
         } else {
-            if (isSSLPropertyPresent && isHttpsScheme && !StringUtils.parseBoolean(settings.getProperty(SSL))) {
+            if (isSSLPropertyPresent && isHttpsScheme && StringUtils.parseBoolean(settings.getProperty(SSL)) == false) {
                 throw new ClientException("Cannot enable SSL: HTTPS protocol being used in the URL and SSL disabled in properties");
             }
             enabled = isHttpsScheme || StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));

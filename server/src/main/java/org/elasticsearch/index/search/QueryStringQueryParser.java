@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -65,7 +66,7 @@ import static org.elasticsearch.index.search.QueryParserHelper.resolveMappingFie
 /**
  * A {@link XQueryParser} that uses the {@link MapperService} in order to build smarter
  * queries based on the mapping information.
- * This class uses {@link MultiMatchQuery} to build the text query around operators and {@link XQueryParser}
+ * This class uses {@link MultiMatchQueryParser} to build the text query around operators and {@link XQueryParser}
  * to assemble the result logically.
  */
 public class QueryStringQueryParser extends XQueryParser {
@@ -75,7 +76,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private final Map<String, Float> fieldsAndWeights;
     private final boolean lenient;
 
-    private final MultiMatchQuery queryBuilder;
+    private final MultiMatchQueryParser queryBuilder;
     private MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.Type.BEST_FIELDS;
     private Float groupTieBreaker;
 
@@ -140,8 +141,8 @@ public class QueryStringQueryParser extends XQueryParser {
         super(defaultField, context.getIndexAnalyzers().getDefaultSearchAnalyzer());
         this.context = context;
         this.fieldsAndWeights = Collections.unmodifiableMap(fieldsAndWeights);
-        this.queryBuilder = new MultiMatchQuery(context);
-        queryBuilder.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NULL);
+        this.queryBuilder = new MultiMatchQueryParser(context);
+        queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         queryBuilder.setLenient(lenient);
         this.lenient = lenient;
     }
@@ -270,7 +271,14 @@ public class QueryStringQueryParser extends XQueryParser {
             boolean multiFields = Regex.isSimpleMatchPattern(field);
             // Filters unsupported fields if a pattern is requested
             // Filters metadata fields if all fields are requested
-            extractedFields = resolveMappingField(context, field, 1.0f, !allFields, !multiFields, quoted ? quoteFieldSuffix : null);
+            extractedFields = resolveMappingField(
+                context,
+                field,
+                1.0f,
+                allFields == false,
+                multiFields == false,
+                quoted ? quoteFieldSuffix : null
+            );
         } else if (quoted && quoteFieldSuffix != null) {
             extractedFields = resolveMappingFields(context, fieldsAndWeights, quoteFieldSuffix);
         } else {

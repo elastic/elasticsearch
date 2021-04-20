@@ -10,14 +10,17 @@ package org.elasticsearch.action.admin.cluster.snapshots.create;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotFeatureInfo;
+import org.elasticsearch.snapshots.SnapshotFeatureInfoTests;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -44,6 +47,9 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         List<String> dataStreams = new ArrayList<>();
         dataStreams.add("test0");
         dataStreams.add("test1");
+
+        List<SnapshotFeatureInfo> featureStates = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
+
         String reason = "reason";
         long startTime = System.currentTimeMillis();
         long endTime = startTime + 10000;
@@ -59,8 +65,9 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, dataStreams, startTime, reason, endTime, totalShards, shardFailures,
-                globalState, SnapshotInfoTests.randomUserMetadata()));
+            new SnapshotInfo(snapshotId, indices, dataStreams, featureStates, reason, endTime, totalShards, shardFailures,
+                globalState, SnapshotInfoTestUtils.randomUserMetadata(), startTime, Collections.emptyMap()
+            ));
     }
 
     @Override

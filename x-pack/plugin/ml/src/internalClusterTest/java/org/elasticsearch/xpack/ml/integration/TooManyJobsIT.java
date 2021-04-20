@@ -127,14 +127,10 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
     }
 
     public void testSingleNode() throws Exception {
-        // see: https://github.com/elastic/elasticsearch/issues/66885#issuecomment-758790179
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
         verifyMaxNumberOfJobsLimit(1, randomIntBetween(1, 20), randomBoolean());
     }
 
     public void testMultipleNodes() throws Exception {
-        // see: https://github.com/elastic/elasticsearch/issues/66885#issuecomment-758790179
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
         verifyMaxNumberOfJobsLimit(3, randomIntBetween(1, 20), randomBoolean());
     }
 
@@ -175,13 +171,13 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
                 if (expectMemoryLimitBeforeCountLimit) {
                     int expectedJobsAlreadyOpenOnNode = (i - 1) / numNodes;
                     assertTrue(detailedMessage,
-                        detailedMessage.endsWith("because this node has insufficient available memory. Available memory for ML [" +
+                        detailedMessage.endsWith("node has insufficient available memory. Available memory for ML [" +
                             maxMlMemoryPerNode + "], memory required by existing jobs [" +
                             (expectedJobsAlreadyOpenOnNode * memoryFootprintPerJob) + "], estimated memory required for this job [" +
-                            memoryFootprintPerJob + "]]"));
+                            memoryFootprintPerJob + "].]"));
                 } else {
-                    assertTrue(detailedMessage, detailedMessage.endsWith("because this node is full. Number of opened jobs [" +
-                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "]]"));
+                    assertTrue(detailedMessage, detailedMessage.endsWith("node is full. Number of opened jobs [" +
+                        maxNumberOfJobsPerNode + "], xpack.ml.max_open_jobs [" + maxNumberOfJobsPerNode + "].]"));
                 }
                 logger.info("good news everybody --> reached maximum number of allowed opened jobs, after trying to open the {}th job", i);
 

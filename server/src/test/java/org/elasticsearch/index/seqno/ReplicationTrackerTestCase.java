@@ -58,7 +58,7 @@ public abstract class ReplicationTrackerTestCase extends ESTestCase  {
     }
 
     static IndexShardRoutingTable routingTable(final Set<AllocationId> initializingIds, final ShardRouting primaryShard) {
-        assert !initializingIds.contains(primaryShard.allocationId());
+        assert initializingIds.contains(primaryShard.allocationId()) == false;
         final ShardId shardId = new ShardId("test", "_na_", 0);
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(shardId);
         for (final AllocationId initializingId : initializingIds) {

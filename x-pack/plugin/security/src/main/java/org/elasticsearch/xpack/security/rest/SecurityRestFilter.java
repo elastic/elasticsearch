@@ -14,6 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
@@ -25,15 +26,13 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequest.Method;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestRequestFilter;
-
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 
 import java.io.IOException;
-
 import java.util.List;
 import java.util.Map;
 
@@ -91,6 +90,11 @@ public class SecurityRestFilter implements RestHandler {
                         e -> handleException("Secondary authentication", request, channel, e)));
                 }, e -> handleException("Authentication", request, channel, e)));
         } else {
+            if (request.method() != Method.OPTIONS) {
+                HeaderWarning.addWarning("Elasticsearch built-in security features are not enabled. Without authentication, your cluster " +
+                    "could be accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major +
+                    "." + Version.CURRENT.minor + "/security-minimal-setup.html to enable security.");
+            }
             restHandler.handleRequest(request, channel, client);
         }
     }
@@ -140,16 +144,6 @@ public class SecurityRestFilter implements RestHandler {
         return restHandler.routes();
     }
 
-    @Override
-    public List<DeprecatedRoute> deprecatedRoutes() {
-        return restHandler.deprecatedRoutes();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        return restHandler.replacedRoutes();
-    }
-
     private RestRequest maybeWrapRestRequest(RestRequest restRequest) throws IOException {
         if (restHandler instanceof RestRequestFilter) {
             return ((RestRequestFilter)restHandler).getFilteredRequest(restRequest);
@@ -160,10 +154,5 @@ public class SecurityRestFilter implements RestHandler {
     @Override
     public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
         return restHandler.validAcceptMediaTypes();
-    }
-
-    @Override
-    public Version compatibleWithVersion() {
-        return restHandler.compatibleWithVersion();
     }
 }

@@ -22,8 +22,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
     private static final String BASIC_AUTH_VALUE_SUPER_USER =
         UsernamePasswordToken.basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
@@ -70,7 +68,10 @@ public class ClassificationEvaluationWithSecurityIT extends ESRestTestCase {
         setupUser("ml_admin", Collections.singletonList("machine_learning_admin"));
         setupUser("ml_admin_plus_data", Arrays.asList("machine_learning_admin", "test_data_access"));
         String mlAdmin = UsernamePasswordToken.basicAuthHeaderValue("ml_admin", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        String mlAdminPlusData = UsernamePasswordToken.basicAuthHeaderValue("ml_admin_plus_data", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        String mlAdminPlusData = UsernamePasswordToken.basicAuthHeaderValue(
+            "ml_admin_plus_data",
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+        );
         Request evaluateRequest = buildRegressionEval(index, mlAdmin, mlAdminPlusData);
         client().performRequest(evaluateRequest);
 

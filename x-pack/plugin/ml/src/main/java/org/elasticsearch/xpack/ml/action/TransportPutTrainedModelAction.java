@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import java.io.IOException;
@@ -123,6 +124,13 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             .setEstimatedHeapMemory(request.getTrainedModelConfig().getModelDefinition().ramBytesUsed())
             .setEstimatedOperations(request.getTrainedModelConfig().getModelDefinition().getTrainedModel().estimatedNumOperations())
             .build();
+        if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {
+            listener.onFailure(ExceptionsHelper.badRequestException(
+                "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
+                request.getTrainedModelConfig().getModelId()
+            ));
+            return;
+        }
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(
             r -> trainedModelProvider.storeTrainedModel(trainedModelConfig, ActionListener.wrap(

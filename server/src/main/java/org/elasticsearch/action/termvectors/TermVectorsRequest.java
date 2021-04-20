@@ -457,7 +457,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             flagsEnum.add(flag);
         } else if (set == false) {
             flagsEnum.remove(flag);
-            assert (!flagsEnum.contains(flag));
+            assert flagsEnum.contains(flag) == false;
         }
     }
 

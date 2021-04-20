@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -214,6 +215,7 @@ public class AuthorizationService {
                 listener.onFailure(denialException(authentication, action, originalRequest, operatorException));
                 return;
             }
+            operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
 
             if (SystemUser.is(authentication.getUser())) {
                 // this never goes async so no need to wrap the listener
@@ -379,7 +381,7 @@ public class AuthorizationService {
                 prevListener = current;
             }
 
-            prevListener.whenComplete(v -> listener.onResponse(null), listener::onFailure);
+            prevListener.addListener(listener);
             first.intercept(requestInfo, authorizationEngine, authorizationInfo, firstStepListener);
         }
     }
@@ -629,6 +631,9 @@ public class AuthorizationService {
             final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
+        } else {
+            // Don't print roles for API keys because they're not meaningful
+            userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 
         String message = "action [" + action + "] is unauthorized for " + userText;

@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NoOpEngineTests extends EngineTestCase {
@@ -123,7 +124,9 @@ public class NoOpEngineTests extends EngineTestCase {
                         deletions += 1;
                     }
                 }
-                engine.getLocalCheckpointTracker().waitForProcessedOpsToComplete(numDocs + deletions - 1);
+                final long awaitedCheckpoint = numDocs + deletions - 1;
+                assertBusy(() ->
+                        assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(awaitedCheckpoint)));
                 engine.flush(true, true);
             }
 
@@ -141,10 +144,10 @@ public class NoOpEngineTests extends EngineTestCase {
                 assertEquals(expectedDocStats.getTotalSizeInBytes(), noOpEngine.docStats().getTotalSizeInBytes());
                 assertEquals(expectedSegmentStats.getCount(), noOpEngine.segmentsStats(includeFileSize, true).getCount());
                 // don't compare memory in bytes since we load the index with term-dict off-heap
-                assertEquals(expectedSegmentStats.getFileSizes().size(),
-                    noOpEngine.segmentsStats(includeFileSize, true).getFileSizes().size());
+                assertEquals(expectedSegmentStats.getFiles().size(),
+                    noOpEngine.segmentsStats(includeFileSize, true).getFiles().size());
 
-                assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getFileSizes().size());
+                assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getFiles().size());
                 assertEquals(0, noOpEngine.segmentsStats(includeFileSize, false).getMemoryInBytes());
             } catch (AssertionError e) {
                 logger.error(config.getMergePolicy());

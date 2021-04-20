@@ -44,8 +44,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -111,7 +111,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -1734,8 +1733,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * times with the same ordinal and is expected to return the same value for each invocation.
      * In other words subclasses must ensure this method is idempotent.
      */
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
+            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             // Default the watermarks to absurdly low to prevent the tests
             // from failing on nodes without enough disk space
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
@@ -1836,7 +1836,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return new InternalTestCluster(seed, createTempDir(), supportsDedicatedMasters, getAutoManageMasterNodes(),
             minNumDataNodes, maxNumDataNodes,
             InternalTestCluster.clusterName(scope.name(), seed) + "-cluster", nodeConfigurationSource, getNumClientNodes(),
-            nodePrefix, mockPlugins, getClientWrapper(), forbidPrivateIndexSettings());
+            nodePrefix, mockPlugins, getClientWrapper(), forbidPrivateIndexSettings(), forceSingleDataPath());
     }
 
     private NodeConfigurationSource getNodeConfigSource() {
@@ -1846,10 +1846,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         return new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return Settings.builder()
                     .put(initialNodeSettings.build())
-                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+                    .put(ESIntegTestCase.this.nodeSettings(nodeOrdinal, otherSettings)).build();
             }
 
             @Override
@@ -2146,6 +2146,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
+     * Override to return true in tests that cannot handle multiple data paths.
+     */
+    protected boolean forceSingleDataPath() {
+        return false;
+    }
+
+    /**
      * Returns an instance of {@link RestClient} pointing to the current test cluster.
      * Creates a new client if the method is invoked for the first time in the context of the current test scope.
      * The returned client gets automatically closed when needed, it shouldn't be closed as part of tests otherwise
@@ -2242,23 +2249,5 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
-    }
-
-    /**
-     * On Debian 8 the "memory" subsystem is not mounted by default
-     * when cgroups are enabled, and this confuses many versions of
-     * Java prior to Java 15.  Tests that rely on machine memory
-     * being accurately determined will not work on such setups,
-     * and can use this method for selective muting.
-     * See https://github.com/elastic/elasticsearch/issues/67089
-     * and https://github.com/elastic/elasticsearch/issues/66885
-     */
-    protected boolean willSufferDebian8MemoryProblem() {
-        final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
-        final boolean anyDebian8Nodes = response.getNodes()
-            .stream()
-            .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
-        boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
-        return anyDebian8Nodes && java15Plus == false;
     }
 }

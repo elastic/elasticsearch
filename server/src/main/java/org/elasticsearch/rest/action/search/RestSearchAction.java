@@ -27,6 +27,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -44,6 +45,7 @@ import java.util.Set;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -190,8 +192,8 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.hasParam("from")) {
             searchSourceBuilder.from(request.paramAsInt("from", 0));
         }
-        int size = request.paramAsInt("size", -1);
-        if (size != -1) {
+        if (request.hasParam("size")) {
+            int size = request.paramAsInt("size", SearchService.DEFAULT_SIZE);
             setSize.accept(size);
         }
 
@@ -208,13 +210,8 @@ public class RestSearchAction extends BaseRestHandler {
             searchSourceBuilder.timeout(request.paramAsTime("timeout", null));
         }
         if (request.hasParam("terminate_after")) {
-            int terminateAfter = request.paramAsInt("terminate_after",
-                    SearchContext.DEFAULT_TERMINATE_AFTER);
-            if (terminateAfter < 0) {
-                throw new IllegalArgumentException("terminateAfter must be > 0");
-            } else if (terminateAfter > 0) {
-                searchSourceBuilder.terminateAfter(terminateAfter);
-            }
+            int terminateAfter = request.paramAsInt("terminate_after", SearchContext.DEFAULT_TERMINATE_AFTER);
+            searchSourceBuilder.terminateAfter(terminateAfter);
         }
 
         StoredFieldsContext storedFieldsContext =
@@ -295,7 +292,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.indices().length > 0) {
             validationException = addValidationError("[indices] cannot be used with point in time", validationException);
         }
-        if (request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
+        if (request.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
             validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
         }
         if (request.routing() != null) {

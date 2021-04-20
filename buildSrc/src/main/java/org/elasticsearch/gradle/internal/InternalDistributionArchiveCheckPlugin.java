@@ -63,7 +63,7 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
         });
 
         String projectName = project.getName();
-        if (projectName.contains("oss") == false && (projectName.contains("zip") || projectName.contains("tar"))) {
+        if (projectName.equalsIgnoreCase("integ-test-zip") == false && (projectName.contains("zip") || projectName.contains("tar"))) {
             project.getExtensions()
                 .add(
                     "projectLicenses",

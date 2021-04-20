@@ -37,7 +37,7 @@ public class ForecastStatsTests extends AbstractXContentTestCase<ForecastStats> 
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public static ForecastStats createRandom(long minTotal, long maxTotal) {

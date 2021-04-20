@@ -60,7 +60,7 @@ public class RestGetSourceAction extends BaseRestHandler {
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
         return channel -> {
-            if (getRequest.fetchSourceContext() != null && !getRequest.fetchSourceContext().fetchSource()) {
+            if (getRequest.fetchSourceContext() != null && getRequest.fetchSourceContext().fetchSource() == false) {
                 final ActionRequestValidationException validationError = new ActionRequestValidationException();
                 validationError.addValidationError("fetching source can not be disabled");
                 channel.sendResponse(new BytesRestResponse(channel, validationError));

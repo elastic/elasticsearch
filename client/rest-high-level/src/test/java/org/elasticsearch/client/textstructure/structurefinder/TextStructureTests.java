@@ -111,6 +111,6 @@ public class TextStructureTests extends AbstractXContentTestCase<TextStructure> 
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // unknown fields are only guaranteed to be ignored at the top level - below this several data
         // structures (e.g. mappings, ingest pipeline, field stats) will preserve arbitrary fields
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 }

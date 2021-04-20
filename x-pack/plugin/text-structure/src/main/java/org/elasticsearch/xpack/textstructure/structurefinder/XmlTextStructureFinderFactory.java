@@ -49,7 +49,7 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
         int completeDocCount = 0;
         String commonRootElementName = null;
         String remainder = sample.trim();
-        boolean mightBeAnotherDocument = !remainder.isEmpty();
+        boolean mightBeAnotherDocument = remainder.isEmpty() == false;
 
         // This processing is extremely complicated because it's necessary
         // to create a new XML stream reader per document, but each one
@@ -115,7 +115,7 @@ public class XmlTextStructureFinderFactory implements TextStructureFinderFactory
                             }
                             endPos += location.getColumnNumber() - 1;
                             remainder = remainder.substring(endPos).trim();
-                            mightBeAnotherDocument = !remainder.isEmpty();
+                            mightBeAnotherDocument = remainder.isEmpty() == false;
                             break;
                         }
                     }

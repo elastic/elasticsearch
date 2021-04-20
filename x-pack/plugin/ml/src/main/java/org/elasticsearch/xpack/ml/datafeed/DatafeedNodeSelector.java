@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 
 public class DatafeedNodeSelector {
 
@@ -77,6 +78,9 @@ public class DatafeedNodeSelector {
     public PersistentTasksCustomMetadata.Assignment selectNode() {
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return AWAITING_UPGRADE;
+        }
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            return RESET_IN_PROGRESS;
         }
 
         AssignmentFailure assignmentFailure = checkAssignment();
@@ -147,7 +151,7 @@ public class DatafeedNodeSelector {
 
         for (String concreteIndex : concreteIndices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
-            if (routingTable == null || !routingTable.allPrimaryShardsActive()) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false) {
                 return new AssignmentFailure("cannot start datafeed [" + datafeedId + "] because index ["
                     + concreteIndex + "] does not have all primary shards active yet.", false);
             }

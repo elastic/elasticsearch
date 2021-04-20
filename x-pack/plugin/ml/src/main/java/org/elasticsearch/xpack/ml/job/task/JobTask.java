@@ -23,6 +23,7 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
 
     private final String jobId;
     private volatile AutodetectProcessManager autodetectProcessManager;
+    private volatile boolean isClosing = false;
 
     JobTask(String jobId, long id, String type, String action, TaskId parentTask, Map<String, String> headers) {
         super(id, type, action, "job-" + jobId, parentTask, headers);
@@ -44,8 +45,13 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
         autodetectProcessManager.killProcess(this, false, reason);
     }
 
+    public boolean isClosing() {
+        return isClosing;
+    }
+
     public void closeJob(String reason) {
-        autodetectProcessManager.closeJob(this, false, reason);
+        isClosing = true;
+        autodetectProcessManager.closeJob(this, reason);
     }
 
     void setAutodetectProcessManager(AutodetectProcessManager autodetectProcessManager) {

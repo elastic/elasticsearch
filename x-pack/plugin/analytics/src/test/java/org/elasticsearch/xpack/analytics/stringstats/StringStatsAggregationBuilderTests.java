@@ -64,7 +64,7 @@ public class StringStatsAggregationBuilderTests extends AbstractSerializingTestC
     protected StringStatsAggregationBuilder mutateInstance(StringStatsAggregationBuilder instance) throws IOException {
         if (randomBoolean()) {
             StringStatsAggregationBuilder mutant = new StringStatsAggregationBuilder(instance.getName());
-            mutant.showDistribution(!instance.showDistribution());
+            mutant.showDistribution(instance.showDistribution() == false);
             return mutant;
         }
         StringStatsAggregationBuilder mutant = new StringStatsAggregationBuilder(randomAlphaOfLength(4));

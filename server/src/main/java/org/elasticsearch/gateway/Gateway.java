@@ -37,7 +37,7 @@ public class Gateway {
         this.client = client;
     }
 
-    public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
+    public void performStateRecovery(final GatewayStateRecoveredListener listener) {
         final String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         var request = new TransportNodesListGatewayMetaState.Request(nodesIds);
@@ -77,7 +77,7 @@ public class Gateway {
         // update the global state, and clean the indices, we elect them in the next phase
         final Metadata.Builder metadataBuilder = Metadata.builder(electedGlobalState).removeAllIndices();
 
-        assert !indices.containsKey(null);
+        assert indices.containsKey(null) == false;
         final Object[] keys = indices.keys;
         for (int i = 0; i < keys.length; i++) {
             if (keys[i] != null) {

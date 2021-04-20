@@ -83,7 +83,7 @@ public class SetsTests extends ESTestCase {
     private void assertDifference(
             final int endExclusive, final Tuple<Set<Integer>, Set<Integer>> sets, final Set<Integer> difference) {
         for (int i = 0; i < endExclusive; i++) {
-            assertThat(difference.contains(i), equalTo(sets.v1().contains(i) && !sets.v2().contains(i)));
+            assertThat(difference.contains(i), equalTo(sets.v1().contains(i) && sets.v2().contains(i) == false));
         }
     }
 

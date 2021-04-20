@@ -6,7 +6,7 @@
 <titleabbrev>Get autoscaling capacity</titleabbrev>
 ++++
 
-include::../autoscaling-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 Get autoscaling capacity.
 

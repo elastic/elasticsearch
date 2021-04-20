@@ -47,7 +47,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                 List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = multiBucketsAgg.getBuckets();
                 for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
                     Double bucketValue = BucketHelpers.resolveBucketValue(multiBucketsAgg, bucket, sublistedPath, gapPolicy);
-                    if (bucketValue != null && !Double.isNaN(bucketValue)) {
+                    if (bucketValue != null && Double.isNaN(bucketValue) == false) {
                         collectBucketValue(bucket.getKeyAsString(), bucketValue);
                     }
                 }

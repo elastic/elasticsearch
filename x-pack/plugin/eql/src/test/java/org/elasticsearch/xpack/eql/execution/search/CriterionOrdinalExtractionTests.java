@@ -30,8 +30,8 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     private String tsField = "timestamp";
     private String tbField = "tiebreaker";
 
-    private HitExtractor tsExtractor = new FieldHitExtractor(tsField, tsField, DataTypes.LONG, null, true, null, false);
-    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, tbField, DataTypes.LONG, null, true, null, false);
+    private HitExtractor tsExtractor = new FieldHitExtractor(tsField, DataTypes.LONG, null, null, false);
+    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, DataTypes.LONG, null, null, false);
 
     public void testTimeOnly() throws Exception {
         long time = randomLong();
@@ -56,7 +56,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     }
 
     public void testTimeNotComparable() throws Exception {
-        HitExtractor badExtractor = new FieldHitExtractor(tsField, tsField, DataTypes.BINARY, null, true, null, false);
+        HitExtractor badExtractor = new FieldHitExtractor(tsField, DataTypes.BINARY, null, null, false);
         SearchHit hit = searchHit(randomAlphaOfLength(10), null);
         Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(0, null, emptyList(), badExtractor, null, false);
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));

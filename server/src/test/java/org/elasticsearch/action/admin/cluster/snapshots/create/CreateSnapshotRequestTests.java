@@ -31,7 +31,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.snapshots.SnapshotInfoTests.randomUserMetadata;
+import static org.elasticsearch.snapshots.SnapshotInfoTestUtils.randomUserMetadata;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -54,6 +54,18 @@ public class CreateSnapshotRequestTests extends ESTestCase {
 
             original.indices(indices);
         }
+
+        if (randomBoolean()) {
+            List<String> featureStates = new ArrayList<>();
+            int count = randomInt(3) + 1;
+
+            for (int i = 0; i < count; ++i) {
+                featureStates.add(randomAlphaOfLength(randomInt(3) + 2));
+            }
+
+            original.featureStates(featureStates);
+        }
+
 
         if (randomBoolean()) {
             original.partial(randomBoolean());

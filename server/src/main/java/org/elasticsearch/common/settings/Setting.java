@@ -88,6 +88,11 @@ public class Setting<T> implements ToXContentObject {
         Dynamic,
 
         /**
+         * Operator only Dynamic setting
+         */
+        OperatorDynamic,
+
+        /**
          * mark this setting as final, not updateable even when the context is not dynamic
          * ie. Setting this property on an index scoped setting will fail update when the index is closed
          */
@@ -157,8 +162,12 @@ public class Setting<T> implements ToXContentObject {
             this.properties = EMPTY_PROPERTIES;
         } else {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
-            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
+            if ((propertiesAsSet.contains(Property.Dynamic) || propertiesAsSet.contains(Property.OperatorDynamic))
+                && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
+                throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and operator dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
@@ -245,6 +254,18 @@ public class Setting<T> implements ToXContentObject {
      * @param key the settings key for this setting.
      * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
      * @param parser a parser that parses the string rep into a complex datatype.
+     * @param validator a {@link Validator} for validating this setting
+     * @param properties properties for this setting like scope, filtering...
+     */
+    public Setting(String key, Setting<T> fallbackSetting, Function<String, T> parser, Validator<T> validator, Property... properties) {
+        this(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, parser, validator, properties);
+    }
+
+    /**
+     * Creates a new Setting instance
+     * @param key the settings key for this setting.
+     * @param fallbackSetting a setting who's value to fallback on if this setting is not defined
+     * @param parser a parser that parses the string rep into a complex datatype.
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
@@ -284,7 +305,14 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> if this setting is dynamically updateable, otherwise <code>false</code>
      */
     public final boolean isDynamic() {
-        return properties.contains(Property.Dynamic);
+        return properties.contains(Property.Dynamic) || properties.contains(Property.OperatorDynamic);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is dynamically updateable by operators, otherwise <code>false</code>
+     */
+    public final boolean isOperatorOnly() {
+        return properties.contains(Property.OperatorDynamic);
     }
 
     /**

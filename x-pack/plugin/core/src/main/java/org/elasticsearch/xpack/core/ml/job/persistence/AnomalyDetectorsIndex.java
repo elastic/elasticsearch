@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
  */
 public final class AnomalyDetectorsIndex {
 
-    public static final int CONFIG_INDEX_MAX_RESULTS_WINDOW = 10_000;
-
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
     private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
 

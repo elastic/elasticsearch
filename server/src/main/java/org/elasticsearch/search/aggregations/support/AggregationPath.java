@@ -21,6 +21,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A path that can be used to sort/order buckets (in some multi-bucket aggregations, e.g. terms &amp; histogram) based on
@@ -121,10 +122,7 @@ public class AggregationPath {
 
             PathElement token = (PathElement) o;
 
-            if (key != null ? !key.equals(token.key) : token.key != null) return false;
-            if (name.equals(token.name) == false) return false;
-
-            return true;
+            return Objects.equals(key, token.key) && Objects.equals(name, token.name);
         }
 
         @Override

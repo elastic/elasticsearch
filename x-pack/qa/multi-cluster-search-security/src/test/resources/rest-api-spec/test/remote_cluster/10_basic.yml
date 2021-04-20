@@ -51,6 +51,23 @@ setup:
                 }
               ]
             }
+
+  - do:
+      security.put_role:
+        name: "dls_fls_role"
+        body: >
+          {
+            "cluster": ["monitor"],
+            "indices": [
+              {
+                "names": ["shared_index"],
+                "privileges": ["read", "read_cross_cluster"],
+                "query": "{ \"term\": { \"public\" : true } }",
+                "field_security": { "grant": ["*"], "except": ["secret"] }
+              }
+            ]
+          }
+
 ---
 "Index data and search on the remote cluster":
   - skip:
@@ -301,3 +318,20 @@ setup:
           - '{"index": {"_index": "point_in_time_index"}}'
           - '{"f": "r4", "created_at" : "2020-01-04"}'
 
+  - do:
+      indices.create:
+        index: shared_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "shared_index", "_id": 1}}'
+          - '{"public": true, "name": "doc 1", "secret": "sesame"}'
+          - '{"index": {"_index": "shared_index", "_id": 2}}'
+          - '{"public": false, "name": "doc 2", "secret": "sesame"}'

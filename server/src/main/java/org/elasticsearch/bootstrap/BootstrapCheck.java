@@ -42,7 +42,7 @@ public interface BootstrapCheck {
         }
 
         public boolean isFailure() {
-            return !isSuccess();
+            return isSuccess() == false;
         }
 
         public String getMessage() {

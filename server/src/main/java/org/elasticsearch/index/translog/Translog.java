@@ -1229,11 +1229,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 source.equals(index.source) == false) {
                 return false;
             }
-            if (routing != null ? !routing.equals(index.routing) : index.routing != null) {
-                return false;
-            }
-            return true;
-
+            return Objects.equals(routing, index.routing);
         }
 
         @Override

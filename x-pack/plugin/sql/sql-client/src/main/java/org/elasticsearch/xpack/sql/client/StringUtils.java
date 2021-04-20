@@ -45,7 +45,7 @@ public abstract class StringUtils {
 
     public static boolean isUpperCase(CharSequence sequence) {
         for (int i = 0; i < sequence.length(); i++) {
-            if (Character.isLetter(sequence.charAt(i)) && !Character.isUpperCase(sequence.charAt(i))) {
+            if (Character.isLetter(sequence.charAt(i)) && Character.isUpperCase(sequence.charAt(i)) == false) {
                 return false;
             }
         }

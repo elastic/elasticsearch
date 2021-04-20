@@ -76,7 +76,7 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     public void testLenientParsing() throws IOException {

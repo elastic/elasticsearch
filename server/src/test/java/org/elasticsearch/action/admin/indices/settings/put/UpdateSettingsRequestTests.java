@@ -70,7 +70,7 @@ public class UpdateSettingsRequestTests extends AbstractXContentTestCase<UpdateS
     protected boolean assertToXContentEquivalence() {
         // if enclosedSettings are used, disable the XContentEquivalence check as the
         // parsed.toXContent is not equivalent to the test instance
-        return !enclosedSettings;
+        return enclosedSettings == false;
     }
 
 }

@@ -31,7 +31,7 @@ class TransformContext {
     private final AtomicInteger failureCount;
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
-    private volatile boolean shouldStopAtCheckpoint;
+    private volatile boolean shouldStopAtCheckpoint = false;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
@@ -43,7 +43,6 @@ class TransformContext {
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
         this.taskListener = taskListener;
         this.failureCount = new AtomicInteger(0);
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
     TransformTaskState getTaskState() {
@@ -85,8 +84,8 @@ class TransformContext {
         return currentCheckpoint.get();
     }
 
-    long getAndIncrementCheckpoint() {
-        return currentCheckpoint.getAndIncrement();
+    long incrementAndGetCheckpoint() {
+        return currentCheckpoint.incrementAndGet();
     }
 
     void setNumFailureRetries(int numFailureRetries) {
@@ -95,6 +94,10 @@ class TransformContext {
 
     int getNumFailureRetries() {
         return numFailureRetries;
+    }
+
+    int getFailureCount() {
+        return failureCount.get();
     }
 
     int getAndIncrementFailureCount() {

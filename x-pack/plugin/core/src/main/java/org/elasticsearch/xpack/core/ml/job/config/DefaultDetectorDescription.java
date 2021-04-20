@@ -78,6 +78,6 @@ public final class DefaultDetectorDescription {
     }
 
     private static boolean isNotNullOrEmpty(String arg) {
-        return !Strings.isNullOrEmpty(arg);
+        return Strings.isNullOrEmpty(arg) == false;
     }
 }

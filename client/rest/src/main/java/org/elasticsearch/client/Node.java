@@ -1,9 +1,20 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.elasticsearch.client;
@@ -173,19 +184,70 @@ public class Node {
         }
 
         /**
-         * Teturns whether or not the node <strong>could</strong> be elected master.
+         * Returns whether or not the node <strong>could</strong> be elected master.
          */
         public boolean isMasterEligible() {
             return roles.contains("master");
         }
         /**
-         * Teturns whether or not the node stores data.
+         * Returns whether or not the node stores data.
+         * @deprecated use {@link #hasDataRole()} or {@link #canContainData()}
          */
+        @Deprecated
         public boolean isData() {
             return roles.contains("data");
         }
+
         /**
-         * Teturns whether or not the node runs ingest pipelines.
+         * @return true if node has the "data" role
+         */
+        public boolean hasDataRole() {
+            return roles.contains("data");
+        }
+
+        /**
+         * @return true if node has the "data_content" role
+         */
+        public boolean hasDataContentRole() {
+            return roles.contains("data_content");
+        }
+
+        /**
+         * @return true if node has the "data_hot" role
+         */
+        public boolean hasDataHotRole() {
+            return roles.contains("data_hot");
+        }
+
+        /**
+         * @return true if node has the "data_warm" role
+         */
+        public boolean hasDataWarmRole() {
+            return roles.contains("data_warm");
+        }
+
+        /**
+         * @return true if node has the "data_cold" role
+         */
+        public boolean hasDataColdRole() {
+            return roles.contains("data_cold");
+        }
+
+        /**
+         * @return true if node has the "data_frozen" role
+         */
+        public boolean hasDataFrozenRole() {
+            return roles.contains("data_frozen");
+        }
+
+        /**
+         * @return true if node stores any type of data
+         */
+        public boolean canContainData() {
+            return hasDataRole() || roles.stream().anyMatch(role -> role.startsWith("data_"));
+        }
+        /**
+         * Returns whether or not the node runs ingest pipelines.
          */
         public boolean isIngest() {
             return roles.contains("ingest");

@@ -1,9 +1,20 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 
 package org.elasticsearch.client.sniff;
@@ -209,6 +220,21 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 nodeRoles.add("data");
             }
             if (randomBoolean()) {
+                nodeRoles.add("data_content");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_hot");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_warm");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_cold");
+            }
+            if (randomBoolean()) {
+                nodeRoles.add("data_frozen");
+            }
+            if (randomBoolean()) {
                 nodeRoles.add("ingest");
             }
 
@@ -248,15 +274,31 @@ public class ElasticsearchNodesSnifferTests extends RestClientTestCase {
                 generator.writeEndObject();
             }
 
-            List<String> roles = Arrays.asList(new String[] {"master", "data", "ingest"});
+            List<String> roles = Arrays.asList(new String[]{"master", "data", "ingest",
+                "data_content", "data_hot", "data_warm", "data_cold", "data_frozen"});
             Collections.shuffle(roles, getRandom());
             generator.writeArrayFieldStart("roles");
             for (String role : roles) {
                 if ("master".equals(role) && node.getRoles().isMasterEligible()) {
                     generator.writeString("master");
                 }
-                if ("data".equals(role) && node.getRoles().isData()) {
+                if ("data".equals(role) && node.getRoles().hasDataRole()) {
                     generator.writeString("data");
+                }
+                if ("data_content".equals(role) && node.getRoles().hasDataContentRole()) {
+                    generator.writeString("data_content");
+                }
+                if ("data_hot".equals(role) && node.getRoles().hasDataHotRole()) {
+                    generator.writeString("data_hot");
+                }
+                if ("data_warm".equals(role) && node.getRoles().hasDataWarmRole()) {
+                    generator.writeString("data_warm");
+                }
+                if ("data_cold".equals(role) && node.getRoles().hasDataColdRole()) {
+                    generator.writeString("data_cold");
+                }
+                if ("data_frozen".equals(role) && node.getRoles().hasDataFrozenRole()) {
+                    generator.writeString("data_frozen");
                 }
                 if ("ingest".equals(role) && node.getRoles().isIngest()) {
                     generator.writeString("ingest");

@@ -23,7 +23,7 @@ public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase
         int numDocs = randomIntBetween(0, 5);
         List<SimulateProcessorResult> results = new ArrayList<>();
         for (int i = 0; i<numDocs; i++) {
-            boolean isSuccessful = !(withFailures && randomBoolean());
+            boolean isSuccessful = (withFailures && randomBoolean()) == false;
             boolean isIgnoredError = withFailures && randomBoolean();
             boolean hasCondition = withFailures && randomBoolean();
             results.add(

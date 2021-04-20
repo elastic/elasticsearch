@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.transform;
 import org.elasticsearch.common.ParseField;
 
 /*
- * Utility class to hold common fields and strings for data frame.
+ * Utility class to hold common fields and strings for transform.
  */
 public final class TransformField {
 
@@ -39,9 +39,12 @@ public final class TransformField {
     public static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
-    public static final ParseField TIME_BASED_SYNC = new ParseField("time");
+    public static final ParseField TIME = new ParseField("time");
     public static final ParseField DELAY = new ParseField("delay");
+    // TODO: Rename to "defer_data_validation" or similar to emphasize that not all validation is deferred
     public static final ParseField DEFER_VALIDATION = new ParseField("defer_validation");
+    public static final ParseField RETENTION_POLICY = new ParseField("retention_policy");
+    public static final ParseField MAX_AGE = new ParseField("max_age");
 
     public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
     /**

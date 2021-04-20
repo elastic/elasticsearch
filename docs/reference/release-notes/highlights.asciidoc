@@ -1,14 +1,12 @@
 [[release-highlights]]
 == What's new in {minor-version}
 
-coming[{minor-version}]
+coming::[{minor-version}]
 
-Here are the highlights of what's new and improved in {es} {minor-version}! 
-ifeval::["{release-state}"!="unreleased"]
-For detailed information about this release, see the 
-<<release-notes-{elasticsearch_version}, Release notes >>  and 
-<<breaking-changes-{minor-version}, Breaking changes>>.
-endif::[]
+Here are the highlights of what's new and improved in {es} {minor-version}!
+
+For detailed information about this release, see the <<es-release-notes>> and
+<<breaking-changes>>.
 
 // Add previous release to the list
 // Other versions: 

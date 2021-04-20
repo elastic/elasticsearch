@@ -30,12 +30,13 @@ class SnippetsTask extends DefaultTask {
     private static final String SCHAR = /(?:\\\/|[^\/])/
     private static final String SUBSTITUTION = /s\/($SCHAR+)\/($SCHAR*)\//
     private static final String CATCH = /catch:\s*((?:\/[^\/]+\/)|[^ \]]+)/
-    private static final String SKIP = /skip:([^\]]+)/
+    private static final String SKIP_REGEX = /skip:([^\]]+)/
     private static final String SETUP = /setup:([^ \]]+)/
+    private static final String TEARDOWN = /teardown:([^ \]]+)/
     private static final String WARNING = /warning:(.+)/
     private static final String NON_JSON = /(non_json)/
     private static final String TEST_SYNTAX =
-        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING|(skip_shard_failures)) ?/
+        /(?:$CATCH|$SUBSTITUTION|$SKIP_REGEX|(continued)|$SETUP|$TEARDOWN|$WARNING|(skip_shard_failures)) ?/
 
     /**
      * Action to take on each snippet. Called with a single parameter, an
@@ -50,14 +51,7 @@ class SnippetsTask extends DefaultTask {
      * directory.
      */
     @InputFiles
-    ConfigurableFileTree docs = project.fileTree(project.projectDir) {
-        // No snippets in the build file
-        exclude 'build.gradle'
-        // That is where the snippets go, not where they come from!
-        exclude 'build'
-        exclude 'build-idea'
-        exclude 'build-eclipse'
-    }
+    ConfigurableFileTree docs
 
     /**
      * Substitutions done on every snippet's contents.
@@ -226,10 +220,14 @@ class SnippetsTask extends DefaultTask {
                                 return
                             }
                             if (it.group(7) != null) {
-                                snippet.warnings.add(it.group(7))
+                                snippet.teardown = it.group(7)
                                 return
                             }
                             if (it.group(8) != null) {
+                                snippet.warnings.add(it.group(8))
+                                return
+                            }
+                            if (it.group(9) != null) {
                                 snippet.skipShardsFailures = true
                                 return
                             }
@@ -251,7 +249,7 @@ class SnippetsTask extends DefaultTask {
                             substitutions = []
                         }
                         String loc = "$file:$lineNumber"
-                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$NON_JSON|$SKIP) ?/) {
+                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$NON_JSON|$SKIP_REGEX) ?/) {
                             if (it.group(1) != null) {
                                 // TESTRESPONSE[s/adsf/jkl/]
                                 substitutions.add([it.group(1), it.group(2)])
@@ -341,6 +339,7 @@ class SnippetsTask extends DefaultTask {
         String language = null
         String catchPart = null
         String setup = null
+        String teardown = null
         boolean curl
         List warnings = new ArrayList()
         boolean skipShardsFailures = false
@@ -371,6 +370,9 @@ class SnippetsTask extends DefaultTask {
                 }
                 if (setup) {
                     result += "[setup:$setup]"
+                }
+                if (teardown) {
+                    result += "[teardown:$teardown]"
                 }
                 for (String warning in warnings) {
                     result += "[warning:$warning]"

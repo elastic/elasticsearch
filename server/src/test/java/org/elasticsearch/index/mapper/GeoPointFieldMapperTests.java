@@ -46,6 +46,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "41.12,-71.34"));
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
+        checker.registerConflictCheck("index", b -> b.field("index", false));
     }
 
     @Override
@@ -192,6 +193,14 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertThat(ignoreZValue, equalTo(false));
     }
 
+    public void testIndexParameter() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "geo_point").field("index", false)));
+        Mapper fieldMapper = mapper.mappers().getMapper("field");
+        assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
+        boolean searchable = ((GeoPointFieldMapper)fieldMapper).fieldType().isSearchable();
+        assertThat(searchable, equalTo(false));
+    }
+
     public void testMultiField() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "geo_point").field("doc_values", false);
@@ -209,6 +218,21 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         assertThat(doc.getField("field.geohash").binaryValue().utf8ToString(), equalTo("s093jd0k72s1"));
         assertThat(doc.getFields("field.latlon"), arrayWithSize(1));
         assertThat(doc.getField("field.latlon").stringValue(), equalTo("s093jd0k72s1"));
+    }
+
+    public void testMultiFieldWithMultipleValues() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_point").field("doc_values", false);
+            b.startObject("fields");
+            {
+                b.startObject("geohash").field("type", "keyword").field("doc_values", false).endObject();
+            }
+            b.endObject();
+        }));
+        ParseContext.Document doc = mapper.parse(source(b -> b.array("field", "POINT (2 3)", "POINT (4 5)"))).rootDoc();
+        assertThat(doc.getFields("field.geohash"), arrayWithSize(2));
+        assertThat(doc.getFields("field.geohash")[0].binaryValue().utf8ToString(), equalTo("s093jd0k72s1"));
+        assertThat(doc.getFields("field.geohash")[1].binaryValue().utf8ToString(), equalTo("s0fu7n0xng81"));
     }
 
     public void testNullValue() throws Exception {
@@ -289,7 +313,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", "1234.333")))
         );
-        assertThat(e.getMessage(), containsString("failed to parse field [field] of type [geo_point]"));
+        assertThat(e.getMessage(), containsString("Failed to parse field [field] of type [geo_point]"));
         assertThat(e.getRootCause().getMessage(), containsString("unsupported symbol [.] in geohash [1234.333]"));
     }
 
@@ -330,5 +354,11 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

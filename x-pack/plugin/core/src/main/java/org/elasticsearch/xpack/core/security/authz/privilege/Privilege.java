@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -59,9 +60,7 @@ public class Privilege {
 
         Privilege privilege = (Privilege) o;
 
-        if (name != null ? !name.equals(privilege.name) : privilege.name != null) return false;
-
-        return true;
+        return Objects.equals(name, privilege.name);
     }
 
     @Override

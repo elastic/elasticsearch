@@ -95,7 +95,7 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
             case 2:
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(
-                    Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.hash(), build.date(), !build.isSnapshot(),
+                    Build.Flavor.UNKNOWN, Build.Type.UNKNOWN, build.hash(), build.date(), build.isSnapshot() == false,
                     build.getQualifiedVersion()
                 );
                 break;

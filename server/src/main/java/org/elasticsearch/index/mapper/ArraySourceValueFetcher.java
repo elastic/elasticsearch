@@ -50,7 +50,13 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
             if (sourceValue == null) {
                 return List.of();
             }
-            values.addAll((List<?>) parseSourceValue(sourceValue));
+            try {
+                values.addAll((List<?>) parseSourceValue(sourceValue));
+            } catch (Exception e) {
+                // if parsing fails here then it would have failed at index time
+                // as well, meaning that we must be ignoring malformed values.
+                // So ignore it here too.
+            }
         }
         return values;
     }

@@ -194,7 +194,10 @@ public class DateUtils {
         return ZoneId.of(zoneId).normalized();
     }
 
-    static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+    /**
+     * The maximum nanosecond resolution date we can properly handle.
+     */
+    public static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
 

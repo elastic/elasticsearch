@@ -7,15 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +20,15 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractInternalTerms;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME;
 
 public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms, InternalMultiTerms.Bucket> {
 
@@ -135,7 +135,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
         @Override
         public long getDocCountError() {
-            if (!showDocCountError) {
+            if (showDocCountError == false) {
                 throw new IllegalStateException("show_terms_doc_count_error is false");
             }
             return docCountError;
@@ -581,7 +581,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         InternalMultiTerms that = (InternalMultiTerms) o;
         return requiredSize == that.requiredSize
             && minDocCount == that.minDocCount

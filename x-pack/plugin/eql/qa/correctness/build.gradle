@@ -6,18 +6,10 @@ tasks.named("test").configure { enabled = false }
 import org.elasticsearch.gradle.testclusters.RunTask
 import org.elasticsearch.gradle.info.BuildParams
 
-restResources {
-  restApi {
-    includeCore '_common', 'bulk', 'indices', 'snapshot'
-    includeXpack 'eql', 'indices'
-  }
-}
-
 dependencies {
   javaRestTestImplementation project(':test:framework')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
-  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  javaRestTestImplementation project(xpackModule('ql:test'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
   javaRestTestImplementation 'io.ous:jtoml:2.0.0'
 }
 
@@ -48,6 +40,8 @@ testClusters {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'basic'
     jvmArgs '-Xms4g', '-Xmx4g'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
   }
   runTask {
     jvmArgs '-Xms8g', '-Xmx8g'

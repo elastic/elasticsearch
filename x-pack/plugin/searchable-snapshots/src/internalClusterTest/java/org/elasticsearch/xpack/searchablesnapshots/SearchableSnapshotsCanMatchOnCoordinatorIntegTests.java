@@ -14,11 +14,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -36,7 +34,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -65,12 +63,17 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            // Use an unbound cache so we can recover the searchable snapshot completely all the times
-            .put(CacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES))
-            .build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings initialSettings = super.nodeSettings(nodeOrdinal, otherSettings);
+        if (DiscoveryNode.canContainData(otherSettings)) {
+            return Settings.builder()
+                .put(initialSettings)
+                // Have a shared cache of reasonable size available on each node because tests randomize over frozen and cold allocation
+                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomLongBetween(1, 10)))
+                .build();
+        } else {
+            return initialSettings;
+        }
     }
 
     public void testSearchableSnapshotShardsAreSkippedWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange() throws Exception {
@@ -133,7 +136,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexOutsideSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
@@ -252,7 +256,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
 
         // Block the repository for the node holding the searchable snapshot shards
         // to delay its restore
-        blockDataNode(repositoryName, dataNodeHoldingSearchableSnapshot);
+        blockNodeOnAnyFiles(repositoryName, dataNodeHoldingSearchableSnapshot);
 
         // Force the searchable snapshot to be allocated in a particular node
         Settings restoredIndexSettings = Settings.builder()
@@ -267,7 +271,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexOutsideSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
         final int searchableSnapshotShardCount = indexOutsideSearchRangeShardCount;
@@ -319,16 +324,20 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
         waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
 
-        SearchResponse newSearchResponse = client().search(request).actionGet();
+        // busy assert since computing the time stamp field from the cluster state happens off of the CS applier thread and thus can be
+        // slightly delayed
+        assertBusy(() -> {
+            SearchResponse newSearchResponse = client().search(request).actionGet();
 
-        // All the regular index searches succeeded
-        assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
-        assertThat(newSearchResponse.getFailedShards(), equalTo(0));
-        // We have to query at least one node to construct a valid response, and we pick
-        // a shard that's available in order to construct the search response
-        assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
-        assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
-        assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+            // All the regular index searches succeeded
+            assertThat(newSearchResponse.getSuccessfulShards(), equalTo(totalShards));
+            assertThat(newSearchResponse.getFailedShards(), equalTo(0));
+            // We have to query at least one node to construct a valid response, and we pick
+            // a shard that's available in order to construct the search response
+            assertThat(newSearchResponse.getSkippedShards(), equalTo(totalShards - 1));
+            assertThat(newSearchResponse.getTotalShards(), equalTo(totalShards));
+            assertThat(newSearchResponse.getHits().getTotalHits().value, equalTo(0L));
+        });
     }
 
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
@@ -375,7 +384,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexWithinSearchRange,
             restoredIndexSettings,
             Strings.EMPTY_ARRAY,
-            false
+            false,
+            randomFrom(MountSearchableSnapshotRequest.Storage.values())
         );
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
@@ -499,10 +509,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
     }
 
     private void waitUntilAllShardsAreUnassigned(Index index) throws Exception {
-        assertBusy(() -> {
-            ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
-            IndexRoutingTable indexRoutingTable = clusterService.state().getRoutingTable().index(index);
-            assertThat(indexRoutingTable.allPrimaryShardsUnassigned(), equalTo(true));
-        });
+        awaitClusterState(state -> state.getRoutingTable().index(index).allPrimaryShardsUnassigned());
     }
 }

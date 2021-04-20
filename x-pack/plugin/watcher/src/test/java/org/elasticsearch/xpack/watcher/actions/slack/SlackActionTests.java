@@ -133,8 +133,8 @@ public class SlackActionTests extends ESTestCase {
         SentMessages sentMessages = new SentMessages(accountName, messages);
         when(account.send(message, eq(any()))).thenReturn(sentMessages);
 
-        Action.Result.Status expectedStatus = !hasError ? Action.Result.Status.SUCCESS :
-                !hasSuccess ? Action.Result.Status.FAILURE :
+        Action.Result.Status expectedStatus = hasError == false ? Action.Result.Status.SUCCESS :
+                hasSuccess == false ? Action.Result.Status.FAILURE :
                         Action.Result.Status.PARTIAL_FAILURE;
 
 

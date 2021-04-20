@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateReque
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Objects;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -56,14 +57,16 @@ public class SearchTransform implements Transform {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchTransform that = (SearchTransform) o;
-
-        if (request != null ? !request.equals(that.request) : that.request != null) return false;
-        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
-        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
+        return Objects.equals(request, that.request)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone);
     }
 
     @Override

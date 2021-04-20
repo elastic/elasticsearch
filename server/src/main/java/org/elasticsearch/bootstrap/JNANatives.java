@@ -11,7 +11,6 @@ package org.elasticsearch.bootstrap;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.WString;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
@@ -260,4 +259,5 @@ class JNANatives {
             logger.warn("unable to install syscall filter: ", e);
         }
     }
+
 }

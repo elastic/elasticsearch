@@ -7,12 +7,6 @@
 
 package org.elasticsearch.xpack.enrich;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.function.LongSupplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.Client;
@@ -20,7 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -30,6 +24,12 @@ import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
@@ -143,7 +143,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             null,
             testTaskManager,
             testThreadPool,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
             ESTestCase::randomNonNegativeLong
         );
 
@@ -200,7 +200,7 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             null,
             testTaskManager,
             testThreadPool,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
             ESTestCase::randomNonNegativeLong
         );
 

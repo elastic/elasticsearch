@@ -136,12 +136,12 @@ public class SqlSession implements Session {
 
             String cluster = table.cluster();
 
-            if (Strings.hasText(cluster) && !indexResolver.clusterName().equals(cluster)) {
+            if (Strings.hasText(cluster) && indexResolver.clusterName().equals(cluster) == false) {
                 listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
             }
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
-            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen,
+            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen, configuration.runtimeMappings(),
                     wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
         } else {
             try {

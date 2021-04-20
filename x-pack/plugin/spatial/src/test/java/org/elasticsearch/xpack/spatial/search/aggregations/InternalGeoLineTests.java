@@ -88,10 +88,10 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
                 metadata.put(randomAlphaOfLength(15), randomInt());
                 break;
             case 4:
-                complete = !complete;
+                complete = complete == false;
                 break;
             case 5:
-                includeSorts = !includeSorts;
+                includeSorts = includeSorts == false;
                 break;
             case 6:
                 sortOrder = SortOrder.ASC.equals(sortOrder) ? SortOrder.DESC : SortOrder.ASC;

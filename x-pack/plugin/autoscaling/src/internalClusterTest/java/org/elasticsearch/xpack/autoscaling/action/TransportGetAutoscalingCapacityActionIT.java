@@ -27,16 +27,14 @@ import java.util.TreeSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
-@TestLogging(value = "org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacityAction:debug",
-    // spotless hack
-    reason = "to ensure we log autoscaling capacity response on DEBUG level")
+@TestLogging(
+    value = "org.elasticsearch.xpack.autoscaling.action.TransportGetAutoscalingCapacityAction:debug",
+    reason = "to ensure we log autoscaling capacity response on DEBUG level"
+)
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTestCase {
 
     public void testCurrentCapacity() throws Exception {
-        // see: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
-
         assertThat(capacity().results().keySet(), Matchers.empty());
         long memory = OsProbe.getInstance().getTotalPhysicalMemorySize();
         long storage = internalCluster().getInstance(NodeEnvironment.class).nodePaths()[0].fileStore.getTotalSpace();

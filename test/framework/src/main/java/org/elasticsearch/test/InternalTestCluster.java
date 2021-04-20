@@ -353,7 +353,7 @@ public final class InternalTestCluster extends TestCluster {
             autoManageMasterNodes ? "auto-managed" : "manual");
         this.nodeConfigurationSource = nodeConfigurationSource;
         // use 1 data path if we are forced to, or 80% of the time that we are not, otherwise use between 2 and 4 data paths
-        numDataPaths = forceSingleDataPath || random.nextDouble() < 0.8 ? 1 : random.nextInt(3) + 2;
+        numDataPaths = forceSingleDataPath || random.nextDouble() < 0.8 ? 1 : RandomNumbers.randomIntBetween(random, 2, 4);
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));

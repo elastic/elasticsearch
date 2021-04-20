@@ -221,7 +221,6 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.dataStreams(), entry.featureStates(), entry.startTime(), entry.repositoryStateId(), entry.shards(),
                     entry.failure(), userMetadata, entry.version());
             case 8:
-                logger.error("randomizing feature states");
                 List<SnapshotFeatureInfo> featureStates = randomList(1, 5,
                     () -> randomValueOtherThanMany(entry.featureStates()::contains, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo));
                 return new Entry(entry.snapshot(), entry.includeGlobalState(), entry.partial(), entry.state(),

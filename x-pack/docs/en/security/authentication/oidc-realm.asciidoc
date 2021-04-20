@@ -16,4 +16,4 @@ should also configure another realm, such as the <<native-realm, native realm>>
 in your authentication chain.
 
 In order to simplify the process of configuring OpenID Connect authentication
-within the {stack}, there is a step-by-step guide: <<oidc-guide>>.
+within the {stack}, there is a step-by-step guide: <<oidc-guide-stack>>.

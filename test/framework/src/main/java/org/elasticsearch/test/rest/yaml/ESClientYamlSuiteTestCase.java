@@ -123,7 +123,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             validateSpec(restSpec);
             final List<HttpHost> hosts = getClusterHosts();
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
-            final Version esVersion = versionVersionTuple.v1();
+            final Version esVersion = overwriteEsVersion(versionVersionTuple.v1());
             final Version masterVersion = versionVersionTuple.v2();
             final String os = readOsFromNodesInfo(adminClient());
 
@@ -155,6 +155,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+    }
+
+    protected Version overwriteEsVersion(Version esVersionFromApi) {
+        return esVersionFromApi;
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(

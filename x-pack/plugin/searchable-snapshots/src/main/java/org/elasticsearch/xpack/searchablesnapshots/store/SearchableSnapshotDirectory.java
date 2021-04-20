@@ -255,7 +255,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return snapshot;
     }
 
-    public List<BlobStoreIndexShardSnapshot.FileInfo> files() {
+    private List<BlobStoreIndexShardSnapshot.FileInfo> files() {
         if (loaded == false) {
             return List.of();
         }
@@ -356,6 +356,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public void clearCache() {
         for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
             final CacheKey cacheKey = createCacheKey(file.physicalName());
+            cacheService.removeFromCache(cacheKey);
             frozenCacheService.removeFromCache(cacheKey);
         }
     }

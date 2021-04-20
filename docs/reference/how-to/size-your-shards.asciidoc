@@ -183,7 +183,7 @@ node.
 
 [source,console]
 ----
-GET _cat/shards
+GET _cat/shards?v=true
 ----
 // TEST[setup:my_index]
 
@@ -203,7 +203,7 @@ configure `index.routing.allocation.total_shards_per_node` using the
 
 [source,console]
 --------------------------------------------------
-PUT /my-index-000001/_settings
+PUT my-index-000001/_settings
 {
   "index" : {
     "routing.allocation.total_shards_per_node" : 5
@@ -244,7 +244,7 @@ You can find these empty indices using the <<cat-count,cat count API>>.
 
 [source,console]
 ----
-GET /_cat/count/my-index-000001?v=true
+GET _cat/count/my-index-000001?v=true
 ----
 // TEST[setup:my_index]
 
@@ -254,7 +254,7 @@ unneeded indices.
 
 [source,console]
 ----
-DELETE /my-index-*
+DELETE my-index-*
 ----
 // TEST[setup:my_index]
 
@@ -269,7 +269,7 @@ are resource-intensive. If possible, run the force merge during off-peak hours.
 
 [source,console]
 ----
-POST /my-index-000001/_forcemerge
+POST my-index-000001/_forcemerge
 ----
 // TEST[setup:my_index]
 
@@ -282,7 +282,7 @@ If you no longer write to an index, you can use the
 
 [source,console]
 ----
-POST /my-index-000001/_shrink/my-shrunken-index-000001
+POST my-index-000001/_shrink/my-shrunken-index-000001
 ----
 // TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards":2,"blocks.write":true}}\n/]
 
@@ -302,7 +302,7 @@ shared index pattern, such as `my-index-2099.10.11`, into a monthly
 
 [source,console]
 ----
-POST /_reindex
+POST _reindex
 {
   "source": {
     "index": "my-index-2099.10.*"

@@ -8,6 +8,12 @@
 
 package org.elasticsearch.gradle.release;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -16,10 +22,11 @@ import java.util.stream.Collectors;
 
 /**
  * This class models the contents of a changelog YAML file. It contains no validation of its own,
- * because we check it against a JSON Schema document.
- *
- * @see <code>buildSrc/src/main/resources/changelog-schema.json</code>
- * @see <a href="https://json-schema.org/understanding-json-schema/">Understanding JSON Schema</a>
+ * because we check it against a JSON Schema document. See also:
+ * <ul>
+ *   <li><code>buildSrc/src/main/resources/changelog-schema.json</code></li>
+ *   <li><a href="https://json-schema.org/understanding-json-schema/">Understanding JSON Schema</a></li>
+ * </ul>
  */
 public class ChangelogEntry {
     private int pr;
@@ -31,6 +38,16 @@ public class ChangelogEntry {
     private Breaking breaking;
     private Deprecation deprecation;
     private List<String> versions;
+
+    private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
+
+    public static ChangelogEntry parse(File file) {
+        try {
+            return yamlMapper.readValue(file, ChangelogEntry.class);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     public int getPr() {
         return pr;

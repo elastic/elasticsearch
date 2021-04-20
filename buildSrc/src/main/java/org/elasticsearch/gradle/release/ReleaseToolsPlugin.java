@@ -14,8 +14,10 @@ import org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask
 import org.elasticsearch.gradle.precommit.PrecommitTaskPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import javax.inject.Inject;
@@ -37,34 +39,34 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(PrecommitTaskPlugin.class);
 
-        final Provider<ValidateYamlAgainstSchemaTask> validateChangelogs = project.getTasks()
-            .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {
-                task.setGroup("Documentation");
-                task.setDescription("Validates that all the changelog YAML files are well-formed");
+        final FileTree yamlFiles = projectLayout.getProjectDirectory()
+            .dir("docs/changelog")
+            .getAsFileTree()
+            .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
 
-                task.setInputFiles(
-                    projectLayout.getProjectDirectory()
-                        .dir("docs/changelog")
-                        .getAsFileTree()
-                        .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
-                );
+        final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsAgainstYamlTask = project.getTasks()
+            .register("validateChangelogsAgainstSchema", ValidateYamlAgainstSchemaTask.class, task -> {
+                task.setGroup("Documentation");
+                task.setDescription("Validates that all the changelog YAML files comply with the changelog schema");
+                task.setInputFiles(yamlFiles);
                 task.setJsonSchema(new File(project.getRootDir(), "buildSrc/src/main/resources/changelog-schema.json"));
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
+
+        final TaskProvider<ValidateYamlTask> validateChangelogsTask = project.getTasks()
+            .register("validateChangelogs", ValidateYamlTask.class, task -> {
+            task.setGroup("Documentation");
+            task.setDescription("Validates that all the changelog YAML files are well-formed");
+            task.setChangelogs(yamlFiles);
+            task.dependsOn(validateChangelogsAgainstYamlTask);
+        });
 
         project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(task -> {
             final Version version = VersionProperties.getElasticsearchVersion();
 
             task.setGroup("Documentation");
             task.setDescription("Generates release notes from changelog files held in this checkout");
-
-            task.setChangelogs(
-                projectLayout.getProjectDirectory()
-                    .dir("docs/changelog")
-                    .getAsFileTree()
-                    .matching(new PatternSet().include("**/*.yml", "**/*.yaml"))
-            );
-
+            task.setChangelogs(yamlFiles);
             task.setReleaseNotesIndexFile(projectLayout.getProjectDirectory().file("docs/reference/release-notes.asciidoc"));
 
             task.setReleaseNotesFile(
@@ -79,9 +81,9 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                     .file(String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor()))
             );
 
-            task.dependsOn(validateChangelogs);
+            task.dependsOn(validateChangelogsTask);
         });
 
-        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogs));
+        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
     }
 }

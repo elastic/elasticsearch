@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.release;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
@@ -25,9 +23,7 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
 import javax.inject.Inject;
-import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -43,8 +39,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseNotesFile;
     private final RegularFileProperty releaseHighlightsFile;
     private final RegularFileProperty breakingChangesFile;
-
-    private final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
     @Inject
     public GenerateReleaseNotesTask(ObjectFactory objectFactory) {
@@ -63,7 +57,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final List<ChangelogEntry> entries = this.changelogs.getFiles()
             .stream()
-            .map(this::parseChangelogFile)
+            .map(ChangelogEntry::parse)
             .filter(
                 // Only process changelogs that are included in this minor version series of ES.
                 // If this change was released in an earlier major or minor version of Elasticsearch, do not
@@ -108,14 +102,6 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         LOGGER.info("Generating breaking changes / deprecations notes...");
         try (BreakingChangesGenerator generator = new BreakingChangesGenerator(this.breakingChangesFile.get().getAsFile())) {
             generator.generate(entries);
-        }
-    }
-
-    private ChangelogEntry parseChangelogFile(File file) {
-        try {
-            return yamlMapper.readValue(file, ChangelogEntry.class);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         }
     }
 

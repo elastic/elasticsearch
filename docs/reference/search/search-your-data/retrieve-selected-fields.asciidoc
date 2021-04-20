@@ -29,23 +29,34 @@ parameter:
 
 * Returns each value in a standardized way that matches its mapping type
 * Accepts <<multi-fields,multi-fields>> and <<alias,field aliases>>
-* Formats date fields by default according to the
-<<mapping-date-format,date format>> parameter in their mappings
+* Formats dates and spatial data types
 * Retrieves <<runtime-retrieving-fields,runtime field values>>
 * Returns fields calculated by a script at index time
 // end::fields-param-desc[]
 
 Other mapping options are also respected, including
-<<ignore-above,`ignore_above`>>, <<ignore-malformed,`ignore_malformed`>> and
+<<ignore-above,`ignore_above`>>, <<ignore-malformed,`ignore_malformed`>>, and
 <<null-value,`null_value`>>.
 
 The `fields` option returns values in the way that matches how {es} indexes
 them. For standard fields, this means that the `fields` option looks in
 `_source` to find the values, then parses and formats them using the mappings.
 
+[discrete]
+[[search-fields-request]]
+==== Search for specific fields
 The following search request uses the `fields` parameter to retrieve values
 for the `user.id` field, all fields starting with `http.response.`, and the
 `@timestamp` field.
+
+Using object notation, you can pass a `format` parameter for certain fields to
+apply a custom format for the field's values:
+
+* <<date,`date`>> and <<date_nanos,`date_nanos`>> fields accept a <<mapping-date-format,date format>>
+* <<spatial_datatypes, Spatial fields>> accept either `geojson` for http://www.geojson.org[GeoJSON] (the default) or `wkt` for
+{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
+
+Other field types do not support the `format` parameter.
 
 [source,console]
 ----
@@ -58,7 +69,7 @@ POST my-index-000001/_search
   },
   "fields": [
     "user.id",
-    "http.response.*", <1>
+    "http.response.*",         <1>
     {
       "field": "@timestamp",
       "format": "epoch_millis" <2>
@@ -70,17 +81,8 @@ POST my-index-000001/_search
 // TEST[setup:my_index]
 // TEST[s/_search/_search\?filter_path=hits/]
 
-// tag::fields-param-callouts[]
 <1> Both full field names and wildcard patterns are accepted.
-<2> Using object notation, you can pass a `format` parameter to apply a custom
-    format for the field's values.
-    <<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
-    <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
-    accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
-    or `wkt` for
-    {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
-    Other field types do not support the `format` parameter.
-// end::fields-param-callouts[]
+<2> Use the `format` parameter to apply a custom format for the field's values.
 
 [discrete]
 [[search-fields-response]]
@@ -465,6 +467,14 @@ GET /_search
 [discrete]
 [[field-retrieval-methods]]
 === Other methods of retrieving data
+
+.Using `fields` is typically better
+****
+These options are usually not required. Using the `fields` option is typically
+the better choice, unless you absolutely need to force loading a stored or
+`docvalue_fields`.
+****
+
 A document's `_source` is stored as a single field in Lucene. This structure
 means that the whole `_source` object must be loaded and parsed even if you're
 only requesting part of it. To avoid this limitation, you can try other options
@@ -477,13 +487,6 @@ such as keywords and dates.
 * Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
-
-.Using `fields` is typically better
-****
-These options are usually not required. Using the `fields` option is typically
-the better choice, unless you absolutely need to force loading a stored or
-`docvalue_fields`.
-****
 
 {es} always attempts to load values from `_source`. This behavior has the same
 implications of source filtering where {es} needs to load and parse the entire

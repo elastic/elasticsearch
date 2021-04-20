@@ -77,23 +77,31 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
         for (DataStream dataStream : dataStreams) {
             final String indexTemplate;
+            String ilmPolicyName = null;
             if (dataStream.isSystem()) {
                 SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
                 indexTemplate = dataStreamDescriptor != null ? dataStreamDescriptor.getDataStreamName() : null;
+                if (dataStreamDescriptor != null) {
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(
+                        dataStreamDescriptor.getComposableIndexTemplate(),
+                        dataStreamDescriptor.getComponentTemplates()
+                    );
+                    ilmPolicyName = settings.get("index.lifecycle.name");
+                }
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
+                if (indexTemplate != null) {
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                    ilmPolicyName = settings.get("index.lifecycle.name");
+                } else {
+                    LOGGER.warn(
+                        "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"
+                            + "from a snapshot?",
+                        dataStream.getName()
+                    );
+                }
             }
-            String ilmPolicyName = null;
-            if (indexTemplate != null) {
-                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                ilmPolicyName = settings.get("index.lifecycle.name");
-            } else {
-                LOGGER.warn(
-                    "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"
-                        + "from a snapshot?",
-                    dataStream.getName()
-                );
-            }
+
             ClusterStateHealth streamHealth = new ClusterStateHealth(
                 state,
                 dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)

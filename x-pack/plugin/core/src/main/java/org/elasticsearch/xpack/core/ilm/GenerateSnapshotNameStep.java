@@ -18,7 +18,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.Collections;
 import java.util.List;
@@ -140,7 +139,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, SystemIndexAccessLevel.NONE);
+            super(null, null, startTime, false, false, false, false, name -> false);
         }
 
         @Override

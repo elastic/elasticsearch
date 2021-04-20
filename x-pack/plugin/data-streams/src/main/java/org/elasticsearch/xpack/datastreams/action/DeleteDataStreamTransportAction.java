@@ -39,7 +39,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
 
@@ -81,6 +80,13 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
+        // resolve the names in the request early
+        List<String> names = getDataStreamNames(indexNameExpressionResolver, state, request.getNames(), request.indicesOptions());
+        for (String name : names) {
+            systemIndices.validateDataStreamAccess(name, threadPool.getThreadContext());
+        }
+        request.indices(names.toArray(Strings.EMPTY_ARRAY));
+
         clusterService.submitStateUpdateTask(
             "remove-data-stream [" + Strings.arrayToCommaDelimitedString(request.getNames()) + "]",
             new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {
@@ -92,13 +98,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    return removeDataStream(
-                        deleteIndexService,
-                        indexNameExpressionResolver,
-                        currentState,
-                        request,
-                        ds -> systemIndices.validateDataStreamAccess(ds, threadPool.getThreadContext())
-                    );
+                    return removeDataStream(deleteIndexService, indexNameExpressionResolver, currentState, request);
                 }
 
                 @Override
@@ -113,14 +113,9 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
         MetadataDeleteIndexService deleteIndexService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterState currentState,
-        DeleteDataStreamAction.Request request,
-        Consumer<String> systemDataStreamAccessValidator
+        DeleteDataStreamAction.Request request
     ) {
-        List<String> names = getDataStreamNames(indexNameExpressionResolver, currentState, request.getNames(), request.indicesOptions());
-        Set<String> dataStreams = new HashSet<>(names);
-        for (String dataStreamName : dataStreams) {
-            systemDataStreamAccessValidator.accept(dataStreamName);
-        }
+        Set<String> dataStreams = new HashSet<>(Arrays.asList(request.getNames()));
         Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(currentState, dataStreams);
 
         if (dataStreams.isEmpty()) {

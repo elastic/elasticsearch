@@ -114,8 +114,7 @@ public final class DataStream {
             String indexTemplate = (String) args[5];
             String ilmPolicy = (String) args[6];
             Map<String, Object> metadata = (Map<String, Object>) args[7];
-            Boolean hidden = (Boolean) args[8];
-            hidden = hidden != null && hidden;
+            boolean hidden = args[8] != null && (boolean) args[8];
             boolean system = args[9] != null && (boolean) args[9];
             return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy, metadata, hidden,
                 system);

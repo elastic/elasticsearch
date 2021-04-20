@@ -179,7 +179,7 @@ public class MetadataCreateDataStreamService {
             throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must not start with '"
                 + DataStream.BACKING_INDEX_PREFIX + "'");
         }
-;
+
         final boolean isSystem = systemDataStreamDescriptor != null;
         final ComposableIndexTemplate template = isSystem ?
             systemDataStreamDescriptor.getComposableIndexTemplate() :

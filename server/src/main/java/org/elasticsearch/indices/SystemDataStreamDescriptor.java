@@ -48,10 +48,21 @@ public class SystemDataStreamDescriptor {
     private final Map<String, ComponentTemplate> componentTemplates;
     private final List<String> allowedElasticProductOrigins;
 
+    /**
+     * Creates a new descriptor for a system data descriptor
+     * @param dataStreamName the name of the data stream. Must not be {@code null}
+     * @param description a brief description of what the data stream is used for. Must not be {@code null}
+     * @param type the {@link Type} of the data stream which determines how the data stream can be accessed. Must not be {@code null}
+     * @param composableIndexTemplate the {@link ComposableIndexTemplate} that contains the mappings and settings for the data stream.
+     *                                Must not be {@code null}
+     * @param componentTemplates a map that contains {@link ComponentTemplate} instances corresponding to those references in the
+     *                           {@link ComposableIndexTemplate}
+     * @param allowedElasticProductOrigins a list of product origin values that are allowed to access this data stream if the
+     *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
+     */
     public SystemDataStreamDescriptor(String dataStreamName, String description, Type type,
                                       ComposableIndexTemplate composableIndexTemplate, Map<String, ComponentTemplate> componentTemplates,
                                       List<String> allowedElasticProductOrigins) {
-        // TODO validation and javadocs
         this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
         this.description = Objects.requireNonNull(description, "description must be specified");
         this.type = Objects.requireNonNull(type, "type must be specified");

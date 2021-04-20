@@ -32,6 +32,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -329,15 +330,16 @@ public class SystemIndices {
                 .flatMap(feature -> feature.getDataStreamDescriptors().stream())
                 .filter(descriptor -> descriptor.getDataStreamName().equals(dataStreamName))
                 .findFirst()
-                .orElseThrow(() -> new IllegalStateException("system datastream descriptor not found for [" + dataStreamName + "]"));
+                .orElseThrow(() -> new IllegalStateException("system data stream descriptor not found for [" + dataStreamName + "]"));
             if (dataStreamDescriptor.isExternal()) {
                 final SystemIndexAccessLevel accessLevel = getSystemIndexAccessLevel(threadContext);
                 if (accessLevel == SystemIndexAccessLevel.NONE) {
-                    throw new IllegalArgumentException("DataStream [" + dataStreamName + "] is reserved for system use and access");
+                    throw dataStreamAccessException(null, dataStreamName);
                 } else if (accessLevel == SystemIndexAccessLevel.RESTRICTED) {
                     if (getProductSystemIndexNamePredicate(threadContext).test(dataStreamName) == false) {
-                        throw new IllegalArgumentException("DataStream [" + dataStreamName + "] is not accessible by product [" +
-                            threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY) + "]");
+                        throw dataStreamAccessException(
+                            threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
+                            dataStreamName);
                     } else {
                         return dataStreamDescriptor;
                     }
@@ -350,6 +352,23 @@ public class SystemIndices {
             }
         } else {
             return null;
+        }
+    }
+
+    public IllegalArgumentException dataStreamAccessException(ThreadContext threadContext, Collection<String> names) {
+        return dataStreamAccessException(
+            threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
+            names.toArray(Strings.EMPTY_ARRAY)
+        );
+    }
+
+    IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {
+        if (product == null) {
+            return new IllegalArgumentException("Data stream(s) " + Arrays.toString(dataStreamNames) +
+                " use and access is reserved for system operations");
+        } else {
+            return new IllegalArgumentException("Data stream(s) " + Arrays.toString(dataStreamNames) + " may not be accessed by product ["
+                + product + "]");
         }
     }
 

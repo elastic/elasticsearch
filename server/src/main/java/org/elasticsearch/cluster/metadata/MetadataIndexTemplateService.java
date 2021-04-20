@@ -1074,7 +1074,7 @@ public class MetadataIndexTemplateService {
     /**
      * Resolve the provided v2 template and component templates into a collected {@link Settings} object
      */
-    static Settings resolveSettings(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
+    public static Settings resolveSettings(ComposableIndexTemplate template, Map<String, ComponentTemplate> componentTemplates) {
         Objects.requireNonNull(template, "attempted to resolve settings for a null template");
         Objects.requireNonNull(componentTemplates, "attempted to resolve settings with null component templates");
         List<Settings> componentSettings = template.composedOf().stream()

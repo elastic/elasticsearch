@@ -53,7 +53,7 @@ the processors as follows:
 
 [options="header"]
 |====
-| Processor type | Field  | Additional options | Description  
+| Processor type | Field  | Additional options | Description
 
 | <<date-processor,**Date**>>
 | `@timestamp`
@@ -247,7 +247,8 @@ The API returns:
             },
             "name": "Chrome",
             "device": {
-              "name": "Mac"
+              "name": "Mac",
+              "type": "Desktop"
             },
             "version": "52.0.2743.116"
           }

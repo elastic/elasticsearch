@@ -150,6 +150,10 @@ public class BinaryFieldMapper extends FieldMapper {
                 value = context.parser().binaryValue();
             }
         }
+        indexValue(context, value);
+    }
+
+    public void indexValue(ParseContext context, byte[] value) {
         if (value == null) {
             return;
         }

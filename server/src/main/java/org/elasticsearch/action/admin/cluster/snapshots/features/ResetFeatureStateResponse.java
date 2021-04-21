@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.features;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -101,7 +102,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
     public static class ResetFeatureStateStatus implements Writeable, ToXContentObject {
         private final String featureName;
         private final Status status;
-        private final String exception;
+        private final Exception exception;
 
         public enum Status {
             SUCCESS,
@@ -112,14 +113,21 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             return new ResetFeatureStateStatus(featureName, Status.SUCCESS, null);
         }
 
+        public static ResetFeatureStateStatus failure(String featureName, Exception exception) {
+            return new ResetFeatureStateStatus(
+                featureName,
+                Status.FAILURE,
+                exception);
+        }
+
         public static ResetFeatureStateStatus failure(String featureName, String exceptionMessage) {
             return new ResetFeatureStateStatus(
                 featureName,
                 Status.FAILURE,
-                exceptionMessage);
+                new ElasticsearchException(exceptionMessage));
         }
 
-        private ResetFeatureStateStatus(String featureName, Status status, String exception) {
+        private ResetFeatureStateStatus(String featureName, Status status, Exception exception) {
             this.featureName = featureName;
             this.status = status;
             this.exception = exception;
@@ -128,7 +136,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         ResetFeatureStateStatus(StreamInput in) throws IOException {
             this.featureName = in.readString();
             this.status = Status.valueOf(in.readString());
-            this.exception = in.readOptionalString();
+            this.exception = in.readBoolean() ? in.readException() : null;
         }
 
         public String getFeatureName() {
@@ -139,7 +147,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             return this.status;
         }
 
-        public String getException() {
+        public Exception getException() {
             return this.exception;
         }
 
@@ -149,30 +157,44 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             builder.field("feature_name", this.featureName);
             builder.field("status", this.status);
             if (this.exception != null) {
-                builder.field("exception", this.status);
+                builder.field("exception", this.exception);
             }
             builder.endObject();
             return builder;
+        }
+
+        /**
+         * Without a convenient way to compare Exception equality, we consider
+         * only feature name and success or failure for equality.
+         * @param o An object to compare for equality
+         * @return True if the feature name and status are equal, false otherwise
+         */
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ResetFeatureStateStatus that = (ResetFeatureStateStatus) o;
+            return Objects.equals(featureName, that.featureName) && status == that.status;
+        }
+
+        /**
+         * @return Hash code based only on feature name and status.
+         */
+        @Override
+        public int hashCode() {
+            return Objects.hash(featureName, status);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(this.featureName);
             out.writeString(this.status.toString());
-            out.writeOptionalString(exception);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ResetFeatureStateStatus that = (ResetFeatureStateStatus) o;
-            return Objects.equals(featureName, that.featureName) && status == that.status && Objects.equals(exception, that.exception);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(featureName, status, exception);
+            if (exception != null) {
+                out.writeBoolean(true);
+                out.writeException(exception);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override

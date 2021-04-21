@@ -610,7 +610,7 @@ public class SystemIndices {
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onResponse(ResetFeatureStateStatus.failure(name, e.getMessage()));
+                    listener.onResponse(ResetFeatureStateStatus.failure(name, e));
                 }
             });
         }

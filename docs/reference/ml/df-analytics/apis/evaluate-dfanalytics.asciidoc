@@ -20,14 +20,9 @@ Evaluates the {dfanalytics} for an annotated index.
 [[ml-evaluate-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
-
-* cluster: `monitor_ml` or `monitor`
-* index: `read`, `write`
-  
-For more information, see <<security-privileges>> and 
-{ml-docs-setup-privileges}.
+You must have the `monitor_ml` cluster privilege and `read` privilege on the 
+destination index to use this API. The required cluster privilege is included in 
+the `machine_learning_user` built-in role.
 
 
 [[ml-evaluate-dfanalytics-desc]]

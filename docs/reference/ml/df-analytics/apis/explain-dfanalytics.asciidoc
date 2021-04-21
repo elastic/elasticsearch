@@ -26,14 +26,10 @@ Explains a {dataframe-analytics-config}.
 [[ml-explain-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
-
-* cluster: `monitor_ml`
-* source indices: `read`, `view_index_metadata`
-  
-For more information, see <<security-privileges>> and 
-{ml-docs-setup-privileges}.
+You must have the `monitor_ml` cluster privilege and the `read` and 
+`view_index_metadata` privileges on the source indices to use this API. The 
+required cluster privilege is included in the `machine_learning_user` built-in 
+role.
 
 
 [[ml-explain-dfanalytics-desc]]

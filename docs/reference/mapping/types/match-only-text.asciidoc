@@ -15,9 +15,9 @@ Analysis is not configurable: text is always analyzed with the
 <<specify-index-time-default-analyzer,default analyzer>>
 (<<analysis-standard-analyzer,`standard`>> by default).
 
-<<span-queries,span queries>>, as well as `wildcard` and `fuzzy` rules of
-<<query-dsl-intervals-query,interval queries>> are not supported by this field.
-Use the <<text-field-type,`text`>> field type if you need them.
+<<span-queries,span queries>> are not supported with this field, use
+<<query-dsl-intervals-query,interval queries>> instead, or the
+<<text-field-type,`text`>> field type if you absolutely need span queries.
 
 Other than that, `match_only_text` supports the same queries as `text`. And
 like `text`, it doesn't support sorting or aggregating.

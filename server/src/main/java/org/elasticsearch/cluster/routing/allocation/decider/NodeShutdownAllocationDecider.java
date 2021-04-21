@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Nullable;
 
 /**
  * An allocation decider that prevents shards from being allocated to a
@@ -45,10 +46,6 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", node.nodeId());
         }
 
-        if (shardRouting.primary() && SingleNodeShutdownMetadata.Type.RESTART.equals(thisNodeShutdownMetadata.getType())) {
-            return allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be restarted", node.nodeId());
-        }
-
         return Decision.YES;
     }
 
@@ -71,8 +68,6 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
 
         if (thisNodeShutdownMetadata == null) {
             return allocation.decision(Decision.YES, NAME, "no nodes are currently shutting down");
-        } else if (SingleNodeShutdownMetadata.Type.RESTART.equals(thisNodeShutdownMetadata.getType())){
-            return allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be restarted", node.getId());
         } else if (SingleNodeShutdownMetadata.Type.REMOVE.equals(thisNodeShutdownMetadata.getType())) {
             return allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", node.getId());
         } else {
@@ -81,6 +76,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         }
     }
 
+    @Nullable
     private static SingleNodeShutdownMetadata getNodeShutdownMetadata(Metadata metadata, String nodeId) {
         NodesShutdownMetadata nodesShutdownMetadata = metadata.custom(NodesShutdownMetadata.TYPE);
         if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetdataMap() == null) {

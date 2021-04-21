@@ -191,7 +191,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                         // a new request should trigger a new authentication
                         cache.invalidate(token.principal(), listenableCacheEntry);
                     } else if (authResult.getUser().enabled() == false) {
-                        logger.trace(
+                        logger.debug(
                             "realm [{}] cannot authenticate [{}], user is not enabled ([{}])",
                             name(), token.principal(), authResult.getUser());
                         // a new request should trigger a new authentication

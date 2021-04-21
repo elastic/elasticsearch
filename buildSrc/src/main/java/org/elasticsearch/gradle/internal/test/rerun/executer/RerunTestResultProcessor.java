@@ -25,6 +25,11 @@ final class RerunTestResultProcessor implements TestResultProcessor {
 
     private final Map<Object, TestDescriptorInternal> activeDescriptorsById = new HashMap<>();
 
+    /**
+     * gradle structures tests in a tree structure with the test task itself
+     * being the root element. This is required to be tracked here to get the
+     * structure right when rerunning a test task tests.
+     * */
     private Object rootTestDescriptorId;
 
     RerunTestResultProcessor(TestResultProcessor delegate) {

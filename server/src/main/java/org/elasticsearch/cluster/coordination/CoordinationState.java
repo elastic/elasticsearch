@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -253,7 +242,7 @@ public class CoordinationState {
         boolean added = joinVotes.addJoinVote(join);
         boolean prevElectionWon = electionWon;
         electionWon = isElectionQuorum(joinVotes);
-        assert !prevElectionWon || electionWon : // we cannot go from won to not won
+        assert prevElectionWon == false || electionWon : // we cannot go from won to not won
             "locaNode= " + localNode + ", join=" + join + ", joinVotes=" + joinVotes;
         logger.debug("handleJoin: added join {} from [{}] for election, electionWon={} lastAcceptedTerm={} lastAcceptedVersion={}", join,
             join.getSourceNode(), electionWon, lastAcceptedTerm, getLastAcceptedVersion());
@@ -555,11 +544,11 @@ public class CoordinationState {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
-            if (!(o instanceof VoteCollection)) return false;
+            if ((o instanceof VoteCollection) == false) return false;
 
             VoteCollection that = (VoteCollection) o;
 
-            if (!nodes.equals(that.nodes)) return false;
+            if (nodes.equals(that.nodes) == false) return false;
             return joins.equals(that.joins);
         }
 

@@ -2,7 +2,7 @@
 setup:
   - do:
       cluster.health:
-        wait_for_status: yellow
+        wait_for_events: languid
 
 ---
 "Test stack template installation":

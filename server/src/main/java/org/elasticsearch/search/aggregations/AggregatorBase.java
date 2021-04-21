@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations;
 
@@ -92,6 +81,10 @@ public abstract class AggregatorBase extends Aggregator {
             }
 
             @Override
+            public void postCollection() throws IOException {
+                badState();
+            }
+            @Override
             public ScoreMode scoreMode() {
                 badState();
                 return ScoreMode.COMPLETE; // unreachable
@@ -163,6 +156,12 @@ public abstract class AggregatorBase extends Aggregator {
     /**
      * Get a {@link LeafBucketCollector} for the given ctx, which should
      * delegate to the given collector.
+     * <p>
+     * {@linkplain Aggregator}s that perform collection independent of the main
+     * search should collect the provided leaf in their implementation of this
+     * method and return {@link LeafBucketCollector#NO_OP_COLLECTOR} to signal
+     * that they don't need to be collected with the main search. We'll remove
+     * them from the list of collectors.
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
@@ -188,8 +187,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final void preCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         doPreCollection();
         collectableSubAggregators.preCollection();
     }
@@ -229,6 +227,19 @@ public abstract class AggregatorBase extends Aggregator {
         return subAggregatorbyName.get(aggName);
     }
 
+    /**
+     * Called after collection of all document is done.
+     * <p>
+     * Warning: this is not final only to allow the parent join aggregator
+     * to delay this until building buckets.
+     */
+    @Override
+    public void postCollection() throws IOException {
+        // post-collect this agg before subs to make it possible to buffer and then replay in postCollection()
+        doPostCollection();
+        collectableSubAggregators.postCollection();
+    }
+
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
@@ -241,6 +252,12 @@ public abstract class AggregatorBase extends Aggregator {
 
     /** Release instance-specific data. */
     protected void doClose() {}
+
+    /**
+     * Can be overridden by aggregator implementation to be called back when the collection phase ends.
+     */
+    protected void doPostCollection() throws IOException {
+    }
 
     protected final InternalAggregations buildEmptySubAggregations() {
         List<InternalAggregation> aggs = new ArrayList<>();

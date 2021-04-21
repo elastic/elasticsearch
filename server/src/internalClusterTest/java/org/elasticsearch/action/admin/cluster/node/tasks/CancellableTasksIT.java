@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -60,7 +49,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,6 +71,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class CancellableTasksIT extends ESIntegTestCase {
 
     static int idGenerator = 0;
@@ -90,15 +79,6 @@ public class CancellableTasksIT extends ESIntegTestCase {
     static final Map<TestRequest, CountDownLatch> arrivedLatches = ConcurrentCollections.newConcurrentMap();
     static final Map<TestRequest, CountDownLatch> beforeExecuteLatches = ConcurrentCollections.newConcurrentMap();
     static final Map<TestRequest, CountDownLatch> completedLatches = ConcurrentCollections.newConcurrentMap();
-
-    @Before
-    public void resetTestStates() {
-        idGenerator = 0;
-        beforeSendLatches.clear();
-        arrivedLatches.clear();
-        beforeExecuteLatches.clear();
-        completedLatches.clear();
-    }
 
     @After
     public void ensureAllBansRemoved() throws Exception {
@@ -150,7 +130,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             beforeSendLatches.get(req).countDown();
         }
         for (TestRequest req : sentRequests) {
-            arrivedLatches.get(req).await();
+            assertTrue(arrivedLatches.get(req).await(60, TimeUnit.SECONDS));
         }
         Set<TestRequest> completedRequests = new HashSet<>();
         for (TestRequest req : randomSubsetOf(sentRequests)) {
@@ -163,7 +143,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             beforeExecuteLatches.get(req).countDown();
         }
         for (TestRequest req : completedRequests) {
-            completedLatches.get(req).await();
+            assertTrue(completedLatches.get(req).await(60, TimeUnit.SECONDS));
         }
         return Sets.difference(sentRequests, completedRequests);
     }
@@ -443,12 +423,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, taskDescription(), parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return true;
-                }
-            };
+            return new CancellableTask(id, type, action, taskDescription(), parentTaskId, headers);
         }
 
         @Override
@@ -500,7 +475,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             GroupedActionListener<TestResponse> groupedListener =
                 new GroupedActionListener<>(listener.map(r -> new TestResponse()), subRequests.size() + 1);
             transportService.getThreadPool().generic().execute(ActionRunnable.supply(groupedListener, () -> {
-                beforeExecuteLatches.get(request).await();
+                assertTrue(beforeExecuteLatches.get(request).await(60, TimeUnit.SECONDS));
                 if (((CancellableTask) task).isCancelled()) {
                     throw new TaskCancelledException("Task was cancelled while executing");
                 }
@@ -524,7 +499,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
                 @Override
                 protected void doRun() throws Exception {
-                    beforeSendLatches.get(subRequest).await();
+                    assertTrue(beforeSendLatches.get(subRequest).await(60, TimeUnit.SECONDS));
                     if (client.getLocalNodeId().equals(subRequest.node.getId()) && randomBoolean()) {
                         try {
                             client.executeLocally(TransportTestAction.ACTION, subRequest, latchedListener);

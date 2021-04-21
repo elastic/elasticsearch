@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.test.eql;
 
@@ -103,6 +104,45 @@ public abstract class EqlRestTestCase extends ESRestTestCase {
 
         deleteIndex("test1");
         deleteIndex("test2");
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUnicodeChars() throws Exception {
+        createIndex("test", Settings.EMPTY, null, null);
+
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{\"index\": {\"_index\": \"test\", \"_id\": 1}}\n");
+        bulk.append("{\"event\":{\"category\":\"process\"},\"@timestamp\":\"2020-09-04T12:34:56Z\",\"log\" : \"prefix_ë_suffix\"}\n");
+        bulk.append("{\"index\": {\"_index\": \"test\", \"_id\": 2}}\n");
+        bulk.append("{\"event\":{\"category\":\"process\"},\"@timestamp\":\"2020-09-05T12:34:57Z\",\"log\" : \"prefix_𖠋_suffix\"}\n");
+        bulkIndex(bulk.toString());
+
+        String endpoint = "/test/_eql/search";
+        Request request = new Request("GET", endpoint);
+        request.setJsonEntity("{\"query\":\"process where log==\\\"prefix_\\\\u{0eb}_suffix\\\"\"}");
+        Response response = client().performRequest(request);
+
+        Map<String, Object> responseMap;
+        try (InputStream content = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+        Map<String, Object> hits = (Map<String, Object>) responseMap.get("hits");
+        List<Map<String, Object>> events = (List<Map<String, Object>>) hits.get("events");
+        assertEquals(1, events.size());
+        assertEquals("1", events.get(0).get("_id"));
+
+        request.setJsonEntity("{\"query\":\"process where log==\\\"prefix_\\\\u{01680b}_suffix\\\"\"}");
+        response = client().performRequest(request);
+
+        try (InputStream content = response.getEntity().getContent()) {
+            responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+        hits = (Map<String, Object>) responseMap.get("hits");
+        events = (List<Map<String, Object>>) hits.get("events");
+        assertEquals(1, events.size());
+        assertEquals("2", events.get(0).get("_id"));
+
+        deleteIndex("test");
     }
 
     private void bulkIndex(String bulk) throws IOException {

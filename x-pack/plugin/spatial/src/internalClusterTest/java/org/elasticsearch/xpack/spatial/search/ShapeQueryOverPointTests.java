@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.search;
 
@@ -46,7 +47,7 @@ public class ShapeQueryOverPointTests extends ShapeQueryTests {
         Rectangle rectangle = new Rectangle(-35, -25, -25, -35);
 
         for (ShapeRelation shapeRelation : ShapeRelation.values()) {
-            if (!shapeRelation.equals(ShapeRelation.INTERSECTS)) {
+            if (shapeRelation.equals(ShapeRelation.INTERSECTS) == false) {
                 SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                     client().prepareSearch("test")
                         .setQuery(new ShapeQueryBuilder(defaultFieldName, rectangle)

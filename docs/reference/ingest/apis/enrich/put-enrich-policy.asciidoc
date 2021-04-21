@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[put-enrich-policy-api]]
-=== Put enrich policy API
+=== Create enrich policy API
 ++++
-<titleabbrev>Put enrich policy</titleabbrev>
+<titleabbrev>Create enrich policy</titleabbrev>
 ++++
 
 Creates an enrich policy.
@@ -64,8 +64,7 @@ If you use {es} {security-features}, you must have:
 [[put-enrich-policy-api-desc]]
 ==== {api-description-title}
 
-Use the put enrich policy API
-to create a new <<enrich-policy,enrich policy>>.
+Use the create enrich policy API to create a <<enrich-policy,enrich policy>>.
 
 [WARNING]
 ====
@@ -73,24 +72,55 @@ include::../../enrich.asciidoc[tag=update-enrich-policy]
 ====
 
 
-
 [[put-enrich-policy-api-path-params]]
 ==== {api-path-parms-title}
 
 `<enrich-policy>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=enrich-policy]
+Name of the enrich policy to create or update.
 
-
+[role="child_attributes"]
 [[put-enrich-policy-api-request-body]]
 ==== {api-request-body-title}
 
 `<policy-type>`::
+(Required, object)
+Configures the enrich policy. The field key is the enrich policy type. Valid key
+values are:
 +
 --
-(Required, <<enrich-policy-definition,enrich policy>> object)
-Enrich policy used to match and add the right enrich data to
-the right incoming documents.
+`geo_match`:::
+Matches enrich data to incoming documents based on a
+<<query-dsl-geo-shape-query,`geo_shape` query>>. For an example, see
+<<geo-match-enrich-policy-type>>.
 
-See <<enrich-policy-definition>> for object definition and parameters.
+`match`:::
+Matches enrich data to incoming documents based on a
+<<query-dsl-term-query,`term` query>>. For an example, see
+<<match-enrich-policy-type>>.
 --
++
+.Properties of `<policy-type>`
+[%collapsible%open]
+====
+`indices`::
+(Required, String or array of strings)
+One or more source indices used to create the enrich index.
++
+If multiple indices are specified, they must share a common `match_field`.
+
+`match_field`::
+(Required, string)
+Field in source indices used to match incoming documents.
+
+`enrich_fields`::
+(Required, Array of strings)
+Fields to add to matching incoming documents. These fields must be present in
+the source indices.
+
+`query`::
+(Optional, <<query-dsl,Query DSL query object>>)
+Query used to filter documents in the enrich index. The policy only uses
+documents matching this query to enrich incoming documents. Defaults to a
+<<query-dsl-match-all-query,`match_all`>> query.
+====

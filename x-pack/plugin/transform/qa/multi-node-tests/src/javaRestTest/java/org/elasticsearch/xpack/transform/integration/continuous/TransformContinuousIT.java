@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration.continuous;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.transform.DeleteTransformRequest;
@@ -274,13 +274,8 @@ public class TransformContinuousIT extends ESRestTestCase {
             // start all transforms, wait until the processed all data and stop them
             startTransforms();
 
-            // at random we added between 0 and 999_999ns == (1ms - 1ns) to every data point, so we add 1ms, so every data point is before
-            // the checkpoint
-            waitUntilTransformsReachedUpperBound(runDate.toEpochMilli() + 1, run);
+            waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run);
             stopTransforms();
-
-            // TODO: the transform dest index requires a refresh, see gh#51154
-            refreshAllIndices();
 
             // test the output
             for (ContinuousTestCase testCase : transformTestCases) {
@@ -495,11 +490,12 @@ public class TransformContinuousIT extends ESRestTestCase {
         }
     }
 
-    private void waitUntilTransformsReachedUpperBound(long timeStampUpperBoundMillis, int iteration) throws Exception {
+    private void waitUntilTransformsProcessedNewData(TimeValue delay, int iteration) throws Exception {
+        Instant waitUntil = Instant.now().plusMillis(delay.getMillis());
         logger.info(
-            "wait until transform reaches timestamp_millis: {} iteration: {}",
-            ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC"))
-                .format(Instant.ofEpochMilli(timeStampUpperBoundMillis)),
+            "wait until transform reaches timestamp_millis: {} (takes into account the delay: {}) iteration: {}",
+            ContinuousTestCase.STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS.withZone(ZoneId.of("UTC")).format(waitUntil),
+            delay,
             iteration
         );
         for (ContinuousTestCase testCase : transformTestCases) {
@@ -512,8 +508,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                         + stats.getState()
                         + ", reason: "
                         + stats.getReason(),
-                    stats.getCheckpointingInfo().getLast().getTimeUpperBoundMillis(),
-                    greaterThan(timeStampUpperBoundMillis)
+                    stats.getCheckpointingInfo().getLastSearchTime(),
+                    greaterThan(waitUntil)
                 );
             }, 20, TimeUnit.SECONDS);
         }

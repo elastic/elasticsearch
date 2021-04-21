@@ -1,0 +1,48 @@
+
+// tag::cloud[]
+include::{docs-root}/shared/cloud/ess-getting-started.asciidoc[tag=generic]
+// end::cloud[]
+
+// tag::self-managed[]
+**Install and run {es} using Docker**
+
+ifeval::["{release-state}"=="unreleased"]
+NOTE: No Docker image is currently available for {es} {version}.
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+. Install and start https://www.docker.com/products/docker-desktop[Docker
+Desktop].
+
+. Run:
++
+[source,sh,subs="attributes"]
+----
+docker pull {docker-repo}:{version}
+docker run --name es01-test -p 9200:9200 -p 9300:9300 -e "discovery.type=single-node" {docker-image}
+----
+endif::[]
+
+**Install and run {kib} using Docker**
+
+To analyze, visualize, and manage {es} data using an intuitive UI, install
+{kib}.
+
+ifeval::["{release-state}"=="unreleased"]
+NOTE: No Docker image is currently available for {kib} {version}.
+endif::[]
+ifeval::["{release-state}"!="unreleased"]
+
+. In a new terminal session, run:
++
+["source","txt",subs="attributes"]
+----
+docker pull docker.elastic.co/kibana/kibana:{version}
+docker run --name kib01-test  --link es01-test:elasticsearch -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
+----
+
+. To access {kib}, go to http://localhost:5601[http://localhost:5601]
+
+endif::[]
+// end::self-managed[]

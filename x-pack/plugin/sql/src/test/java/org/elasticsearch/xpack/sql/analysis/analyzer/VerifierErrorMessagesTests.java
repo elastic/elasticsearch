@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
@@ -10,7 +11,6 @@ import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.index.IndexResolverTests;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
@@ -36,6 +36,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
 public class VerifierErrorMessagesTests extends ESTestCase {
@@ -50,7 +51,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
@@ -70,7 +71,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -507,6 +508,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testGroupByOrderByFieldFromGroupByFunction() {
         assertEquals("1:54: Cannot order by non-grouped column [int], expected [ABS(int)]",
                 error("SELECT ABS(int) FROM test GROUP BY ABS(int) ORDER BY int"));
+        assertEquals("1:91: Cannot order by non-grouped column [c], expected [b] or an aggregate function",
+            error("SELECT b, abs, 2 as c FROM (SELECT bool as b, ABS(int) abs FROM test) GROUP BY b ORDER BY c"));
     }
 
     public void testGroupByOrderByScalarOverNonGrouped_WithHaving() {
@@ -516,7 +519,8 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testGroupByHavingNonGrouped() {
         assertEquals("1:48: Cannot use HAVING filter on non-aggregate [int]; use WHERE instead",
-                error("SELECT AVG(int) FROM test GROUP BY text HAVING int > 10"));
+            error("SELECT AVG(int) FROM test GROUP BY bool HAVING int > 10"));
+        accept("SELECT AVG(int) FROM test GROUP BY bool HAVING AVG(int) > 2");
     }
 
     public void testGroupByAggregate() {
@@ -568,6 +572,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL)");
         accept("SELECT int FROM test WHERE dep.start_date > '2020-01-30'::date AND (int > 10 OR dep.end_date IS NULL) " +
                "OR NOT(dep.start_date >= '2020-01-01')");
+        String operator = randomFrom("<", "<=");
+        assertEquals("1:46: WHERE isn't (yet) compatible with scalar functions on nested fields [dep.location]",
+            error("SELECT geo_shape FROM test " +
+                "WHERE ST_Distance(dep.location, ST_WKTToSQL('point (10 20)')) " + operator + " 25"));
     }
 
     public void testOrderByOnNested() {
@@ -911,7 +919,24 @@ public class VerifierErrorMessagesTests extends ESTestCase {
 
     public void testAggsInWhere() {
         assertEquals("1:33: Cannot use WHERE filtering on aggregate function [MAX(int)], use HAVING instead",
-                error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+            error("SELECT MAX(int) FROM test WHERE MAX(int) > 10 GROUP BY bool"));
+    }
+
+    public void testHavingInAggs() {
+        assertEquals("1:29: [int] field must appear in the GROUP BY clause or in an aggregate function",
+            error("SELECT int FROM test HAVING MAX(int) = 0"));
+
+        assertEquals("1:35: [int] field must appear in the GROUP BY clause or in an aggregate function",
+                error("SELECT int FROM test HAVING int = count(1)"));
+    }
+
+    public void testHavingAsWhere() {
+        // TODO: this query works, though it normally shouldn't; a check about it could only be enforced if the Filter would be qualified
+        // (WHERE vs HAVING). Otoh, this "extra flexibility" shouldn't be harmful atp.
+        accept("SELECT int FROM test HAVING int = 1");
+        accept("SELECT int FROM test HAVING SIN(int) + 5 > 5.5");
+        // HAVING's expression being AND'ed to WHERE's
+        accept("SELECT int FROM test WHERE int > 3 HAVING POWER(int, 2) < 100");
     }
 
     public void testHistogramInFilter() {
@@ -1117,26 +1142,27 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testGeoShapeInWhereClause() {
-        assertEquals("1:49: geo shapes cannot be used for filtering",
-            error("SELECT ST_AsWKT(shape) FROM test WHERE ST_AsWKT(shape) = 'point (10 20)'"));
+        assertEquals("1:53: geo shapes cannot be used for filtering",
+            error("SELECT ST_AsWKT(geo_shape) FROM test WHERE ST_AsWKT(geo_shape) = 'point (10 20)'"));
 
         // We get only one message back because the messages are grouped by the node that caused the issue
-        assertEquals("1:46: geo shapes cannot be used for filtering",
-            error("SELECT MAX(ST_X(shape)) FROM test WHERE ST_Y(shape) > 10 GROUP BY ST_GEOMETRYTYPE(shape) ORDER BY ST_ASWKT(shape)"));
+        assertEquals("1:50: geo shapes cannot be used for filtering",
+            error("SELECT MAX(ST_X(geo_shape)) FROM test WHERE ST_Y(geo_shape) > 10 " +
+                "GROUP BY ST_GEOMETRYTYPE(geo_shape) ORDER BY ST_ASWKT(geo_shape)"));
     }
 
     public void testGeoShapeInGroupBy() {
-        assertEquals("1:44: geo shapes cannot be used in grouping",
-            error("SELECT ST_X(shape) FROM test GROUP BY ST_X(shape)"));
+        assertEquals("1:48: geo shapes cannot be used in grouping",
+            error("SELECT ST_X(geo_shape) FROM test GROUP BY ST_X(geo_shape)"));
     }
 
     public void testGeoShapeInOrderBy() {
-        assertEquals("1:44: geo shapes cannot be used for sorting",
-            error("SELECT ST_X(shape) FROM test ORDER BY ST_Z(shape)"));
+        assertEquals("1:48: geo shapes cannot be used for sorting",
+            error("SELECT ST_X(geo_shape) FROM test ORDER BY ST_Z(geo_shape)"));
     }
 
     public void testGeoShapeInSelect() {
-        accept("SELECT ST_X(shape) FROM test");
+        accept("SELECT ST_X(geo_shape) FROM test");
     }
 
     //
@@ -1207,5 +1233,100 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         // inexact without underlying keyword (text only)
         assertEquals("1:36: [text] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
                 error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
+    }
+
+    public void testBinaryFieldWithDocValues() {
+        accept("SELECT binary_stored FROM test WHERE binary_stored IS NOT NULL");
+        accept("SELECT binary_stored FROM test GROUP BY binary_stored HAVING count(binary_stored) > 1");
+        accept("SELECT count(binary_stored) FROM test HAVING count(binary_stored) > 1");
+        accept("SELECT binary_stored FROM test ORDER BY binary_stored");
+    }
+
+    public void testBinaryFieldWithNoDocValues() {
+        assertEquals("1:31: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test WHERE binary IS NOT NULL"));
+        assertEquals("1:34: Binary field [binary] cannot be used in aggregations unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test GROUP BY binary"));
+        assertEquals("1:45: Binary field [binary] cannot be used for filtering unless it has the doc_values setting enabled",
+            error("SELECT count(binary) FROM test HAVING count(binary) > 1"));
+        assertEquals("1:34: Binary field [binary] cannot be used for ordering unless it has the doc_values setting enabled",
+            error("SELECT binary FROM test ORDER BY binary"));
+    }
+
+    public void testDistinctIsNotSupported() {
+        assertEquals("1:8: SELECT DISTINCT is not yet supported", error("SELECT DISTINCT int FROM test"));
+    }
+
+    public void testExistsIsNotSupported() {
+        assertEquals("1:33: EXISTS is not yet supported", error("SELECT test.int FROM test WHERE EXISTS (SELECT 1)"));
+    }
+
+    public void testScoreCannotBeUsedInExpressions() {
+        assertEquals("1:12: [SCORE()] cannot be used in expressions, does not support further processing",
+            error("SELECT SIN(SCORE()) FROM test"));
+    }
+
+    public void testScoreIsNotInHaving() {
+        assertEquals("1:54: HAVING filter is unsupported for function [SCORE()]\n" +
+                "line 1:54: [SCORE()] cannot be used in expressions, does not support further processing",
+            error("SELECT bool, AVG(int) FROM test GROUP BY bool HAVING SCORE() > 0.5"));
+    }
+
+    public void testScoreCannotBeUsedForGrouping() {
+        assertEquals("1:42: Cannot use [SCORE()] for grouping",
+            error("SELECT bool, AVG(int) FROM test GROUP BY SCORE()"));
+    }
+
+    public void testScoreCannotBeAnAggregateFunction() {
+        assertEquals("1:14: Cannot use non-grouped column [SCORE()], expected [bool]",
+            error("SELECT bool, SCORE() FROM test GROUP BY bool"));
+    }
+
+    public void testScalarFunctionInAggregateAndGrouping() {
+        accept("SELECT bool, SQRT(int) FROM test GROUP BY bool, SQRT(int)");
+        accept("SELECT bool, SQRT(int) FROM test GROUP BY bool, int");
+    }
+
+    public void testFunctionInAggregateAndGroupingAsReference() {
+        accept("SELECT b, s FROM (SELECT bool b, int, SQRT(int) s FROM test) GROUP BY b, SQRT(int)");
+    }
+
+    public void testLiteralAsAggregate() {
+        accept("SELECT bool, AVG(int), 2 as lit FROM test GROUP BY bool");
+    }
+
+    public void testShapeInWhereClause() {
+        assertEquals("1:49: shapes cannot be used for filtering",
+            error("SELECT ST_AsWKT(shape) FROM test WHERE ST_AsWKT(shape) = 'point (10 20)'"));
+        assertEquals("1:46: shapes cannot be used for filtering",
+            error("SELECT MAX(ST_X(shape)) FROM test WHERE ST_Y(shape) > 10 GROUP BY ST_GEOMETRYTYPE(shape) ORDER BY ST_ASWKT(shape)"));
+    }
+
+    public void testShapeInGroupBy() {
+        assertEquals("1:44: shapes cannot be used in grouping",
+            error("SELECT ST_X(shape) FROM test GROUP BY ST_X(shape)"));
+    }
+
+    public void testShapeInOrderBy() {
+        assertEquals("1:44: shapes cannot be used for sorting",
+            error("SELECT ST_X(shape) FROM test ORDER BY ST_Z(shape)"));
+    }
+
+    public void testShapeInSelect() {
+        accept("SELECT ST_X(shape) FROM test");
+    }
+
+    public void testSubselectWhereOnGroupBy() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE b = false");
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool HAVING AVG(int) > 2) WHERE b = false");
+    }
+
+    public void testSubselectWhereOnAggregate() {
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE a > 10");
+        accept("SELECT b, a FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool) WHERE a > 10 AND b = FALSE");
+    }
+
+    public void testSubselectWithOrderWhereOnAggregate() {
+        accept("SELECT * FROM (SELECT bool as b, AVG(int) as a FROM test GROUP BY bool ORDER BY bool) WHERE a > 10");
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
@@ -83,6 +84,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -272,7 +274,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         LoggingAuditTrail.INCLUDE_EVENT_SETTINGS, LoggingAuditTrail.EXCLUDE_EVENT_SETTINGS,
                         LoggingAuditTrail.INCLUDE_REQUEST_BODY, LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS,
                         LoggingAuditTrail.FILTER_POLICY_IGNORE_REALMS, LoggingAuditTrail.FILTER_POLICY_IGNORE_ROLES,
-                        LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, Loggers.LOG_LEVEL_SETTING));
+                        LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES, LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS,
+                        Loggers.LOG_LEVEL_SETTING));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
@@ -341,6 +344,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
         e = expectThrows(IllegalArgumentException.class,
                 () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_INDICES.getConcreteSettingForNamespace("filter4").get(settings4));
         assertThat(e, hasToString(containsString("invalid pattern [/no-inspiration]")));
+
+        Settings settings5 = Settings.builder()
+            .putList(prefix + "ignore_filters.filter2.users", Arrays.asList("tom", "cruise"))
+            .putList(prefix + "ignore_filters.filter2.actions", Arrays.asList("indices:data/read/*", "/foo")).build();
+        assertThat(LoggingAuditTrail.FILTER_POLICY_IGNORE_PRINCIPALS.getConcreteSettingForNamespace("filter2").get(settings5),
+            containsInAnyOrder("tom", "cruise"));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> LoggingAuditTrail.FILTER_POLICY_IGNORE_ACTIONS.getConcreteSettingForNamespace("filter2").get(settings5));
+        assertThat(e, hasToString(containsString("invalid pattern [/foo]")));
     }
 
     public void testSecurityConfigChangeEventFormattingForRoles() throws IOException {
@@ -2026,7 +2038,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 .put("xpack.security.audit.logfile.events.include", "_all")
                 .build();
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        final User user = new User("_username", new String[] { "r1" });
         final AuthorizationInfo authorizationInfo =
             () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, new String[] { randomAlphaOfLengthBetween(1, 6) });
         final String realm = randomAlphaOfLengthBetween(1, 6);
@@ -2194,17 +2205,35 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final RealmRef lookedUpBy;
         final RealmRef authBy;
         final User user;
-        if (randomBoolean()) {
-            user = new User(randomAlphaOfLength(4), new String[] { "r1" }, new User("authenticated_username", new String[] { "r2" }));
-            lookedUpBy = new RealmRef(randomAlphaOfLength(4), "lookup", "by");
-            authBy = new RealmRef("authRealm", "auth", "foo");
-        } else {
-            user = new User(randomAlphaOfLength(4), new String[] { "r1" });
-            lookedUpBy = null;
-            authBy = new RealmRef(randomAlphaOfLength(4), "auth", "by");
+        final AuthenticationType authenticationType;
+        final Map<String, Object> authMetadata;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                user = new User(randomAlphaOfLength(4), new String[] { "r1" }, new User("authenticated_username", "r2"));
+                lookedUpBy = new RealmRef(randomAlphaOfLength(4), "lookup", "by");
+                authBy = new RealmRef("authRealm", "auth", "foo");
+                authenticationType= randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN,
+                    AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS);
+                authMetadata = Map.of();
+                break;
+            case 1:
+                user = new User(randomAlphaOfLength(4), "r1");
+                lookedUpBy = null;
+                authBy = new RealmRef(randomAlphaOfLength(4), "auth", "by");
+                authenticationType= randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN,
+                    AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS);
+                authMetadata = Map.of();
+                break;
+            default:  // service account
+                final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
+                user = new User(principal, Strings.EMPTY_ARRAY, "Service account - " + principal, null,
+                    Map.of("_elastic_service_account", true), true);
+                lookedUpBy = null;
+                authBy = new RealmRef("service_account", "service_account", randomAlphaOfLengthBetween(3, 8));
+                authenticationType = AuthenticationType.TOKEN;
+                authMetadata = Map.of("_token_name", ValidationTests.randomTokenName());
         }
-        return new Authentication(user, authBy, lookedUpBy, Version.CURRENT, randomFrom(AuthenticationType.REALM,
-                AuthenticationType.TOKEN, AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS), Collections.emptyMap());
+        return new Authentication(user, authBy, lookedUpBy, Version.CURRENT, authenticationType, authMetadata);
     }
 
     private ClusterSettings mockClusterSettings() {

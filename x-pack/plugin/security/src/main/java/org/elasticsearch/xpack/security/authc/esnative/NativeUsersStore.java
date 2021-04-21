@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
@@ -46,10 +47,8 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.User.Fields;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Arrays;
@@ -168,17 +167,8 @@ public class NativeUsersStore {
                         .setSize(0)
                         .setTrackTotalHits(true)
                         .request(),
-                    new ActionListener<SearchResponse>() {
-                        @Override
-                        public void onResponse(SearchResponse response) {
-                            listener.onResponse(response.getHits().getTotalHits().value);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::search));
+                    listener.<SearchResponse>delegateFailure(
+                            (l, response) -> l.onResponse(response.getHits().getTotalHits().value)), client::search));
         }
     }
 
@@ -227,7 +217,7 @@ public class NativeUsersStore {
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
-        assert SystemUser.NAME.equals(username) == false && XPackUser.NAME.equals(username) == false : username + "is internal!";
+        assert User.isInternalUsername(username) == false : username + "is internal!";
         final String docType;
         if (ClientReservedRealm.isReserved(username, settings)) {
             docType = RESERVED_USER_TYPE;
@@ -279,17 +269,7 @@ public class NativeUsersStore {
                             .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(),
                                     true, Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refresh).request(),
-                    new ActionListener<IndexResponse>() {
-                        @Override
-                        public void onResponse(IndexResponse indexResponse) {
-                            clearRealmCache(username, listener, null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::index);
+                    listener.<IndexResponse>delegateFailure((l, indexResponse) -> clearRealmCache(username, l, null)), client::index);
         });
     }
 
@@ -370,18 +350,8 @@ public class NativeUsersStore {
                                     Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
                             .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                             .request(),
-                    new ActionListener<IndexResponse>() {
-                        @Override
-                        public void onResponse(IndexResponse updateResponse) {
-                            clearRealmCache(putUserRequest.username(), listener,
-                                    updateResponse.getResult() == DocWriteResponse.Result.CREATED);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::index);
+                    listener.<IndexResponse>delegateFailure((l, updateResponse) -> clearRealmCache(putUserRequest.username(), l,
+                            updateResponse.getResult() == DocWriteResponse.Result.CREATED)), client::index);
         });
     }
 
@@ -444,21 +414,13 @@ public class NativeUsersStore {
                                     Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                             .setRefreshPolicy(refreshPolicy)
                             .request(),
-                    new ActionListener<UpdateResponse>() {
-                        @Override
-                        public void onResponse(UpdateResponse updateResponse) {
-                            if (clearCache) {
-                                clearRealmCache(username, listener, null);
-                            } else {
-                                listener.onResponse(null);
-                            }
+                    listener.<UpdateResponse>delegateFailure((l, updateResponse) -> {
+                        if (clearCache) {
+                            clearRealmCache(username, l, null);
+                        } else {
+                            l.onResponse(null);
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::update);
+                    }), client::update);
         });
     }
 
@@ -475,18 +437,8 @@ public class NativeUsersStore {
                         .request();
                 request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
-                    new ActionListener<DeleteResponse>() {
-                        @Override
-                        public void onResponse(DeleteResponse deleteResponse) {
-                            clearRealmCache(deleteUserRequest.username(), listener,
-                                deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    }, client::delete);
+                    listener.<DeleteResponse>delegateFailure((l, deleteResponse) -> clearRealmCache(deleteUserRequest.username(), l,
+                            deleteResponse.getResult() == DocWriteResponse.Result.DELETED)), client::delete);
             });
         }
     }

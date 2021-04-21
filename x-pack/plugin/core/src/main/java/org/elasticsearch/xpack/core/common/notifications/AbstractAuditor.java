@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
@@ -104,7 +105,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         logger.debug("Failed to write audit message", exception);
     }
 
-    private void indexDoc(ToXContent toXContent) {
+    protected void indexDoc(ToXContent toXContent) {
         if (hasLatestTemplate.get()) {
             writeDoc(toXContent);
             return;
@@ -183,7 +184,11 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         }
     }
 
-    private void writeBacklog() {
+    protected void clearBacklog() {
+        backlog = null;
+    }
+
+    protected void writeBacklog() {
         assert backlog != null;
         if (backlog == null) {
             logger.error("Message back log has already been written");

@@ -1,26 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -28,7 +15,6 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.plugins.MapperPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,7 +37,7 @@ public abstract class ParseContext {
         private final String path;
         private final String prefix;
         private final List<IndexableField> fields;
-        private ObjectObjectMap<Object, IndexableField> keyedFields;
+        private Map<Object, IndexableField> keyedFields;
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
@@ -107,7 +93,7 @@ public abstract class ParseContext {
         /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
         public void addWithKey(Object key, IndexableField field) {
             if (keyedFields == null) {
-                keyedFields = new ObjectObjectHashMap<>();
+                keyedFields = new HashMap<>();
             } else if (keyedFields.containsKey(key)) {
                 throw new IllegalStateException("Only one field can be stored per key");
             }
@@ -233,8 +219,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public DocumentMapper docMapper() {
-            return in.docMapper();
+        public MappingLookup mappingLookup() {
+            return in.mappingLookup();
+        }
+
+        @Override
+        public MetadataFieldMapper getMetadataMapper(String mapperName) {
+            return in.getMetadataMapper(mapperName);
         }
 
         @Override
@@ -283,18 +274,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
             in.addDynamicRuntimeField(runtimeField);
         }
 
         @Override
-        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+        public List<RuntimeField> getDynamicRuntimeFields() {
             return in.getDynamicRuntimeFields();
-        }
-
-        @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return in.getDynamicRuntimeFieldsBuilder();
         }
 
         @Override
@@ -309,7 +295,7 @@ public abstract class ParseContext {
     }
 
     public static class InternalParseContext extends ParseContext {
-        private final DocumentMapper docMapper;
+        private final MappingLookup mappingLookup;
         private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
@@ -317,30 +303,27 @@ public abstract class ParseContext {
         private final List<Document> documents = new ArrayList<>();
         private final SourceToParse sourceToParse;
         private final long maxAllowedNumNestedDocs;
-        private final List<Mapper> dynamicMappers =  new ArrayList<>();
+        private final List<Mapper> dynamicMappers = new ArrayList<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
-        private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
-        private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
+        private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
         private final Set<String> ignoredFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        public InternalParseContext(DocumentMapper docMapper,
+        public InternalParseContext(MappingLookup mappingLookup,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
-                                    DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder,
                                     SourceToParse source,
                                     XContentParser parser) {
-            this.docMapper = docMapper;
+            this.mappingLookup = mappingLookup;
             this.parserContextFunction = parserContextFunction;
-            this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
             this.parser = parser;
             this.document = new Document();
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.maxAllowedNumNestedDocs = docMapper.indexSettings().getMappingNestedDocsLimit();
+            this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 
@@ -351,7 +334,7 @@ public abstract class ParseContext {
 
         @Override
         public IndexSettings indexSettings() {
-            return this.docMapper.indexSettings();
+            return this.mappingLookup.getIndexSettings();
         }
 
         @Override
@@ -397,17 +380,22 @@ public abstract class ParseContext {
 
         @Override
         public RootObjectMapper root() {
-            return docMapper.root();
+            return this.mappingLookup.getMapping().getRoot();
         }
 
         @Override
-        public DocumentMapper docMapper() {
-            return this.docMapper;
+        public MappingLookup mappingLookup() {
+            return mappingLookup;
+        }
+
+        @Override
+        public MetadataFieldMapper getMetadataMapper(String mapperName) {
+            return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
         }
 
         @Override
         public IndexAnalyzers indexAnalyzers() {
-            return docMapper.indexAnalyzers();
+            return mappingLookup.getIndexAnalyzers();
         }
 
         @Override
@@ -449,18 +437,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addDynamicRuntimeField(RuntimeFieldType runtimeField) {
+        public void addDynamicRuntimeField(RuntimeField runtimeField) {
             dynamicRuntimeFields.add(runtimeField);
         }
 
         @Override
-        public List<RuntimeFieldType> getDynamicRuntimeFields() {
+        public List<RuntimeField> getDynamicRuntimeFields() {
             return Collections.unmodifiableList(dynamicRuntimeFields);
-        }
-
-        @Override
-        public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
-            return dynamicRuntimeFieldsBuilder;
         }
 
         @Override
@@ -609,7 +592,9 @@ public abstract class ParseContext {
 
     public abstract RootObjectMapper root();
 
-    public abstract DocumentMapper docMapper();
+    public abstract MappingLookup mappingLookup();
+
+    public abstract MetadataFieldMapper getMetadataMapper(String mapperName);
 
     public abstract IndexAnalyzers indexAnalyzers();
 
@@ -651,11 +636,11 @@ public abstract class ParseContext {
      * @return null if no external value has been set or the value
      */
     public final <T> T parseExternalValue(Class<T> clazz) {
-        if (!externalValueSet() || externalValue() == null) {
+        if (externalValueSet() == false || externalValue() == null) {
             return null;
         }
 
-        if (!clazz.isInstance(externalValue())) {
+        if (clazz.isInstance(externalValue()) == false) {
             throw new IllegalArgumentException("illegal external value class ["
                     + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
         }
@@ -677,16 +662,33 @@ public abstract class ParseContext {
     /**
      * Add a new runtime field dynamically created while parsing.
      */
-    public abstract void addDynamicRuntimeField(RuntimeFieldType runtimeField);
+    public abstract void addDynamicRuntimeField(RuntimeField runtimeField);
 
     /**
      * Get dynamic runtime fields created while parsing.
      */
-    public abstract List<RuntimeFieldType> getDynamicRuntimeFields();
+    public abstract List<RuntimeField> getDynamicRuntimeFields();
 
     /**
-     * Retrieve the builder for dynamically created runtime fields
-     * @see MapperPlugin#getDynamicRuntimeFieldsBuilder()
+     * Find a dynamic mapping template for the given field and its matching type
+     *
+     * @param fieldName the name of the field
+     * @param matchType the expecting matchType of the field
+     * @return the matching template; otherwise returns null
+     * @throws MapperParsingException if the given field has a dynamic template name specified, but no template matches that name.
      */
-    public abstract DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder();
+    public final DynamicTemplate findDynamicTemplate(String fieldName, DynamicTemplate.XContentFieldType matchType) {
+        final String pathAsString = path().pathAsText(fieldName);
+        final String matchTemplateName = sourceToParse().dynamicTemplates().get(pathAsString);
+        for (DynamicTemplate template : root().dynamicTemplates()) {
+            if (template.match(matchTemplateName, pathAsString, fieldName, matchType)) {
+                return template;
+            }
+        }
+        if (matchTemplateName != null) {
+            throw new MapperParsingException(
+                "Can't find dynamic template for dynamic template name [" + matchTemplateName + "] of field [" + pathAsString + "]");
+        }
+        return null;
+    }
 }

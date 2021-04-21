@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle;
@@ -23,7 +12,6 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
-import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 
 import java.net.MalformedURLException;
@@ -48,20 +36,6 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
      * Adds repositories used by ES projects and dependencies
      */
     public static void configureRepositories(Project project) {
-        // ensure all repositories use secure urls
-        // TODO: remove this with gradle 7.0, which no longer allows insecure urls
-        project.getRepositories().all(repository -> {
-            if (repository instanceof MavenArtifactRepository) {
-                final MavenArtifactRepository maven = (MavenArtifactRepository) repository;
-                assertRepositoryURIIsSecure(maven.getName(), project.getPath(), maven.getUrl());
-                for (URI uri : maven.getArtifactUrls()) {
-                    assertRepositoryURIIsSecure(maven.getName(), project.getPath(), uri);
-                }
-            } else if (repository instanceof IvyArtifactRepository) {
-                final IvyArtifactRepository ivy = (IvyArtifactRepository) repository;
-                assertRepositoryURIIsSecure(ivy.getName(), project.getPath(), ivy.getUrl());
-            }
-        });
         RepositoryHandler repos = project.getRepositories();
         if (System.getProperty("repos.mavenLocal") != null) {
             // with -Drepos.mavenLocal=true we can force checking the local .m2 repo which is
@@ -69,7 +43,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal();
         }
-        repos.jcenter();
+        repos.mavenCentral();
 
         String luceneVersion = VersionProperties.getLucene();
         if (luceneVersion.contains("-snapshot")) {
@@ -93,7 +67,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
     }
 
     private static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
-        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false) {
+        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false && uri.getHost().equals("localhost") == false) {
             String url;
             try {
                 url = uri.toURL().toString();

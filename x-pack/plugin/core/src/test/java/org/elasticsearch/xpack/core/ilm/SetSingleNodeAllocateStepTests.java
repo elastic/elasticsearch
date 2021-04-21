@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -321,7 +322,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         final int numNodes = randomIntBetween(1, 20);
         String[][] validAttrs = new String[numAttrs][2];
         for (int i = 0; i < numAttrs; i++) {
-            validAttrs[i] = new String[] { randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
+            validAttrs[i] = new String[] { "na_" + randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20) };
         }
         Settings.Builder indexSettings = settings(Version.CURRENT);
         for (String[] attr : validAttrs) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.store;
 
@@ -88,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongUnaryOperator;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
@@ -463,14 +453,14 @@ public class StoreTests extends ESTestCase {
     public void assertDeleteContent(Store store, Directory dir) throws IOException {
         deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
-        assertThat(store.stats(0L).sizeInBytes(), equalTo(0L));
+        assertThat(store.stats(0L, LongUnaryOperator.identity()).sizeInBytes(), equalTo(0L));
         assertThat(dir.listAll().length, equalTo(0));
     }
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
         for (String file : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(file) &&
-                    !IndexFileNames.OLD_SEGMENTS_GEN.equals(file) && file.startsWith("extra") == false) {
+            if (IndexWriter.WRITE_LOCK_NAME.equals(file) == false &&
+                    IndexFileNames.OLD_SEGMENTS_GEN.equals(file) == false && file.startsWith("extra") == false) {
                 assertTrue(file + " is not in the map: " + metadata.asMap().size() + " vs. " +
                     store.directory().listAll().length, metadata.asMap().containsKey(file));
             } else {
@@ -748,19 +738,24 @@ public class StoreTests extends ESTestCase {
             assertTrue("expected extraFS file but got: " + extraFiles, extraFiles.startsWith("extra"));
             initialStoreSize += store.directory().fileLength(extraFiles);
         }
+        final long localStoreSizeDelta = randomLongBetween(-initialStoreSize, initialStoreSize);
         final long reservedBytes =  randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
-        StoreStats stats = store.stats(reservedBytes);
-        assertEquals(initialStoreSize, stats.getSize().getBytes());
+        StoreStats stats = store.stats(reservedBytes, size -> size + localStoreSizeDelta);
+        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(reservedBytes, stats.getReservedSize().getBytes());
 
         stats.add(null);
-        assertEquals(initialStoreSize, stats.getSize().getBytes());
+        assertEquals(initialStoreSize, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(reservedBytes, stats.getReservedSize().getBytes());
 
-        final long otherStatsBytes = randomLongBetween(0L, Integer.MAX_VALUE);
+        final long otherStatsDataSetBytes = randomLongBetween(0L, Integer.MAX_VALUE);
+        final long otherStatsLocalBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES :randomLongBetween(0L, Integer.MAX_VALUE);
-        stats.add(new StoreStats(otherStatsBytes, otherStatsReservedBytes));
-        assertEquals(initialStoreSize + otherStatsBytes, stats.getSize().getBytes());
+        stats.add(new StoreStats(otherStatsLocalBytes, otherStatsDataSetBytes, otherStatsReservedBytes));
+        assertEquals(initialStoreSize + otherStatsDataSetBytes, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + otherStatsLocalBytes + localStoreSizeDelta, stats.getSize().getBytes());
         assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
 
         Directory dir = store.directory();
@@ -775,8 +770,9 @@ public class StoreTests extends ESTestCase {
         }
 
         assertTrue(numNonExtraFiles(store) > 0);
-        stats = store.stats(0L);
-        assertEquals(stats.getSizeInBytes(), length + initialStoreSize);
+        stats = store.stats(0L, size -> size + localStoreSizeDelta);
+        assertEquals(initialStoreSize + length, stats.totalDataSetSize().getBytes());
+        assertEquals(initialStoreSize + localStoreSizeDelta + length, stats.getSizeInBytes());
 
         deleteContent(store.directory());
         IOUtils.close(store);

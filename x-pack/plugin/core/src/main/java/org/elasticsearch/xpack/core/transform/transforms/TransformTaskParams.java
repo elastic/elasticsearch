@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -43,10 +44,12 @@ public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> i
     }
 
     private TransformTaskParams(String transformId, String version, String frequency, Boolean remote) {
-        this(transformId, version == null ? null : Version.fromString(version),
+        this(
+            transformId,
+            version == null ? null : Version.fromString(version),
             frequency == null ? null : TimeValue.parseTimeValue(frequency, FREQUENCY.getPreferredName()),
-                    remote == null ? false : remote.booleanValue()
-                    );
+            remote == null ? false : remote.booleanValue()
+        );
     }
 
     public TransformTaskParams(String transformId, Version version, TimeValue frequency, boolean remote) {

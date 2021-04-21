@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_snapshots_changes]]
-=== Snapshot and restore changes
+==== Snapshot and restore changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

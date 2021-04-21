@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
@@ -255,8 +244,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failedNodeIds = Collections.unmodifiableSet(failedNodeIds);
         assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED) :
             "failedAllocations: " + failedAllocations + " for reason " + reason;
-        assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
-        assert !(delayed && reason != Reason.NODE_LEFT) : "shard can only be delayed if it is unassigned due to a node leaving";
+        assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
+        assert (delayed && reason != Reason.NODE_LEFT) == false : "shard can only be delayed if it is unassigned due to a node leaving";
     }
 
     public UnassignedInfo(StreamInput in) throws IOException {

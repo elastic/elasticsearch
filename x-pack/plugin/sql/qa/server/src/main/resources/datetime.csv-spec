@@ -131,6 +131,46 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date)
 44             |1961-11-02T00:00:00.000Z
 ;
 
+isoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(birth_date) AS d, SUM(salary) s FROM test_emp GROUP BY d ORDER BY d DESC;
+
+      d:i      |      s:l
+---------------+---------------
+7              |386466       
+6              |643304       
+5              |653130       
+4              |740669       
+3              |655169       
+2              |888011       
+1              |428067       
+null           |430039
+;
+
+isoWeekOfYear
+schema::birth_date:ts|iso_week:i|week:i
+SELECT birth_date, IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 8 AND week >2 ORDER BY iso_week;
+
+       birth_date       |   iso_week    |     week      
+------------------------+---------------+---------------
+1955-01-21T00:00:00.000Z|3              |4              
+1953-01-23T00:00:00.000Z|4              |4              
+1958-01-21T00:00:00.000Z|4              |4              
+1959-01-27T00:00:00.000Z|5              |5              
+1956-02-12T00:00:00.000Z|6              |7              
+1953-02-08T00:00:00.000Z|6              |7              
+1960-02-20T00:00:00.000Z|7              |8              
+;
+
+isoWeekOfYearFilterEquality
+SELECT ISO_WEEK_OF_YEAR(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS iso_week 
+FROM test_emp WHERE iso_week = 3 LIMIT 2;
+
+   iso_week:i  
+---------------
+3              
+3              
+;
+
 weekOfYearVsIsoWeekOfYearEdgeCases
 SELECT ISO_WEEK_OF_YEAR('2005-01-01T00:00:00.000Z'::datetime) AS "isow2005", WEEK('2005-01-01T00:00:00.000Z'::datetime) AS "w2005",
 ISO_WEEK_OF_YEAR('2007-12-31T00:00:00.000Z'::datetime) AS "isow2007", WEEK('2007-12-31T00:00:00.000Z'::datetime) AS "w2007";
@@ -153,17 +193,27 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 
 2              |1953-01-07T00:00:00.000Z
 ;
 
+minuteOfDayFilterEquality
+SELECT MINUTE_OF_DAY(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS min_of_day 
+FROM test_emp WHERE min_of_day = 866 LIMIT 2;
+
+  min_of_day:i 
+---------------
+866            
+866            
+;
+
 selectAddWithDateTime
 schema::dt_year:s|dt_quarter:s|dt_month:s|dt_week:s|dt_day:s|dt_hours:s|dt_min:s|dt_sec:s|dt_millis:s|dt_mcsec:s|dt_nsec:s
 SELECT DATE_ADD('year', 10, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_year, DATE_ADD('quarter', -10, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_quarter, DATE_ADD('month', 20, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_month,
 DATE_ADD('week', -50, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_week, DATE_ADD('day', 200, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_day,
 DATE_ADD('hours', -3000, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_hours, DATE_ADD('minutes', 5678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_min,
 DATE_ADD('second', 987654, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_sec, DATE_ADD('milliseconds', -12345678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_millis,
-DATE_ADD('mcs', -12345678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_mcsec, DATE_ADD('nanosecond', 12345600, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_nsec;
+DATE_ADD('mcs', -12345678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_mcsec, DATE_ADD('nanosecond', 12345678, '2019-09-04T11:22:33.123Z'::datetime)::string as dt_nsec;
 
-        dt_year          |       dt_quarter         |        dt_month          |         dt_week          |         dt_day           |        dt_hours          |         dt_min           |         dt_sec           |        dt_millis         |         dt_mcsec         |         dt_nsec
--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
-2029-09-04T11:22:33.123Z | 2017-03-04T11:22:33.123Z | 2021-05-04T11:22:33.123Z | 2018-09-19T11:22:33.123Z | 2020-03-22T11:22:33.123Z | 2019-05-02T11:22:33.123Z | 2019-09-08T10:00:33.123Z | 2019-09-15T21:43:27.123Z | 2019-09-04T07:56:47.445Z | 2019-09-04T11:22:20.777Z | 2019-09-04T11:22:33.135Z
+        dt_year          |       dt_quarter         |        dt_month          |         dt_week          |         dt_day           |        dt_hours          |         dt_min           |         dt_sec           |        dt_millis         |         dt_mcsec            |         dt_nsec
+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-----------------------------+-------------------------------
+2029-09-04T11:22:33.123Z | 2017-03-04T11:22:33.123Z | 2021-05-04T11:22:33.123Z | 2018-09-19T11:22:33.123Z | 2020-03-22T11:22:33.123Z | 2019-05-02T11:22:33.123Z | 2019-09-08T10:00:33.123Z | 2019-09-15T21:43:27.123Z | 2019-09-04T07:56:47.445Z | 2019-09-04T11:22:20.777322Z | 2019-09-04T11:22:33.135345678Z
 ;
 
 selectAddWithDate
@@ -171,11 +221,11 @@ schema::dt_year:ts|dt_quarter:ts|dt_month:ts|dt_week:ts|dt_day:ts|dt_hours:ts|dt
 SELECT DATEADD('year', 10, '2019-09-04'::date) as dt_year, DATEADD('quarter', -10, '2019-09-04'::date) as dt_quarter, DATEADD('month', 20, '2019-09-04'::date) as dt_month,
 DATEADD('week', -50, '2019-09-04'::date) as dt_week, DATEADD('day', 200, '2019-09-04'::date) as dt_day,
 DATEADD('hours', -3000, '2019-09-04'::date) as dt_hours, DATEADD('minutes', 5678, '2019-09-04'::date) as dt_min, DATEADD('second', 987654, '2019-09-04'::date) as dt_sec,
-DATEADD('milliseconds', 4314144, '2019-09-04'::date)::string as dt_millis, DATEADD('mcs', -12345678, '2019-09-04'::date)::string as dt_mcsec, DATEADD('nanosecond', 12345600, '2019-09-04'::date)::string as dt_nsec;
+DATEADD('milliseconds', 4314144, '2019-09-04'::date)::string as dt_millis, DATEADD('mcs', -12345678, '2019-09-04'::date)::string as dt_mcsec, DATEADD('nanosecond', 12345678, '2019-09-04'::date)::string as dt_nsec;
 
-       dt_year           |      dt_quarter          |       dt_month           |        dt_week           |        dt_day            |       dt_hours           |        dt_min            |        dt_sec            |         dt_millis        |       dt_mcsec           |         dt_nsec
--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-------------------------
-2029-09-04 00:00:00.000Z | 2017-03-04 00:00:00.000Z | 2021-05-04 00:00:00.000Z | 2018-09-19 00:00:00.000Z | 2020-03-22 00:00:00.000Z | 2019-05-02 00:00:00.000Z | 2019-09-07 22:38:00.000Z | 2019-09-15 10:20:54.000Z | 2019-09-04T01:11:54.144Z | 2019-09-03T23:59:47.654Z | 2019-09-04T00:00:00.012Z
+       dt_year           |      dt_quarter          |       dt_month           |        dt_week           |        dt_day            |       dt_hours           |        dt_min            |        dt_sec            |         dt_millis        |       dt_mcsec              |         dt_nsec
+-------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+--------------------------+-----------------------------+-------------------------------
+2029-09-04 00:00:00.000Z | 2017-03-04 00:00:00.000Z | 2021-05-04 00:00:00.000Z | 2018-09-19 00:00:00.000Z | 2020-03-22 00:00:00.000Z | 2019-05-02 00:00:00.000Z | 2019-09-07 22:38:00.000Z | 2019-09-15 10:20:54.000Z | 2019-09-04T01:11:54.144Z | 2019-09-03T23:59:47.654322Z | 2019-09-04T00:00:00.012345678Z
 ;
 
 selectDateAddWithField
@@ -590,6 +640,110 @@ dateTimeFormatHaving
 schema::max:ts|df_birth_date:s
 SELECT MAX(birth_date) AS max, DATETIME_FORMAT(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
 HAVING DATETIME_FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
+
+          max            | df_birth_date
+-------------------------+---------------
+1963-11-26 00:00:00.000Z | 11
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+1961-05-30 00:00:00.000Z | 05
+1961-02-26 00:00:00.000Z | 02
+;
+
+selectToChar
+schema::df_date:s|df_datetime:s|df_time:s
+SELECT TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'DD/MM/YYYY HH24:MI:SS.FF3') AS df_date,
+TO_CHAR('2020-04-05T11:22:33.123Z'::datetime, 'DD/MM/YYYY HH24:MI:SS.FF2') AS df_datetime,
+TO_CHAR('11:22:33.123456789Z'::time, 'HH24:MI:SS.FF2') AS df_time;
+
+       df_date          |    df_datetime         |   df_time
+------------------------+------------------------+----------------
+05/04/2020 00:00:00.000 | 05/04/2020 11:22:33.12 | 11:22:33.12
+;
+
+selectToCharWithField
+schema::birth_date:ts|gender:s|df_birth_date1:s|df_birth_date2:s|emp_no:i
+SELECT birth_date, gender, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date1, 
+TO_CHAR(birth_date, CONCAT(gender, 'MDD')) AS df_birth_date2, emp_no FROM test_emp WHERE emp_no BETWEEN 10047 AND 10057 ORDER BY emp_no;
+
+       birth_date       |    gender     |df_birth_date1 |df_birth_date2 |    emp_no     
+------------------------+---------------+---------------+---------------+---------------
+null                    |M              |null           |null           |10047          
+null                    |M              |null           |null           |10048          
+null                    |F              |null           |null           |10049          
+1958-05-21T00:00:00.000Z|M              |05/21/1958     |0521           |10050          
+1953-07-28T00:00:00.000Z|M              |07/28/1953     |0728           |10051          
+1961-02-26T00:00:00.000Z|M              |02/26/1961     |0226           |10052          
+1954-09-13T00:00:00.000Z|F              |09/13/1954     |13             |10053          
+1957-04-04T00:00:00.000Z|M              |04/04/1957     |0404           |10054          
+1956-06-06T00:00:00.000Z|M              |06/06/1956     |0606           |10055          
+1961-09-01T00:00:00.000Z|F              |09/01/1961     |1              |10056          
+1954-05-30T00:00:00.000Z|F              |05/30/1954     |30             |10057          
+;
+
+toCharWhere
+schema::birth_date:ts|df_birth_date:s|emp_no:i
+SELECT birth_date, TO_CHAR(birth_date, 'MM') AS df_birth_date, emp_no FROM test_emp
+WHERE TO_CHAR(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
+
+       birth_date       | df_birth_date |    emp_no     
+------------------------+---------------+---------------
+1959-12-03T00:00:00.000Z|12             |10003          
+1953-11-07T00:00:00.000Z|11             |10011          
+1952-12-24T00:00:00.000Z|12             |10020          
+1963-11-26T00:00:00.000Z|11             |10028          
+1956-12-13T00:00:00.000Z|12             |10029          
+1956-11-14T00:00:00.000Z|11             |10033          
+1962-12-29T00:00:00.000Z|12             |10034          
+1961-11-02T00:00:00.000Z|11             |10062          
+1952-11-13T00:00:00.000Z|11             |10066          
+1962-11-26T00:00:00.000Z|11             |10068          
+;
+
+toCharOrderBy
+schema::birth_date:ts|df_birth_date:s
+SELECT birth_date, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | df_birth_date
+-------------------------+---------------
+1962-12-29 00:00:00.000Z | 12/29/1962
+1959-12-25 00:00:00.000Z | 12/25/1959
+1952-12-24 00:00:00.000Z | 12/24/1952
+1960-12-17 00:00:00.000Z | 12/17/1960
+1956-12-13 00:00:00.000Z | 12/13/1956
+1959-12-03 00:00:00.000Z | 12/03/1959
+1957-12-03 00:00:00.000Z | 12/03/1957
+1963-11-26 00:00:00.000Z | 11/26/1963
+1962-11-26 00:00:00.000Z | 11/26/1962
+1962-11-19 00:00:00.000Z | 11/19/1962
+;
+
+toCharGroupBy
+schema::count:l|df_birth_date:s
+SELECT count(*) AS count, TO_CHAR(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date ORDER BY 1 DESC, 2 DESC;
+
+ count | df_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+6      | 08
+6      | 01
+2      | 03
+;
+
+toCharHaving
+schema::max:ts|df_birth_date:s
+SELECT MAX(birth_date) AS max, TO_CHAR(birth_date, 'MM') AS df_birth_date FROM test_emp GROUP BY df_birth_date
+HAVING TO_CHAR(MAX(birth_date), 'DD')::integer > 20  ORDER BY 1 DESC;
 
           max            | df_birth_date
 -------------------------+---------------
@@ -1170,9 +1324,9 @@ SELECT CAST(hire_date AS LONG) AS date FROM test_emp GROUP BY date ORDER BY date
 ;
 
 dateTimeAggByIsoDayOfWeekWithFilter
-SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, name ORDER BY day desc;
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) dayname, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, dayname ORDER BY day desc;
 
-    day:i      |   name:s      |     c:l       
+    day:i      |   dayname:s   |     c:l       
 ---------------+---------------+---------------
 5              |Friday         |12             
 4              |Thursday       |15             
@@ -1182,9 +1336,9 @@ SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp
 ;
 
 dateTimeAggByIsoDayOfWeek
-SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp GROUP BY day, name ORDER BY day desc;
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) dayname, COUNT(*) c FROM test_emp GROUP BY day, dayname ORDER BY day desc;
 
-    day:i      |   name:s      |     c:l       
+    day:i      |   dayname:s   |     c:l       
 ---------------+---------------+---------------
 7              |Sunday         |10
 6              |Saturday       |13
@@ -1199,24 +1353,25 @@ null           |null           |10
 dateTimeAggByIsoWeekOfYear
 SELECT IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 20 GROUP BY iso_week, week ORDER BY iso_week;
 
- iso_week:i    |    week:i      
+   iso_week:i  |     week:i    
 ---------------+---------------
-1              |2              
+2              |2              
 3              |4              
 4              |4              
-4              |5              
+5              |5              
 6              |7              
-7              |7              
+7              |8              
 8              |8              
 8              |9              
 9              |9              
 10             |11             
 12             |12             
 14             |14             
-14             |15             
+15             |15             
 15             |16             
 16             |16             
-16             |17             
+17             |17             
+17             |18             
 18             |18             
 ;
 

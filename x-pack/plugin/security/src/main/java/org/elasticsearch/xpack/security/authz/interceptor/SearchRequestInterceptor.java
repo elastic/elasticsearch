@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.interceptor;
 
@@ -11,10 +12,12 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * If field level security is enabled this interceptor disables the request cache for search requests.
+ * If field level security is enabled this interceptor disables the request cache for search and shardSearch requests.
  */
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
@@ -25,14 +28,25 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     @Override
     public void disableFeatures(IndicesRequest indicesRequest, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled,
                                 ActionListener<Void> listener) {
-        final SearchRequest request = (SearchRequest) indicesRequest;
-        request.requestCache(false);
+        assert indicesRequest instanceof SearchRequest || indicesRequest instanceof ShardSearchRequest
+            : "request must be either SearchRequest or ShardSearchRequest";
+
+        final SearchSourceBuilder source;
+        if (indicesRequest instanceof SearchRequest) {
+            final SearchRequest request = (SearchRequest) indicesRequest;
+            request.requestCache(false);
+            source = request.source();
+        } else {
+            final ShardSearchRequest request = (ShardSearchRequest) indicesRequest;
+            request.requestCache(false);
+            source = request.source();
+        }
 
         if (documentLevelSecurityEnabled) {
-            if (request.source() != null && request.source().suggest() != null) {
+            if (source != null && source.suggest() != null) {
                 listener.onFailure(new ElasticsearchSecurityException("Suggest isn't supported if document level security is enabled",
                         RestStatus.BAD_REQUEST));
-            } else if (request.source() != null && request.source().profile()) {
+            } else if (source != null && source.profile()) {
                 listener.onFailure(new ElasticsearchSecurityException("A search request cannot be profiled if document level security " +
                     "is enabled", RestStatus.BAD_REQUEST));
             } else {
@@ -45,6 +59,6 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
 
     @Override
     public boolean supports(IndicesRequest request) {
-        return request instanceof SearchRequest;
+        return request instanceof SearchRequest || request instanceof ShardSearchRequest;
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -599,7 +588,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             final AtomicBoolean abort = new AtomicBoolean();
             // Large histories can be problematic and have the linearizability checker run OOM
             // Bound the time how long the checker can run on such histories (Values empirically determined)
-            final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY);
+            final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
             try {
                 if (history.size() > 300) {
                     scheduler.schedule(() -> abort.set(true), 10, TimeUnit.SECONDS);
@@ -1007,12 +996,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             ClusterNode restartedNode(Function<Metadata, Metadata> adaptGlobalMetadata, Function<Long, Long> adaptCurrentTerm,
                                       Settings nodeSettings) {
+                final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.roles()
+                    .stream()
+                    .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
+                    .collect(Collectors.toUnmodifiableSet());
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
                     UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
                     address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                     localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings)
-                        ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
+                        ? allExceptVotingOnlyRole : emptySet(), Version.CURRENT);
                 return new ClusterNode(nodeIndex, newLocalNode,
                     node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm), nodeSettings,
                     nodeHealthService);
@@ -1404,7 +1397,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return new DiscoveryNode("", "node" + nodeIndex,
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
+            masterEligible ? DiscoveryNodeRole.roles() : emptySet(), Version.CURRENT);
     }
 
     /**

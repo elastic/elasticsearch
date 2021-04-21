@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.datastreams;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
@@ -71,9 +73,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.DocWriteRequest.OpType.CREATE;
-import static org.elasticsearch.cluster.DataStreamTestHelper.generateMapping;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -1076,27 +1083,6 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(e.getMessage(), equalTo("data stream could not be created because backing index [" + backingIndex + "] already exists"));
     }
 
-    public void testCreatingDataStreamAndBackingIndexExistsFails() throws Exception {
-        String dataStreamName = "logs-foobar";
-        String backingIndex = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
-
-        createIndex(backingIndex);
-        putComposableIndexTemplate("id", List.of("logs-*"));
-
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
-        Exception e = expectThrows(
-            IllegalStateException.class,
-            () -> client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet()
-        );
-        assertThat(
-            e.getMessage(),
-            startsWith(
-                "data stream [logs-foobar] could create backing indices that conflict with 1"
-                    + " existing index(s) or alias(s) including '.ds-logs-foobar"
-            )
-        );
-    }
-
     public void testQueryDataStreamNameInIndexField() throws Exception {
         putComposableIndexTemplate("id1", List.of("metrics-*"));
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
@@ -1145,6 +1131,72 @@ public class DataStreamIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().state(request).get().getState();
         assertThat(state.metadata().dataStreams().size(), equalTo(1));
         assertThat(state.metadata().dataStreams().get("metrics-foo").getName(), equalTo("metrics-foo"));
+    }
+
+    /**
+     * Tests that multiple threads all racing to rollover based on a condition trigger one and only one rollover
+     */
+    public void testMultiThreadedRollover() throws Exception {
+        final String dsName = "potato-biscuit";
+        putComposableIndexTemplate("id1", List.of("potato-*"));
+
+        ensureGreen();
+
+        final int threadCount = randomIntBetween(5, 10);
+        final CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
+        final AtomicBoolean running = new AtomicBoolean(true);
+        Set<Thread> threads = IntStream.range(0, threadCount).mapToObj(i -> new Thread(() -> {
+            try {
+                logger.info("--> [{}] waiting for all the other threads before starting", i);
+                barrier.await();
+                while (running.get()) {
+                    RolloverResponse resp = client().admin().indices().prepareRolloverIndex(dsName).addMaxIndexDocsCondition(2).get();
+                    if (resp.isRolledOver()) {
+                        logger.info("--> thread [{}] successfully rolled over: {}", i, Strings.toString(resp));
+                        assertThat(resp.getOldIndex(), equalTo(DataStream.getDefaultBackingIndexName("potato-biscuit", 1)));
+                        assertThat(resp.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("potato-biscuit", 2)));
+                    }
+                }
+            } catch (Exception e) {
+                logger.error(new ParameterizedMessage("thread [{}] encountered unexpected exception", i), e);
+                fail("we should not encounter unexpected exceptions");
+            }
+        }, "rollover-thread-" + i)).collect(Collectors.toSet());
+
+        threads.forEach(Thread::start);
+
+        indexDocs(dsName, 1);
+
+        // Okay, signal the floodgates to open
+        barrier.await();
+
+        indexDocs(dsName, 1);
+
+        assertBusy(() -> {
+            try {
+                client().admin().indices().prepareGetIndex().addIndices(DataStream.getDefaultBackingIndexName("potato-biscuit", 2)).get();
+            } catch (Exception e) {
+                logger.info("--> expecting second index to be created but it has not yet been created");
+                fail("expecting second index to exist");
+            }
+        });
+
+        // Tell everyone to stop trying to roll over
+        running.set(false);
+
+        threads.forEach(thread -> {
+            try {
+                thread.join(1000);
+            } catch (Exception e) {
+                logger.warn("expected thread to be stopped, but got", e);
+            }
+        });
+
+        // We should *NOT* have a third index, it should have rolled over *exactly* once
+        expectThrows(
+            Exception.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(DataStream.getDefaultBackingIndexName("potato-biscuit", 3)).get()
+        );
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {

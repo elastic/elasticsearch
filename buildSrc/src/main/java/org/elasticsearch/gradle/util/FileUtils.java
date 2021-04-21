@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.util;
@@ -22,6 +11,7 @@ package org.elasticsearch.gradle.util;
 import org.gradle.api.UncheckedIOException;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -39,13 +29,13 @@ public final class FileUtils {
             return;
         }
 
-        if (dir.exists() && !dir.isDirectory()) {
+        if (dir.exists() && dir.isDirectory() == false) {
             throw new UncheckedIOException(String.format("Cannot create directory '%s' as it already exists, but is not a directory", dir));
         }
 
         List<File> toCreate = new LinkedList<File>();
         File parent = dir.getParentFile();
-        while (!parent.exists()) {
+        while (parent.exists() == false) {
             toCreate.add(parent);
             parent = parent.getParentFile();
         }
@@ -55,7 +45,7 @@ public final class FileUtils {
                 continue;
             }
             File parentDirToCreateParent = parentDirToCreate.getParentFile();
-            if (!parentDirToCreateParent.isDirectory()) {
+            if (parentDirToCreateParent.isDirectory() == false) {
                 throw new UncheckedIOException(
                     String.format(
                         "Cannot create parent directory '%s' when creating directory '%s' as '%s' is not a directory",
@@ -65,14 +55,38 @@ public final class FileUtils {
                     )
                 );
             }
-            if (!parentDirToCreate.mkdir() && !parentDirToCreate.isDirectory()) {
+            if (parentDirToCreate.mkdir() == false && parentDirToCreate.isDirectory() == false) {
                 throw new UncheckedIOException(
                     String.format("Failed to create parent directory '%s' when creating directory '%s'", parentDirToCreate, dir)
                 );
             }
         }
-        if (!dir.mkdir() && !dir.isDirectory()) {
+        if (dir.mkdir() == false && dir.isDirectory() == false) {
             throw new UncheckedIOException(String.format("Failed to create directory '%s'", dir));
+        }
+    }
+
+    public static String read(File file, String encoding) {
+        try {
+            return org.apache.commons.io.FileUtils.readFileToString(file, encoding);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public static List<String> readLines(File file, String encoding) {
+        try {
+            return org.apache.commons.io.FileUtils.readLines(file, encoding);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    public static void write(File outputFile, CharSequence content, String encoding) {
+        try {
+            org.apache.commons.io.FileUtils.write(outputFile, content, encoding);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

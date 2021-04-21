@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.snapshots;
 
@@ -30,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -93,8 +83,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         } else {
             currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
         }
-        final String newShardGeneration = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
+        final ShardSnapshotResult shardSnapshotResult = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
                 sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f));
+        final String newShardGeneration = shardSnapshotResult.getGeneration();
 
         if (useBwCFormat) {
             final long gen = Long.parseLong(newShardGeneration);
@@ -118,9 +109,11 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(snapshotFiles.get(0).isSame(snapshotFiles.get(1)));
 
         // verify that repeated cloning is idempotent
-        final String newShardGeneration2 = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
+        final ShardSnapshotResult shardSnapshotResult2 = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
                 sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, newShardGeneration, f));
-        assertEquals(newShardGeneration, newShardGeneration2);
+        assertEquals(newShardGeneration, shardSnapshotResult2.getGeneration());
+        assertEquals(shardSnapshotResult.getSegmentCount(), shardSnapshotResult2.getSegmentCount());
+        assertEquals(shardSnapshotResult.getSize(), shardSnapshotResult2.getSize());
     }
 
     public void testCloneSnapshotIndex() throws Exception {
@@ -611,6 +604,39 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         unblockNode(repoName, masterName);
         assertAcked(deleteFuture.get());
         assertAcked(cloneFuture.get());
+    }
+
+    public void testManyConcurrentClonesStartOutOfOrder() throws Exception {
+        // large snapshot pool to allow for concurrently finishing clone while another clone is blocked on trying to load SnapshotInfo
+        final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "test-idx";
+        createIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+        assertAcked(admin().indices().prepareDelete(testIndex).get());
+
+        final MockRepository repo = getRepositoryOnMaster(repoName);
+        repo.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
+        repo.setBlockOnWriteIndexFile();
+
+        final ActionFuture<AcknowledgedResponse> clone1 = startClone(repoName, sourceSnapshot, "target-snapshot-1", testIndex);
+        // wait for this snapshot to show up in the cluster state
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(masterName, repoName);
+
+        final ActionFuture<AcknowledgedResponse> clone2 = startClone(repoName, sourceSnapshot, "target-snapshot-2", testIndex);
+
+        awaitNumberOfSnapshotsInProgress(2);
+        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .entries().stream().anyMatch(entry -> entry.state().completed()));
+        repo.unblock();
+
+        assertAcked(clone1.get());
+        assertAcked(clone2.get());
     }
 
     private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(String repoName, String sourceSnapshot, String targetSnapshot,

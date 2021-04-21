@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-oidc-prepare-authentication]]
-=== OpenID Connect Prepare Authentication API
+=== OpenID Connect prepare authentication API
+++++
+<titleabbrev>OpenID Connect prepare authentication</titleabbrev>
+++++
 
 Creates an oAuth 2.0 authentication request as a URL string based on the
 configuration of the respective OpenID Connect authentication realm in {es}.

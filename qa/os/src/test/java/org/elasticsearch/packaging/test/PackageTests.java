@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -51,6 +40,7 @@ import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -73,6 +63,7 @@ public class PackageTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+        disableGeoIpDownloader(installation);
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
@@ -94,7 +85,7 @@ public class PackageTests extends PackagingTestCase {
     private void assertRunsWithJavaHome() throws Exception {
         byte[] originalEnvFile = Files.readAllBytes(installation.envFile);
         try {
-            Files.write(installation.envFile, List.of("JAVA_HOME=" + systemJavaHome), APPEND);
+            Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), APPEND);
             startElasticsearch();
             runElasticsearchTests();
             stopElasticsearch();
@@ -224,6 +215,7 @@ public class PackageTests extends PackagingTestCase {
     public void test60Reinstall() throws Exception {
         install();
         assertInstalled(distribution());
+        disableGeoIpDownloader(installation);
         verifyPackageInstallation(installation, distribution(), sh);
 
         remove(distribution());
@@ -234,6 +226,7 @@ public class PackageTests extends PackagingTestCase {
         try {
             install();
             assertInstalled(distribution());
+            disableGeoIpDownloader(installation);
 
             startElasticsearch();
             restartElasticsearch(sh, installation);
@@ -361,9 +354,11 @@ public class PackageTests extends PackagingTestCase {
             // Make sure we don't pick up the journal entries for previous ES instances.
             Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             runElasticsearchStartCommand(null, true, false);
-            final Result logs = journald.getLogs();
 
-            assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+            assertBusy(() -> {
+                final Result logs = journald.getLogs();
+                assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+            });
         });
     }
 }

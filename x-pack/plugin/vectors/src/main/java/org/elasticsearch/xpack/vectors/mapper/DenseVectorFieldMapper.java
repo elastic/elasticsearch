@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 
@@ -22,7 +23,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -81,7 +82,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public DenseVectorFieldMapper build(ContentPath contentPath) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(buildFullName(contentPath), dims.getValue(), meta.getValue()),
+                new DenseVectorFieldType(buildFullName(contentPath), indexVersionCreated, dims.getValue(), meta.getValue()),
                 dims.getValue(),
                 indexVersionCreated,
                 multiFieldsBuilder.build(this, contentPath),
@@ -93,10 +94,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final class DenseVectorFieldType extends MappedFieldType {
         private final int dims;
+        private final Version indexVersionCreated;
 
-        public DenseVectorFieldType(String name, int dims, Map<String, String> meta) {
+        public DenseVectorFieldType(String name, Version indexVersionCreated, int dims, Map<String, String> meta) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
             this.dims = dims;
+            this.indexVersionCreated = indexVersionCreated;
         }
 
         int dims() {
@@ -109,7 +112,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -123,7 +126,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
         }
 
@@ -134,11 +137,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, indexVersionCreated, dims);
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new IllegalArgumentException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
         }

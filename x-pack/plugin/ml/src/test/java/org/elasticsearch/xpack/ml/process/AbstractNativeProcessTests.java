@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -123,7 +124,19 @@ public class AbstractNativeProcessTests extends ESTestCase {
             mockNativeProcessLoggingStreamEnds.countDown();
             ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
 
-            verify(onProcessCrash).accept("[foo] test process stopped unexpectedly: ");
+            verify(onProcessCrash).accept("[foo] test process stopped unexpectedly before logging started: ");
+        }
+    }
+
+    public void testCrashReporting() throws Exception {
+        when(cppLogHandler.tryGetPid()).thenReturn(42L);
+        when(cppLogHandler.getErrors()).thenReturn("Failed to find the answer");
+        try (AbstractNativeProcess process = new TestNativeProcess()) {
+            process.start(executorService);
+            mockNativeProcessLoggingStreamEnds.countDown();
+            ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
+
+            verify(onProcessCrash).accept("[foo] test/42 process stopped unexpectedly: Failed to find the answer");
         }
     }
 

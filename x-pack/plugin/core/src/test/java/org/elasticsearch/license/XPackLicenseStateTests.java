@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -20,6 +21,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.license.License.OperationMode.BASIC;
+import static org.elasticsearch.license.License.OperationMode.ENTERPRISE;
 import static org.elasticsearch.license.License.OperationMode.GOLD;
 import static org.elasticsearch.license.License.OperationMode.MISSING;
 import static org.elasticsearch.license.License.OperationMode.PLATINUM;
@@ -297,6 +299,24 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(GOLD, false, s -> s.checkFeature(Feature.WATCHER), false);
         assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.WATCHER), false);
         assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.WATCHER), false);
+    }
+
+    public void testEncryptedSnapshotsWithInactiveLicense() {
+        assertAllowed(BASIC, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(TRIAL, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(GOLD, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(PLATINUM, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(ENTERPRISE, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+    }
+
+    public void testEncryptedSnapshotsWithActiveLicense() {
+        assertAllowed(BASIC, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(TRIAL, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
+        assertAllowed(GOLD, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
+        assertAllowed(PLATINUM, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
+        assertAllowed(ENTERPRISE, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), true);
+        assertAllowed(STANDARD, true, s -> s.checkFeature(Feature.ENCRYPTED_SNAPSHOT), false);
     }
 
     public void testGraphPlatinumTrial() throws Exception {

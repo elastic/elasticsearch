@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.storage;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -26,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -46,6 +49,8 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -174,13 +179,15 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ImmutableOpenMap.Builder<String, Long> shardSizeBuilder,
         long expected
     ) {
-        ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null);
+        ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null, null);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
             null,
+            null,
             info,
             null,
+            Set.of(),
             Set.of()
         );
 
@@ -255,7 +262,9 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
+            null,
             shardSizeInfo,
+            Set.of(),
             Set.of()
         );
 
@@ -334,14 +343,16 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (shardsWithSizes.isEmpty() == false) {
             shardSizeBuilder.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
         }
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSizeBuilder.build(), null, null);
+        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSizeBuilder.build(), null, null, null);
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
+            null,
             thresholdSettings,
             info,
             null,
+            Set.of(),
             Set.of()
         );
 
@@ -356,6 +367,84 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         } else {
             assertThat(result, equalTo(ByteSizeUnit.KB.toBytes(minShardSize)));
         }
+    }
+
+    public void testCanRemainOnlyHighestTierPreference() {
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        addNode(stateBuilder);
+        Metadata.Builder metaBuilder = Metadata.builder();
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(10)
+            .numberOfReplicas(1)
+            .build();
+        metaBuilder.put(indexMetadata, true);
+        stateBuilder.metadata(metaBuilder);
+        ClusterState clusterState = stateBuilder.build();
+
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            indexMetadata.getIndex().getName(),
+            randomInt(10),
+            clusterState.nodes().iterator().next().getId(),
+            randomBoolean(),
+            ShardRoutingState.STARTED
+        );
+
+        AllocationDecider no = new AllocationDecider() {
+            @Override
+            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                return Decision.NO;
+            }
+        };
+
+        assertTrue(canRemainWithNoNodes(clusterState, shardRouting));
+        assertFalse(canRemainWithNoNodes(clusterState, shardRouting, no));
+
+        ClusterState clusterStateWithHotPreference = addPreference(indexMetadata, clusterState, "data_hot");
+        assertTrue(canRemainWithNoNodes(clusterStateWithHotPreference, shardRouting));
+        assertFalse(canRemainWithNoNodes(clusterStateWithHotPreference, shardRouting, no));
+
+        ClusterState clusterStateWithWarmHotPreference = addPreference(indexMetadata, clusterState, "data_warm,data_hot");
+        assertFalse(canRemainWithNoNodes(clusterStateWithWarmHotPreference, shardRouting));
+        assertFalse(canRemainWithNoNodes(clusterStateWithWarmHotPreference, shardRouting, no));
+    }
+
+    public ClusterState addPreference(IndexMetadata indexMetadata, ClusterState clusterState, String preference) {
+        IndexMetadata indexMetadataWithPreference = IndexMetadata.builder(indexMetadata)
+            .settings(Settings.builder().put(indexMetadata.getSettings()).put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, preference))
+            .build();
+
+        return ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).put(indexMetadataWithPreference, false))
+            .build();
+    }
+
+    public boolean canRemainWithNoNodes(ClusterState clusterState, ShardRouting shardRouting, AllocationDecider... deciders) {
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Arrays.asList(deciders));
+        DataTierAllocationDecider dataTierAllocationDecider = new DataTierAllocationDecider(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS)
+        );
+        ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
+            clusterState,
+            allocationDeciders,
+            dataTierAllocationDecider,
+            new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            ClusterInfo.EMPTY,
+            null,
+            Set.of(),
+            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
+        );
+
+        RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            clusterState.getRoutingNodes(),
+            clusterState,
+            null,
+            null,
+            randomLong()
+        );
+        return allocationState.canRemainOnlyHighestTierPreference(shardRouting, allocation);
     }
 
     public void testMessage() {

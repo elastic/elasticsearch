@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -274,6 +263,9 @@ public class RestHighLevelClient implements Closeable {
     private final EnrichClient enrichClient = new EnrichClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
     private final AsyncSearchClient asyncSearchClient = new AsyncSearchClient(this);
+    private final TextStructureClient textStructureClient = new TextStructureClient(this);
+    private final SearchableSnapshotsClient searchableSnapshotsClient = new SearchableSnapshotsClient(this);
+    private final FeaturesClient featuresClient = new FeaturesClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -452,6 +444,36 @@ public class RestHighLevelClient implements Closeable {
      */
     public AsyncSearchClient asyncSearch() {
         return asyncSearchClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Text Structure APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html"> X-Pack APIs on elastic.co</a>
+     * for more information.
+     */
+    public TextStructureClient textStructure() {
+        return textStructureClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
+     * APIs on elastic.co</a> for more information.
+     */
+    public SearchableSnapshotsClient searchableSnapshots() {
+        return searchableSnapshotsClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
+     * APIs on elastic.co</a> for more information.
+     */
+    public FeaturesClient features() {
+        return featuresClient;
     }
 
     /**

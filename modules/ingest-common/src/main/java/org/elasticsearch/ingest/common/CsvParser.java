@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -127,8 +116,6 @@ final class CsvParser {
             char c = currentChar();
             if (c == LF || c == CR || c == quote) {
                 throw new IllegalArgumentException("Illegal character inside unquoted field at " + currentIndex);
-            } else if (trim && isWhitespace(c)) {
-                spaceCount++;
             } else if (c == separator) {
                 state = State.START;
                 if (setField(currentIndex - spaceCount)) {
@@ -136,6 +123,8 @@ final class CsvParser {
                 }
                 startIndex = currentIndex + 1;
                 return false;
+            } else if (trim && isWhitespace(c)) {
+                spaceCount++;
             } else {
                 spaceCount = 0;
             }
@@ -163,20 +152,20 @@ final class CsvParser {
         boolean shouldSetField = true;
         for (; currentIndex < length; currentIndex++) {
             c = currentChar();
-            if (isWhitespace(c)) {
-                if (shouldSetField) {
-                    if (setField(currentIndex - 1)) {
-                        return true;
-                    }
-                    shouldSetField = false;
-                }
-            } else if (c == separator) {
+            if (c == separator) {
                 if (shouldSetField && setField(currentIndex - 1)) {
                     return true;
                 }
                 startIndex = currentIndex + 1;
                 state = State.START;
                 return false;
+            } else if (isWhitespace(c)) {
+                if (shouldSetField) {
+                    if (setField(currentIndex - 1)) {
+                        return true;
+                    }
+                    shouldSetField = false;
+                }
             } else {
                 throw new IllegalArgumentException("character '" + c + "' after quoted field at " + currentIndex);
             }

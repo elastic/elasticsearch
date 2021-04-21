@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -86,8 +87,8 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
-    private List<Job.Builder> jobs = new ArrayList<>();
-    private List<DatafeedConfig> datafeeds = new ArrayList<>();
+    private final List<Job.Builder> jobs = new ArrayList<>();
+    private final List<DatafeedConfig> datafeeds = new ArrayList<>();
 
     @Override
     protected void cleanUpResources() {
@@ -97,31 +98,39 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     private void cleanUpDatafeeds() {
         for (DatafeedConfig datafeed : datafeeds) {
-            try {
-                stopDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
+            cleanupDatafeed(datafeed.getId());
+        }
+    }
+
+    void cleanupDatafeed(String datafeedId) {
+        try {
+            stopDatafeed(datafeedId);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            deleteDatafeed(datafeedId);
+        } catch (Exception e) {
+            // ignore
         }
     }
 
     private void cleanUpJobs() {
         for (Job.Builder job : jobs) {
-            try {
-                closeJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
+            cleanupJob(job.getId());
+        }
+    }
+
+    void cleanupJob(String jobId) {
+        try {
+            closeJob(jobId);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            deleteJob(jobId);
+        } catch (Exception e) {
+            // ignore
         }
     }
 
@@ -289,17 +298,25 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
-        waitForecastStatus(jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        // Forecasts can take an eternity to complete in the FIPS JVM
+        waitForecastStatus(inFipsJvm() ? 300 : 60, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
     }
 
     protected void waitForecastStatus(String jobId,
+                                      String forecastId,
+                                      ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
+        waitForecastStatus(30, jobId, forecastId, status);
+    }
+
+    protected void waitForecastStatus(int maxWaitTimeSeconds,
+                                      String jobId,
                                       String forecastId,
                                       ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
         assertBusy(() -> {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
             assertThat(forecastRequestStats.getStatus(), in(status));
-        }, 60, TimeUnit.SECONDS);
+        }, maxWaitTimeSeconds, TimeUnit.SECONDS);
     }
 
     protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws IOException {

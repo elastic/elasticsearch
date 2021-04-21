@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -61,6 +62,8 @@ public class XPackLicenseState {
         // TODO: should just check WATCHER directly?
         MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
         MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
+
+        ENCRYPTED_SNAPSHOT(OperationMode.PLATINUM, true),
 
         CCR(OperationMode.PLATINUM, true),
 

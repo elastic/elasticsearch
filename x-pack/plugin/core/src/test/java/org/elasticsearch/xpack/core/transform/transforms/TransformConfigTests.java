@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -16,7 +17,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
+import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.junit.Before;
@@ -24,13 +29,18 @@ import org.junit.Before;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
 
@@ -42,10 +52,20 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfigWithoutHeaders(String id) {
-        return randomTransformConfigWithoutHeaders(Version.CURRENT, id);
+        PivotConfig pivotConfig;
+        LatestConfig latestConfig;
+        if (randomBoolean()) {
+            pivotConfig = PivotConfigTests.randomPivotConfig();
+            latestConfig = null;
+        } else {
+            pivotConfig = null;
+            latestConfig = LatestConfigTests.randomLatestConfig();
+        }
+
+        return randomTransformConfigWithoutHeaders(id, pivotConfig, latestConfig);
     }
 
-    public static TransformConfig randomTransformConfigWithoutHeaders(Version version, String id) {
+    public static TransformConfig randomTransformConfigWithoutHeaders(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
@@ -53,10 +73,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),
             null,
-            PivotConfigTests.randomPivotConfig(version),
-            null,
+            pivotConfig,
+            latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
         );
@@ -67,7 +88,17 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public static TransformConfig randomTransformConfig(String id) {
-        return randomTransformConfig(id, PivotConfigTests.randomPivotConfig(Version.CURRENT), null);
+        PivotConfig pivotConfig;
+        LatestConfig latestConfig;
+        if (randomBoolean()) {
+            pivotConfig = PivotConfigTests.randomPivotConfig();
+            latestConfig = null;
+        } else {
+            pivotConfig = null;
+            latestConfig = LatestConfigTests.randomLatestConfig();
+        }
+
+        return randomTransformConfig(id, pivotConfig, latestConfig);
     }
 
     public static TransformConfig randomTransformConfig(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
@@ -82,6 +113,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : SettingsConfigTests.randomSettingsConfig(),
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -89,6 +121,16 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static TransformConfig randomInvalidTransformConfig() {
         if (randomBoolean()) {
+            PivotConfig pivotConfig;
+            LatestConfig latestConfig;
+            if (randomBoolean()) {
+                pivotConfig = PivotConfigTests.randomPivotConfig();
+                latestConfig = null;
+            } else {
+                pivotConfig = null;
+                latestConfig = LatestConfigTests.randomLatestConfig();
+            }
+
             return new TransformConfig(
                 randomAlphaOfLengthBetween(1, 10),
                 randomInvalidSourceConfig(),
@@ -96,10 +138,11 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 null,
                 randomBoolean() ? randomSyncConfig() : null,
                 randomHeaders(),
-                PivotConfigTests.randomPivotConfig(),
-                null,
+                pivotConfig,
+                latestConfig,
                 randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
                 null,
+                randomBoolean() ? null : randomRetentionPolicyConfig(),
                 null,
                 null
             );
@@ -115,6 +158,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            randomBoolean() ? null : randomRetentionPolicyConfig(),
             null,
             null
         );
@@ -122,6 +166,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
     public static SyncConfig randomSyncConfig() {
         return TimeSyncConfigTests.randomTimeSyncConfig();
+    }
+
+    public static RetentionPolicyConfig randomRetentionPolicyConfig() {
+        return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
     }
 
     @Before
@@ -190,11 +238,15 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     public void testConstructor_NoFunctionProvided() throws IOException {
+        // tag::NO_CODE_FORMAT
         String json = "{"
-            + " \"source\": {\"index\": \"src\"},"
-            + " \"dest\": {\"index\": \"dest\"}"
-            + "}";
-
+                + " \"source\": {"
+                + "   \"index\": \"src\""
+                + " },"
+                + " \"dest\": {"
+                + "   \"index\": \"dest\""
+                + "} }";
+        // end::NO_CODE_FORMAT
         // Should parse with lenient parser
         createTransformConfigFromString(json, "dummy", true);
         // Should throw with strict parser
@@ -322,6 +374,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 randomAlphaOfLength(1001),
                 null,
                 null,
+                null,
                 null
             )
         );
@@ -337,6 +390,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             PivotConfigTests.randomPivotConfig(),
             null,
             description,
+            null,
             null,
             null,
             null
@@ -481,6 +535,57 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertEquals(Version.V_7_11_0, transformConfigRewritten.getVersion());
+    }
+
+    public void testGetAdditionalValidations_WithNoRuntimeMappings() throws IOException {
+        String transformWithRuntimeMappings = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {\"index\":\"src\"},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        TransformConfig transformConfig = createTransformConfigFromString(transformWithRuntimeMappings, "body_id", true);
+        assertThat(transformConfig.getAdditionalValidations(), is(empty()));
+    }
+
+    public void testGetAdditionalValidations_WithRuntimeMappings() throws IOException {
+        String json = "{"
+            + " \"id\" : \"body_id\","
+            + " \"source\" : {"
+            + "   \"index\":\"src\","
+            + "   \"runtime_mappings\":{ \"some-field\": \"some-value\" }"
+            + "},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+
+        TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
+        List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalValidations();
+        assertThat(additiionalValidations, hasSize(1));
+        assertThat(additiionalValidations.get(0), is(instanceOf(RemoteClusterMinimumVersionValidation.class)));
+        RemoteClusterMinimumVersionValidation remoteClusterMinimumVersionValidation =
+            (RemoteClusterMinimumVersionValidation) additiionalValidations.get(0);
+        assertThat(remoteClusterMinimumVersionValidation.getMinExpectedVersion(), is(equalTo(Version.V_7_12_0)));
+        assertThat(remoteClusterMinimumVersionValidation.getReason(), is(equalTo("source.runtime_mappings field was set")));
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {

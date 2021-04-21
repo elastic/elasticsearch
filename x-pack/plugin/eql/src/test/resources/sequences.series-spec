@@ -248,12 +248,13 @@ A4 B5 C7 D8
 
 // https://eql.readthedocs.io/en/0.8/query-guide/implementation.html#sequences
 
-exampleWithTwoStagesAndKeyFromTheDocs
-
-r|W1 r|W2                u|W6 r|W7                          x|X99
-          u|H3 r|H4 r|H5           u|H8
-                                        r|I9 u|I10 r|I11
-;
-r|W2 H4 I9
-u|W6 H8 I10
-;
+// AwaitsFix: https://github.com/elastic/elasticsearch/issues/67102
+//exampleWithTwoStagesAndKeyFromTheDocs
+//
+//r|W1 r|W2                u|W6 r|W7                          x|X99
+//          u|H3 r|H4 r|H5           u|H8
+//                                        r|I9 u|I10 r|I11
+//;
+//r|W2 H4 I9
+//u|W6 H8 I10
+//;

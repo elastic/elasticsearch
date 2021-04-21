@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
@@ -119,7 +120,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         for (Object item : list) {
-            if (!(item instanceof Map)) {
+            if ((item instanceof Map) == false) {
                 throw illegalState("could not execute action [{}] of watch [{}]. failed to index payload data. " +
                         "[_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
             }

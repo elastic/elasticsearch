@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -62,6 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -131,12 +121,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return true;
-                }
-            };
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
     }
 
@@ -233,7 +218,9 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         int runNodesCount = randomIntBetween(1, nodesCount);
-        int blockedNodesCount = randomIntBetween(0, runNodesCount);
+        // Block at least 1 node, otherwise it's quite easy to end up in a race condition where the node tasks
+        // have finished before the cancel request has arrived
+        int blockedNodesCount = randomIntBetween(1, runNodesCount);
         Task mainTask = startCancellableTestNodesAction(waitForActionToStart, runNodesCount, blockedNodesCount,
             new ActionListener<NodesResponse>() {
                 @Override
@@ -270,12 +257,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             assertEquals(runNodesCount, responseReference.get().getNodes().size());
             assertEquals(0, responseReference.get().failureCount());
         } else {
-            // We canceled the request, in this case it should have fail, but we should get partial response
-            assertNull(throwableReference.get());
-            assertEquals(runNodesCount, responseReference.get().failureCount() + responseReference.get().getNodes().size());
-            // and we should have at least as many failures as the number of blocked operations
-            // (we might have cancelled some non-blocked operations before they even started and that's ok)
-            assertThat(responseReference.get().failureCount(), greaterThanOrEqualTo(blockedNodesCount));
+            assertThat(throwableReference.get(), instanceOf(TaskCancelledException.class));
 
             // We should have the information about the cancelled task in the cancel operation response
             assertEquals(1, response.getTasks().size());

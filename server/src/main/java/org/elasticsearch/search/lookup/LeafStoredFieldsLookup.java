@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -35,16 +25,17 @@ import java.util.function.Function;
 import static java.util.Collections.singletonMap;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
-public class LeafStoredFieldsLookup implements Map<Object, Object> {
+public class LeafStoredFieldsLookup implements Map<Object, FieldLookup> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final LeafReader reader;
+    private final CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader;
 
     private int docId = -1;
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
-    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, LeafReader reader) {
+    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup,
+                           CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> reader) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.reader = reader;
     }
@@ -58,7 +49,7 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
     }
 
     @Override
-    public Object get(Object key) {
+    public FieldLookup get(Object key) {
         return loadFieldData(key.toString());
     }
 
@@ -98,12 +89,12 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
     }
 
     @Override
-    public Object put(Object key, Object value) {
+    public FieldLookup put(Object key, FieldLookup value) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Object remove(Object key) {
+    public FieldLookup remove(Object key) {
         throw new UnsupportedOperationException();
     }
 
@@ -136,7 +127,7 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
             List<Object> values = new ArrayList<>(2);
             SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
             try {
-                reader.document(docId, visitor);
+                reader.accept(docId, visitor);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to load field [{}]", e, name);
             }
@@ -146,6 +137,14 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
     }
 
     private void clearCache() {
+        if (cachedFieldData.isEmpty()) {
+            /*
+             * This code is in the hot path for things like ScoreScript and
+             * runtime fields but the map is almost always empty. So we
+             * bail early then instead of building the entrySet.
+             */
+            return;
+        }
         for (Entry<String, FieldLookup> entry : cachedFieldData.entrySet()) {
             entry.getValue().clear();
         }

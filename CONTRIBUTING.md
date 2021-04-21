@@ -1,7 +1,7 @@
 Contributing to elasticsearch
 =============================
 
-Elasticsearch is an open source project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
+Elasticsearch is a free and open project and we love to receive contributions from our community — you! There are many ways to contribute, from writing tutorials or blog posts, improving the documentation, submitting bug reports and feature requests or writing code which can be incorporated into Elasticsearch itself.
 
 If you want to be rewarded for your contributions, sign up for the [Elastic Contributor Program](https://www.elastic.co/community/contributor). Each time you
 make a valid contribution, you’ll earn points that increase your chances of winning prizes and being recognized as a top contributor.
@@ -110,23 +110,24 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 14 is required to build Elasticsearch. You must have a JDK 14 installation
+JDK 15 is required to build Elasticsearch. You must have a JDK 15 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 14 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 15 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 14 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 15 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
 > Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, and `JAVA12_HOME` available so that the tests can pass.
+and `JAVA11_HOME`, `JAVA12_HOME`, `JAVA13_HOME`, `JAVA14_HOME`, and `JAVA15_HOME`
+available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
 using the wrapper via the `gradlew` script on Unix systems or `gradlew.bat`
 script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
-We support development in IntelliJ versions IntelliJ 2019.2 and
+We support development in IntelliJ versions IntelliJ 2020.1 and
 onwards and Eclipse 2020-3 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
@@ -150,9 +151,9 @@ and then run `curl` in another window like this:
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 14. When importing into IntelliJ you will need
+Elasticsearch builds using Java 15. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"14"** so that the project import will detect it automatically. For more details
+"15"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -174,17 +175,26 @@ manually generate the file with `./gradlew configureIdeCheckstyle` in case
 it is removed due to a `./gradlew clean` or other action.
 
    1. Open **Preferences > Tools > Checkstyle**
-   2. Change the "Scan Scope" to "Only Java sources (including tests)"
-   3. Check the "+" under "Configuration file"
-   4. Set "Description" to "Elasticsearch" (or whatever you want)
-   5. Select "Use a local Checkstyle file"
-   6. For the "File", enter `checkstyle_ide.xml`
-   7. Tick "Store relative to project location"
-   8. Click "Next", then "Finish".
-   9. Click the box next to the new configuration to make it "Active". Without doing this,
-      you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
-      tool window and run the check manually. You can still do this with an active config.
-   10. Click "OK" to apply the new preferences
+   2. We have some custom Checkstyle rules, and the Checkstyle plugin needs
+      to know where to find them. Under the "Third-Party Checks" section,
+      click the "+" button.
+   3. Select `buildSrc/build-bootstrap/libs/buildSrc-$VERSION.jar` where
+      `$VERSION` is something like `7.0.0-SNAPSHOT`. This jar file will
+      always exist if you imported the project into IntelliJ before
+      configuring Checkstyle.
+   4. Make sure that "Checkstyle version" is set to the highest available version
+   5. Change the "Scan Scope" to "Only Java sources (including tests)"
+   6. Click the "+" under "Configuration file"
+   7. Set "Description" to "Elasticsearch"
+   8. Select "Use a local Checkstyle file"
+   9. For the "File", enter `checkstyle_ide.xml`
+   10. Tick "Store relative to project location"
+   11. Click "Next", then "Finish".
+   12. Click the box next to the new configuration to make it "Active".
+       Without doing this, you'll have to explicitly choose the
+       "Elasticsearch" configuration in the Checkstyle tool window and run
+       the check manually.
+   13. Click "OK" to apply the new preferences
 
 #### Formatting
 
@@ -197,7 +207,8 @@ Code Formatter] installed, you can apply formatting directly in IntelliJ.
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
    4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
-   5. Click "OK"
+   5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
+   6. Click "OK"
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
@@ -205,7 +216,7 @@ automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 14. When importing into Eclipse you
+Elasticsearch builds using Gradle and Java 15. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
 defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
@@ -313,10 +324,10 @@ Please follow these formatting guidelines:
   decrease in consistency.
 * Note that Javadoc and block comments i.e. `/* ... */` are not formatted,
   but line comments i.e `// ...` are.
-* There is an implicit rule that negative boolean expressions should use
-  the form `foo == false` instead of `!foo` for better readability of the
-  code. While this isn't strictly enforced, if might get called out in PR
-  reviews as something to change.
+* Negative boolean expressions must use the form `foo == false` instead of
+  `!foo` for better readability of the code. This is enforced via
+  Checkstyle. Conversely, you should not write e.g. `if (foo == true)`, but
+  just `if (foo)`.
 
 #### Editor / IDE Support
 
@@ -442,35 +453,26 @@ We require license headers on all Java files. With the exception of the
 top-level `x-pack` directory, all contributed code should have the following
 license header unless instructed otherwise:
 
-    /*
-     * Licensed to Elasticsearch under one or more contributor
-     * license agreements. See the NOTICE file distributed with
-     * this work for additional information regarding copyright
-     * ownership. Elasticsearch licenses this file to you under
-     * the Apache License, Version 2.0 (the "License"); you may
-     * not use this file except in compliance with the License.
-     * You may obtain a copy of the License at
-     *
-     *    http://www.apache.org/licenses/LICENSE-2.0
-     *
-     * Unless required by applicable law or agreed to in writing,
-     * software distributed under the License is distributed on an
-     * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-     * KIND, either express or implied.  See the License for the
-     * specific language governing permissions and limitations
-     * under the License.
-     */
+        /*
+         * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+         * or more contributor license agreements. Licensed under the Elastic License
+         * 2.0 and the Server Side Public License, v 1; you may not use this file except
+         * in compliance with, at your election, the Elastic License 2.0 or the Server
+         * Side Public License, v 1.
+         */
 
 The top-level `x-pack` directory contains code covered by the [Elastic
-license](licenses/ELASTIC-LICENSE.txt). Community contributions to this code are
+license](licenses/ELASTIC-LICENSE-2.0.txt). Community contributions to this code are
 welcome, and should have the following license header unless instructed
 otherwise:
 
-    /*
-     * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-     * or more contributor license agreements. Licensed under the Elastic License;
-     * you may not use this file except in compliance with the Elastic License.
-     */
+        /*
+         * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+         * or more contributor license agreements. Licensed under the Elastic License
+         * 2.0; you may not use this file except in compliance with the Elastic License
+         * 2.0.
+         */
+
 
 It is important that the only code covered by the Elastic licence is contained
 within the top-level `x-pack` directory. The build will fail its pre-commit

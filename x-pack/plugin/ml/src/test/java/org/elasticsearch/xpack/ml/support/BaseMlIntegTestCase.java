@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.support;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -30,9 +32,17 @@ import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.IngestScript;
+import org.elasticsearch.script.MockDeterministicScript;
+import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.ScoreScript;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -63,6 +73,7 @@ import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.junit.After;
 import org.junit.Before;
@@ -71,12 +82,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -99,8 +112,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false);
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
@@ -120,6 +133,8 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             CommonAnalysisPlugin.class,
             IngestCommonPlugin.class,
             ReindexPlugin.class,
+            // To remove warnings about painless not being supported
+            MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
             // Deprecation warnings go to a data stream, if we ever cause a deprecation warning the data streams plugin is required
@@ -454,10 +469,50 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
 
     /**
      * Sets delayed allocation to 0 to make sure we have tests are not delayed
-      */
+     */
     protected void setMlIndicesDelayedNodeLeftTimeoutToZero() {
-        client().admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")
+        OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
+        originSettingClient.admin().indices().updateSettings(new UpdateSettingsRequest(".ml-*")
+            .origin(ClientHelper.ML_ORIGIN)
             .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build()))
             .actionGet();
+    }
+
+    public static class MockPainlessScriptEngine extends MockScriptEngine {
+
+        public static final String NAME = "painless";
+
+        public static class TestPlugin extends MockScriptPlugin {
+            @Override
+            public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+                return new MlSingleNodeTestCase.MockPainlessScriptEngine();
+            }
+
+            @Override
+            protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+                return Collections.emptyMap();
+            }
+        }
+
+        @Override
+        public String getType() {
+            return NAME;
+        }
+
+        @Override
+        public <T> T compile(String name, String script, ScriptContext<T> context, Map<String, String> options) {
+            if (context.instanceClazz.equals(ScoreScript.class)) {
+                return context.factoryClazz.cast(new MockScoreScript(MockDeterministicScript.asDeterministic(p -> 0.0)));
+            }
+            if (context.name.equals("ingest")) {
+                IngestScript.Factory factory = vars -> new IngestScript(vars) {
+                    @Override
+                    public void execute(Map<String, Object> ctx) {
+                    }
+                };
+                return context.factoryClazz.cast(factory);
+            }
+            throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
+        }
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -186,6 +175,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     @Override
     public void setSlowLogThreshold(TimeValue slowLogThreshold) {
         inboundHandler.setSlowLogThreshold(slowLogThreshold);
+        outboundHandler.setSlowLogThreshold(slowLogThreshold);
     }
 
     public final class NodeChannels extends CloseableConnection {
@@ -395,7 +385,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 }
                 return true;
             });
-            if (!success) {
+            if (success == false) {
                 throw new BindTransportException(
                     "Failed to bind to " + NetworkAddress.format(hostAddress, portsRange),
                     lastException.get()
@@ -509,7 +499,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (hostPortString.startsWith("[")) {
             // Parse a bracketed host, typically an IPv6 literal.
             Matcher matcher = BRACKET_PATTERN.matcher(hostPortString);
-            if (!matcher.matches()) {
+            if (matcher.matches() == false) {
                 throw new IllegalArgumentException("Invalid bracketed host/port range: " + hostPortString);
             }
             host = matcher.group(1);
@@ -595,7 +585,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // exposed for tests
     static void handleException(TcpChannel channel, Exception e, Lifecycle lifecycle, OutboundHandler outboundHandler) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             CloseableChannel.closeChannel(channel);
             return;
@@ -627,6 +617,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
         } else if (e instanceof StreamCorruptedException) {
             logger.warn(() -> new ParameterizedMessage("{}, [{}], closing connection", e.getMessage(), channel));
+            CloseableChannel.closeChannel(channel);
+        } else if (e instanceof TransportNotReadyException) {
+            logger.debug(() -> new ParameterizedMessage("{} on [{}], closing connection", e.getMessage(), channel));
             CloseableChannel.closeChannel(channel);
         } else {
             logger.warn(() -> new ParameterizedMessage("exception caught on transport layer [{}], closing connection", channel), e);

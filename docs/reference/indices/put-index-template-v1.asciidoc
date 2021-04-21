@@ -1,12 +1,12 @@
 [[indices-templates-v1]]
-=== Put index template API
+=== Create or update index template API
 ++++
-<titleabbrev>Put index template (legacy)</titleabbrev>
+<titleabbrev>Create or update index template (legacy)</titleabbrev>
 ++++
 
 IMPORTANT: This documentation is about legacy index templates, 
 which are deprecated and will be replaced by the composable templates introduced in {es} 7.8. 
-For information about composable templates, <<indices-templates>>.
+For information about composable templates, see <<index-templates>>.
 
 Creates or updates an index template.
 
@@ -51,12 +51,16 @@ DELETE _template/template_*
 
 `PUT /_template/<index-template>`
 
+[[put-index-template-v1-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
+
 
 [[put-index-template-v1-api-desc]]
 ==== {api-description-title}
-
-Use the PUT index template API
-to create or update an index template.
 
 Index templates define <<index-modules-settings,settings>> and <<mapping,mappings>>
 that you can automatically apply when creating new indices.

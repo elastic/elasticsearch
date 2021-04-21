@@ -1,7 +1,7 @@
 [[indices-put-template]]
-=== Put index template API
+=== Create or update index template API
 ++++
-<titleabbrev>Put index template</titleabbrev>
+<titleabbrev>Create or update index template</titleabbrev>
 ++++
 
 Creates or updates an index template.
@@ -38,6 +38,12 @@ DELETE _index_template/template_*
 
 `PUT /_index_template/<index-template>`
 
+[[put-index-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[put-index-template-api-desc]]
 ==== {api-description-title}
@@ -84,31 +90,24 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 Array of wildcard (`*`) expressions
 used to match the names of data streams and indices during creation.
 +
-[IMPORTANT]
-====
-{es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and `synthetics-*-*` index
-patterns, each with a priority of `100`.
-{fleet-guide}/fleet-overview.html[{agent}] uses these templates to
-create data streams. If you use {agent}, assign your index templates a priority
-lower than `100` to avoid an overriding the built-in templates.
-
-Otherwise, to avoid accidentally applying the built-in templates, use a
-non-overlapping index pattern or assign templates with an overlapping pattern a
-`priority` higher than `100`.
-
-For example, if you don't use {agent} and want to create a template for the
-`logs-*` index pattern, assign your template a priority of `200`. This ensures
-your template is applied instead of the built-in template for `logs-*-*`.
-====
+include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templates]
 
 [xpack]#`data_stream`#::
 (Optional, object)
-Indicates whether the template is used to create data streams and their backing
-indices. If so, use an empty object as the argument: +
-`data_stream: { }`.
+If this object is included, the template is used to create data streams and
+their backing indices. Supports an empty object: `data_stream: { }`
 +
 Data streams require a matching index template with a `data_stream` object.
-See <<create-a-data-stream-template>>.
+See <<create-index-template,create an index template>>.
++
+.Properties of `data_stream`
+[%collapsible%open]
+====
+[[data-stream-hidden]]
+`hidden`::
+(Optional, Boolean)
+If `true`, the data stream is <<hidden-indices,hidden>>. Defaults to `false`.
+====
 
 `template`::
 (Optional, object)
@@ -295,7 +294,7 @@ To check the `_meta`, you can use the <<indices-get-template, get index template
 To use an index template for a data stream, the template must include an empty `data_stream` object. 
 Data stream templates are only used for a stream's backing indices, 
 they are not applied to regular indices.
-See <<create-a-data-stream-template>>.
+See <<create-index-template,create an index template>>.
 
 [source,console]
 --------------------------------------------------

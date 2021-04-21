@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
@@ -77,7 +78,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     @Override
     public PersistentTasksCustomMetadata.Assignment getAssignment(SnapshotUpgradeTaskParams params, ClusterState clusterState) {
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-        Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+        Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
+            getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }

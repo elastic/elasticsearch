@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
@@ -49,7 +50,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     public TickerScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
         super(scheduleRegistry, clock);
         this.tickInterval = TICKER_INTERVAL_SETTING.get(settings);
-        this.ticker = new Ticker(DiscoveryNode.isDataNode(settings));
+        this.ticker = new Ticker(DiscoveryNode.canContainData(settings));
     }
 
     @Override

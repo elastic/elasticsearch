@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -267,7 +256,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onFailure(Exception e) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(e);
                         if (cause instanceof IndexNotFoundException) {
-                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) e);
+                            indicesThatCannotBeCreated.put(index, (IndexNotFoundException) cause);
                         }
                         else if ((cause instanceof ResourceAlreadyExistsException) == false) {
                             // fail all requests involving this index, if create didn't work
@@ -422,6 +411,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             }
             final ConcreteIndices concreteIndices = new ConcreteIndices(clusterState, indexNameExpressionResolver);
             Metadata metadata = clusterState.metadata();
+            // Group the requests by ShardId -> Operations mapping
+            Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
             for (int i = 0; i < bulkRequest.requests.size(); i++) {
                 DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(i);
                 //the request can only be null because we set it to null in the previous step, so it gets ignored
@@ -473,6 +464,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             break;
                         default: throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
                     }
+                    ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex.getName(),
+                            docWriteRequest.id(), docWriteRequest.routing()).shardId();
+                    List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
+                    shardRequests.add(new BulkItemRequest(i, docWriteRequest));
                 } catch (ElasticsearchParseException | IllegalArgumentException | RoutingMissingException e) {
                     BulkItemResponse.Failure failure = new BulkItemResponse.Failure(concreteIndex.getName(),
                         docWriteRequest.id(), e);
@@ -481,20 +476,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     // make sure the request gets never processed again
                     bulkRequest.requests.set(i, null);
                 }
-            }
-
-            // first, go over all the requests and create a ShardId -> Operations mapping
-            Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
-            for (int i = 0; i < bulkRequest.requests.size(); i++) {
-                DocWriteRequest<?> request = bulkRequest.requests.get(i);
-                if (request == null) {
-                    continue;
-                }
-                String concreteIndex = concreteIndices.getConcreteIndex(request.index()).getName();
-                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, request.id(),
-                    request.routing()).shardId();
-                List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(shardId, shard -> new ArrayList<>());
-                shardRequests.add(new BulkItemRequest(i, request));
             }
 
             if (requestsByShard.isEmpty()) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.threadpool;
@@ -172,9 +161,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, false));
         builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, true));
         builders.put(Names.SEARCH_THROTTLED, new FixedExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, true));
-        builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
-        // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
-        // the assumption here is that the listeners should be very lightweight on the listeners side
+        builders.put(Names.MANAGEMENT,
+                new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5)));
         builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
@@ -219,7 +207,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                         .map(holder -> holder.info)
                         .collect(Collectors.toList());
         this.threadPoolInfo = new ThreadPoolInfo(infos);
-        this.scheduler = Scheduler.initScheduler(settings);
+        this.scheduler = Scheduler.initScheduler(settings, "scheduler");
         TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
         this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.cachedTimeThread.start();
@@ -347,7 +335,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
         command = threadContext.preserveContext(command);
-        if (!Names.SAME.equals(executor)) {
+        if (Names.SAME.equals(executor) == false) {
             command = new ThreadedRunnable(command, executor(executor));
         }
         return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
@@ -449,7 +437,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return ((allocatedProcessors * 3) / 2) + 1;
     }
 
-    class ThreadedRunnable implements Runnable {
+    static class ThreadedRunnable implements Runnable {
 
         private final Runnable runnable;
 

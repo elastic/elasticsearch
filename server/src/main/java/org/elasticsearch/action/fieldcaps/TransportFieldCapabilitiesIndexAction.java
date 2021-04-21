@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -23,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -32,7 +20,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -47,9 +34,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -71,7 +58,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -88,20 +74,17 @@ public class TransportFieldCapabilitiesIndexAction
 
     private final ClusterService clusterService;
     private final TransportService transportService;
-    private final SearchService searchService;
     private final IndicesService indicesService;
-    private final Executor executor;
 
     @Inject
-    public TransportFieldCapabilitiesIndexAction(ClusterService clusterService, TransportService transportService,
-                                                 IndicesService indicesService, SearchService searchService, ThreadPool threadPool,
-                                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+    public TransportFieldCapabilitiesIndexAction(ClusterService clusterService,
+                                                 TransportService transportService,
+                                                 IndicesService indicesService,
+                                                 ActionFilters actionFilters) {
         super(ACTION_NAME, transportService, actionFilters, FieldCapabilitiesIndexRequest::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.searchService = searchService;
         this.indicesService = indicesService;
-        this.executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(ACTION_SHARD_NAME, ThreadPool.Names.SAME,
             FieldCapabilitiesIndexRequest::new, new ShardTransportHandler());
     }
@@ -117,27 +100,27 @@ public class TransportFieldCapabilitiesIndexAction
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
         try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
 
-            final QueryShardContext queryShardContext = indexService.newQueryShardContext(shardId.id(), 0,
-                searcher, request::nowInMillis, null, Collections.emptyMap());
+            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(shardId.id(), 0,
+                searcher, request::nowInMillis, null, request.runtimeFields());
 
-            if (canMatchShard(request, queryShardContext) == false) {
+            if (canMatchShard(request, searchExecutionContext) == false) {
                 return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
             }
 
             Set<String> fieldNames = new HashSet<>();
-            for (String field : request.fields()) {
-                fieldNames.addAll(queryShardContext.simpleMatchToIndexNames(field));
+            for (String pattern : request.fields()) {
+                fieldNames.addAll(searchExecutionContext.simpleMatchToIndexNames(pattern));
             }
 
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
             Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
             for (String field : fieldNames) {
-                MappedFieldType ft = queryShardContext.getFieldType(field);
+                MappedFieldType ft = searchExecutionContext.getFieldType(field);
                 if (ft != null) {
-                    if (queryShardContext.isMetadataField(field)
-                            || fieldPredicate.test(ft.name())) {
-                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
-                            ft.isSearchable(), ft.isAggregatable(), ft.meta());
+                    boolean isMetadataField = searchExecutionContext.isMetadataField(field);
+                    if (isMetadataField || fieldPredicate.test(ft.name())) {
+                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field,
+                            ft.familyTypeName(), isMetadataField, ft.isSearchable(), ft.isAggregatable(), ft.meta());
                         responseMap.put(field, fieldCap);
                     } else {
                         continue;
@@ -145,7 +128,8 @@ public class TransportFieldCapabilitiesIndexAction
 
                     // Check the ancestor of the field to find nested and object fields.
                     // Runtime fields are excluded since they can override any path.
-                    if (ft instanceof RuntimeFieldType == false) {
+                    //TODO find a way to do this that does not require an instanceof check
+                    if (ft instanceof RuntimeField == false) {
                         int dotIndex = ft.name().lastIndexOf('.');
                         while (dotIndex > -1) {
                             String parentField = ft.name().substring(0, dotIndex);
@@ -154,12 +138,12 @@ public class TransportFieldCapabilitiesIndexAction
                                 break;
                             }
                             // checks if the parent field contains sub-fields
-                            if (queryShardContext.getFieldType(parentField) == null) {
+                            if (searchExecutionContext.getFieldType(parentField) == null) {
                                 // no field type, it must be an object field
-                                ObjectMapper mapper = queryShardContext.getObjectMapper(parentField);
+                                ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
                                 String type = mapper.nested().isNested() ? "nested" : "object";
                                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
-                                    false, false, Collections.emptyMap());
+                                    false, false, false, Collections.emptyMap());
                                 responseMap.put(parentField, fieldCap);
                             }
                             dotIndex = parentField.lastIndexOf('.');
@@ -171,14 +155,14 @@ public class TransportFieldCapabilitiesIndexAction
         }
     }
 
-    private boolean canMatchShard(FieldCapabilitiesIndexRequest req, QueryShardContext queryShardContext) throws IOException {
+    private boolean canMatchShard(FieldCapabilitiesIndexRequest req, SearchExecutionContext searchExecutionContext) throws IOException {
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }
         assert req.nowInMillis() != 0L;
         ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), req.nowInMillis(), AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
-        return SearchService.queryStillMatchesAfterRewrite(searchRequest, queryShardContext);
+        return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
     }
 
     private ClusterBlockException checkGlobalBlock(ClusterState state) {
@@ -256,7 +240,12 @@ public class TransportFieldCapabilitiesIndexAction
             ShardRouting shardRouting = nextRoutingOrNull();
             if (shardRouting == null) {
                 if (canMatchShard == false) {
-                    listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
+                    if (lastFailure == null) {
+                        listener.onResponse(new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false));
+                    } else {
+                        logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null, request), lastFailure);
+                        listener.onFailure(lastFailure);
+                    }
                 } else {
                     if (lastFailure == null || isShardNotAvailableException(lastFailure)) {
                         listener.onFailure(new NoShardAvailableActionException(null,
@@ -316,7 +305,14 @@ public class TransportFieldCapabilitiesIndexAction
                 logger.trace("executing [{}]", request);
             }
             ActionListener<FieldCapabilitiesIndexResponse> listener = new ChannelActionListener<>(channel, ACTION_SHARD_NAME, request);
-            executor.execute(ActionRunnable.supply(listener, () -> shardOperation(request)));
+            final FieldCapabilitiesIndexResponse resp;
+            try {
+                resp = shardOperation(request);
+            } catch (Exception exc) {
+                listener.onFailure(exc);
+                return;
+            }
+            listener.onResponse(resp);
         }
     }
 }

@@ -15,6 +15,11 @@ Returns information about the tasks currently executing in the cluster.
 
 `GET /_tasks`
 
+[[tasks-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[tasks-api-desc]]
 ==== {api-description-title}
@@ -70,7 +75,7 @@ GET _tasks?nodes=nodeId1,nodeId2&actions=cluster:* <3>
 // TEST[skip:No tasks to retrieve]
 
 <1> Retrieves all tasks currently running on all nodes in the cluster.
-<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`.  See <<cluster-nodes>> for more info about how to select individual nodes.
+<2> Retrieves all tasks running on nodes `nodeId1` and `nodeId2`. See <<cluster-nodes>> for more info about how to select individual nodes.
 <3> Retrieves all cluster-related tasks running on nodes `nodeId1` and `nodeId2`.
 
 The API returns the following result:
@@ -232,11 +237,6 @@ The task cancellation command supports the same task selection parameters as the
 list tasks command, so multiple tasks can be cancelled at the same time. For 
 example, the following command will cancel all reindex tasks running on the 
 nodes `nodeId1` and `nodeId2`.
-
-`wait_for_completion`::
-(Optional, Boolean) If `true`, the request blocks until the cancellation of the
-task and its descendant tasks is completed. Otherwise, the request can return soon
-after the cancellation is started. Defaults to `false`.
 
 [source,console]
 --------------------------------------------------

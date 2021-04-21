@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
@@ -134,7 +135,7 @@ public abstract class GeoShapeValues {
                 final GeoShapeIndexer indexer = new GeoShapeIndexer(true, "missing");
                 final Geometry geometry = indexer.prepareForIndexing(MISSING_GEOMETRY_PARSER.fromWKT(missing));
                 final BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField("missing");
-                field.add(indexer.indexShape(null, geometry), geometry);
+                field.add(indexer.indexShape(geometry), geometry);
                 final GeometryDocValueReader reader = new GeometryDocValueReader();
                 reader.reset(field.binaryValue());
                 return new GeoShapeValue(reader);

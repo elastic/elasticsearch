@@ -1,16 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
@@ -30,7 +34,6 @@ import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -40,7 +43,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -79,34 +81,18 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         return pluginList(
             LocalStateMachineLearning.class,
             DataStreamsPlugin.class,
+            ReindexPlugin.class,
             IngestCommonPlugin.class,
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class);
     }
 
-    /**
-     * This cleanup is to fix the problem described in
-     * https://github.com/elastic/elasticsearch/issues/38952
-     */
     @Override
     public void tearDown() throws Exception {
         try {
             logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
-            String[] nonAnnotationMlIndices;
-            boolean mlAnnotationsIndexExists;
-            do {
-                String[] mlIndices = client().admin().indices().prepareGetIndex().addIndices(".ml-*").get().indices();
-                nonAnnotationMlIndices = Arrays.stream(mlIndices).filter(name -> name.startsWith(".ml-annotations") == false)
-                    .toArray(String[]::new);
-                mlAnnotationsIndexExists = mlIndices.length > nonAnnotationMlIndices.length;
-            } while (nonAnnotationMlIndices.length > 0 && mlAnnotationsIndexExists == false);
-            if (nonAnnotationMlIndices.length > 0) {
-                // Delete the ML indices apart from the annotations index.  The annotations index will be deleted by the
-                // base class cleanup.  We want to delete all the others first so that the annotations index doesn't get
-                // automatically recreated.
-                assertAcked(client().admin().indices().prepareDelete(nonAnnotationMlIndices).get());
-            }
+            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
         } finally {
             super.tearDown();
         }

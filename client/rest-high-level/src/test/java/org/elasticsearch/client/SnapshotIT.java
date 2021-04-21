@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -50,8 +39,11 @@ import org.mockito.internal.util.collections.Sets;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
+import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -161,6 +153,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         }
         request.partial(randomBoolean());
         request.includeGlobalState(randomBoolean());
+        final List<String> featureStates = randomFrom(
+            List.of(
+                Collections.emptyList(),
+                Collections.singletonList(TASKS_FEATURE_NAME),
+                Collections.singletonList(NO_FEATURE_STATES_VALUE)
+            )
+        );
+        request.featureStates(featureStates);
 
         CreateSnapshotResponse response = createTestSnapshot(request);
         assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
@@ -273,9 +273,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertFalse("index [" + testIndex + "] should have been deleted", indexExists(testIndex));
 
         RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
+        request.indices(testIndex);
         request.waitForCompletion(true);
         request.renamePattern(testIndex);
         request.renameReplacement(restoredIndex);
+        if (randomBoolean()) {
+            request.includeGlobalState(true);
+            request.featureStates(Collections.singletonList(NO_FEATURE_STATES_VALUE));
+        }
 
         RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
                 highLevelClient().snapshot()::restoreAsync);

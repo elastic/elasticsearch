@@ -39,8 +39,8 @@ will resolve to `/var/log/elasticsearch/production.log`.
 appender.rolling.type = RollingFile <1>
 appender.rolling.name = rolling
 appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}_server.json <2>
-appender.rolling.layout.type = ESJsonLayout <3>
-appender.rolling.layout.type_name = server <4>
+appender.rolling.layout.type = ECSJsonLayout <3>
+appender.rolling.layout.dataset = elasticsearch.server <4>
 appender.rolling.filePattern = ${sys:es.logs.base_path}${sys:file.separator}${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.json.gz <5>
 appender.rolling.policies.type = Policies
 appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <6>
@@ -62,7 +62,7 @@ appender.rolling.strategy.action.condition.nested_condition.exceeds = 2GB <15>
 <1> Configure the `RollingFile` appender
 <2> Log to `/var/log/elasticsearch/production_server.json`
 <3> Use JSON layout.
-<4> `type_name` is a flag populating the `type` field in a `ESJsonLayout`.
+<4> `dataset` is a flag populating the `event.dataset` field in a `ECSJsonLayout`.
  It can be used to distinguish different types of logs more easily when parsing them.
 <5> Roll logs to `/var/log/elasticsearch/production-yyyy-MM-dd-i.json`; logs
     will be compressed on each roll and `i` will be incremented
@@ -245,17 +245,17 @@ The user ID is included in the `X-Opaque-ID` field in deprecation JSON logs.
 === JSON log format
 
 To make parsing Elasticsearch logs easier, logs are now printed in a JSON format.
-This is configured by a Log4J layout property `appender.rolling.layout.type = ESJsonLayout`.
-This layout requires a `type_name` attribute to be set which is used to distinguish
+This is configured by a Log4J layout property `appender.rolling.layout.type = ECSJsonLayout`.
+This layout requires a `dataset` attribute to be set which is used to distinguish
 logs streams when parsing.
 [source,properties]
 --------------------------------------------------
-appender.rolling.layout.type = ESJsonLayout
-appender.rolling.layout.type_name = server
+appender.rolling.layout.type = ECSJsonLayout
+appender.rolling.layout.dataset = elasticsearch.server
 --------------------------------------------------
 :es-json-layout-java-doc: {elasticsearch-javadoc}/org/elasticsearch/common/logging/ESJsonLayout.html
 
-Each line contains a single JSON document with the properties configured in `ESJsonLayout`.
+Each line contains a single JSON document with the properties configured in `ECSJsonLayout`.
 See this class {es-json-layout-java-doc}[javadoc] for more details.
 However if a JSON document contains an exception, it will be printed over multiple lines.
 The first line will contain regular properties and subsequent lines will contain the

@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,9 +30,9 @@ public class PromoteDataStreamAction extends ActionType<AcknowledgedResponse> {
         super(NAME, AcknowledgedResponse::readFrom);
     }
 
-    public static class Request extends MasterNodeRequest<PromoteDataStreamAction.Request> {
+    public static class Request extends MasterNodeRequest<PromoteDataStreamAction.Request> implements IndicesRequest {
 
-        private String name;
+        private final String name;
 
         public Request(String name) {
             this.name = Objects.requireNonNull(name);
@@ -51,6 +54,16 @@ public class PromoteDataStreamAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.name = in.readString();
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[]{name};
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         @Override

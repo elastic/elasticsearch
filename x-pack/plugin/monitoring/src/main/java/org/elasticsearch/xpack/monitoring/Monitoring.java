@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring;
 
@@ -72,13 +73,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
-
-    /**
-     * The ability to automatically cleanup ".watcher_history*" indices while also cleaning up Monitoring indices.
-     */
-    @Deprecated
-    public static final Setting<Boolean> CLEAN_WATCHER_HISTORY = boolSetting("xpack.watcher.history.cleaner_service.enabled",
-        true, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting("xpack.monitoring.migration.decommission_alerts",
         false, Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -154,7 +148,6 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<>();
         settings.add(MonitoringField.HISTORY_DURATION);
-        settings.add(CLEAN_WATCHER_HISTORY);
         settings.add(MonitoringService.ENABLED);
         settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
         settings.add(MonitoringService.INTERVAL);

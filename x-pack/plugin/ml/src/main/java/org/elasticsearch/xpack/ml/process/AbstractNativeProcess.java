@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -121,7 +122,12 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         // The log message doesn't say "crashed", as the process could have been killed
         // by a user or other process (e.g. the Linux OOM killer)
         String errors = cppLogHandler().getErrors();
-        String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
+        long pid = cppLogHandler().tryGetPid();
+
+        String fullError = pid > 0 ?
+            String.format(Locale.ROOT, "[%s] %s/%d process stopped unexpectedly: %s", jobId, getName(), pid, errors)
+            : String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly before logging started: %s", jobId, getName(), errors);
+
         LOGGER.error(fullError);
         onProcessCrash.accept(fullError);
     }
@@ -313,12 +319,11 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     public void consumeAndCloseOutputStream() {
-        try {
+        try (InputStream outStream = processOutStream()) {
             byte[] buff = new byte[512];
-            while (processOutStream().read(buff) >= 0) {
+            while (outStream.read(buff) >= 0) {
                 // Do nothing
             }
-            processOutStream().close();
         } catch (IOException e) {
             // Given we are closing down the process there is no point propagating IO exceptions here
         }

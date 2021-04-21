@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle;
@@ -53,7 +42,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         DEB,
         DOCKER,
         // This is a different flavour of Docker image
-        DOCKER_UBI;
+        DOCKER_UBI,
+        // Like UBI, but a little different.
+        DOCKER_IRON_BANK;
 
         @Override
         public String toString() {
@@ -65,6 +56,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                 case DEB:
                 case DOCKER:
                 case DOCKER_UBI:
+                case DOCKER_IRON_BANK:
                 case RPM:
                     return false;
 
@@ -72,15 +64,17 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                     return true;
             }
         }
-    }
 
-    public enum Flavor {
-        DEFAULT,
-        OSS;
+        public boolean isDocker() {
+            switch (this) {
+                case DOCKER:
+                case DOCKER_UBI:
+                case DOCKER_IRON_BANK:
+                    return true;
 
-        @Override
-        public String toString() {
-            return super.toString().toLowerCase(Locale.ROOT);
+                default:
+                    return false;
+            }
         }
     }
 
@@ -100,12 +94,11 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<String> version;
     private final Property<Type> type;
     private final Property<Platform> platform;
-    private final Property<Flavor> flavor;
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
     private final Configuration extracted;
     private Action<ElasticsearchDistribution> distributionFinalizer;
-    private boolean froozen = false;
+    private boolean frozen = false;
 
     ElasticsearchDistribution(
         String name,
@@ -123,7 +116,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.type = objectFactory.property(Type.class);
         this.type.convention(Type.ARCHIVE);
         this.platform = objectFactory.property(Platform.class);
-        this.flavor = objectFactory.property(Flavor.class);
         this.bundledJdk = objectFactory.property(Boolean.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
         this.extracted = extractedConfiguration;
@@ -159,21 +151,12 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.type.set(type);
     }
 
-    public Flavor getFlavor() {
-        return flavor.getOrNull();
-    }
-
-    public void setFlavor(Flavor flavor) {
-        this.flavor.set(flavor);
-    }
-
     public boolean getBundledJdk() {
         return bundledJdk.getOrElse(true);
     }
 
     public boolean isDocker() {
-        final Type type = this.type.get();
-        return type == Type.DOCKER || type == Type.DOCKER_UBI;
+        return this.type.get().isDocker();
     }
 
     public void setBundledJdk(Boolean bundledJdk) {
@@ -207,10 +190,10 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
      * runs distribution finalizer logic.
      */
     public ElasticsearchDistribution maybeFreeze() {
-        if (!froozen) {
+        if (frozen == false) {
             finalizeValues();
             distributionFinalizer.execute(this);
-            froozen = true;
+            frozen = true;
         }
         return this;
     }
@@ -225,6 +208,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             case DEB:
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
             case RPM:
                 throw new UnsupportedOperationException(
                     "distribution type [" + getType() + "] for " + "elasticsearch distribution [" + name + "] cannot be extracted"
@@ -263,11 +247,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                     "platform cannot be set on elasticsearch distribution [" + name + "] of type [integ_test_zip]"
                 );
             }
-            if (flavor.getOrNull() != null) {
-                throw new IllegalArgumentException(
-                    "flavor [" + flavor.get() + "] not allowed for elasticsearch distribution [" + name + "] of type [integ_test_zip]"
-                );
-            }
             if (bundledJdk.getOrNull() != null) {
                 throw new IllegalArgumentException(
                     "bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type [integ_test_zip]"
@@ -299,15 +278,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                         "bundledJdk cannot be set on elasticsearch distribution [" + name + "] of type " + "[docker]"
                     );
                 }
-                if (flavor.get() == Flavor.OSS && type.get() == Type.DOCKER_UBI) {
-                    throw new IllegalArgumentException("Cannot build a UBI docker image for the OSS distribution");
-                }
             }
         }
 
-        if (flavor.isPresent() == false) {
-            flavor.set(Flavor.DEFAULT);
-        }
         if (bundledJdk.isPresent() == false) {
             bundledJdk.set(true);
         }
@@ -315,7 +288,6 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         version.finalizeValue();
         platform.finalizeValue();
         type.finalizeValue();
-        flavor.finalizeValue();
         bundledJdk.finalizeValue();
     }
 

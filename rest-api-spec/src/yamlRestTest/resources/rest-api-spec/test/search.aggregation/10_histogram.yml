@@ -632,3 +632,31 @@ setup:
   - match: { aggregations.foo.histo.buckets.2.doc_count: 0 }
   - match: { aggregations.foo.histo.buckets.3.key_as_string: "2016-01-04T01:00:00.000Z" }
   - match: { aggregations.foo.histo.buckets.3.doc_count: 0 }
+
+---
+"Tiny tiny tiny range":
+  - skip:
+      version: " - 7.99.99"
+      reason:  fixed in 8.0 and being backported to 7.13.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+            - '{"index": {}}'
+            - '{"number": 1}'
+            - '{"index": {}}'
+            - '{"number": 2}'
+
+  - do:
+      catch: '/Trying to create too many buckets. Must be less than or equal to: \[65536\]/'
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: number
+                interval: 5e-10

@@ -26,9 +26,9 @@ import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class CachingServiceAccountsTokenStore implements ServiceAccountsTokenStore, CacheInvalidatorRegistry.CacheInvalidator {
+public abstract class CachingServiceAccountTokenStore implements ServiceAccountTokenStore, CacheInvalidatorRegistry.CacheInvalidator {
 
-    private static final Logger logger = LogManager.getLogger(CachingServiceAccountsTokenStore.class);
+    private static final Logger logger = LogManager.getLogger(CachingServiceAccountTokenStore.class);
 
     public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString("xpack.security.authc.service_token.cache.hash_algo",
         "ssha256", Setting.Property.NodeScope);
@@ -44,7 +44,7 @@ public abstract class CachingServiceAccountsTokenStore implements ServiceAccount
     private CacheIteratorHelper<String, ListenableFuture<CachedResult>> cacheIteratorHelper;
     private final Hasher hasher;
 
-    CachingServiceAccountsTokenStore(Settings settings, ThreadPool threadPool) {
+    CachingServiceAccountTokenStore(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);

@@ -80,7 +80,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-import static org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore.SERVICE_ACCOUNT_TOKEN_DOC_TYPE;
+import static org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore.SERVICE_ACCOUNT_TOKEN_DOC_TYPE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -90,12 +90,12 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
+public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
     private Client client;
     private ClusterService clusterService;
     private CacheInvalidatorRegistry cacheInvalidatorRegistry;
-    private IndexServiceAccountsTokenStore store;
+    private IndexServiceAccountTokenStore store;
     private final AtomicReference<ActionRequest> requestHolder = new AtomicReference<>();
     private final AtomicReference<BiConsumer<ActionRequest, ActionListener<ActionResponse>>> responseProviderHolder =
         new AtomicReference<>();
@@ -139,7 +139,7 @@ public class IndexServiceAccountsTokenStoreTests extends ESTestCase {
             action.run();
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
-        store = new IndexServiceAccountsTokenStore(Settings.EMPTY,
+        store = new IndexServiceAccountTokenStore(Settings.EMPTY,
             threadPool,
             Clock.systemUTC(),
             client, securityIndex,

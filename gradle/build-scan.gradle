@@ -96,3 +96,19 @@ buildScan {
     }
   }
 }
+
+subprojects {
+  tasks.withType(Test).configureEach(new Action<Test>() {
+    @Override
+    void execute(Test test) {
+      test.doLast(new Action<Test>() {
+        @Override
+        void execute(Test t) {
+          if(t.rerun.didRerun.get() == true) {
+            buildScan.tag 'unexpected-test-jvm-exit'
+          }
+        }
+      })
+    }
+  })
+}

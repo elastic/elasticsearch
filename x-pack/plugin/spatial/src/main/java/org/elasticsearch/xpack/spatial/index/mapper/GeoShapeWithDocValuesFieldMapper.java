@@ -207,6 +207,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     @Override
     protected void index(ParseContext context, Geometry geometry) throws IOException {
+        if (geometry == null) {
+            return;
+        }
         List<IndexableField> fields = indexer.indexShape(geometry);
         if (fieldType().isSearchable()) {
             context.doc().addAll(fields);

@@ -198,6 +198,9 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
     @Override
     protected void index(ParseContext context, Geometry geometry) throws IOException {
+        if (geometry == null) {
+            return;
+        }
         context.doc().addAll(indexer.indexShape(geometry));
         createFieldNamesField(context);
     }

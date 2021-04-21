@@ -946,7 +946,7 @@ public class RecoverySourceHandler {
                     IOUtils.close(currentInput, () -> currentInput = null);
                 }
             };
-        resources.add(multiFileSender);
+        resources.add(0, multiFileSender);
         multiFileSender.start();
     }
 

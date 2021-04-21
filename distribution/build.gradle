@@ -21,6 +21,11 @@ import java.nio.file.Path
 plugins {
   id 'base'
 }
+
+configurations {
+  log4jConfig
+}
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -282,7 +287,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -303,6 +308,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsSecurityCli project(':x-pack:plugin:security:cli')
+    libsGeoIpCli project(':distribution:tools:geoip-cli')
   }
 
   project.ext {
@@ -314,6 +320,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // delay by using closures, since they have not yet been configured, so no jar task exists yet
         from(configurations.libs)
+        into('tools/geoip-cli') {
+          from(configurations.libsGeoIpCli)
+        }
         into('tools/plugin-cli') {
           from(configurations.libsPluginCli)
         }
@@ -628,4 +637,13 @@ subprojects {
   dependencies {
     "${configuration.name}" project(path: subproject.path, configuration:'default')
   }
+}
+
+// This artifact makes it possible for other projects to pull
+// in the final log4j2.properties configuration, as it appears in the
+// archive distribution.
+artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
+  type 'file'
+  name 'log4j2.properties'
+  builtBy 'buildDefaultLog4jConfig'
 }

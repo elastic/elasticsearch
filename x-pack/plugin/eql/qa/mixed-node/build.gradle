@@ -10,7 +10,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
   testImplementation project(':x-pack:qa')
-  testImplementation(project(xpackModule('ql:test')))
+  testImplementation(project(xpackModule('ql:test-fixtures')))
   testImplementation project(path: xpackModule('eql'), configuration: 'default')
 }
 
@@ -32,7 +32,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
       setting 'xpack.security.enabled', 'false'
       setting 'xpack.watcher.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
-	  setting 'xpack.eql.enabled', 'true'
+      setting 'xpack.eql.enabled', 'true'
       setting 'xpack.license.self_generated.type', 'trial'
       // for debugging purposes
       // setting 'logger.org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction', 'TRACE'

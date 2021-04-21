@@ -89,7 +89,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.support.InvalidationCountingCacheWrapper;
+import org.elasticsearch.xpack.security.support.LockingAtomicCounter;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
@@ -648,7 +648,7 @@ public class ApiKeyService {
     }
 
     // pkg private for testing
-    InvalidationCountingCacheWrapper<String, CachedApiKeyDoc> getDocCache() {
+    Cache<String, CachedApiKeyDoc> getDocCache() {
         return apiKeyDocCache == null ? null : apiKeyDocCache.docCache;
     }
 
@@ -714,6 +714,17 @@ public class ApiKeyService {
             }
         }
         return null;
+    }
+
+    public static boolean isApiKeyAuthentication(Authentication authentication) {
+        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
+        if (Authentication.AuthenticationType.API_KEY == authType) {
+            assert API_KEY_REALM_TYPE.equals(authentication.getAuthenticatedBy().getType())
+                : "API key authentication must have API key realm type";
+            return true;
+        } else {
+            return false;
+        }
     }
 
     // Protected instance method so this can be mocked
@@ -1264,16 +1275,15 @@ public class ApiKeyService {
     }
 
     private static final class ApiKeyDocCache {
-        private final InvalidationCountingCacheWrapper<String, ApiKeyService.CachedApiKeyDoc> docCache;
+        private final Cache<String, ApiKeyService.CachedApiKeyDoc> docCache;
         private final Cache<String, BytesReference> roleDescriptorsBytesCache;
+        private final LockingAtomicCounter lockingAtomicCounter;
 
         ApiKeyDocCache(TimeValue ttl, int maximumWeight) {
-            this.docCache = new InvalidationCountingCacheWrapper<>(
-                CacheBuilder.<String, ApiKeyService.CachedApiKeyDoc>builder()
-                    .setMaximumWeight(maximumWeight)
-                    .setExpireAfterWrite(ttl)
-                    .build()
-            );
+            this.docCache = CacheBuilder.<String, ApiKeyService.CachedApiKeyDoc>builder()
+                .setMaximumWeight(maximumWeight)
+                .setExpireAfterWrite(ttl)
+                .build();
             // We don't use the doc TTL because that TTL is very low to avoid the risk of
             // caching an invalidated API key. But role descriptors are immutable and may be shared between
             // multiple API keys, so we cache for longer and rely on the weight to manage the cache size.
@@ -1281,6 +1291,7 @@ public class ApiKeyService {
                 .setExpireAfterAccess(TimeValue.timeValueHours(1))
                 .setMaximumWeight(maximumWeight * 2)
                 .build();
+            this.lockingAtomicCounter = new LockingAtomicCounter();
         }
 
         public ApiKeyDoc get(String docId) {
@@ -1296,24 +1307,33 @@ public class ApiKeyService {
         }
 
         public long getInvalidationCount() {
-            return docCache.getInvalidationCount();
+            return lockingAtomicCounter.get();
         }
 
-        public void putIfNoInvalidationSince(String docId, ApiKeyDoc apiKeyDoc, long invalidationCount) throws ExecutionException {
+        public void putIfNoInvalidationSince(String docId, ApiKeyDoc apiKeyDoc, long invalidationCount) {
             final CachedApiKeyDoc cachedApiKeyDoc = apiKeyDoc.toCachedApiKeyDoc();
-            if (docCache.putIfNoInvalidationSince(docId, cachedApiKeyDoc, invalidationCount)) {
-                roleDescriptorsBytesCache.computeIfAbsent(
-                    cachedApiKeyDoc.roleDescriptorsHash, k -> apiKeyDoc.roleDescriptorsBytes);
-                roleDescriptorsBytesCache.computeIfAbsent(
-                    cachedApiKeyDoc.limitedByRoleDescriptorsHash, k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
-            }
+            lockingAtomicCounter.compareAndRun(invalidationCount, () -> {
+                docCache.put(docId, cachedApiKeyDoc);
+                try {
+                    roleDescriptorsBytesCache.computeIfAbsent(
+                        cachedApiKeyDoc.roleDescriptorsHash, k -> apiKeyDoc.roleDescriptorsBytes);
+                    roleDescriptorsBytesCache.computeIfAbsent(
+                        cachedApiKeyDoc.limitedByRoleDescriptorsHash, k -> apiKeyDoc.limitedByRoleDescriptorsBytes);
+                } catch (ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
         public void invalidate(Collection<String> docIds) {
-            docCache.invalidate(docIds);
+            lockingAtomicCounter.increment();
+            logger.debug("Invalidating API key doc cache with ids: [{}]", Strings.collectionToCommaDelimitedString(docIds));
+            docIds.forEach(docCache::invalidate);
         }
 
         public void invalidateAll() {
+            lockingAtomicCounter.increment();
+            logger.debug("Invalidating all API key doc cache and descriptor cache");
             docCache.invalidateAll();
             roleDescriptorsBytesCache.invalidateAll();
         }

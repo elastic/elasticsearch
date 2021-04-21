@@ -27,7 +27,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
     public static final Version RESERVED_BYTES_VERSION = Version.V_7_9_0;
-    public static final Version TOTAL_DATA_SET_SIZE_SIZE_VERSION = Version.V_8_0_0; // todo: Version.V_7_13_0;
+    public static final Version TOTAL_DATA_SET_SIZE_SIZE_VERSION = Version.V_7_13_0;
 
     private long sizeInBytes;
     private long totalDataSetSizeInBytes;
@@ -98,6 +98,10 @@ public class StoreStats implements Writeable, ToXContentFragment {
 
     public ByteSizeValue getTotalDataSetSize() {
         return totalDataSetSize();
+    }
+
+    public long totalDataSetSizeInBytes() {
+        return totalDataSetSizeInBytes;
     }
 
     /**

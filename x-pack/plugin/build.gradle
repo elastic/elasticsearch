@@ -1,9 +1,12 @@
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 archivesBaseName = 'x-pack'
 
@@ -12,8 +15,9 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-// let the yamlRestTest see the classpath of test
+// let the yamlRestTests see the classpath of test
 GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
+GradleUtils.extendSourceSet(project, "test", "yamlRestCompatTest")
 
 restResources {
   restApi {
@@ -43,25 +47,41 @@ tasks.named("testJar").configure {
 }
 
 // location for keys and certificates
-File keystoreDir = file("$buildDir/keystore")
-File nodeKey = file("$keystoreDir/testnode.pem")
-File nodeCert = file("$keystoreDir/testnode.crt")
+File extraResourceDir = file("$buildDir/extra_resource")
+File nodeKey = file("$extraResourceDir/testnode.pem")
+File nodeCert = file("$extraResourceDir/testnode.crt")
+// location for service tokens
+File serviceTokens = file("$extraResourceDir/service_tokens")
 
 // Add key and certs to test classpath: it expects them there
 // User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
 // it can run in a FIPS 140 JVM
 // TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
 // https://github.com/elastic/elasticsearch/pull/32201
-tasks.register("copyKeyCerts", Copy) {
+tasks.register("copyExtraResources", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
-  into keystoreDir
+  from(project(':x-pack:plugin:security:qa:service-account').file('src/javaRestTest/resources/')) {
+    include 'service_tokens'
+  }
+  into extraResourceDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
+sourceSets.yamlRestTest.resources.srcDir(extraResourceDir)
 tasks.named("processYamlRestTestResources").configure {
-  dependsOn("copyKeyCerts")
+  dependsOn("copyExtraResources")
+}
+def restTestBlacklist = []
+tasks.withType(RestIntegTestTask).configureEach {
+  // TODO: fix this rest test to not depend on a hardcoded port!
+  restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+  if (BuildParams.isSnapshotBuild() == false) {
+    // these tests attempt to install basic/internal licenses signed against the dev/public.key
+    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
+    // private key, these tests are blacklisted in non-snapshot test runs
+    restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
+  }
 }
 
 tasks.named("yamlRestTest").configure {
@@ -70,18 +90,78 @@ tasks.named("yamlRestTest").configure {
    * other if we allow them to set the number of available processors as it's set-once in Netty.
    */
   systemProperty 'es.set.netty.runtime.available.processors', 'false'
+  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
+  dependsOn "copyExtraResources"
+}
 
+tasks.named("yamlRestCompatTest").configure {
+  /*
+   * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+   * other if we allow them to set the number of available processors as it's set-once in Netty.
+   */
+  systemProperty 'es.set.netty.runtime.available.processors', 'false'
 
-  // TODO: fix this rest test to not depend on a hardcoded port!
-  def blacklist = ['getting_started/10_monitor_cluster_health/*']
-  if (BuildParams.isSnapshotBuild() == false) {
-    // these tests attempt to install basic/internal licenses signed against the dev/public.key
-    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are blacklisted in non-snapshot test runs
-    blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
-  }
-  systemProperty 'tests.rest.blacklist', blacklist.join(',')
-  dependsOn "copyKeyCerts"
+  //TODO: blacklist specific to REST API compatibility
+  restTestBlacklist.addAll([
+    'license/30_enterprise_license/Installing enterprise license',
+    'ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header and column selection',
+    'ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header',
+    'ml/data_frame_analytics_cat_apis/Test cat data frame analytics single job with header',
+    'ml/data_frame_analytics_cat_apis/Test cat data frame analytics single job',
+    'ml/datafeed_cat_apis/Test cat datafeeds',
+    'ml/datafeeds_crud/Test update datafeed to point to different job',
+    'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
+    'ml/datafeeds_crud/Test update datafeed to point to missing job',
+    'ml/job_cat_apis/Test cat anomaly detector jobs',
+    'ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats',
+    'ml/jobs_get_stats/Test get job stats for closed job',
+    'ml/jobs_get_stats/Test no exception on get job stats with missing index',
+    'ml/post_data/Test POST data job api, flush, close and verify DataCounts doc',
+    'ml/post_data/Test flush with skip_time',
+    'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',
+    'ml/set_upgrade_mode/Setting upgrade_mode to enabled',
+    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
+    'ml/trained_model_cat_apis/Test cat trained models',
+    'roles/11_idx_arrays/Test put role api using as array of index names',
+    'roles/30_prohibited_role_query/Test use prohibited query inside role query',
+    'rollup/delete_job/Test basic delete_job',
+    'rollup/delete_job/Test delete job twice',
+    'rollup/delete_job/Test delete running job',
+    'rollup/get_jobs/Test basic get_jobs',
+    'rollup/put_job/Test basic put_job',
+    'rollup/put_job/Test put_job in non-rollup index',
+    'rollup/rollup_search/Obsolete BWC Timezone',
+    'rollup/rollup_search/Obsolete Timezone',
+    'rollup/start_job/Test start job twice',
+    'security/authz/14_cat_indices/Test empty request while no-authorized index',
+    'security/authz/14_cat_indices/Test empty request while single authorized index',
+    'security/authz/14_cat_indices/Test explicit request while multiple authorized indices',
+    'security/authz/14_cat_indices/Test explicit request while multiple opened/closed authorized indices',
+    'security/authz/14_cat_indices/Test wildcard request with multiple authorized indices',
+    'sql/sql/Clean cursor',
+    'sql/sql/Execute some SQL',
+    'sql/sql/Getting textual representation',
+    'sql/sql/Paging through results',
+    'sql/translate/Translate SQL',
+    'transform/transforms_cat_apis/Test cat transform stats hiding headers',
+    'transform/transforms_cat_apis/Test cat transform stats with column selection',
+    'transform/transforms_cat_apis/Test cat transform stats with continuous transform',
+    'vectors/10_dense_vector_basic/Deprecated function signature',
+    'vectors/30_sparse_vector_basic/Cosine Similarity',
+    'vectors/30_sparse_vector_basic/Deprecated function signature',
+    'vectors/30_sparse_vector_basic/Dot Product',
+    'vectors/35_sparse_vector_l1l2/L1 norm',
+    'vectors/35_sparse_vector_l1l2/L2 norm',
+    'vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently',
+    'vectors/40_sparse_vector_special_cases/Documents missing a vector field',
+    'vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents\' vectors',
+    'vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions',
+    'vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types',
+    'vectors/50_vector_stats/Usage stats on vector fields'
+  ])
+
+  systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
+  dependsOn "copyExtraResources"
 }
 
 testClusters.all {
@@ -109,6 +189,7 @@ testClusters.all {
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile serviceTokens.name, serviceTokens
 }
 
 tasks.register('enforceApiSpecsConvention').configure {
@@ -130,3 +211,8 @@ tasks.register('enforceYamlTestConvention').configure {
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
+
+tasks.named("transformV7RestTests").configure({ task ->
+  task.replaceMatch("_type", "_doc")
+  task.addAllowedWarningRegex("\\[types removal\\].*")
+})

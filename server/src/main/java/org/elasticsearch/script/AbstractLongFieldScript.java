@@ -12,7 +12,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.LongConsumer;
 
 /**
  * Common base class for script field scripts that return long values.
@@ -35,6 +37,16 @@ public abstract class AbstractLongFieldScript extends AbstractFieldScript {
     }
 
     /**
+     * Execute the script for the provided {@code docId}, passing results to the {@code consumer}
+     */
+    public final void runForDoc(int docId, LongConsumer consumer) {
+        runForDoc(docId);
+        for (int i = 0; i < count; i++) {
+            consumer.accept(values[i]);
+        }
+    }
+
+    /**
      * Values from the last time {@link #runForDoc(int)} was called. This array
      * is mutable and will change with the next call of {@link #runForDoc(int)}.
      * It is also oversized and will contain garbage at all indices at and
@@ -45,13 +57,24 @@ public abstract class AbstractLongFieldScript extends AbstractFieldScript {
     }
 
     /**
+     * Reorders the values from the last time {@link #values()} was called to
+     * how this would appear in doc-values order. Truncates garbage values
+     * based on {@link #count()}.
+     */
+    public final long[] asDocValues() {
+        long[] truncated = Arrays.copyOf(values, count());
+        Arrays.sort(truncated);
+        return truncated;
+    }
+
+    /**
      * The number of results produced the last time {@link #runForDoc(int)} was called.
      */
     public final int count() {
         return count;
     }
 
-    protected final void emit(long v) {
+    public final void emit(long v) {
         checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);

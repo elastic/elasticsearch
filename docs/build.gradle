@@ -13,6 +13,25 @@ import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+ext.docsFileTree = fileTree(projectDir) {
+  // No snippets in here!
+  exclude 'build.gradle'
+  // That is where the snippets go, not where they come from!
+  exclude 'build/**'
+  exclude 'build-idea/**'
+  exclude 'build-eclipse/**'
+  // Just syntax examples
+  exclude 'README.asciidoc'
+  // Broken code snippet tests
+  exclude 'reference/graph/explore.asciidoc'
+  if (BuildParams.inFipsJvm) {
+    // We don't install/support this plugin in FIPS 140
+    exclude 'plugins/ingest-attachment.asciidoc'
+    // We can't conditionally control output, this would be missing the ingest-attachment plugin
+    exclude 'reference/cat/plugins.asciidoc'
+  }
+}
+
 /* List of files that have snippets that will not work until platinum tests can occur ... */
 tasks.named("buildRestTests").configure {
   expectedUnconvertedCandidates = [
@@ -43,12 +62,15 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   if (singleNode().testDistribution == DEFAULT) {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
+    setting 'ingest.geoip.downloader.enabled', 'false'
+    systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
     systemProperty 'es.shutdown_feature_flag_enabled', 'true'
     keystorePassword 'keystore-password'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
   setting 'script.painless.regex.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
   setting 'path.repo', "${buildDir}/cluster/shared/repo"
   Closure configFile = {
     extraConfigFile it, file("src/test/cluster/config/$it")
@@ -90,25 +112,6 @@ tasks.named("integTest").configure {
   }
 }
 
-ext.docsFileTree = fileTree(projectDir) {
-  // No snippets in here!
-  exclude 'build.gradle'
-  // That is where the snippets go, not where they come from!
-  exclude 'build'
-  exclude 'build-idea'
-  exclude 'build-eclipse'
-  // Just syntax examples
-  exclude 'README.asciidoc'
-  // Broken code snippet tests
-  exclude 'reference/graph/explore.asciidoc'
-  if (BuildParams.inFipsJvm) {
-    // We don't install/support this plugin in FIPS 140
-    exclude 'plugins/ingest-attachment.asciidoc'
-    // We can't conditionally control output, this would be missing the ingest-attachment plugin
-    exclude 'reference/cat/plugins.asciidoc'
-  }
-}
-
 tasks.named("buildRestTests").configure {
   docs = docsFileTree
 }
@@ -143,6 +146,9 @@ Closure setupMyIndex = { String name, int count ->
                           type: keyword
                 message:
                   type: text
+                  fields:
+                    keyword:
+                      type: keyword
                 user:
                   properties:
                     id:
@@ -221,15 +227,16 @@ buildRestTests.setups['messages'] = '''
           refresh: true
           body: |
             {"index":{"_id": "0"}}
-            {"message": "trying out Elasticsearch"}
+            {"message": "trying out Elasticsearch", "context": "foo"}
             {"index":{"_id": "1"}}
-            {"message": "some message with the number 1"}
+            {"message": "some message with the number 1", "context": "bar"}
             {"index":{"_id": "2"}}
-            {"message": "some message with the number 2"}
+            {"message": "some message with the number 2", "context": "bar"}
             {"index":{"_id": "3"}}
-            {"message": "some message with the number 3"}
+            {"message": "some message with the number 3", "context": "bar"}
             {"index":{"_id": "4"}}
-            {"message": "some message with the number 4"}'''
+            {"message": "some message with the number 4", "context": "bar"}
+'''
 
 // Used for EQL
 setups['sec_logs'] = setups['my_data_stream'] + '''
@@ -370,36 +377,6 @@ buildRestTests.setups['user_hits'] = '''
             {"index":{}}
             {"timestamp": "2019-01-03T13:00:00", "user_id": "4"}'''
 
-
-// Fake bank account data used by getting-started.asciidoc
-buildRestTests.setups['bank'] = '''
-  - do:
-        indices.create:
-          index: bank
-          body:
-            settings:
-              number_of_shards: 5
-              number_of_routing_shards: 5
-  - do:
-        bulk:
-          index: bank
-          refresh: true
-          body: |
-#bank_data#
-'''
-/* Load the actual accounts only if we're going to use them. This complicates
- * dependency checking but that is a small price to pay for not building a
- * 400kb string every time we start the build. */
-File accountsFile = new File("$projectDir/src/test/resources/accounts.json")
-buildRestTests.inputs.file(accountsFile)
-buildRestTests.doFirst {
-  String accounts = accountsFile.getText('UTF-8')
-  // Indent like a yaml test needs
-  accounts = accounts.replaceAll('(?m)^', '            ')
-  buildRestTests.setups['bank'] =
-    buildRestTests.setups['bank'].replace('#bank_data#', accounts)
-}
-
 // Used by sampler and diversified-sampler aggregation docs
 buildRestTests.setups['stackoverflow'] = '''
   - do:
@@ -530,14 +507,6 @@ buildRestTests.setups['exams'] = '''
             {"index":{}}
             {"grade": 50, "weight": 3}'''
 
-buildRestTests.setups['stored_example_script'] = '''
-  # Simple script to load a field. Not really a good example, but a simple one.
-  - do:
-      put_script:
-        id: "my_script"
-        body: { "script": { "lang": "painless", "source": "doc[params.field].value" } }
-  - match: { acknowledged: true }
-'''
 
 buildRestTests.setups['stored_scripted_metric_script'] = '''
   - do:

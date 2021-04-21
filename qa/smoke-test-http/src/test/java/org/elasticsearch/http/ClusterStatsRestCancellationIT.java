@@ -65,9 +65,9 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 // disable internal cluster info service to avoid internal cluster stats calls
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
                 .build();
@@ -114,11 +114,7 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
                 }
             });
 
-            logger.info("--> waiting for task to start");
-            assertBusy(() -> {
-                final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-                assertTrue(tasks.toString(), tasks.stream().anyMatch(t -> t.getAction().startsWith(ClusterStatsAction.NAME)));
-            });
+            awaitTaskWithPrefix(ClusterStatsAction.NAME);
 
             logger.info("--> waiting for at least one task to hit a block");
             assertBusy(() -> assertTrue(statsBlocks.stream().anyMatch(Semaphore::hasQueuedThreads)));

@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   name 'spatial'
@@ -33,6 +34,7 @@ restResources {
 testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("thirdPartyAudit").configure {

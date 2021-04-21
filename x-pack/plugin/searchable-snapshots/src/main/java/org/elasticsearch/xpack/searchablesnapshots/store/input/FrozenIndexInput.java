@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
@@ -135,12 +136,8 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
             assert startRangeToWrite.end() <= endRangeToWrite.end() : startRangeToWrite + " vs " + endRangeToWrite;
             final ByteRange rangeToWrite = startRangeToWrite.minEnvelope(endRangeToWrite);
 
-            assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end() : "["
-                + position
-                + "-"
-                + (position + length)
-                + "] vs "
-                + rangeToWrite;
+            assert rangeToWrite.start() <= position && position + length <= rangeToWrite.end()
+                : "[" + position + "-" + (position + length) + "] vs " + rangeToWrite;
             final ByteRange rangeToRead = ByteRange.of(position, position + length);
 
             final StepListener<Integer> populateCacheFuture = frozenCacheFile.populateAndRead(
@@ -162,7 +159,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     final long streamStartPosition = rangeToWrite.start() + relativePos;
 
                     try (InputStream input = openInputStreamFromBlobStore(streamStartPosition, len)) {
-                        this.writeCacheFile(channel, input, channelPos, relativePos, len, progressUpdater, startTimeNanos);
+                        writeCacheFile(channel, input, channelPos, relativePos, len, progressUpdater, startTimeNanos);
                     }
                 },
                 directory.cacheFetchAsyncExecutor()
@@ -256,14 +253,8 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                 final ByteBuffer dup = buffer.duplicate();
                 final int newPosition = dup.position() + Math.toIntExact(relativePos);
                 assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
-                assert newPosition + length <= buffer.limit() : "oldpos "
-                    + dup.position()
-                    + " newpos "
-                    + newPosition
-                    + " length "
-                    + length
-                    + " limit "
-                    + buffer.limit();
+                assert newPosition + length <= buffer.limit()
+                    : "oldpos " + dup.position() + " newpos " + newPosition + " length " + length + " limit " + buffer.limit();
                 dup.position(newPosition);
                 dup.limit(newPosition + Math.toIntExact(length));
                 bytesRead = fc.read(dup, channelPos);
@@ -292,8 +283,15 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
     /**
      * Thread local direct byte buffer to aggregate multiple positional writes to the cache file.
      */
+    private static final int MAX_BYTES_PER_WRITE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(
+            System.getProperty("es.searchable.snapshot.shared_cache.write_buffer.size", "2m"),
+            "es.searchable.snapshot.shared_cache.write_buffer.size"
+        ).getBytes()
+    );
+
     private static final ThreadLocal<ByteBuffer> writeBuffer = ThreadLocal.withInitial(
-        () -> ByteBuffer.allocateDirect(COPY_BUFFER_SIZE * 8)
+        () -> ByteBuffer.allocateDirect(MAX_BYTES_PER_WRITE)
     );
 
     private void writeCacheFile(

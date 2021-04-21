@@ -189,7 +189,7 @@ Updating or removing a runtime field while a dependent query is running can retu
 inconsistent results. Each shard might have access to different versions of the
 script, depending on when the mapping change takes effect.
 
-Existing queries or visualizations in {kib} that rely on runtime fields can
+WARNING: Existing queries or visualizations in {kib} that rely on runtime fields can
 fail if you remove or update the field. For example, a bar chart visualization
 that uses a runtime field of type `ip` will fail if the type is changed
 to `boolean`, or if the runtime field is removed.
@@ -199,18 +199,17 @@ to `boolean`, or if the runtime field is removed.
 === Define runtime fields in a search request
 You can specify a `runtime_mappings` section in a search request to create
 runtime fields that exist only as part of the query. You specify a script
-as part of the `runtime_mappings` section, just as you would if adding a
-runtime field to the mappings.
+as part of the `runtime_mappings` section, just as you would if
+<<runtime-mapping-fields,adding a runtime field to the mappings>>.
 
-Fields defined in the search request take precedence over fields defined with
-the same name in the index mappings. This flexibility allows you to shadow
-existing fields and calculate a different value in the search request, without
-modifying the field itself. If you made a mistake in your index mapping, you
-can use runtime fields to calculate values that override values in the mapping
-during the search request.
+Defining a runtime field in a search request uses the same format as defining
+a runtime field in the index mapping. Just copy the field definition from
+the `runtime_mappings` in the search request to the `runtime` section of the
+index mapping.
 
-In the following request, the values for the `day_of_week` field are calculated
-dynamically, and only within the context of this search request:
+The following search request adds a `day_of_week` field to the
+`runtime_mappings` section. The field values will be calculated dynamically,
+and only within the context of this search request:
 
 [source,console]
 ----
@@ -235,11 +234,155 @@ GET my-index/_search
 ----
 //TEST[continued]
 
-Defining a runtime field in a search request uses the same format as defining
-a runtime field in the index mapping. That consistency means you can promote a
-runtime field from a search request to the index mapping by moving the field
-definition from `runtime_mappings` in the search request to the `runtime`
-section of the index mapping.
+[[runtime-search-request-examples]]
+[discrete]
+=== Create runtime fields that use other runtime fields
+You can even define runtime fields in a search request that return values from
+other runtime fields. For example, let's say you bulk index some sensor data:
+
+[source,console]
+----
+POST my-index/_bulk?refresh=true
+{"index":{}}
+{"@timestamp":1516729294000,"model_number":"QVKC92Q","measures":{"voltage":"5.2","start": "300","end":"8675309"}}
+{"index":{}}
+{"@timestamp":1516642894000,"model_number":"QVKC92Q","measures":{"voltage":"5.8","start": "300","end":"8675309"}}
+{"index":{}}
+{"@timestamp":1516556494000,"model_number":"QVKC92Q","measures":{"voltage":"5.1","start": "300","end":"8675309"}}
+{"index":{}}
+{"@timestamp":1516470094000,"model_number":"QVKC92Q","measures":{"voltage":"5.6","start": "300","end":"8675309"}}
+{"index":{}}
+{"@timestamp":1516383694000,"model_number":"HG537PU","measures":{"voltage":"4.2","start": "400","end":"8625309"}}
+{"index":{}}
+{"@timestamp":1516297294000,"model_number":"HG537PU","measures":{"voltage":"4.0","start": "400","end":"8625309"}}
+----
+
+You realize after indexing that your numeric data was mapped as type `text`.
+You want to aggregate on the `measures.start` and `measures.end` fields, but
+the aggregation fails because you can't aggregate on fields of type `text`.
+Runtime fields to the rescue! You can add runtime fields with the same name as
+your indexed fields and modify the data type:
+
+[source,console]
+----
+PUT my-index/_mapping
+{
+  "runtime": {
+    "measures.start": {
+      "type": "long"
+    },
+    "measures.end": {
+      "type": "long"
+    }
+  }
+}
+----
+// TEST[continued]
+
+Runtime fields take precedence over fields defined with the same name in the
+index mappings. This flexibility allows you to shadow existing fields and
+calculate a different value, without modifying the field itself. If you made a
+mistake in your index mapping, you can use runtime fields to calculate values
+that <<runtime-override-values,override values>> in the mapping during the
+search request.
+
+Now, you can easily run an
+<<search-aggregations-metrics-avg-aggregation,average aggregation>> on the
+`measures.start` and `measures.end` fields:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "aggs": {
+    "avg_start": {
+      "avg": {
+        "field": "measures.start"
+      }
+    },
+    "avg_end": {
+      "avg": {
+        "field": "measures.end"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+The response includes the aggregation results without changing the values for
+the underlying data:
+
+[source,console-result]
+----
+{
+  "aggregations" : {
+    "avg_start" : {
+      "value" : 333.3333333333333
+    },
+    "avg_end" : {
+      "value" : 8658642.333333334
+    }
+  }
+}
+----
+
+Further, you can define a runtime field as part of a search query that
+calculates a value, and then run a
+<<search-aggregations-metrics-stats-aggregation,stats aggregation>> on that
+field _in the same query_.
+
+The `duration` runtime field doesn't exist in the index mapping, but we can
+still search and aggregate on that field. The following query returns the
+calculated value for the `duration` field and runs a stats aggregation to
+compute statistics over numeric values extracted from the aggregated documents.
+
+[source,console]
+----
+GET my-index/_search
+{
+  "runtime_mappings": {
+    "duration": {
+      "type": "long",
+      "script": {
+        "source": """
+          emit(doc['measures.end'].value - doc['measures.start'].value);
+          """
+      }
+    }
+  },
+  "aggs": {
+    "duration_stats": {
+      "stats": {
+        "field": "duration"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+// TEST[s/_search/_search\?filter_path=aggregations/]
+
+Even though the `duration` runtime field only exists in the context of a search
+query, you can search and aggregate on that field. This flexibility is
+incredibly powerful, enabling you to rectify mistakes in your index mappings
+and dynamically complete calculations all within a single search request.
+
+[source,console-result]
+----
+{
+  "aggregations" : {
+    "duration_stats" : {
+      "count" : 6,
+      "min" : 8624909.0,
+      "max" : 8675009.0,
+      "avg" : 8658309.0,
+      "sum" : 5.1949854E7
+    }
+  }
+}
+----
 
 [[runtime-override-values]]
 === Override field values at query time
@@ -604,6 +747,326 @@ address.
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
 
+[[runtime-indexed]]
+=== Index a runtime field
+Runtime fields are defined by the context where they run. For example, you
+can define runtime fields in the
+<<runtime-search-request,context of a search query>> or within the
+<<runtime-mapping-fields,`runtime` section>> of an index mapping. If you
+decide to index a runtime field for greater performance, just move the full
+runtime field definition (including the script) to the context of an index
+mapping. This capability means you can write a script only once, and apply
+it to any context that supports runtime fields.
+
+IMPORTANT: After indexing a runtime field, you cannot update the included
+script. If you need to change the script, create a new field with the updated
+script.
+
+For example, let's say your company wants to replace some old pressure
+valves. The connected sensors are only capable of reporting a fraction of
+the true readings. Rather than outfit the pressure valves with new sensors,
+you decide to calculate the values based on reported readings. Based on the
+reported data, you define the following fields in your mapping for
+`my-index`:
+
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      },
+      "temperature": {
+        "type": "long"
+      },
+      "voltage": {
+        "type": "double"
+      },
+      "node": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+
+You then bulk index some sample data from your sensors. This data includes
+`voltage` readings for each sensor:
+
+[source,console]
+----
+POST my-index/_bulk?refresh=true
+{"index":{}}
+{"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+{"index":{}}
+{"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+{"index":{}}
+{"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+{"index":{}}
+{"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+{"index":{}}
+{"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+{"index":{}}
+{"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+----
+// TEST[continued]
+
+After talking to a few site engineers, you realize that the sensors should
+be reporting at least _double_ the current values, but potentially higher.
+You create a runtime field named `voltage_corrected` that retrieves the current
+voltage and multiplies it by `2`:
+
+[source,console]
+----
+PUT my-index/_mapping
+{
+  "runtime": {
+    "voltage_corrected": {
+      "type": "double",
+      "script": {
+        "source": """
+        emit(doc['voltage'].value * params['multiplier'])
+        """,
+        "params": {
+          "multiplier": 2
+        }
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+You retrieve the calculated values using the <<search-fields,`fields`>>
+parameter on the `_search` API:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "fields": [
+    "voltage_corrected",
+    "node"
+  ],
+  "size": 2
+}
+----
+// TEST[continued]
+// TEST[s/_search/_search\?filter_path=hits/]
+
+//
+////
+[source,console-result]
+----
+{
+  "hits" : {
+    "total" : {
+      "value" : 6,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index",
+        "_id" : "z4TCrHgBdg9xpPrU6z9k",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : 1516729294000,
+          "temperature" : 200,
+          "voltage" : 5.2,
+          "node" : "a"
+        },
+        "fields" : {
+          "voltage_corrected" : [
+            10.4
+          ],
+          "node" : [
+            "a"
+          ]
+        }
+      },
+      {
+        "_index" : "my-index",
+        "_id" : "0ITCrHgBdg9xpPrU6z9k",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : 1516642894000,
+          "temperature" : 201,
+          "voltage" : 5.8,
+          "node" : "b"
+        },
+        "fields" : {
+          "voltage_corrected" : [
+            11.6
+          ],
+          "node" : [
+            "b"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"_id" : "z4TCrHgBdg9xpPrU6z9k"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "0ITCrHgBdg9xpPrU6z9k"/"_id": $body.hits.hits.1._id/]
+////
+//
+
+After reviewing the sensor data and running some tests, you determine that the
+multiplier for reported sensor data should be `4`. To gain greater performance,
+you decide to index the `voltage_corrected` runtime field with the new
+`multiplier` parameter.
+
+In a new index named `my-index-00001`, copy the `voltage_corrected` runtime
+field definition into the mappings of the new index. It's that simple! You can
+add an optional parameter named `on_script_error` that determines whether to
+reject the entire document if the script throws an error at index time
+(default).
+
+[source,console]
+----
+PUT my-index-00001/
+{
+  "mappings": {
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      },
+      "temperature": {
+        "type": "long"
+      },
+      "voltage": {
+        "type": "double"
+      },
+      "node": {
+        "type": "keyword"
+      },
+      "voltage_corrected": {
+        "type": "double",
+        "on_script_error": "fail", <1>
+        "script": {
+          "source": """
+        emit(doc['voltage'].value * params['multiplier'])
+        """,
+          "params": {
+            "multiplier": 4
+          }
+        }
+      }
+    }
+  }
+}
+----
+<1> Causes the entire document to be rejected if the script throws an error at
+index time. Setting the value to `ignore` will register the field in the
+document’s `_ignored` metadata field and continue indexing.
+
+Bulk index some sample data from your sensors into the `my-index-00001` index:
+
+[source,console]
+----
+POST my-index-00001/_bulk?refresh=true
+{ "index": {}}
+{ "timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+{ "index": {}}
+{ "timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+{ "index": {}}
+{ "timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+{ "index": {}}
+{ "timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+{ "index": {}}
+{ "timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+{ "index": {}}
+{ "timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+----
+// TEST[continued]
+
+You can now retrieve calculated values in a search query, and find documents
+based on precise values. The following range query returns all documents where
+the calculated `voltage_corrected` is greater than or equal to `10`, but less
+than or equal to `16`. Again, use the <<search-fields,`fields`>> parameter on
+the `_search` API to retrieve the fields you want:
+
+[source,console]
+----
+POST my-index-00001/_search
+{
+  "query": {
+    "range": {
+      "voltage_corrected": {
+        "gte": 16,
+        "lte": 20,
+        "boost": 1.0
+      }
+    }
+  },
+  "fields": [
+    "voltage_corrected", "node"]
+}
+----
+// TEST[continued]
+// TEST[s/_search/_search\?filter_path=hits/]
+
+The response includes the `voltage_corrected` field for the documents that
+match the range query, based on the calculated value of the included script:
+
+[source,console-result]
+----
+{
+  "hits" : {
+    "total" : {
+      "value" : 2,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index-00001",
+        "_id" : "yoSLrHgBdg9xpPrUZz_P",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : 1516383694000,
+          "temperature" : 200,
+          "voltage" : 4.2,
+          "node" : "c"
+        },
+        "fields" : {
+          "voltage_corrected" : [
+            16.8
+          ],
+          "node" : [
+            "c"
+          ]
+        }
+      },
+      {
+        "_index" : "my-index-00001",
+        "_id" : "y4SLrHgBdg9xpPrUZz_P",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : 1516297294000,
+          "temperature" : 202,
+          "voltage" : 4.0,
+          "node" : "c"
+        },
+        "fields" : {
+          "voltage_corrected" : [
+            16.0
+          ],
+          "node" : [
+            "c"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"_id" : "yoSLrHgBdg9xpPrUZz_P"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "y4SLrHgBdg9xpPrUZz_P"/"_id": $body.hits.hits.1._id/]
 
 [[runtime-examples]]
 === Explore your data with runtime fields

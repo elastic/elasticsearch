@@ -55,6 +55,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
         checker.registerConflictCheck("index", b -> b.field("index", false));
@@ -304,6 +309,16 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
         assertThat(document.docs(), hasSize(1));
         IndexableField[] fields = document.docs().get(0).getFields("shape.type");
         assertThat(fields.length, equalTo(2));
+    }
+
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
     }
 
     public String toXContentString(GeoShapeWithDocValuesFieldMapper mapper, boolean includeDefaults) {

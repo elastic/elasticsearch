@@ -44,7 +44,7 @@ Pipelines**. From the list view, you can:
 * Edit or clone existing pipelines
 * Delete pipelines
 
-To create a new pipeline, click **Create a pipeline**. For an example tutorial,
+To create a new pipeline, click **Create pipeline**. For an example tutorial,
 see <<common-log-format-example>>.
 
 [role="screenshot"]
@@ -272,6 +272,155 @@ final pipeline. {es} applies this pipeline after the request or default
 pipeline, even if neither is specified.
 
 [discrete]
+[[pipelines-for-fleet-elastic-agent]]
+=== Pipelines for {fleet} and {agent}
+
+{fleet-guide}/index.html[{fleet}] automatically adds ingest pipelines for its
+integrations. {fleet} applies these pipelines using <<index-templates,index
+templates>> that include <<set-default-pipeline,pipeline index settings>>. {es}
+matches these templates to your {fleet} data streams based on the
+{fleet-guide}/data-streams.html#data-streams-naming-scheme[stream's naming
+scheme].
+
+WARNING: Do not change {fleet}'s ingest pipelines or use custom pipelines for
+your {fleet} integrations. Doing so can break your {fleet} data streams.
+
+{fleet} doesn't provide an ingest pipeline for the **Custom logs** integration.
+You can safely specify a pipeline for this integration in one of two ways: an
+<<pipeline-custom-logs-index-template,index template>> or a
+<<pipeline-custom-logs-configuration,custom configuration>>.
+
+[[pipeline-custom-logs-index-template]]
+**Option 1: Index template**
+
+// tag::create-name-custom-logs-pipeline[]
+. <<create-manage-ingest-pipelines,Create>> and <<test-pipeline,test>> your
+ingest pipeline. Name your pipeline `logs-<dataset-name>-default`. This makes
+tracking the pipeline for your integration easier.
++
+--
+For example, the following request creates a pipeline for the `my-app` dataset.
+The pipeline's name is `logs-my_app-default`.
+
+[source,console]
+----
+PUT _ingest/pipeline/logs-my_app-default
+{
+  "description": "Pipeline for `my_app` dataset",
+  "processors": [ ... ]
+}
+----
+// TEST[s/\.\.\./{"lowercase": {"field":"my-keyword-field"}}/]
+--
+// end::create-name-custom-logs-pipeline[]
+
+. Create an <<index-templates,index template>> that includes your pipeline in
+the <<index-default-pipeline,`index.default_pipeline`>> or
+<<index-final-pipeline,`index.final_pipeline`>> index setting. Ensure the
+template is <<create-index-template,data stream enabled>>. The
+template's index pattern should match `logs-<dataset-name>-*`.
++
+--
+You can create this template using {kib}'s <<manage-index-templates,**Index
+Management**>> feature or the <<indices-put-template,create index template
+API>>. 
+
+For example, the following request creates a template matching `logs-my_app-*`.
+The template uses a component template that contains the
+`index.default_pipeline` index setting.
+
+[source,console]
+----
+# Creates a component template for index settings
+PUT _component_template/logs-my_app-settings
+{
+  "template": {
+    "settings": {
+      "index.default_pipeline": "logs-my_app-default",
+      "index.lifecycle.name": "logs"
+    }
+  }
+}
+
+# Creates an index template matching `logs-my_app-*`
+PUT _index_template/logs-my_app-template
+{
+  "index_patterns": ["logs-my_app-*"],
+  "data_stream": { },
+  "priority": 500,
+  "composed_of": ["logs-my_app-settings", "logs-my_app-mappings"]
+}
+----
+// TEST[continued]
+// TEST[s/, "logs-my_app-mappings"//]
+--
+// tag::name-custom-logs-dataset[]
+. When adding or editing your **Custom logs** integration in {fleet},
+click **Configure integration > Custom log file > Advanced options**.
+
+. In **Dataset name**, specify your dataset's name. {fleet} will add new data
+for the integration to the resulting `logs-<dataset-name>-default` data stream.
++
+For example, if your dataset's name was `my_app`, {fleet} adds new data to the
+`logs-my_app-default` data stream.
+// end::name-custom-logs-dataset[]
++
+[role="screenshot"]
+image::images/ingest/custom-logs.png[Set up custom log integration in Fleet,align="center"]
+
+. Use the <<indices-rollover-index,rollover API>> to roll over your data stream.
+This ensures {es} applies the index template and its pipeline settings to any
+new data for the integration.
++
+--
+////
+[source,console]
+----
+PUT _data_stream/logs-my_app-default
+----
+// TEST[continued]
+////
+
+[source,console]
+----
+POST logs-my_app-default/_rollover/
+----
+// TEST[continued]
+
+////
+[source,console]
+----
+DELETE _data_stream/*
+DELETE _index_template/*
+----
+// TEST[continued]
+////
+--
+
+[[pipeline-custom-logs-configuration]]
+**Option 2: Custom configuration**
+
+include::ingest.asciidoc[tag=create-name-custom-logs-pipeline]
+
+include::ingest.asciidoc[tag=name-custom-logs-dataset]
+
+. In **Custom Configurations**, specify your pipeline in the `pipeline` policy
+setting.
++
+[role="screenshot"]
+image::images/ingest/custom-logs-pipeline.png[Custom pipeline configuration for custom log integration,align="center"]
+
+**{agent} standalone**
+
+If you run {agent} standalone, you can apply pipelines using an
+<<index-templates,index template>> that includes the
+<<index-default-pipeline,`index.default_pipeline`>> or
+<<index-final-pipeline,`index.final_pipeline`>> index setting. Alternatively,
+you can specify the `pipeline` policy setting in your `elastic-agent.yml`
+configuration. See {fleet-guide}/run-elastic-agent-standalone.html[Run {agent}
+standalone].
+
+[discrete]
 [[access-source-fields]]
 === Access source fields in a processor
 
@@ -340,9 +489,10 @@ PUT _ingest/pipeline/my-pipeline
 ----
 
 [[template-snippets]]
-To access field values, enclose the field name in double curly brackets `{{ }}`
-to create a https://mustache.github.io[Mustache] template snippet. You can use
-template snippets to dynamically set field names.
+Several processor parameters support https://mustache.github.io[Mustache]
+template snippets. To access field values in a template snippet, enclose the
+field name in triple curly brackets:`{{{field-name}}}`. You can use template
+snippets to dynamically set field names.
 
 [source,console]
 ----
@@ -352,8 +502,8 @@ PUT _ingest/pipeline/my-pipeline
     {
       "set": {
         "description": "Set dynamic '<service>' field to 'code' value",
-        "field": "{{service}}",
-        "value": "{{code}}"
+        "field": "{{{service}}}",
+        "value": "{{{code}}}"
       }
     }
   ]
@@ -369,6 +519,7 @@ Processors can access the following metadata fields by name:
 * `_index`
 * `_id`
 * `_routing`
+* `_dynamic_templates`
 
 [source,console]
 ----
@@ -379,7 +530,7 @@ PUT _ingest/pipeline/my-pipeline
       "set": {
         "description": "Set '_routing' to 'geoip.country_iso_code' value",
         "field": "_routing",
-        "value": "{{geoip.country_iso_code}}"
+        "value": "{{{geoip.country_iso_code}}}"
       }
     }
   ]
@@ -387,10 +538,34 @@ PUT _ingest/pipeline/my-pipeline
 ----
 
 Use a Mustache template snippet to access metadata field values. For example,
-`{{_routing}}` retrieves a document's routing value.
+`{{{_routing}}}` retrieves a document's routing value.
+
+[source,console]
+----
+PUT _ingest/pipeline/my-pipeline
+{
+  "processors": [
+    {
+      "set": {
+        "description": "Use geo_point dynamic template for address field",
+        "field": "_dynamic_templates",
+        "value": {
+          "address": "geo_point"       
+        }
+      }
+    }
+  ]
+}
+----
+
+The set processor above tells ES to use the dynamic template named `geo_point`
+for the field `address` if this field is not defined in the mapping of the index
+yet. This processor overrides the dynamic template for the field `address` if 
+already defined in the bulk request, but has no effect on other dynamic 
+templates defined in the bulk request.
 
 WARNING: If you <<create-document-ids-automatically,automatically generate>>
-document IDs, you cannot use `{{_id}}` in a processor. {es} assigns
+document IDs, you cannot use `{{{_id}}}` in a processor. {es} assigns
 auto-generated `_id` values after ingest.
 
 [discrete]
@@ -417,7 +592,7 @@ PUT _ingest/pipeline/my-pipeline
       "set": {
         "description": "Index the ingest timestamp as 'event.ingested'",
         "field": "event.ingested",
-        "value": "{{_ingest.timestamp}}"
+        "value": "{{{_ingest.timestamp}}}"
       }
     }
   ]
@@ -426,7 +601,7 @@ PUT _ingest/pipeline/my-pipeline
 
 [discrete]
 [[handling-pipeline-failures]]
-=== Handing pipeline failures
+=== Handling pipeline failures
 
 A pipeline's processors run sequentially. By default, pipeline processing stops
 when one of these processors fails or encounters an error.
@@ -534,7 +709,7 @@ PUT _ingest/pipeline/my-pipeline
       "set": {
         "description": "Index document to 'failed-<index>'",
         "field": "_index",
-        "value": "failed-{{ _index }}"
+        "value": "failed-{{{ _index }}}"
       }
     }
   ]

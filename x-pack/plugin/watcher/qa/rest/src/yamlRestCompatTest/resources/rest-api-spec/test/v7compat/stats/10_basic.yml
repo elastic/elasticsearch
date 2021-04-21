@@ -1,0 +1,97 @@
+---
+setup:
+  - skip:
+      features:
+        - allowed_warnings
+        - warnings
+        - headers
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test watcher stats output":
+  - do:
+      headers:
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "[GET /_xpack/watcher/stats] is deprecated! Use [GET /_watcher/stats] instead."
+      xpack-watcher.stats: {}
+  - match: { "manually_stopped": false }
+  - match: { "stats.0.watcher_state": "started" }
+
+---
+"Test watcher stats supports emit_stacktraces parameter":
+  - do:
+      headers:
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "[GET /_xpack/watcher/stats/{metric}] is deprecated! Use [GET /_watcher/stats/{metric}] instead."
+      xpack-watcher.stats:
+        metric: "all"
+        emit_stacktraces: "true"
+  - match: { "manually_stopped": false }
+  - match: { "stats.0.watcher_state": "started" }
+
+---
+"Test watcher stats current watches":
+  - do:
+      headers:
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "[GET /_xpack/watcher/stats/{metric}] is deprecated! Use [GET /_watcher/stats/{metric}] instead."
+      xpack-watcher.stats:
+        metric: "current_watches"
+
+  - is_false: stats.0.queued_watches
+  - is_true: stats.0.current_watches
+
+---
+"Test watcher stats queued watches":
+  - do:
+      headers:
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "[GET /_xpack/watcher/stats/{metric}] is deprecated! Use [GET /_watcher/stats/{metric}] instead."
+      xpack-watcher.stats:
+        metric: "queued_watches"
+
+  - is_false: stats.0.current_watches
+  - is_true: stats.0.queued_watches
+
+---
+"Test watcher stats queued watches using pending_watches":
+  - skip:
+      reason:  metrics were fixed in 7.0.0
+      features: warnings
+
+  - do:
+      headers:
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "[GET /_xpack/watcher/stats/{metric}] is deprecated! Use [GET /_watcher/stats/{metric}] instead."
+        - 'The pending_watches parameter is deprecated, use queued_watches instead'
+      xpack-watcher.stats:
+        metric: "pending_watches"
+
+  - is_false: stats.0.current_watches
+  - is_true: stats.0.queued_watches
+
+---
+"Test watcher stats all watches":
+  - do:
+      headers:
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "[GET /_xpack/watcher/stats/{metric}] is deprecated! Use [GET /_watcher/stats/{metric}] instead."
+      xpack-watcher.stats:
+        metric: "_all"
+
+  - is_true: stats.0.current_watches
+  - is_true: stats.0.queued_watches

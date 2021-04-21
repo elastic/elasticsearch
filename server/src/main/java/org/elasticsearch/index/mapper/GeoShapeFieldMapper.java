@@ -9,7 +9,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.LatLonGeometry;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -18,10 +17,13 @@ import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -46,7 +48,9 @@ import java.util.Map;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  */
-public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
+public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
 
     public static final String CONTENT_TYPE = "geo_shape";
 
@@ -83,6 +87,13 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
         @Override
         public GeoShapeFieldMapper build(ContentPath contentPath) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.deprecate(
+                    DeprecationCategory.MAPPINGS,
+                    "geo_shape_multifields",
+                    "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
+                );
+            }
             GeometryParser geometryParser = new GeometryParser(
                 orientation.get().value().getAsBoolean(),
                 coerce.get().value(),
@@ -146,10 +157,12 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     };
 
     private final Builder builder;
+    private final GeoShapeIndexer indexer;
 
     public GeoShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                MultiFields multiFields, CopyTo copyTo,
-                               Indexer<Geometry, Geometry> indexer, Parser<Geometry> parser, Builder builder) {
+                               GeoShapeIndexer indexer,
+                               Parser<Geometry> parser, Builder builder) {
         super(simpleName,
             mappedFieldType,
             builder.ignoreMalformed.get(),
@@ -158,9 +171,9 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
             builder.orientation.get(),
             multiFields,
             copyTo,
-            indexer,
             parser);
         this.builder = builder;
+        this.indexer = indexer;
     }
 
     @Override
@@ -184,19 +197,9 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     }
 
     @Override
-    protected void addStoredFields(ParseContext context, Geometry geometry) {
-        // noop: we currently do not store geo_shapes
-        // @todo store as geojson string?
-    }
-
-    @Override
-    protected void addDocValuesFields(String name, Geometry geometry, List<IndexableField> fields, ParseContext context) {
-        // we will throw a mapping exception before we get here
-    }
-
-    @Override
-    protected void addMultiFields(ParseContext context, Geometry geometry) {
-        // noop (completion suggester currently not compatible with geo_shape)
+    protected void index(ParseContext context, Geometry geometry) throws IOException {
+        context.doc().addAll(indexer.indexShape(geometry));
+        createFieldNamesField(context);
     }
 
     @Override

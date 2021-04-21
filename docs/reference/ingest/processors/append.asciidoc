@@ -27,7 +27,7 @@ include::common-options.asciidoc[]
 {
   "append": {
     "field": "tags",
-    "value": ["production", "{{app}}", "{{owner}}"]
+    "value": ["production", "{{{app}}}", "{{{owner}}}"]
   }
 }
 --------------------------------------------------

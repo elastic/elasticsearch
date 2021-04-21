@@ -175,13 +175,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     protected InputStream openInputStreamFromBlobStore(final long position, final long length) throws IOException {
         assert assertCurrentThreadMayAccessBlobStore();
         if (fileInfo.numberOfParts() == 1L) {
-            assert position + length <= fileInfo.partBytes(0) : "cannot read ["
-                + position
-                + "-"
-                + (position + length)
-                + "] from ["
-                + fileInfo
-                + "]";
+            assert position + length <= fileInfo.partBytes(0)
+                : "cannot read [" + position + "-" + (position + length) + "] from [" + fileInfo + "]";
             stats.addBlobStoreBytesRequested(length);
             return blobContainer.readBlob(fileInfo.partName(0), position, length);
         } else {
@@ -318,9 +313,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
     protected static boolean assertCurrentThreadIsNotCacheFetchAsync() {
         final String threadName = Thread.currentThread().getName();
-        assert false == isCacheFetchAsyncThread(threadName) : "expected the current thread ["
-            + threadName
-            + "] to belong to the cache fetch async thread pool";
+        assert false == isCacheFetchAsyncThread(threadName)
+            : "expected the current thread [" + threadName + "] to belong to the cache fetch async thread pool";
         return true;
     }
 }

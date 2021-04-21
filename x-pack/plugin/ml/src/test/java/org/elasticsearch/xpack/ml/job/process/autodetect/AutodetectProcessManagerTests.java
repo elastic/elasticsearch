@@ -315,7 +315,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobTask = mock(JobTask.class);
         when(jobTask.getAllocationId()).thenReturn(2L);
         when(jobTask.getJobId()).thenReturn("baz");
-        manager.closeJob(jobTask, false, null);
+        manager.closeJob(jobTask, null);
         assertEquals(2, manager.numberOfOpenJobs());
         manager.openJob(jobTask, clusterState, (e1, b) -> {});
         assertEquals(3, manager.numberOfOpenJobs());
@@ -368,7 +368,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
-        manager.closeJob(jobTask, false, null);
+        manager.closeJob(jobTask, null);
         assertEquals(0, manager.numberOfOpenJobs());
     }
 
@@ -380,7 +380,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             // the middle of the AutodetectProcessManager.close() method
             Thread.yield();
             return null;
-        }).when(autodetectCommunicator).close(anyBoolean(), anyString());
+        }).when(autodetectCommunicator).close();
         AutodetectProcessManager manager = createSpyManager();
         assertEquals(0, manager.numberOfOpenJobs());
 
@@ -393,12 +393,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(1, manager.numberOfOpenJobs());
 
         // Close the job in a separate thread
-        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, false, "in separate thread"));
+        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, "in separate thread"));
         closeThread.start();
         Thread.yield();
 
         // Also close the job in the current thread, so that we have two simultaneous close requests
-        manager.closeJob(jobTask, false, "in main test thread");
+        manager.closeJob(jobTask, "in main test thread");
 
         // The 10 second timeout here is usually far in excess of what is required.  In the vast
         // majority of cases the other thread will exit within a few milliseconds.  However, it
@@ -423,7 +423,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 closeInterruptedLatch.countDown();
             }
             return null;
-        }).when(autodetectCommunicator).close(anyBoolean(), anyString());
+        }).when(autodetectCommunicator).close();
         doAnswer(invocationOnMock -> {
             killLatch.countDown();
             return null;
@@ -438,7 +438,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 mock(DataLoadParams.class), (dataCounts1, e) -> {});
 
         // Close the job in a separate thread so that it can simulate taking a long time to close
-        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, false, null));
+        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, null));
         closeThread.start();
         assertTrue(closeStartedLatch.await(3, TimeUnit.SECONDS));
 
@@ -505,7 +505,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // let the communicator throw, simulating a problem with the underlying
         // autodetect, e.g. a crash
-        doThrow(Exception.class).when(autodetectCommunicator).close(anyBoolean(), anyString());
+        doThrow(Exception.class).when(autodetectCommunicator).close();
 
         // create a jobtask
         JobTask jobTask = mock(JobTask.class);
@@ -517,7 +517,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(manager).setJobState(any(), eq(JobState.OPENED));
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
-        expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, false, null));
+        expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, null));
         assertEquals(0, manager.numberOfOpenJobs());
 
         verify(manager).setJobState(any(), eq(JobState.FAILED), any());

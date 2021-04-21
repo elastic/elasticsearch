@@ -256,7 +256,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
             return toIntervalsSource(
                 Intervals.wildcard(pattern),
-                new MatchAllDocsQuery(), // wildcard queries can be expensive, what should be the approximation?
+                new MatchAllDocsQuery(), // wildcard queries can be expensive, what should the approximation be?
                 context);
         }
 

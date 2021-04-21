@@ -50,6 +50,10 @@ public final class SourceIntervalsSource extends IntervalsSource {
         this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
     }
 
+    public IntervalsSource getIntervalsSource() {
+        return in;
+    }
+
     private LeafReaderContext createSingleDocLeafReaderContext(String field, List<Object> values) {
         MemoryIndex index = new MemoryIndex();
         for (Object value : values) {

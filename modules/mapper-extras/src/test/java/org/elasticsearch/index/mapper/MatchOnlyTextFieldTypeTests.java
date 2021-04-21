@@ -11,6 +11,8 @@ import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -29,6 +31,8 @@ import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MatchOnlyTextFieldMapper.MatchOnlyTextFieldType;
 import org.elasticsearch.index.query.SourceConfirmedTextQuery;
+import org.elasticsearch.index.query.SourceIntervalsSource;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,5 +149,32 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         expected.add(new Term("field", "c"));
         assertEquals(expected, delegate);
         assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
+    }
+
+    public void testTermIntervals() throws IOException {
+        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertThat(termIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertEquals(Intervals.term(new BytesRef("foo")), ((SourceIntervalsSource) termIntervals).getIntervalsSource());
+    }
+
+    public void testPrefixIntervals() throws IOException {
+        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertThat(prefixIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertEquals(Intervals.prefix(new BytesRef("foo")), ((SourceIntervalsSource) prefixIntervals).getIntervalsSource());
+    }
+
+    public void testWildcardIntervals() throws IOException {
+        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertThat(wildcardIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertEquals(Intervals.wildcard(new BytesRef("foo")), ((SourceIntervalsSource) wildcardIntervals).getIntervalsSource());
+    }
+
+    public void testFuzzyIntervals() throws IOException {
+        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
+        assertThat(fuzzyIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
     }
 }

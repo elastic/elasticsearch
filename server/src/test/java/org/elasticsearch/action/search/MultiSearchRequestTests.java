@@ -314,6 +314,7 @@ public class MultiSearchRequestTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71916")
     public void testWritingExpandWildcards() throws IOException {
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, true, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "all");

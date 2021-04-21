@@ -86,25 +86,30 @@ tasks.named("testJar").configure {
 }
 
 // location for keys and certificates
-File keystoreDir = file("$buildDir/keystore")
-File nodeKey = file("$keystoreDir/testnode.pem")
-File nodeCert = file("$keystoreDir/testnode.crt")
+File extraResourceDir = file("$buildDir/extra_resource")
+File nodeKey = file("$extraResourceDir/testnode.pem")
+File nodeCert = file("$extraResourceDir/testnode.crt")
+// location for service tokens
+File serviceTokens = file("$extraResourceDir/service_tokens")
 
 // Add key and certs to test classpath: it expects them there
 // User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
 // it can run in a FIPS 140 JVM
 // TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
 // https://github.com/elastic/elasticsearch/pull/32201
-tasks.register("copyKeyCerts", Copy) {
+tasks.register("copyExtraResources", Copy) {
   from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
     include 'testnode.crt', 'testnode.pem'
   }
-  into keystoreDir
+  from(project(':x-pack:plugin:security:qa:service-account').file('src/javaRestTest/resources/')) {
+    include 'service_tokens'
+  }
+  into extraResourceDir
 }
 // Add keystores to test classpath: it expects it there
-sourceSets.yamlRestTest.resources.srcDir(keystoreDir)
+sourceSets.yamlRestTest.resources.srcDir(extraResourceDir)
 tasks.named("processYamlRestTestResources").configure {
-  dependsOn("copyKeyCerts")
+  dependsOn("copyExtraResources")
 }
 
 tasks.named("yamlRestTest").configure {
@@ -124,7 +129,7 @@ tasks.named("yamlRestTest").configure {
     blacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')
-  dependsOn "copyKeyCerts"
+  dependsOn "copyExtraResources"
 }
 
 testClusters.all {
@@ -152,6 +157,7 @@ testClusters.all {
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   extraConfigFile nodeKey.name, nodeKey
   extraConfigFile nodeCert.name, nodeCert
+  extraConfigFile serviceTokens.name, serviceTokens
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

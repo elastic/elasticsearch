@@ -78,8 +78,8 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testApiServiceAccountToken() {
-        final IndexServiceAccountsTokenStore store = node().injector().getInstance(IndexServiceAccountsTokenStore.class);
-        final Cache<String, ListenableFuture<CachingServiceAccountsTokenStore.CachedResult>> cache = store.getCache();
+        final IndexServiceAccountTokenStore store = node().injector().getInstance(IndexServiceAccountTokenStore.class);
+        final Cache<String, ListenableFuture<CachingServiceAccountTokenStore.CachedResult>> cache = store.getCache();
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
             new CreateServiceAccountTokenRequest("elastic", "fleet-server", "api-token-1");
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
@@ -105,8 +105,8 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     public void testClearCache() {
-        final IndexServiceAccountsTokenStore indexStore = node().injector().getInstance(IndexServiceAccountsTokenStore.class);
-        final Cache<String, ListenableFuture<CachingServiceAccountsTokenStore.CachedResult>> cache = indexStore.getCache();
+        final IndexServiceAccountTokenStore indexStore = node().injector().getInstance(IndexServiceAccountTokenStore.class);
+        final Cache<String, ListenableFuture<CachingServiceAccountTokenStore.CachedResult>> cache = indexStore.getCache();
         final SecureString secret1 = createApiServiceToken("api-token-1");
         final SecureString secret2 = createApiServiceToken("api-token-2");
         assertThat(cache.count(), equalTo(0));

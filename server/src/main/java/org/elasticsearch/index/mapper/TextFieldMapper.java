@@ -710,9 +710,6 @@ public class TextFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
-            if (prefixFieldType != null) {
-                return prefixFieldType.intervals(pattern);
-            }
             return Intervals.wildcard(pattern);
         }
 

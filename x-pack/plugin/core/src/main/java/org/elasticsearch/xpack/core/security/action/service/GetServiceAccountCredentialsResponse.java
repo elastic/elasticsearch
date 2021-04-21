@@ -22,19 +22,19 @@ import java.util.Objects;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toUnmodifiableList;
 
-public class GetServiceAccountTokensResponse extends ActionResponse implements ToXContentObject {
+public class GetServiceAccountCredentialsResponse extends ActionResponse implements ToXContentObject {
 
     private final String principal;
     private final String nodeName;
     private final List<TokenInfo> tokenInfos;
 
-    public GetServiceAccountTokensResponse(String principal, String nodeName, Collection<TokenInfo> tokenInfos) {
+    public GetServiceAccountCredentialsResponse(String principal, String nodeName, Collection<TokenInfo> tokenInfos) {
         this.principal = principal;
         this.nodeName = nodeName;
         this.tokenInfos = tokenInfos == null ? List.of() : tokenInfos.stream().sorted().collect(toUnmodifiableList());
     }
 
-    public GetServiceAccountTokensResponse(StreamInput in) throws IOException {
+    public GetServiceAccountCredentialsResponse(StreamInput in) throws IOException {
         super(in);
         this.principal = in.readString();
         this.nodeName = in.readString();
@@ -86,7 +86,7 @@ public class GetServiceAccountTokensResponse extends ActionResponse implements T
             return true;
         if (o == null || getClass() != o.getClass())
             return false;
-        GetServiceAccountTokensResponse that = (GetServiceAccountTokensResponse) o;
+        GetServiceAccountCredentialsResponse that = (GetServiceAccountCredentialsResponse) o;
         return Objects.equals(principal, that.principal) && Objects.equals(nodeName, that.nodeName) && Objects.equals(
             tokenInfos, that.tokenInfos);
     }

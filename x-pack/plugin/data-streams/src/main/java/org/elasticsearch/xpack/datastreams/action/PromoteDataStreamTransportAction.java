@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -29,13 +30,16 @@ import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 
 public class PromoteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<PromoteDataStreamAction.Request> {
 
+    private final SystemIndices systemIndices;
+
     @Inject
     public PromoteDataStreamTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
     ) {
         super(
             PromoteDataStreamAction.NAME,
@@ -47,6 +51,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -56,6 +61,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
+        systemIndices.validateDataStreamAccess(request.getName(), threadPool.getThreadContext());
         clusterService.submitStateUpdateTask(
             "promote-data-stream [" + request.getName() + "]",
             new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {

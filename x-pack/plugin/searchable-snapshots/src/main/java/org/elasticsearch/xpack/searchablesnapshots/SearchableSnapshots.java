@@ -101,6 +101,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.upgrade.SearchableSnapshotIndexMetadataUpgrader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -300,6 +301,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
             FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING,
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
             FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING,
             FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
@@ -347,6 +349,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
         components.add(new FrozenCacheServiceSupplier(frozenCacheService.get()));
         components.add(new CacheServiceSupplier(cacheService.get()));
+        new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
         return Collections.unmodifiableList(components);
     }
 

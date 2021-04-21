@@ -56,6 +56,8 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE-2.0.txt"
 
 subprojects {
+  apply plugin:'elasticsearch.internal-test-rerun'
+
   // Default to the SSPL+Elastic dual license
   project.ext.projectLicenses = [
     'Server Side Public License, v 1': 'https://www.mongodb.com/licensing/server-side-public-license',
@@ -102,6 +104,7 @@ subprojects {
     project.licenseFile = project.rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
+
 }
 
 /**
@@ -192,7 +195,7 @@ tasks.register("verifyVersions") {
 
 boolean bwc_tests_enabled = true
 // place a PR link here when committing bwc changes:
-String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/71922"
+String bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/pull/71667"
 /*
  * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
  * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable

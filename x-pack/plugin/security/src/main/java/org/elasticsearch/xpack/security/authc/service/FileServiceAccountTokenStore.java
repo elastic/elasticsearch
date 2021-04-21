@@ -40,16 +40,16 @@ import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
-public class FileServiceAccountsTokenStore extends CachingServiceAccountsTokenStore {
+public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStore {
 
-    private static final Logger logger = LogManager.getLogger(FileServiceAccountsTokenStore.class);
+    private static final Logger logger = LogManager.getLogger(FileServiceAccountTokenStore.class);
 
     private final Path file;
     private final CopyOnWriteArrayList<Runnable> refreshListeners;
     private volatile Map<String, char[]> tokenHashes;
 
-    public FileServiceAccountsTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool,
-                                         CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+    public FileServiceAccountTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool,
+                                        CacheInvalidatorRegistry cacheInvalidatorRegistry) {
         super(env.settings(), threadPool);
         file = resolveFile(env);
         FileWatcher watcher = new FileWatcher(file.getParent());

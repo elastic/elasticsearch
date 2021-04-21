@@ -30,7 +30,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, Listener listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Boolean> listener) {
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);

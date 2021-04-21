@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class FileServiceAccountsTokenStoreTests extends ESTestCase {
+public class FileServiceAccountTokenStoreTests extends ESTestCase {
 
     private static Map<String, String> TOKENS = Map.of(
         "bcrypt", "46ToAwIHZWxhc3RpYwVmbGVldAZiY3J5cHQWWEU5MGVBYW9UMWlXMVctdkpmMzRxdwAAAAAAAAA",
@@ -80,7 +80,7 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
 
     public void testParseFile() throws Exception {
         Path path = getDataPath("service_tokens");
-        Map<String, char[]> parsedTokenHashes = FileServiceAccountsTokenStore.parseFile(path, null);
+        Map<String, char[]> parsedTokenHashes = FileServiceAccountTokenStore.parseFile(path, null);
         assertThat(parsedTokenHashes, notNullValue());
         assertThat(parsedTokenHashes.size(), is(5));
 
@@ -102,7 +102,7 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
     public void testParseFileNotExists() throws IllegalAccessException, IOException {
         Logger logger = CapturingLogger.newCapturingLogger(Level.TRACE, null);
         final Map<String, char[]> tokenHashes =
-            FileServiceAccountsTokenStore.parseFile(getDataPath("service_tokens").getParent().resolve("does-not-exist"), logger);
+            FileServiceAccountTokenStore.parseFile(getDataPath("service_tokens").getParent().resolve("does-not-exist"), logger);
         assertThat(tokenHashes.isEmpty(), is(true));
         final List<String> events = CapturingLogger.output(logger.getName(), Level.TRACE);
         assertThat(events.size(), equalTo(2));
@@ -119,7 +119,7 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
         try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
             final CountDownLatch latch = new CountDownLatch(5);
 
-            FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, watcherService, threadPool,
+            FileServiceAccountTokenStore store = new FileServiceAccountTokenStore(env, watcherService, threadPool,
                 mock(CacheInvalidatorRegistry.class));
             store.addListener(latch::countDown);
             //Token name shares the hashing algorithm name for convenience
@@ -195,7 +195,7 @@ public class FileServiceAccountsTokenStoreTests extends ESTestCase {
         Files.createDirectories(configDir);
         Path targetFile = configDir.resolve("service_tokens");
         Files.copy(serviceTokensSourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
-        FileServiceAccountsTokenStore store = new FileServiceAccountsTokenStore(env, mock(ResourceWatcherService.class), threadPool,
+        FileServiceAccountTokenStore store = new FileServiceAccountTokenStore(env, mock(ResourceWatcherService.class), threadPool,
             mock(CacheInvalidatorRegistry.class));
 
         final ServiceAccountId accountId = new ServiceAccountId("elastic", "fleet-server");

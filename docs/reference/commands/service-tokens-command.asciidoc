@@ -27,11 +27,6 @@ does not exist by default. It will be created automatically inside `$ES_HOME/con
 when creating the first service token. Similar to the `users` or `users_roles` file,
 this file is also monitored by {es} and reloaded dynamically on changes.
 
-The service account principal must match known service accounts.
-The token name must be at least 1 and no more than 256 characters. It can contain
-alphanumeric characters (`a-z`, `A-Z`, `0-9`), dash (`-`) and underscore (`_`).
-It cannot begin with an underscore.
-
 For more information, see <<service-accounts>>.
 
 TIP: To ensure that {es} can read the service tokens information at startup, run
@@ -43,17 +38,67 @@ file and prevents {es} from accessing it.
 [[service-tokens-command-parameters]]
 === Parameters
 
-`create <service_account_principal> <token_name>`::
+`create`::
 Creates a service token with the specified token name for the specified service account.
 The token name must be unique in the context of the specified service account.
++
+.Properties of `create`
+[%collapsible%open]
+====
+`<service_account_principal>`:::
+(Required, string) Service account principal that takes the format of
+`<namespace>/<service>`, where the `namespace` is a top-level grouping of
+service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
++
+The service account principal must match a known service account.
+
+`<token_name>`:::
+(Optional, string) An identifier for the token name. If omitted, a random name will be generated.
++
+--
+Token names must be at least 1 and no more than 256 characters. They can contain
+alphanumeric characters (`a-z`, `A-Z`, `0-9`), dashes (`-`), and underscores
+(`_`), but cannot begin with an underscore.
+
+NOTE: Token names must be unique in the context of the associated service
+account. They must also use a globally unique fully qualified token, which is
+comprised of the service account principal and token name, such as
+`<namespace>/<service>/<token-name>`.
+--
+====
 
 `list`::
-List all service tokens defined in the `service_tokens` file. If you also specify a
-service account principal, the command lists only the tokens belong to the specified
-service account.
+List all service tokens defined in the `service_tokens` file. If you also
+specify a service account principal, the command lists only the tokens that
+belong to the specified service account.
++
+.Properties of `list`
+[%collapsible%open]
+====
+`<service_account_principal>`:::
+(Optional, string) Service account principal that takes the format of
+`<namespace>/<service>`, where the `namespace` is a top-level grouping of
+service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
++
+The service account principal must match a known service account.
+====
 
-`delete <service_account_principal> <token_name>`::
-Delete a service token of the specified token name for the specified service account.
+`delete`::
+Delete a service token for the specified service account.
++
+.Properties of `delete`
+[%collapsible%open]
+====
+`<service_account_principal>`:::
+(Required, string) Service account principal that takes the format of
+`<namespace>/<service>`, where the `namespace` is a top-level grouping of
+service accounts, and `service` is the name of the service. For example, `elastic/fleet-server`.
++
+The service account principal must match a known service account.
+====
+
+`<token_name>`:::
+(Required, string) Identifier of an existing token.
 
 [discrete]
 === Examples
@@ -93,4 +138,3 @@ The following example delete the `my-token` service token for the `elastic/fleet
 ------------------------------------------------------------
 bin/elasticsearch-service-tokens delete elastic/fleet-server my-token
 ------------------------------------------------------------
-

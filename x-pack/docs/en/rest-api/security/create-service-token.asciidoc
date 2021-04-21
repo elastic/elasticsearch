@@ -26,15 +26,8 @@ Creates a service account token for access without requiring basic authenticatio
 
 [[security-api-create-service-token-desc]]
 ==== {api-description-title}
-
-When you are running in production mode, the service account feature requires TLS on the HTTP interface.
-See <<encrypt-http-communication>>. A runtime check prevents you from invoking any service account
-related APIs or authenticating with a service account token unless TLS is enabled on the HTTP interface.
-
-For more information about service accounts, see <<service-accounts>>.
-
-A successful create service account token API call returns a JSON structure that contains the
-service account token, its name, and its secret value.
+A successful create service account token API call returns a JSON structure
+that contains the service account token, its name, and its secret value.
 
 NOTE: Service account tokens never expire. You must actively <<security-api-delete-service-token,delete>> them if they are no longer needed.
 
@@ -48,9 +41,18 @@ NOTE: Service account tokens never expire. You must actively <<security-api-dele
   (Required, string) An identifier for the service name.
 
 `name`::
-  (Optional, string) An identifier for the token name.
-It must be unique in the context of the specified service account.
-If omitted, a random name will be generated.
+  (Optional, string) An identifier for the token name. If omitted, a random name will be generated.
++
+--
+Token names must be at least 1 and no more than 256 characters. They can contain
+alphanumeric characters (`a-z`, `A-Z`, `0-9`), dashes (`-`), and underscores
+(`_`), but cannot begin with an underscore.
+
+NOTE: Token names must be unique in the context of the associated service
+account. They must also use a globally unique fully qualified token, which is
+comprised of the service account principal and token name, such as
+`<namespace>/<service>/<token-name>`.
+--
 
 [[security-api-create-service-token-example]]
 ==== {api-examples-title}
@@ -58,14 +60,14 @@ If omitted, a random name will be generated.
 The following example creates a service account token:
 
 [source,console]
-------------------------------------------------------------
+----
 POST /_security/service/elastic/fleet-server/credential/token/token1
-------------------------------------------------------------
+----
 
 A successful call returns a JSON structure that provides service account token information.
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "created": true,
   "token": {
@@ -73,7 +75,7 @@ A successful call returns a JSON structure that provides service account token i
     "value": "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZWbVMxT0pOeXJXd3N3ZzBR" <1>
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZWbVMxT0pOeXJXd3N3ZzBR/$body.token.value/]
 <1> the secret value to be used as a bearer token
 
@@ -81,24 +83,24 @@ The service account token returned by this API can then be used by sending a req
 `Authorization` header with a value having the prefix `Bearer` followed the secret token value.
 
 [source,shell]
---------------------------------------------------
+----
 curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZWbVMxT0pOeXJXd3N3ZzBR" http://localhost:9200/_cluster/health
---------------------------------------------------
+----
 // NOTCONSOLE
 
-NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` in the above URL.
+NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` in the request URL.
 
-The following example creates a service token with auto-generated token name:
+The following example creates a service token with an auto-generated token name:
 
 [source,console]
-------------------------------------------------------------
+----
 POST /_security/service/elastic/fleet-server/credential/token
-------------------------------------------------------------
+----
 
 A successful call returns a JSON structure that provides service account token information.
 
 [source,console-result]
---------------------------------------------------
+----
 {
   "created": true,
   "token": {
@@ -106,6 +108,6 @@ A successful call returns a JSON structure that provides service account token i
     "value": "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL0prNUoxSGdCdXlCSzVUcERyZG80OjdpcHBmWHY1UmsycDczbWl6UUhucnc"
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/Jk5J1HgBuyBK5TpDrdo4/$body.token.name/]
 // TESTRESPONSE[s/AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL0prNUoxSGdCdXlCSzVUcERyZG80OjdpcHBmWHY1UmsycDczbWl6UUhucnc/$body.token.value/]

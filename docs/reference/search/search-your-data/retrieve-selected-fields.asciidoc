@@ -57,6 +57,7 @@ apply a custom format for the field's values:
 {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
 
 Other field types do not support the `format` parameter.
+
 [source,console]
 ----
 POST my-index-000001/_search

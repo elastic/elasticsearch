@@ -31,6 +31,7 @@ import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.apache.lucene.analysis.morfologik.MorfologikFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -60,6 +61,7 @@ public final class XUkrainianMorfologikAnalyzer extends StopwordAnalyzerBase {
      * Atomically loads the DEFAULT_STOP_SET and DICTIONARY in a lazy fashion once the outer class
      * accesses the static final set the first time.;
      */
+    @SuppressForbidden(reason="Lucene uses IOUtils")
     private static class DefaultSetHolder {
         static final CharArraySet DEFAULT_STOP_SET;
         static final Dictionary DICTIONARY;

@@ -33,9 +33,12 @@ public class TestRerunTaskExtension {
 
     private final Property<Integer> maxReruns;
 
+    private final Property<Boolean> didRerun;
+
     @Inject
     public TestRerunTaskExtension(ObjectFactory objects) {
         this.maxReruns = objects.property(Integer.class).convention(DEFAULT_MAX_RERUNS);
+        this.didRerun = objects.property(Boolean.class).convention(Boolean.FALSE);
     }
 
     /**
@@ -48,6 +51,14 @@ public class TestRerunTaskExtension {
      */
     public Property<Integer> getMaxReruns() {
         return maxReruns;
+    }
+
+    /**
+     /**
+     * @return whether tests tests have been rerun or not. Defaults to false.
+     */
+    public Property<Boolean> getDidRerun() {
+        return didRerun;
     }
 
 }

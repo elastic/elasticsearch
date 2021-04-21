@@ -48,6 +48,7 @@ public final class RerunTestExecuter implements TestExecuter<JvmTestExecutionSpe
                 delegate.execute(testExecutionSpec, retryTestResultProcessor);
                 break;
             } catch (ExecException e) {
+                extension.getDidRerun().set(true);
                 report(retryCount + 1, retryTestResultProcessor.getActiveDescriptors());
                 if (retryCount++ == maxRetries) {
                     throw new GradleException("Max retries(" + maxRetries + ") hit", e);

@@ -33,14 +33,6 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest").build();
     }
 
-    @After
-    public void preCleanup() throws Exception {
-        // Updating a transform will leave indexing an audit message in-flight, so
-        // we need to wait for that to complete or it could interfere with deleting
-        // all the indices
-        waitForPendingTasks();
-    }
-
     public void testGetTransformStats() {
         GetTransformStatsAction.Request request = new GetTransformStatsAction.Request("_all");
         ElasticsearchStatusException e =

@@ -37,14 +37,6 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
     private static final String CURRENT_INDEX = TransformInternalIndexConstants.LATEST_INDEX_NAME;
     private static final String OLD_INDEX = TransformInternalIndexConstants.INDEX_PATTERN + "001";
 
-    @After
-    public void preCleanup() throws Exception {
-        // Updating a transform will leave indexing an audit message in-flight, so
-        // we need to wait for that to complete or it could interfere with deleting
-        // all the indices
-        waitForPendingTasks();
-    }
-
     public void testUpdateDeletesOldTransformConfig() throws Exception {
 
         // The mapping does not need to actually be the "OLD" mapping, we are testing that the old doc gets deleted, and the new one

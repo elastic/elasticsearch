@@ -85,7 +85,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     @After
     public void clearOutTransforms() throws Exception {
-        wipeTransforms();
+        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     @SuppressWarnings("unchecked")

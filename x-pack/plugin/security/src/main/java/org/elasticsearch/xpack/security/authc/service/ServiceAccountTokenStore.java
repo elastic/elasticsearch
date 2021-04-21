@@ -16,7 +16,7 @@ import java.util.Collection;
 /**
  * The interface should be implemented by credential stores of different backends.
  */
-public interface ServiceAccountsTokenStore {
+public interface ServiceAccountTokenStore {
 
     /**
      * Verify the given token for encapsulated service account and credential

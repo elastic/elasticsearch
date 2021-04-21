@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
-import org.junit.After;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;

@@ -20,8 +20,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
@@ -47,12 +45,6 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
             AggregationBuilder aggBuilder = getRandomSupportedAggregation();
             if (names.add(aggBuilder.getName())) {
                 builder.addAggregator(aggBuilder);
-            }
-        }
-        for (int i = 0; i < randomIntBetween(1, 20); ++i) {
-            PipelineAggregationBuilder aggBuilder = getRandomSupportedPipelineAggregation();
-            if (names.add(aggBuilder.getName())) {
-                builder.addPipelineAggregator(aggBuilder);
             }
         }
 
@@ -151,21 +143,6 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
                 return AggregationBuilders.max("max_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
             case 4:
                 return AggregationBuilders.sum("sum_" + randomAlphaOfLengthBetween(1, 10)).field(randomAlphaOfLengthBetween(1, 10));
-        }
-        return null;
-    }
-
-    private static PipelineAggregationBuilder getRandomSupportedPipelineAggregation() {
-        final int numberOfSupportedAggs = 4;
-        switch (randomIntBetween(1, numberOfSupportedAggs)) {
-            case 1:
-                return PipelineAggregatorBuilders.avgBucket("avgbucket_" + randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(5));
-            case 2:
-                return PipelineAggregatorBuilders.minBucket("minbucket_" + randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(5));
-            case 3:
-                return PipelineAggregatorBuilders.maxBucket("maxbucket_" + randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(5));
-            case 4:
-                return PipelineAggregatorBuilders.sumBucket("sumbucket_" + randomAlphaOfLengthBetween(1, 10), randomAlphaOfLength(5));
         }
         return null;
     }

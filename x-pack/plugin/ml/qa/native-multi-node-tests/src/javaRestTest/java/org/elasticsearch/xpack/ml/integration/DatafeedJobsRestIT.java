@@ -1232,10 +1232,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
         // Don't check rollup jobs because we clear them in the superclass.
-        // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
-        waitForPendingTasks(
-            adminClient(),
-            taskName -> taskName.startsWith(RollupJob.NAME) || taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(RollupJob.NAME));
     }
 
     private static class DatafeedBuilder {

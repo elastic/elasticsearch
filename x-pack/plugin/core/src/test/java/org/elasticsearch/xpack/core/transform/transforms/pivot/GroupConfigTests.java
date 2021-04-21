@@ -49,7 +49,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // ensure that the unlikely does not happen: 2 group_by's share the same name
         Set<String> names = new HashSet<>();
         for (int i = 0; i < randomIntBetween(1, 20); ++i) {
-            String targetFieldName = randomAlphaOfLengthBetween(1, 20);
+            String targetFieldName = "group_" + randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
                 SingleGroupSource groupBy = singleGroupSourceSupplier.get();
                 source.put(targetFieldName, Collections.singletonMap(groupBy.getType().value(), getSource(groupBy)));

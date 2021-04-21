@@ -130,6 +130,9 @@ By default, version conflicts abort the `_reindex` process.
 To continue reindexing if there are conflicts, set the `"conflicts"` request body parameter to `proceed`.
 In this case, the response includes a count of the version conflicts that were encountered.
 Note that the handling of other error types is unaffected by the `"conflicts"` parameter.
+Additionally, if you opt to count version conflicts the operation could attempt to reindex more documents
+from the source than `max_docs` until it has successfully indexed `max_docs` documents into the target, or it has gone
+through every document in the source query.
 
 [[docs-reindex-task-api]]
 ===== Running reindex asynchronously
@@ -497,6 +500,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
 [[docs-reindex-api-request-body]]
 ==== {api-request-body-title}
 
+[[conflicts]]
 `conflicts`::
 (Optional, enum) Set to `proceed` to continue reindexing even if there are conflicts.
 Defaults to `abort`.
@@ -507,7 +511,9 @@ Defaults to `abort`.
 Also accepts a comma-separated list to reindex from multiple sources.
 
 `max_docs`:::
-(Optional, integer) The maximum number of documents to reindex.
+(Optional, integer) The maximum number of documents to reindex. If <<conflicts, conflicts>> is equal to
+`proceed`, reindex could attempt to reindex more documents from the source than `max_docs` until it has successfully
+indexed `max_docs` documents into the target, or it has gone through every document in the source query.
 
 `query`:::
 (Optional, <<query-dsl, query object>>) Specifies the documents to reindex using the Query DSL.

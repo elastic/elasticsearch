@@ -15,9 +15,7 @@ import org.hamcrest.Matchers;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -189,7 +187,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         String searchFieldName = fieldName + "." + objectKey;
 
         MappedFieldType searchFieldType = lookup.get(searchFieldName);
-        assertEquals(mapper.keyedFieldType(objectKey).name(), searchFieldType.name());
+        assertEquals(mapper.fieldType().childFieldType(objectKey).name(), searchFieldType.name());
         assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
 
         FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
@@ -210,7 +208,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         String searchFieldName = aliasName + "." + objectKey;
 
         MappedFieldType searchFieldType = lookup.get(searchFieldName);
-        assertEquals(mapper.keyedFieldType(objectKey).name(), searchFieldType.name());
+        assertEquals(mapper.fieldType().childFieldType(objectKey).name(), searchFieldType.name());
         assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
 
         FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
@@ -236,31 +234,53 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNotNull(lookup.get(field3 + ".some.key"));
     }
 
+    public void testUnmappedLookupWithDots() {
+        FieldTypeLookup lookup = new FieldTypeLookup(emptyList(), emptyList(), emptyList());
+        assertNull(lookup.get("object.child"));
+    }
+
+    public void testParentPathChecks() {
+
+    }
+
     public void testMaxDynamicKeyDepth() {
-        Map<String, DynamicKeyFieldMapper> mappers = new HashMap<>();
-        Map<String, String> aliases = new HashMap<>();
-        assertEquals(0, DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
+        {
+            FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+            assertEquals("foo", lookup.longestPossibleParent("foo.bar.baz"));
+        }
 
         // Add a flattened object field.
-        String name = "object1.object2.field";
-        FlattenedFieldMapper flattenedMapper = createFlattenedMapper(name);
-        mappers.put(name, flattenedMapper);
-        assertEquals(3, DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
+        {
+            String name = "object1.object2.field";
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                Collections.singletonList(createFlattenedMapper(name)),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
+            assertEquals("foo.bar.baz", lookup.longestPossibleParent("foo.bar.baz.bot"));
+        }
 
         // Add a short alias to that field.
-        String aliasName = "alias";
-        aliases.put(aliasName, name);
-        assertEquals(3,  DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
+        {
+            String name = "object1.object2.field";
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                Collections.singletonList(createFlattenedMapper(name)),
+                Collections.singletonList(new FieldAliasMapper("alias", "alias", "object1.object2.field")),
+                Collections.emptyList()
+            );
+            assertEquals("foo.bar.baz", lookup.longestPossibleParent("foo.bar.baz.bot"));
+        }
 
         // Add a longer alias to that field.
-        String longAliasName = "object1.object2.object3.alias";
-        aliases.put(longAliasName, name);
-        assertEquals(4,  DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
-
-        // Update the long alias to refer to a non-flattened object field.
-        String fieldName = "field";
-        aliases.put(longAliasName, fieldName);
-        assertEquals(3,  DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
+        {
+            String name = "object1.object2.field";
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                Collections.singletonList(createFlattenedMapper(name)),
+                Collections.singletonList(new FieldAliasMapper("alias", "object1.object2.object3.alias", "object1.object2.field")),
+                Collections.emptyList()
+            );
+            assertEquals("foo.bar.baz", lookup.longestPossibleParent("foo.bar.baz.bot"));
+        }
     }
 
     private FlattenedFieldMapper createFlattenedMapper(String fieldName) {

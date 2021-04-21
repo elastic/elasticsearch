@@ -62,11 +62,12 @@ public class LeafDocLookupTests extends ESTestCase {
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(new ContentPath(1));
-        FlattenedFieldMapper.KeyedFlattenedFieldType fieldType1 = fieldMapper.keyedFieldType("key1");
-        FlattenedFieldMapper.KeyedFlattenedFieldType fieldType2 = fieldMapper.keyedFieldType("key2");
+        MappedFieldType fieldType = fieldMapper.fieldType();
+        MappedFieldType fieldType1 = fieldType.childFieldType("key1");
+        MappedFieldType fieldType2 = fieldType.childFieldType("key2");
 
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
-            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) fieldType;
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = ft -> {
+            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };
 

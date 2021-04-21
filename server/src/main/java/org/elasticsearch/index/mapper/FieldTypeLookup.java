@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -31,23 +32,21 @@ final class FieldTypeLookup {
      * For convenience, the set of copied fields includes the field itself.
      */
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
-    private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
+
+    private final int maxParentPathDots;
 
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
         Collection<RuntimeField> runtimeFields
     ) {
-        Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
+        int maxParentPathDots = 0;
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            if (fieldMapper instanceof DynamicKeyFieldMapper) {
-                dynamicKeyMappers.put(fieldName, (DynamicKeyFieldMapper) fieldMapper);
-            }
-
+            maxParentPathDots = Math.max(maxParentPathDots, dotCount(fieldType.name()));
             for (String targetField : fieldMapper.copyTo().copyToFields()) {
                 Set<String> sourcePath = fieldToCopiedFields.get(targetField);
                 if (sourcePath == null) {
@@ -58,12 +57,11 @@ final class FieldTypeLookup {
                 fieldToCopiedFields.get(targetField).add(fieldName);
             }
         }
+        this.maxParentPathDots = maxParentPathDots;
 
-        final Map<String, String> aliasToConcreteName = new HashMap<>();
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
-            aliasToConcreteName.put(aliasName, path);
             fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
         }
 
@@ -72,8 +70,30 @@ final class FieldTypeLookup {
             //this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
         }
+    }
 
-        this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
+    private static int dotCount(String path) {
+        int dotCount = 0;
+        for (int i = 0; i < path.length(); i++) {
+            if (path.charAt(i) == '.') {
+                dotCount++;
+            }
+        }
+        return dotCount;
+    }
+
+    // for testing
+    String longestPossibleParent(String path) {
+        int dotCount = 0;
+        for (int i = 0; i < path.length(); i++) {
+            if (path.charAt(i) == '.') {
+                dotCount++;
+                if (dotCount > maxParentPathDots) {
+                    return path.substring(0, i);
+                }
+            }
+        }
+        return path;
     }
 
     /**
@@ -85,9 +105,20 @@ final class FieldTypeLookup {
             return fieldType;
         }
 
-        // If the mapping contains fields that support dynamic sub-key lookup, check
-        // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
-        return dynamicKeyLookup.get(field);
+        // Try parent fields instead!
+        String parentField = longestPossibleParent(field);
+        while (true) {
+            fieldType = fullNameToFieldType.get(parentField);
+            if (fieldType != null) {
+                return fieldType.childFieldType(field.substring(parentField.length() + 1));
+            }
+            if (parentField.contains(".") == false) {
+                break;
+            }
+            parentField = parentField.substring(0, parentField.lastIndexOf("."));
+        }
+
+        return null;
     }
 
     /**
@@ -130,7 +161,10 @@ final class FieldTypeLookup {
         if (fullNameToFieldType.isEmpty()) {
             return Set.of();
         }
-        if (dynamicKeyLookup.get(field) != null) {
+
+        // TODO there must be a nicer way of doing this...
+        MappedFieldType fieldType = get(field);
+        if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType) {
             return Set.of(field);
         }
 

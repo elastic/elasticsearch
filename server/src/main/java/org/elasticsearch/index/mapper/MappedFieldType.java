@@ -422,4 +422,13 @@ public abstract class MappedFieldType {
         KEYWORD,
         NUMERIC
     }
+
+    /**
+     * Returns a MappedFieldType for a given child of this field type
+     * @param childPath the child field, which may contain dots
+     * @return a child MappedFieldType, or {@code null} if no such child exists
+     */
+    public MappedFieldType childFieldType(String childPath) {
+        return null;
+    }
 }

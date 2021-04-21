@@ -203,6 +203,11 @@ use the <<indices-get-settings,get index settings API>>.
 `hidden`::
 (Boolean)
 If `true`, the data stream is <<hidden-indices,hidden>>.
+
+`system`::
+(Boolean)
+If `true`, the data stream is created and managed by an Elastic stack component
+and cannot be modified through normal user interaction.
 ====
 
 [[get-data-stream-api-example]]
@@ -241,7 +246,8 @@ The API returns the following response:
       "status": "GREEN",
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
-      "hidden": false
+      "hidden": false,
+      "system": false
     },
     {
       "name": "my-data-stream-two",
@@ -261,7 +267,8 @@ The API returns the following response:
       "status": "YELLOW",
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
-      "hidden": false
+      "hidden": false,
+      "system": false
     }
   ]
 }

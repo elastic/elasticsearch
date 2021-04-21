@@ -233,6 +233,16 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         }
     }
 
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [shape] mappers has no effect and will be forbidden in future");
+    }
+
     public String toXContentString(ShapeFieldMapper mapper)  {
         return toXContentString(mapper, true);
     }

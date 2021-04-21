@@ -12,10 +12,13 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -46,6 +49,8 @@ import java.util.Map;
 public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
     public static final String CONTENT_TYPE = "shape";
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
+
     private static Builder builder(FieldMapper in) {
         return ((ShapeFieldMapper)in).builder;
     }
@@ -74,6 +79,13 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         @Override
         public ShapeFieldMapper build(ContentPath contentPath) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.deprecate(
+                    DeprecationCategory.MAPPINGS,
+                    "shape_multifields",
+                    "Adding multifields to [shape] mappers has no effect and will be forbidden in future"
+                );
+            }
             GeometryParser geometryParser
                 = new GeometryParser(orientation.get().value().getAsBoolean(), coerce.get().value(), ignoreZValue.get().value());
             Parser<Geometry> parser = new GeoShapeParser(geometryParser);

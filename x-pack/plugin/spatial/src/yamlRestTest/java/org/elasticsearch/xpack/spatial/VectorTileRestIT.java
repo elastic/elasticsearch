@@ -133,7 +133,6 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, HITS_LAYER, 4096, 33, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
         assertLayer(tile, META_LAYER, 4096, 1, 15);
-
     }
 
     public void testEmpty() throws Exception {

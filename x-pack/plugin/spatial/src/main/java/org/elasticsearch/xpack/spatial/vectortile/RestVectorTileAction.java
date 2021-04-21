@@ -33,14 +33,8 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregati
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoGridBucket;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
-import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
-import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MaxBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MinBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -202,12 +196,12 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
         return hitsLayerBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getAggsLayer(InternalGeoTileGrid grid, Request request, VectorTileGeometryBuilder geomBuilder) {
+    private VectorTile.Tile.Layer.Builder getAggsLayer(InternalGeoTileGrid grid, Request request, VectorTileGeometryBuilder geomBuilder)
+        throws IOException{
         final VectorTile.Tile.Layer.Builder aggLayerBuilder = VectorTileUtils.createLayerBuilder(AGGS_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
         for (InternalGeoGridBucket<?> bucket : grid.getBuckets()) {
-            final long count = bucket.getDocCount();
             featureBuilder.clear();
             // Add geometry
             if (request.getGridType() == GRID_TYPE.GRID) {
@@ -219,22 +213,16 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
                 geomBuilder.point(featureBuilder, point.lon(), point.lat());
             }
             // Add count as key value pair
-            addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, count);
-            // Add aggregations results as key value pair
+            addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
             for (Aggregation aggregation : bucket.getAggregations()) {
-                final String type = aggregation.getType();
-                switch (type) {
-                    case MinAggregationBuilder.NAME:
-                    case MaxAggregationBuilder.NAME:
-                    case AvgAggregationBuilder.NAME:
-                    case SumAggregationBuilder.NAME:
-                    case CardinalityAggregationBuilder.NAME:
-                        final NumericMetricsAggregation.SingleValue metric = (NumericMetricsAggregation.SingleValue) aggregation;
-                        addPropertyToFeature(featureBuilder, layerProps, "aggs." + aggregation.getName(), metric.value());
-                        break;
-                    default:
-                        // top term and percentile should be supported
-                        throw new IllegalArgumentException("Unknown feature type [" + type + "]");
+                Map<String, Object> responseMap = Maps.flatten(
+                    XContentHelper.convertToMap(XContentHelper.toXContent(aggregation, XContentType.CBOR, false), true, XContentType.CBOR).v2(),
+                    true
+                );
+                for (Map.Entry<String, Object> entry : responseMap.entrySet()) {
+                    if (entry.getValue() != null) {
+                        addPropertyToFeature(featureBuilder, layerProps, entry.getKey(), entry.getValue());
+                    }
                 }
             }
             aggLayerBuilder.addFeatures(featureBuilder);

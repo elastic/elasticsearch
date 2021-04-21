@@ -230,42 +230,10 @@ public class CompositeRolesStore {
             return;
         }
 
-        final Authentication.AuthenticationType authType = authentication.getAuthenticationType();
-        if (authType == Authentication.AuthenticationType.API_KEY) {
-            if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
-                buildAndCacheRoleForApiKey(authentication, false, ActionListener.wrap(
-                    role -> {
-                        if (role == Role.EMPTY) {
-                            buildAndCacheRoleForApiKey(authentication, true, roleActionListener);
-                        } else {
-                            buildAndCacheRoleForApiKey(authentication, true, ActionListener.wrap(
-                                limitedByRole -> roleActionListener.onResponse(
-                                    limitedByRole == Role.EMPTY ? role : LimitedRole.createLimitedRole(role, limitedByRole)),
-                                roleActionListener::onFailure
-                            ));
-                        }
-                    },
-                    roleActionListener::onFailure
-                ));
-            } else {
-                apiKeyService.getRoleForApiKey(authentication, ActionListener.wrap(apiKeyRoleDescriptors -> {
-                    final List<RoleDescriptor> descriptors = apiKeyRoleDescriptors.getRoleDescriptors();
-                    if (descriptors == null) {
-                        roleActionListener.onFailure(new IllegalStateException("missing role descriptors"));
-                    } else if (apiKeyRoleDescriptors.getLimitedByRoleDescriptors() == null) {
-                        buildAndCacheRoleFromDescriptors(descriptors,
-                            apiKeyRoleDescriptors.getApiKeyId() + "_role_desc", roleActionListener);
-                    } else {
-                        buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc",
-                            ActionListener.wrap(
-                                role -> buildAndCacheRoleFromDescriptors(apiKeyRoleDescriptors.getLimitedByRoleDescriptors(),
-                                    apiKeyRoleDescriptors.getApiKeyId() + "_limited_role_desc", ActionListener.wrap(
-                                        limitedBy -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedBy)),
-                                        roleActionListener::onFailure)), roleActionListener::onFailure));
-                    }
-                }, roleActionListener::onFailure));
-            }
-
+        if (authentication.isServiceAccount()) {
+            getRolesForServiceAccount(authentication, roleActionListener);
+        } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
+            getRolesForApiKey(authentication, roleActionListener);
         } else {
             Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
             if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
@@ -282,6 +250,55 @@ public class CompositeRolesStore {
             } else {
                 roles(roleNames, roleActionListener);
             }
+        }
+    }
+
+    private void getRolesForServiceAccount(Authentication authentication, ActionListener<Role> roleActionListener) {
+        serviceAccountService.getRoleDescriptor(authentication, ActionListener.wrap(roleDescriptor -> {
+            final RoleKey roleKey = new RoleKey(Set.of(roleDescriptor.getName()), "service_account");
+            final Role existing = roleCache.get(roleKey);
+            if (existing == null) {
+                final long invalidationCounter = numInvalidation.get();
+                buildThenMaybeCacheRole(roleKey, List.of(roleDescriptor), Set.of(), true, invalidationCounter, roleActionListener);
+            } else {
+                roleActionListener.onResponse(existing);
+            }
+        }, roleActionListener::onFailure));
+    }
+
+    private void getRolesForApiKey(Authentication authentication, ActionListener<Role> roleActionListener) {
+        if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
+            buildAndCacheRoleForApiKey(authentication, false, ActionListener.wrap(
+                role -> {
+                    if (role == Role.EMPTY) {
+                        buildAndCacheRoleForApiKey(authentication, true, roleActionListener);
+                    } else {
+                        buildAndCacheRoleForApiKey(authentication, true, ActionListener.wrap(
+                            limitedByRole -> roleActionListener.onResponse(
+                                limitedByRole == Role.EMPTY ? role : LimitedRole.createLimitedRole(role, limitedByRole)),
+                            roleActionListener::onFailure
+                        ));
+                    }
+                },
+                roleActionListener::onFailure
+            ));
+        } else {
+            apiKeyService.getRoleForApiKey(authentication, ActionListener.wrap(apiKeyRoleDescriptors -> {
+                final List<RoleDescriptor> descriptors = apiKeyRoleDescriptors.getRoleDescriptors();
+                if (descriptors == null) {
+                    roleActionListener.onFailure(new IllegalStateException("missing role descriptors"));
+                } else if (apiKeyRoleDescriptors.getLimitedByRoleDescriptors() == null) {
+                    buildAndCacheRoleFromDescriptors(descriptors,
+                        apiKeyRoleDescriptors.getApiKeyId() + "_role_desc", roleActionListener);
+                } else {
+                    buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc",
+                        ActionListener.wrap(
+                            role -> buildAndCacheRoleFromDescriptors(apiKeyRoleDescriptors.getLimitedByRoleDescriptors(),
+                                apiKeyRoleDescriptors.getApiKeyId() + "_limited_role_desc", ActionListener.wrap(
+                                    limitedBy -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedBy)),
+                                    roleActionListener::onFailure)), roleActionListener::onFailure));
+                }
+            }, roleActionListener::onFailure));
         }
     }
 

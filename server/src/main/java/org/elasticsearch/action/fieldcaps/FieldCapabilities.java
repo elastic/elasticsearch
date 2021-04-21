@@ -96,7 +96,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     FieldCapabilities(StreamInput in) throws IOException {
         this.name = in.readString();
         this.type = in.readString();
-        this.isMetadataField = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readBoolean() : false;
+        this.isMetadataField = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
         this.isSearchable = in.readBoolean();
         this.isAggregatable = in.readBoolean();
         this.indices = in.readOptionalStringArray();
@@ -113,7 +113,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeString(type);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeBoolean(isMetadataField);
         }
         out.writeBoolean(isSearchable);

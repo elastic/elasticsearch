@@ -75,6 +75,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.translog.Translog;
@@ -602,7 +603,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final SnapshotId snapshotId = new SnapshotId("_snapshot", UUIDs.randomBase64UUID(random()));
                 final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), UUIDs.randomBase64UUID(random()));
 
-                final PlainActionFuture<String> future = PlainActionFuture.newFuture();
+                final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
                 threadPool.generic().submit(() -> {
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
                     repository.snapshotShard(
@@ -785,7 +786,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     }
                     assertListOfFiles(cacheDir, allOf(greaterThan(0), lessThanOrEqualTo(nbRandomFiles)), greaterThan(0L));
                     if (randomBoolean()) {
-                        directory.clearCache();
+                        directory.clearCache(true, true);
                         assertBusy(() -> assertListOfFiles(cacheDir, equalTo(0), equalTo(0L)));
                     }
                 }

@@ -1,0 +1,21 @@
+---
+setup:
+  - skip:
+      features:
+        - allowed_warnings
+        - warnings
+        - headers
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test start watcher api":
+  - do:
+      headers:
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "[POST /_xpack/watcher/_start] is deprecated! Use [POST /_watcher/_start] instead."
+      xpack-watcher.start: {}
+  - match: { acknowledged: true }

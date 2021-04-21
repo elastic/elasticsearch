@@ -12,12 +12,16 @@ testClusters {
   'leader-cluster' {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
   }
 
   'follow-cluster' {
     testDistribution = 'DEFAULT'
     setting 'xpack.monitoring.collection.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
     setting 'cluster.remote.leader_cluster.seeds',
             { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}\"" }
     nameCustomization = { 'follow' }

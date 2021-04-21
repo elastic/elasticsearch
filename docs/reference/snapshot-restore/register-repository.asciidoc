@@ -1,11 +1,9 @@
 [[snapshots-register-repository]]
 == Register a snapshot repository
+++++
+<titleabbrev>Register a repository</titleabbrev>
+++++
 
-++++
-<titleabbrev>Register repository</titleabbrev>
-++++
-[[snapshots-register-repository-description]]
-// tag::snapshots-register-repository-tag[]
 You must register a snapshot repository before you can perform snapshot and
 restore operations. Use the <<put-snapshot-repo-api,create or update snapshot
 repository API>> to register or update a snapshot repository. We recommend
@@ -15,7 +13,6 @@ settings depend on the repository type.
 If you register the same snapshot repository with multiple clusters, only
 one cluster should have write access to the repository. All other clusters
 connected to that repository should set the repository to `readonly` mode.
-// end::snapshots-register-repository-tag[]
 
 [IMPORTANT]
 ====
@@ -192,9 +189,6 @@ repositories.url.allowed_urls: ["http://www.example.org/root/*", "https://*.mydo
 
 NOTE: URLs using the `ftp`, `http`, `https`, or `jar` protocols do not need to
 be registered in the `path.repo` setting.
-
-NOTE: Read-only URL repositories do not support
-<<searchable-snapshots,searchable snapshots>>.
 
 [discrete]
 [role="xpack"]

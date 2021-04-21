@@ -7,13 +7,98 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Locale;
+import java.util.function.BiFunction;
 
 public class NodeDeprecationChecks {
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting<?> replacementSetting,
+        final String url
+    ) {
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, (v, s) -> v, url);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting<?> replacementSetting,
+        final BiFunction<String, Settings, String> replacementValue,
+        final String url
+    ) {
+        assert deprecatedSetting.isDeprecated() : deprecatedSetting;
+        if (deprecatedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = deprecatedSetting.getKey();
+        final String replacementSettingKey = replacementSetting.getKey();
+        final String value = deprecatedSetting.get(settings).toString();
+        final String message = String.format(
+            Locale.ROOT,
+            "setting [%s] is deprecated in favor of setting [%s]",
+            deprecatedSettingKey,
+            replacementSettingKey);
+        final String details = String.format(
+            Locale.ROOT,
+            "the setting [%s] is currently set to [%s], instead set [%s] to [%s]",
+            deprecatedSettingKey,
+            value,
+            replacementSettingKey,
+            replacementValue.apply(value, settings));
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting.AffixSetting<?> replacementSetting,
+        final String star,
+        final String url
+    ) {
+        return checkDeprecatedSetting(settings, pluginsAndModules, deprecatedSetting, replacementSetting, (v, s) -> v, star, url);
+    }
+
+    private static DeprecationIssue checkDeprecatedSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final Setting<?> deprecatedSetting,
+        final Setting.AffixSetting<?> replacementSetting,
+        final BiFunction<String, Settings, String> replacementValue,
+        final String star,
+        final String url
+    ) {
+        assert deprecatedSetting.isDeprecated() : deprecatedSetting;
+        if (deprecatedSetting.exists(settings) == false) {
+            return null;
+        }
+        final String deprecatedSettingKey = deprecatedSetting.getKey();
+        final String replacementSettingKey = replacementSetting.getKey();
+        final String value = deprecatedSetting.get(settings).toString();
+        final String message = String.format(
+            Locale.ROOT,
+            "setting [%s] is deprecated in favor of grouped setting [%s]",
+            deprecatedSettingKey,
+            replacementSettingKey);
+        final String details = String.format(
+            Locale.ROOT,
+            "the setting [%s] is currently set to [%s], instead set [%s] to [%s] where * is %s",
+            deprecatedSettingKey,
+            value,
+            replacementSettingKey,
+            replacementValue.apply(value, settings),
+            star);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+    }
 
     static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
         if (removedSetting.exists(settings) == false) {

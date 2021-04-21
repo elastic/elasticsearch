@@ -192,7 +192,7 @@ Defaults to `10`.
 
 `read_node_count`::
 (Optional, integer) The number of nodes on which to perform a read operation
-after writing each blob.  Defaults to `10`.
+after writing each blob. Defaults to `10`.
 
 `early_read_node_count`::
 (Optional, integer) The number of nodes on which to perform an early read

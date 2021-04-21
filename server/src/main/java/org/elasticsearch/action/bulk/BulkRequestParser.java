@@ -52,6 +52,7 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+    private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     private final boolean errorOnType;
@@ -155,6 +156,7 @@ public final class BulkRequestParser {
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                Map<String, String> dynamicTemplates = Map.of();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -205,7 +207,10 @@ public final class BulkRequestParser {
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line +
-                                    "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
+                                "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
+                        } else if (token == XContentParser.Token.START_OBJECT &&
+                            DYNAMIC_TEMPLATES.match(currentFieldName, parser.getDeprecationHandler())) {
+                            dynamicTemplates = parser.mapStrings();
                         } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName,
                                 parser.getDeprecationHandler())) {
                             fetchSourceContext = FetchSourceContext.fromXContent(parser);
@@ -220,6 +225,10 @@ public final class BulkRequestParser {
                 }
 
                 if ("delete".equals(action)) {
+                    if (dynamicTemplates.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "Delete request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName());
+                    }
                     deleteRequestConsumer.accept(new DeleteRequest(index).id(id).routing(routing)
                             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
                 } else {
@@ -237,6 +246,7 @@ public final class BulkRequestParser {
                                     .version(version).versionType(versionType)
                                     .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                     .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias), type);
                         } else {
                             indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
@@ -251,11 +261,17 @@ public final class BulkRequestParser {
                                 .version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                .setDynamicTemplates(dynamicTemplates)
                                 .setRequireAlias(requireAlias), type);
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException("Update requests do not support versioning. " +
                                     "Please use `if_seq_no` and `if_primary_term` instead");
+                        }
+                        // TODO: support dynamic_templates in update requests
+                        if (dynamicTemplates.isEmpty() == false) {
+                            throw new IllegalArgumentException(
+                                "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName());
                         }
                         UpdateRequest updateRequest = new UpdateRequest().index(index).id(id).routing(routing)
                                 .retryOnConflict(retryOnConflict)

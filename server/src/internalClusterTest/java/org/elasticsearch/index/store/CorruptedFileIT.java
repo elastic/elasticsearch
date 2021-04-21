@@ -101,11 +101,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             // we really need local GW here since this also checks for corruption etc.
             // and we need to make sure primaries are not just trashed if we don't have replicas
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // speed up recoveries
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5)
@@ -323,7 +323,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }
@@ -383,7 +383,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
         for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
+            if (stat.getNode().canContainData()) {
                 dataNodeStats.add(stat);
             }
         }

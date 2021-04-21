@@ -69,7 +69,10 @@ When the versions match, the document is updated and the version number is incre
 If a document changes between the time that the snapshot is taken and
 the update operation is processed, it results in a version conflict and the operation fails.
 You can opt to count version conflicts instead of halting and returning by
-setting `conflicts` to `proceed`.
+setting `conflicts` to `proceed`. Note that if you opt to count
+version conflicts the operation could attempt to update more documents from the source than
+`max_docs` until it has successfully updated `max_docs` documents, or it has gone through every document
+in the source query.
 
 NOTE: Documents with a version equal to 0 cannot be updated using update by
 query because `internal` versioning does not support 0 as a valid
@@ -119,7 +122,7 @@ to disable throttling.
 Throttling uses a wait time between batches so that the internal scroll requests
 can be given a timeout that takes the request padding into account. The padding
 time is the difference between the batch size divided by the
-`requests_per_second` and the time spent writing.  By default the batch size is
+`requests_per_second` and the time spent writing. By default the batch size is
 `1000`, so if `requests_per_second` is set to `500`:
 
 [source,txt]

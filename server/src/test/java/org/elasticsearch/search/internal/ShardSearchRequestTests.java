@@ -31,6 +31,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -179,5 +180,22 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 return parseInnerQueryBuilder(parser);
             }
         }, indexMetadata, aliasNames);
+    }
+
+    public void testChannelVersion() throws Exception {
+        ShardSearchRequest request = createShardSearchRequest();
+        Version channelVersion = Version.CURRENT;
+        assertThat(request.getChannelVersion(), equalTo(channelVersion));
+        int iterations = between(0, 5);
+        // New version
+        for (int i = 0; i < iterations; i++) {
+            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
+            channelVersion = Version.min(channelVersion, version);
+            assertThat(request.getChannelVersion(), equalTo(channelVersion));
+            if (randomBoolean()) {
+                request = new ShardSearchRequest(request);
+            }
+        }
     }
 }

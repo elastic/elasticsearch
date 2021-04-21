@@ -72,19 +72,22 @@ For more complex or time-consuming searches, you can use <<async-search>> with
 ====
 
 [[searchable-snapshots-repository-types]]
-You can use any of the following repository types with searchable snapshots:
+// tag::searchable-snapshot-repo-types[]
+Use any of the following repository types with searchable snapshots:
 
 * {plugins}/repository-s3.html[AWS S3]
 * {plugins}/repository-gcs.html[Google Cloud Storage]
 * {plugins}/repository-azure.html[Azure Blob Storage]
 * {plugins}/repository-hdfs.html[Hadoop Distributed File Store (HDFS)]
 * <<snapshots-filesystem-repository,Shared filesystems>> such as NFS
+* <<snapshots-read-only-repository,URL repositories>>
 
 You can also use alternative implementations of these repository types, for
 instance
 {plugins}/repository-s3-client.html#repository-s3-compatible-services[Minio],
-as long as they are fully compatible. You can use the <<repo-analysis-api>> API
+as long as they are fully compatible. Use the <<repo-analysis-api>> API
 to analyze your repository's suitability for use with searchable snapshots.
+// end::searchable-snapshot-repo-types[]
 
 [discrete]
 [[how-searchable-snapshots-work]]
@@ -133,9 +136,6 @@ recovery.
 
 [[shared-cache]]
 Shared cache::
-+
-experimental::[]
-+
 Uses a local cache containing only recently searched parts of the snapshotted
 index's data. {ilm-init} uses this option by default in the `frozen` phase and
 corresponding frozen tier.
@@ -153,28 +153,51 @@ for search. Many searches will need to retrieve only a small subset of the
 total shard data before returning results.
 
 To mount a searchable snapshot index with the shared cache mount option, you
-must configure the `xpack.searchable.snapshot.shared_cache.size` setting to
-reserve space for the cache on one or more nodes. Indices mounted with the
-shared cache mount option are only allocated to nodes that have this setting
-configured.
+must have one or more nodes with a shared cache available. By default,
+dedicated frozen data tier nodes (nodes with the `data_frozen` role and no other
+data roles) have a shared cache configured using the greater of 90% of total
+disk space and total disk space subtracted a headroom of 100GB.
+
+Using a dedicated frozen tier is highly recommended for production use. If you
+do not have a dedicated frozen tier, you must configure the
+`xpack.searchable.snapshot.shared_cache.size` setting to reserve space for the
+cache on one or more nodes. Indices mounted with the shared cache mount option
+are only allocated to nodes that have a shared cache.
 
 [[searchable-snapshots-shared-cache]]
 `xpack.searchable.snapshot.shared_cache.size`::
-(<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
-The size of the space reserved for the shared cache. Defaults to `0b`, meaning
-that the node has no shared cache.
+(<<static-cluster-setting,Static>>)
+The size of the space reserved for the shared cache, either specified as a
+percentage of total disk space or an absolute <<byte-units,byte value>>.
+Defaults to 90% of total disk space on dedicated frozen data tier nodes,
+otherwise `0b`.
 
-You can configure the setting in `elasticsearch.yml`:
+`xpack.searchable.snapshot.shared_cache.size.max_headroom`::
+(<<static-cluster-setting,Static>>, <<byte-units,byte value>>)
+For dedicated frozen tier nodes, the max headroom to maintain. Defaults to 100GB
+on dedicated frozen tier nodes when
+`xpack.searchable.snapshot.shared_cache.size` is not explicitly set, otherwise
+-1 (not set). Can only be set when `xpack.searchable.snapshot.shared_cache.size`
+is set as a percentage.
+
+To illustrate how these settings work in concert let us look at two examples
+when using the default values of the settings on a dedicated frozen node:
+
+* A 4000 GB disk will result in a shared cache sized at 3900 GB. 90% of 4000 GB
+is 3600 GB, leaving 400 GB headroom. The default `max_headroom` of 100 GB
+takes effect, and the result is therefore 3900 GB.
+* A 400 GB disk will result in a shard cache sized at 360 GB.
+
+You can configure the settings in `elasticsearch.yml`:
 
 [source,yaml]
 ----
 xpack.searchable.snapshot.shared_cache.size: 4TB
 ----
 
-IMPORTANT: Currently, you can configure
-`xpack.searchable.snapshot.shared_cache.size` on any node. In a future release,
-you will only be able to configure this setting on nodes with the
-<<data-frozen-node,`data_frozen`>> role.
+IMPORTANT: You can only configure these settings on nodes with the
+<<data-frozen-node,`data_frozen`>> role. Additionally, nodes with a shared
+cache can only have a single <<path-settings,data path>>.
 
 You can set `xpack.searchable.snapshot.shared_cache.size` to any size between a
 couple of gigabytes up to 90% of available disk space. We only recommend larger
@@ -219,33 +242,9 @@ repository storage then you are responsible for its reliability.
 
 [discrete]
 [[searchable-snapshots-frozen-tier-on-cloud]]
-=== Configure a frozen tier on the {ess}
+=== Configure a frozen tier on {ess}
 
-The frozen data tier is not yet available on the {ess-trial}[{ess}]. However,
-you can configure another tier to use <<shared-cache,shared snapshot caches>>.
-This effectively recreates a frozen tier in your {ess} deployment. Follow these
-steps:
-
-. Choose an existing tier to use. Typically, you'll use the cold tier, but the
-hot and warm tiers are also supported. You can use this tier as a shared tier,
-or you can dedicate the tier exclusively to shared snapshot caches.
-
-. Log in to the {ess-trial}[{ess} Console].
-
-. Select your deployment from the {ess} home page or the deployments page.
-
-. From your deployment menu, select **Edit deployment**.
-
-. On the **Edit** page, click **Edit elasticsearch.yml** under your selected
-{es} tier.
-
-. In the `elasticsearch.yml` file, add the
-<<searchable-snapshots-shared-cache,`xpack.searchable.snapshot.shared_cache.size`>>
-setting. For example:
-+
-[source,yaml]
-----
-xpack.searchable.snapshot.shared_cache.size: 50GB
-----
-
-. Click **Save** and **Confirm** to apply your configuration changes.
+The frozen data tier is not yet available on {ess-trial}[{ess}]. However, you
+can configure another tier to use <<shared-cache,shared snapshot caches>>. This
+effectively recreates a frozen tier in your deployment. See
+<<set-up-data-tiers,Set up data tiers>>.

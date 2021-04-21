@@ -67,6 +67,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         return input.readLines()
                 .collect { it.replace('\\', '/') }
                 .collect {it.replace(normalizedPathPrefix , '.') }
+                .collect {it.replaceAll(/Gradle Test Executor \d/ , 'Gradle Test Executor 1') }
                 .join("\n")
     }
 
@@ -92,7 +93,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         return jarFile;
     }
 
-    File internalBuild(File buildScript = buildFile, String major = "7.10.1", String minor = "7.11.0", String bugfix = "7.12.0") {
+    File internalBuild(File buildScript = buildFile, String bugfix = "7.10.1", String staged = "7.11.0", String minor = "7.12.0") {
         buildScript << """plugins {
           id 'elasticsearch.global-build-info'
         }
@@ -107,7 +108,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         Version currentVersion = Version.fromString("8.0.0")
          def versionList = []
                versionList.addAll(
-            Arrays.asList(Version.fromString("$major"), Version.fromString("$minor"), Version.fromString("$bugfix"), currentVersion)
+            Arrays.asList(Version.fromString("$bugfix"), Version.fromString("$staged"), Version.fromString("$minor"), currentVersion)
         )
 
         BwcVersions versions = new BwcVersions(new TreeSet<>(versionList), currentVersion)

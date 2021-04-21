@@ -5,7 +5,7 @@ Test Suite:
 .Required settings
 =======================================
 Certain tests require specific settings to be applied to the
-Elasticsearch instance in order to pass.  You should run
+Elasticsearch instance in order to pass. You should run
 Elasticsearch as follows:
 
 [source,sh]
@@ -65,7 +65,7 @@ order, but individual test sections may be run in any order, as follows:
 
 Dot notation:
 -------------
-Dot notation is used for (1) method calls and (2) hierarchical data structures.  For
+Dot notation is used for (1) method calls and (2) hierarchical data structures. For
 instance, a method call like `cluster.health` would do the equivalent of:
 
     client.cluster.health(...params...)
@@ -87,7 +87,7 @@ Skipping tests:
 If a test section should only be run on certain versions of Elasticsearch,
 then the first entry in the section (after the title) should be called
 `skip`, and should contain the range of versions to be
-skipped, and the reason why the tests are skipped.  For instance:
+skipped, and the reason why the tests are skipped. For instance:
 
 ....
     "Parent":
@@ -308,7 +308,7 @@ The response from the `do` operator should be stored in the `response` var, whic
 is reset (1) at the beginning of a file or (2) on the next `do`.
 
 If the arguments to `do` include `catch`, then we are expecting an error, which should
-be caught and tested.  For instance:
+be caught and tested. For instance:
 
 ....
     - do:
@@ -395,7 +395,9 @@ match all of those selectors. The following selectors are supported:
 
 - `version`: Only nodes who's version is within the range will receive the
 request. The syntax for the pattern is the same as when `version` is within
-`skip`.
+`skip` but also supports `current` which selects nodes of the current version.
+`current` is useful when running mixed version tests if the results vary based
+on the version of the node that received the request.
 - `attribute`: Only nodes that have an attribute matching the name and value
 of the provided attribute match.
 Looks like:
@@ -408,7 +410,7 @@ Looks like:
 === `set`
 
 For some tests, it is necessary to extract a value from the previous `response`, in
-order to reuse it in a subsequent `do` and other tests.  For instance, when
+order to reuse it in a subsequent `do` and other tests. For instance, when
 testing indexing a document without a specified ID:
 
 ....
@@ -500,7 +502,7 @@ The specified key doesn't exist or has a false value (ie `0`, `false`, `undefine
 
 === `match`
 
-Used to compare two variables (could be scalars, arrays or hashes).  The two variables
+Used to compare two variables (could be scalars, arrays or hashes). The two variables
 should be identical, eg:
 
 ....

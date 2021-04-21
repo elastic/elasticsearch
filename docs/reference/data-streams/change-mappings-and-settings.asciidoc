@@ -2,7 +2,7 @@
 [[data-streams-change-mappings-and-settings]]
 == Change mappings and settings for a data stream
 
-Each data stream has a <<create-a-data-stream-template,matching index
+Each data stream has a <<create-index-template,matching index
 template>>. Mappings and index settings from this template are applied to new
 backing indices created for the stream. This includes the stream's first
 backing index, which is auto-generated when the stream is created.
@@ -417,7 +417,7 @@ mappings and settings you'd like to apply to the new data stream's backing
 indices.
 +
 This index template must meet the
-<<create-a-data-stream-template,requirements for a data stream template>>. It
+<<create-index-template,requirements for a data stream template>>. It
 should also contain your previously chosen name or index pattern in the
 `index_patterns` property.
 +
@@ -471,7 +471,7 @@ PUT /_index_template/new-data-stream-template
 create the new data stream. The name of the data stream must match the index
 pattern defined in the new template's `index_patterns` property.
 +
-We do not recommend <<create-a-data-stream,indexing new data
+We do not recommend <<create-data-stream,indexing new data
 to create this data stream>>. Later, you will reindex older data from an
 existing data stream into this new stream. This could result in one or more
 backing indices that contains a mix of new and old data.
@@ -572,7 +572,8 @@ stream's oldest backing index.
       "generation": 2,
       "status": "GREEN",
       "template": "my-data-stream-template",
-      "hidden": false
+      "hidden": false,
+      "system": false
     }
   ]
 }

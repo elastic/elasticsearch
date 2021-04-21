@@ -147,7 +147,7 @@ See <<xpack-ccr,Cross-cluster replication>>.
 [role="exclude",id="indices-upgrade"]
 === Upgrade API
 
-The `_upgrade` API is no longer useful and will be removed.  Instead, see
+The `_upgrade` API is no longer useful and will be removed. Instead, see
 <<reindex-upgrade>>.
 
 [role="exclude",id="mapping-parent-field"]
@@ -807,7 +807,7 @@ See:
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[#55257]) from the {es} Reference
+({es-issue}55257[#55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -817,7 +817,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference because it was out of date and
+({es-issue}55257[55257]) from the {es} Guide because it was out of date and
 erroneously implied that it should be used by application developers.
 
 There is an issue ({es-issue}55258[#55258]) for providing general testing
@@ -829,7 +829,7 @@ guidance for applications that communicate with {es}.
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -840,7 +840,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -851,7 +851,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -862,7 +862,7 @@ for providing general testing guidance for applications that communicate with {e
 
 This page was deleted.
 Information about the Java testing framework was removed
-({es-issue}55257[55257]) from the {es} Reference
+({es-issue}55257[55257]) from the {es} Guide
 because it was out of date and erroneously implied that it should be used by application developers.
 There is an issue ({es-issue}55258[#55258])
 for providing general testing guidance for applications that communicate with {es}.
@@ -1124,7 +1124,7 @@ See <<ilm-gs-apply-policy>>.
 [role="exclude",id="indices-status"]
 === Index status API
 
-The  index `_status` API has been replaced with the <<indices-stats,index
+The index `_status` API has been replaced with the <<indices-stats,index
 stats>> and <<indices-recovery,index recovery>> APIs.
 
 [role="exclude",id="search-facets"]
@@ -1373,24 +1373,6 @@ See <<constant-keyword-field-type>>.
 
 See <<wildcard-field-type>>.
 
-[role="exclude",id="searchable-snapshots-api-clear-cache"]
-=== Clear cache API
-
-We have removed documentation for this API. This a low-level API used to clear
-the searchable snapshot cache. We plan to remove or drastically change this API
-as part of a future release.
-
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-
-[role="exclude",id="searchable-snapshots-api-stats"]
-=== Searchable snapshot statistics API
-
-We have removed documentation for this API. This a low-level API used to get
-information about searchable snapshot indices. We plan to remove or drastically
-change this API as part of a future release.
-
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-
 [role="exclude",id="searchable-snapshots-repository-stats"]
 === Searchable snapshot repository statistics API
 
@@ -1513,3 +1495,28 @@ See <<put-enrich-policy-api>>.
 === Rollup API
 
 See <<rollup-apis>>.
+
+[role="exclude",id="getting-started-install"]
+=== Get {es} up and running
+
+See <<run-elasticsearch>>.
+
+[role="exclude",id="getting-started-index"]
+=== Index some documents
+
+See <<add-data>>.
+
+[role="exclude",id="getting-started-search"]
+=== Start searching
+
+See <<qs-search-data>>.
+
+[role="exclude",id="getting-started-aggregations"]
+=== Analyze results with aggregations
+
+See <<getting-started>>.
+
+[role="exclude",id="getting-started-next-steps"]
+=== Where to go from here
+
+See <<getting-started>>.

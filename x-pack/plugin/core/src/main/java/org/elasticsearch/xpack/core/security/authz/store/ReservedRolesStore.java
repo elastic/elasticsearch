@@ -192,17 +192,44 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                     null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("apm_user", new RoleDescriptor("apm_user",
-                    null, new RoleDescriptor.IndicesPrivileges[] {
+                    null,
+                    new RoleDescriptor.IndicesPrivileges[] {
+                        // Self managed APM Server
+                        // Can be removed in 8.0
                         RoleDescriptor.IndicesPrivileges.builder().indices("apm-*")
                             .privileges("read", "view_index_metadata").build(),
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*")
+
+                            // APM Server under fleet (data streams)
+                            RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*")
                             .privileges("read", "view_index_metadata").build(),
-                        RoleDescriptor.IndicesPrivileges.builder().indices("observability-annotations")
+                            RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm.*")
+                            .privileges("read", "view_index_metadata").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm.*")
+                            .privileges("read", "view_index_metadata").build(),
+
+                            // Machine Learning indices. Only needed for legacy reasons
+                            // Can be removed in 8.0
+                            RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*")
+                            .privileges("read", "view_index_metadata").build(),
+
+                            // Annotations
+                            RoleDescriptor.IndicesPrivileges.builder().indices("observability-annotations")
                             .privileges("read", "view_index_metadata").build()
-                    }, new RoleDescriptor.ApplicationResourcePrivileges[] {
-                            RoleDescriptor.ApplicationResourcePrivileges.builder()
-                                .application("kibana-*").resources("*").privileges("reserved_ml_apm_user").build()
-                        }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, null))
+                    },
+                    new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor
+                                .ApplicationResourcePrivileges
+                                .builder()
+                                .application("kibana-*")
+                                .resources("*")
+                                .privileges("reserved_ml_apm_user")
+                                .build()
+                    },
+                    null,
+                    null,
+                    MetadataUtils.getDeprecatedReservedMetadata("This role will be removed in 8.0"),
+                    null
+                ))
                 .put("machine_learning_user", new RoleDescriptor("machine_learning_user", new String[] { "monitor_ml" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-anomalies*", ".ml-notifications*")
@@ -309,7 +336,58 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .indices(".enrich-*")
                             .privileges("manage", "read", "write")
                             .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("viewer", buildViewerRoleDescriptor())
+                .put("editor", buildEditorRoleDescriptor())
                 .immutableMap();
+    }
+
+    private static RoleDescriptor buildViewerRoleDescriptor() {
+        return new RoleDescriptor(
+            "viewer",
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                // Stack
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("/~(([.]|ilm-history-).*)/")
+                    .privileges("read", "view_index_metadata").build(),
+                // Security
+                RoleDescriptor.IndicesPrivileges.builder().indices(".siem-signals-*").privileges("read", "view_index_metadata").build() },
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges("read").build() },
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            null);
+    }
+
+    private static RoleDescriptor buildEditorRoleDescriptor() {
+        return new RoleDescriptor("editor",
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                // Stack
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("/~(([.]|ilm-history-).*)/")
+                    .privileges("read", "view_index_metadata").build(),
+                // Observability
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("observability-annotations")
+                    .privileges("read", "view_index_metadata", "write").build(),
+                // Security
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".siem-signals-*", ".lists-*", ".items-*")
+                    .privileges("read", "view_index_metadata", "write", "maintenance").build() },
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges("all").build() },
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            null);
     }
 
     private static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {

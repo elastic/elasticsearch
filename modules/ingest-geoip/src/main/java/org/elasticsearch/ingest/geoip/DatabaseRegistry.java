@@ -341,7 +341,7 @@ public final class DatabaseRegistry implements Closeable {
                 // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
                 for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
                     SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-                    String id = String.format(Locale.ROOT, "%s_%d", databaseName, chunk);
+                    String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.getLastUpdate());
                     searchRequest.source().query(new TermQueryBuilder("_id", id));
 
                     // At most once a day a few searches may be executed to fetch the new files,
@@ -349,7 +349,7 @@ public final class DatabaseRegistry implements Closeable {
                     // This makes the code easier to understand and maintain.
                     SearchResponse searchResponse = client.search(searchRequest).actionGet();
                     SearchHit[] hits = searchResponse.getHits().getHits();
-                    assert hits.length == 1 : "expected 1 hit, but instead got [" + hits.length + "]";
+
                     if (searchResponse.getHits().getHits().length == 0) {
                         failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
                         return;

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.RebalanceOnlyWhenActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -206,6 +207,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new NodeShutdownAllocationDecider());
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())

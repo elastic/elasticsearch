@@ -18,13 +18,13 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class QueryTranslationSpecTests extends AbstractQueryTranslationTestCase {
+public class QueryTranslatorSpecTests extends AbstractQueryTranslatorTestCase {
 
     private final String name;
     private final String query;
     private final List<Matcher<String>> matchers;
 
-    public QueryTranslationSpecTests(String name, String query, List<Matcher<String>> matchers) {
+    public QueryTranslatorSpecTests(String name, String query, List<Matcher<String>> matchers) {
         this.name = name;
         this.query = query;
         this.matchers = matchers;
@@ -32,7 +32,7 @@ public class QueryTranslationSpecTests extends AbstractQueryTranslationTestCase 
 
     @ParametersFactory(shuffle = false, argumentFormatting = "%1$s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return TestUtils.readSpec(QueryTranslationSpecTests.class, "/querytranslation_tests.txt");
+        return TestUtils.readSpec(QueryTranslatorSpecTests.class, "/querytranslator_tests.txt");
     }
 
     public void test() {

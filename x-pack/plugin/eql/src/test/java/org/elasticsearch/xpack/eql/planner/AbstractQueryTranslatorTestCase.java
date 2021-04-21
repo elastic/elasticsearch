@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 
 import static org.elasticsearch.xpack.ql.type.TypesTests.loadMapping;
 
-public abstract class AbstractQueryTranslationTestCase extends ESTestCase {
+public abstract class AbstractQueryTranslatorTestCase extends ESTestCase {
     protected EqlParser parser = new EqlParser();
     protected PreAnalyzer preAnalyzer = new PreAnalyzer();
     protected PostAnalyzer postAnalyzer = new PostAnalyzer();

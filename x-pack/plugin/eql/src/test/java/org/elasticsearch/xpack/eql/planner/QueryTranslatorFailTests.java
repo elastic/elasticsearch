@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.eql.analysis.VerificationException;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
-public class QueryTranslationFailTests extends AbstractQueryTranslationTestCase {
+public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
 
     private String error(String query) {
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));

@@ -16,6 +16,7 @@ import org.gradle.api.file.FileSystemLocation;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
@@ -41,6 +42,20 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         @Optional
         List<String> getKeepStructureFor();
 
+        /**
+         * Mark output as handled like a filetree meaning that
+         * each file will be part of the output and not the singular ouptut directory.
+         * */
+        @Input
+        boolean getAsFiletreeOutput();
+
+        void setAsFiletreeOutput(boolean asFiletreeOutput);
+
+        @Internal
+        File getTargetDirectory();
+
+        void setTargetDirectory(File targetDirectory);
+
         void setKeepStructureFor(List<String> pattern);
     }
 
@@ -55,17 +70,16 @@ public interface UnpackTransform extends TransformAction<UnpackTransform.Paramet
         try {
             Logging.getLogger(UnpackTransform.class)
                 .info("Unpacking " + archiveFile.getName() + " using " + getClass().getSimpleName() + ".");
-            unpack(archiveFile, extractedDir);
+            unpack(archiveFile, extractedDir, outputs, getParameters().getAsFiletreeOutput());
         } catch (IOException e) {
             throw UncheckedException.throwAsUncheckedException(e);
         }
     }
 
-    void unpack(File archiveFile, File targetDir) throws IOException;
+    void unpack(File archiveFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException;
 
     default Function<String, Path> pathResolver() {
         List<String> keepPatterns = getParameters().getKeepStructureFor();
-
         String trimmedPrefixPattern = getParameters().getTrimmedPrefixPattern();
         return trimmedPrefixPattern != null ? (i) -> trimArchiveExtractPath(keepPatterns, trimmedPrefixPattern, i) : (i) -> Path.of(i);
     }

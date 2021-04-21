@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
@@ -22,6 +26,7 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -39,10 +44,13 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -72,6 +80,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         .NodeScope);
     public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting("index.source_only", false, Setting
         .Property.IndexScope, Setting.Property.Final, Setting.Property.PrivateIndex);
+
+    private static final Logger logger = LogManager.getLogger(SourceOnlySnapshotRepository.class);
 
     private static final String SNAPSHOT_DIR_NAME = "_snapshot";
 
@@ -118,7 +128,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     @Override
     public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
                               IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                              Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+                              Version repositoryMetaVersion, Map<String, Object> userMetadata,
+                              ActionListener<ShardSnapshotResult> listener) {
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
             listener.onFailure(
@@ -146,8 +157,16 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             }, Store.OnClose.EMPTY);
             Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
-            SourceOnlySnapshot snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
-            snapshot.syncSnapshot(snapshotIndexCommit);
+            SourceOnlySnapshot snapshot;
+            snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
+            try {
+                snapshot.syncSnapshot(snapshotIndexCommit);
+            } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
+                logger.warn(() -> new ParameterizedMessage(
+                        "Existing staging directory [{}] appears corrupted and will be pruned and recreated.", snapPath), e);
+                Lucene.cleanLuceneIndex(overlayDir);
+                snapshot.syncSnapshot(snapshotIndexCommit);
+            }
             // we will use the lucene doc ID as the seq ID so we set the local checkpoint to maxDoc with a new index UUID
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();

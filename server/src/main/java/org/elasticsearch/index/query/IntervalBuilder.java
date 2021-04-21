@@ -34,7 +34,7 @@ import java.util.List;
 /**
  * Constructs an IntervalsSource based on analyzed text
  */
-public class IntervalBuilder {
+public abstract class IntervalBuilder {
 
     private final String field;
     private final Analyzer analyzer;
@@ -44,16 +44,14 @@ public class IntervalBuilder {
         this.analyzer = analyzer;
     }
 
+    /** Create term intervals for the provided term. */
+    protected abstract IntervalsSource termIntervals(BytesRef term);
+
     public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
         try (TokenStream ts = analyzer.tokenStream(field, query);
              CachingTokenFilter stream = new CachingTokenFilter(ts)) {
             return analyzeText(stream, maxGaps, ordered);
         }
-    }
-
-    /** Create term intervals for the provided term. */
-    protected IntervalsSource termIntervals(BytesRef term) {
-        return Intervals.term(term);
     }
 
     protected IntervalsSource analyzeText(CachingTokenFilter stream, int maxGaps, boolean ordered) throws IOException {

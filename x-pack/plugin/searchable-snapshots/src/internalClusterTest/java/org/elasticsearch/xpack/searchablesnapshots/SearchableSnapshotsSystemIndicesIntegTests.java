@@ -31,7 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

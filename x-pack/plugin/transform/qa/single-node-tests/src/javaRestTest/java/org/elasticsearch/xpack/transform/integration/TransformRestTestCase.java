@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
@@ -15,8 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -29,7 +26,6 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.joda.time.Instant;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class TransformRestTestCase extends ESRestTestCase {
@@ -53,32 +48,9 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     protected static final String REVIEWS_INDEX_NAME = "reviews";
     protected static final String REVIEWS_DATE_NANO_INDEX_NAME = "reviews_nano";
 
-    private static boolean useDeprecatedEndpoints;
-
-    protected boolean useDeprecatedEndpoints() {
-        return useDeprecatedEndpoints;
-    }
-
-    @BeforeClass
-    public static void init() {
-        // randomly return the old or the new endpoints, old endpoints to be removed for 8.0.0
-        useDeprecatedEndpoints = randomBoolean();
-    }
-
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE_SUPER_USER).build();
-    }
-
-    @Override
-    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
-        if (useDeprecatedEndpoints) {
-            RestClientBuilder builder = RestClient.builder(hosts);
-            configureClient(builder, settings);
-            builder.setStrictDeprecationMode(false);
-            return builder.build();
-        }
-        return super.buildClient(settings, hosts);
     }
 
     protected void createReviewsIndex(
@@ -248,8 +220,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
-
         String config = "{ \"dest\": {\"index\":\"" + transformIndex + "\"}," + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
         // Set frequency high for testing
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"15m\"}},"
@@ -267,10 +237,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + " } } } }"
             + "}";
 
-        createTransformRequest.setJsonEntity(config);
-
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        createReviewsTransform(transformId, authHeader, config);
     }
 
     protected void createPivotReviewsTransform(
@@ -281,8 +248,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String authHeader,
         String sourceIndex
     ) throws IOException {
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
-
         String config = "{";
 
         if (pipeline != null) {
@@ -316,6 +281,29 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + "\"frequency\":\"1s\""
             + "}";
 
+        createReviewsTransform(transformId, authHeader, config);
+    }
+
+    protected void createLatestReviewsTransform(String transformId, String transformIndex) throws IOException {
+        String config = "{"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"latest\": {"
+            + "   \"unique_key\": [ \"user_id\" ],"
+            + "   \"sort\": \"@timestamp\""
+            + " },"
+            + "\"frequency\":\"1s\""
+            + "}";
+
+        createReviewsTransform(transformId, null, config);
+    }
+
+    private void createReviewsTransform(String transformId, String authHeader, String config) throws IOException {
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
         createTransformRequest.setJsonEntity(config);
 
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -569,7 +557,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     protected static String getTransformEndpoint() {
-        return useDeprecatedEndpoints ? TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED : TransformField.REST_BASE_PATH_TRANSFORMS;
+        return TransformField.REST_BASE_PATH_TRANSFORMS;
     }
 
     @SuppressWarnings("unchecked")

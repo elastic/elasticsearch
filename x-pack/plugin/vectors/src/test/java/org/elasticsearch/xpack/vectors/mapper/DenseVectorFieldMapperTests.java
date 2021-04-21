@@ -95,7 +95,7 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
         // assert that after decoding the indexed value is equal to expected
         BytesRef vectorBR = fields[0].binaryValue();
         float[] decodedValues = decodeDenseVector(Version.CURRENT, vectorBR);
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(Version.CURRENT, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(Version.CURRENT, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
         assertArrayEquals(
             "Decoded dense vector values is not equal to the indexed one.",

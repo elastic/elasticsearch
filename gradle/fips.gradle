@@ -55,6 +55,9 @@ if (BuildParams.inFipsJvm) {
           systemProperty 'javax.net.ssl.keyStorePassword', 'password'
           systemProperty 'javax.net.ssl.keyStoreType', 'BCFKS'
           systemProperty 'org.bouncycastle.fips.approved_only', 'true'
+          // Setting security explicitly off as a default behavior for the tests which normally run
+          // with no x-pack. Tests having security explicitly enabled/disabled will override this setting
+          setting 'xpack.security.enabled', 'false'
           setting 'xpack.security.fips_mode.enabled', 'true'
           setting 'xpack.license.self_generated.type', 'trial'
           keystorePassword 'keystore-password'

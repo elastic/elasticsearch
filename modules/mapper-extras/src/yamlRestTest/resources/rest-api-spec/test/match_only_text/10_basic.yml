@@ -2,7 +2,7 @@ setup:
 
   - skip:
       version: " - 7.99.99"
-      reason: "match_only_text was added in 7.13"
+      reason: "match_only_text was added in 7.14"
 
   - do:
       indices.create:
@@ -227,7 +227,6 @@ setup:
 "Wildcard intervals query":
 
   - do:
-      catch: bad_request
       search:
         index: test
         body:
@@ -235,5 +234,21 @@ setup:
             intervals:
               foo:
                 wildcard:
-                  pattern: "luc"
+                  pattern: "*ase*"
 
+  - match: { "hits.total.value": 1 }
+
+---
+"Fuzzy intervals query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                fuzzy:
+                  term: "lucane"
+
+  - match: { "hits.total.value": 3 }

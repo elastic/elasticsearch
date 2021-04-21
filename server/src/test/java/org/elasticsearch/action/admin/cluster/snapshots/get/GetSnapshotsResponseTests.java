@@ -19,7 +19,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.ESTestCase;
 
@@ -75,8 +75,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             List<SnapshotFeatureInfo> featureInfos = randomList(0, () -> randomSnapshotFeatureInfo());
             snapshots.add(new SnapshotInfo(snapshotId, Arrays.asList("index1", "index2"), Collections.singletonList("ds"),
                 featureInfos, reason, System.currentTimeMillis(), randomIntBetween(2, 3), shardFailures, randomBoolean(),
-                SnapshotInfoTests.randomUserMetadata(), System.currentTimeMillis()
-            ));
+                SnapshotInfoTestUtils.randomUserMetadata(), System.currentTimeMillis(), Collections.emptyMap()));
 
         }
         return snapshots;

@@ -18,7 +18,10 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -30,7 +33,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
-import org.elasticsearch.index.query.IntervalBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SourceConfirmedTextQuery;
 import org.elasticsearch.index.query.SourceIntervalsSource;
@@ -231,25 +233,31 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IntervalsSource intervals(String text, int maxGaps, boolean ordered,
-                                         NamedAnalyzer analyzer, boolean prefix, SearchExecutionContext context) throws IOException {
-            if (analyzer == null) {
-                analyzer = getTextSearchInfo().getSearchAnalyzer();
-            }
-            if (prefix) {
-                BytesRef normalizedTerm = analyzer.normalize(name(), text);
-                // Using a MatchAllDocsQuery as an approximation means that prefix intervals will be slow.
-                return toIntervalsSource(Intervals.prefix(normalizedTerm), new MatchAllDocsQuery(), context);
-            }
-            IntervalBuilder builder = new IntervalBuilder(name(), analyzer) {
-                @Override
-                protected IntervalsSource termIntervals(BytesRef term) {
-                    // Approximate the intervals with a TermQuery so that we can avoid parsing the _source
-                    // on documents that don't contain the expected term.
-                    return toIntervalsSource(super.termIntervals(term), new TermQuery(new Term(name(), term)), context);
-                }
-            };
-            return builder.analyzeText(text, maxGaps, ordered);
+        public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
+            return toIntervalsSource(Intervals.term(term), new TermQuery(new Term(name(), term)), context);
+        }
+
+        @Override
+        public IntervalsSource prefixIntervals(BytesRef term, SearchExecutionContext context) {
+            return toIntervalsSource(Intervals.prefix(term), new PrefixQuery(new Term(name(), term)), context);
+        }
+
+        @Override
+        public IntervalsSource fuzzyIntervals(String term, int maxDistance, int prefixLength,
+                boolean transpositions, SearchExecutionContext context) {
+            FuzzyQuery fuzzyQuery = new FuzzyQuery(new Term(name(), term),
+                maxDistance, prefixLength, 128, transpositions);
+            fuzzyQuery.setRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), term);
+            return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);
+        }
+
+        @Override
+        public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
+            return toIntervalsSource(
+                Intervals.wildcard(pattern),
+                new MatchAllDocsQuery(), // wildcard queries can be expensive, what should be the approximation?
+                context);
         }
 
         @Override

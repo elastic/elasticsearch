@@ -3,7 +3,7 @@
 [[network-direction-processor]]
 === Network direction processor
 ++++
-<titleabbrev>Network Direction</titleabbrev>
+<titleabbrev>Network direction</titleabbrev>
 ++++
 
 Calculates the network direction given a source IP address, destination IP
@@ -21,14 +21,17 @@ only the `internal_networks` option must be specified.
 | `source_ip`        | no       | `source.ip`   | Field containing the source IP address.
 | `destination_ip`   | no       | `destination.ip` | Field containing the destination IP address.
 | `target_field`     | no       | `network.direction` | Output field for the network direction.
-| `internal_networks`| yes      |               | List of internal networks. Supports IPv4 and
-IPv6 addresses and ranges in CIDR notation. Also supports the named ranges listed below.
+| `internal_networks`| yes *    |               | List of internal networks. Supports IPv4 and
+IPv6 addresses and ranges in CIDR notation. Also supports the named ranges listed below. These may be constructed with <<template-snippets,template snippets>>. * Must specify only one of `internal_networks` or `internal_networks_field`.
+| `internal_networks_field`| no      |               | A field on the given document to read the `internal_networks` configuration from.
 | `ignore_missing`   | no       | `true`        | If `true` and any required fields are missing,
 the processor quietly exits without modifying the document.
 
 
 include::common-options.asciidoc[]
 |======
+
+One of either `internal_networks` or `internal_networks_field` must be specified. If `internal_networks_field` is specified, it follows the behavior specified by `ignore_missing`.
 
 [float]
 [[supported-named-network-ranges]]

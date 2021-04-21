@@ -54,6 +54,7 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
   }
   testImplementation(project(':x-pack:plugin:eql'))
+  testImplementation(project(':x-pack:plugin:ql:test-fixtures'))
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -87,8 +88,6 @@ tasks.named("check").configure {
 testClusters.all {
   testDistribution = 'DEFAULT'
   systemProperty 'es.scripting.update.ctx_in_params', 'false'
-  systemProperty 'es.geoip_v2_feature_flag_enabled', 'true'
-  setting 'geoip.downloader.enabled', 'false'
   setting 'reindex.remote.whitelist', '[ "[::1]:*", "127.0.0.1:*" ]'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
@@ -117,4 +116,7 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
   extraConfigFile pkiTrustCert.name, pkiTrustCert
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'
 }

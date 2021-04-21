@@ -62,6 +62,10 @@ public class HttpStats implements Writeable, ToXContentFragment {
         return this.totalOpen;
     }
 
+    public List<ClientStats> getClientStats() {
+        return this.clientStats;
+    }
+
     static final class Fields {
         static final String HTTP = "http";
         static final String CURRENT_OPEN = "current_open";
@@ -134,9 +138,15 @@ public class HttpStats implements Writeable, ToXContentFragment {
         ClientStats(StreamInput in) throws IOException {
             this.id = in.readInt();
             this.agent = in.readOptionalString();
-            this.localAddress = in.readString();
-            this.remoteAddress = in.readString();
-            this.lastUri = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                this.localAddress = in.readOptionalString();
+                this.remoteAddress = in.readOptionalString();
+                this.lastUri = in.readOptionalString();
+            } else {
+                this.localAddress = in.readString();
+                this.remoteAddress = in.readString();
+                this.lastUri = in.readString();
+            }
             this.forwardedFor = in.readOptionalString();
             this.opaqueId = in.readOptionalString();
             this.openedTimeMillis = in.readLong();
@@ -152,9 +162,15 @@ public class HttpStats implements Writeable, ToXContentFragment {
             if (agent != null) {
                 builder.field(Fields.CLIENT_AGENT, agent);
             }
-            builder.field(Fields.CLIENT_LOCAL_ADDRESS, localAddress);
-            builder.field(Fields.CLIENT_REMOTE_ADDRESS, remoteAddress);
-            builder.field(Fields.CLIENT_LAST_URI, lastUri);
+            if (localAddress != null) {
+                builder.field(Fields.CLIENT_LOCAL_ADDRESS, localAddress);
+            }
+            if (remoteAddress != null) {
+                builder.field(Fields.CLIENT_REMOTE_ADDRESS, remoteAddress);
+            }
+            if (lastUri != null) {
+                builder.field(Fields.CLIENT_LAST_URI, lastUri);
+            }
             if (forwardedFor != null) {
                 builder.field(Fields.CLIENT_FORWARDED_FOR, forwardedFor);
             }
@@ -176,9 +192,15 @@ public class HttpStats implements Writeable, ToXContentFragment {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeInt(id);
             out.writeOptionalString(agent);
-            out.writeString(localAddress);
-            out.writeString(remoteAddress);
-            out.writeString(lastUri);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalString(localAddress);
+                out.writeOptionalString(remoteAddress);
+                out.writeOptionalString(lastUri);
+            } else {
+                out.writeString(localAddress);
+                out.writeString(remoteAddress);
+                out.writeString(lastUri);
+            }
             out.writeOptionalString(forwardedFor);
             out.writeOptionalString(opaqueId);
             out.writeLong(openedTimeMillis);

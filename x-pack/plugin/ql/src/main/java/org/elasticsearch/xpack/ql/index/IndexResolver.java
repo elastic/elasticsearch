@@ -278,8 +278,8 @@ public class IndexResolver {
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
     public void resolveAsMergedMapping(String indexWildcard, String javaRegex, IndicesOptions indicesOptions,
-            ActionListener<IndexResolution> listener) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions);
+            Map<String, Object> runtimeMappings, ActionListener<IndexResolution> listener) {
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, indicesOptions, runtimeMappings);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
                         response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)),
@@ -289,9 +289,9 @@ public class IndexResolver {
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
-    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, boolean includeFrozen,
+    public void resolveAsMergedMapping(String indexWildcard, String javaRegex, boolean includeFrozen, Map<String, Object> runtimeMappings,
             ActionListener<IndexResolution> listener) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(fieldRequest,
                 ActionListener.wrap(
                         response -> listener.onResponse(mergedMappings(typeRegistry, indexWildcard, response)),
@@ -455,27 +455,30 @@ public class IndexResolver {
         return new EsField(fieldName, esType, props, isAggregateable, isAlias);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, IndicesOptions indicesOptions) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, IndicesOptions indicesOptions,
+        Map<String, Object> runtimeMappings) {
         return new FieldCapabilitiesRequest()
                 .indices(Strings.commaDelimitedListToStringArray(index))
                 .fields("*")
                 .includeUnmapped(true)
+                .runtimeFields(runtimeMappings)
                 //lenient because we throw our own errors looking at the response e.g. if something was not resolved
                 //also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
                 .indicesOptions(indicesOptions);
     }
 
-    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen) {
+    private static FieldCapabilitiesRequest createFieldCapsRequest(String index, boolean includeFrozen,
+        Map<String, Object> runtimeMappings) {
         IndicesOptions indicesOptions = includeFrozen ? FIELD_CAPS_FROZEN_INDICES_OPTIONS : FIELD_CAPS_INDICES_OPTIONS;
-        return createFieldCapsRequest(index, indicesOptions);
+        return createFieldCapsRequest(index, indicesOptions, runtimeMappings);
     }
 
     /**
      * Resolves a pattern to multiple, separate indices. Doesn't perform validation.
      */
     public void resolveAsSeparateMappings(String indexWildcard, String javaRegex, boolean includeFrozen,
-            ActionListener<List<EsIndex>> listener) {
-        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen);
+            Map<String, Object> runtimeMappings, ActionListener<List<EsIndex>> listener) {
+        FieldCapabilitiesRequest fieldRequest = createFieldCapsRequest(indexWildcard, includeFrozen, runtimeMappings);
         client.fieldCaps(fieldRequest, wrap(response -> {
             client.admin().indices().getAliases(createGetAliasesRequest(response, includeFrozen), wrap(aliases ->
                 listener.onResponse(separateMappings(typeRegistry, javaRegex, response, aliases.getAliases())),

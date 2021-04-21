@@ -310,6 +310,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == BooleanFieldScript.CONTEXT) {
             return (T) BooleanFieldScriptTests.DUMMY;

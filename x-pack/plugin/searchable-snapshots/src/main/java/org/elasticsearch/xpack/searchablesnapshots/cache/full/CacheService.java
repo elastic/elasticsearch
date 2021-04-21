@@ -28,12 +28,12 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.FileNotFoundException;
@@ -68,14 +68,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
 public class CacheService extends AbstractLifecycleComponent {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
-
-    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
-        SETTINGS_PREFIX + "size",
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // TODO: size the default value according to disk space
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),               // min
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),  // max
-        Setting.Property.NodeScope
-    );
 
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
     public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
@@ -144,7 +136,6 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ReentrantLock cacheSyncLock;
     private final PersistentCache persistentCache;
     private final Cache<CacheKey, CacheFile> cache;
-    private final ByteSizeValue cacheSize;
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
     private final Map<ShardEviction, Future<?>> pendingShardsEvictions;
@@ -161,11 +152,9 @@ public class CacheService extends AbstractLifecycleComponent {
         final PersistentCache persistentCache
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
-        this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
         this.rangeSize = SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings);
         this.recoveryRangeSize = SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
-            .setMaximumWeight(cacheSize.getBytes())
             .weigher((key, entry) -> entry.getLength())
             // NORELEASE This does not immediately free space on disk, as cache file are only deleted when all index inputs
             // are done with reading/writing the cache file
@@ -250,13 +239,6 @@ public class CacheService extends AbstractLifecycleComponent {
         if (state != Lifecycle.State.STARTED) {
             throw new IllegalStateException("Failed to read data from cache: cache service is not started [" + state + "]");
         }
-    }
-
-    /**
-     * @return the cache size (in bytes)
-     */
-    public long getCacheSize() {
-        return cacheSize.getBytes();
     }
 
     /**
@@ -799,5 +781,4 @@ public class CacheService extends AbstractLifecycleComponent {
             return "cache file event [type=" + type + ", value=" + value + ']';
         }
     }
-
 }

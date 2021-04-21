@@ -92,10 +92,10 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) {
-        if (context.externalValueSet() == false) {
-            throw new IllegalStateException("external value not set");
-        }
-        String refId = (String) context.externalValue();
+        throw new UnsupportedOperationException("Cannot directly call parse() on a ParentIdFieldMapper");
+    }
+
+    public void indexValue(ParseContext context, String refId) {
         BytesRef binaryValue = new BytesRef(refId);
         Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
         context.doc().add(field);

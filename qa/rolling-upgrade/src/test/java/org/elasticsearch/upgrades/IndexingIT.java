@@ -17,6 +17,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -85,6 +86,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     template.endObject();
                     Request createTemplate = new Request("PUT", "/_template/prevent-bwc-deprecation-template");
                     createTemplate.setJsonEntity(Strings.toString(template));
+                    createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                     client().performRequest(createTemplate);
                 }
             }

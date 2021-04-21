@@ -77,6 +77,5 @@ final class RerunTestResultProcessor implements TestResultProcessor {
 
     public List<TestDescriptorInternal> getActiveDescriptors() {
         return new ArrayList<>(activeDescriptorsById.values());
-
     }
 }

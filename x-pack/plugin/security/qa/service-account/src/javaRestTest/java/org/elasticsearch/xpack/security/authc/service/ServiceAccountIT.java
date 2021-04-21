@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -282,7 +281,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("document already exists"));
     }
 
-    public void testGetServiceAccountTokens() throws IOException {
+    public void testGetServiceAccountCredentials() throws IOException {
         final Request getTokensRequest = new Request("GET", "_security/service/elastic/fleet-server/credential");
         final Response getTokensResponse1 = client().performRequest(getTokensRequest);
         assertOK(getTokensResponse1);

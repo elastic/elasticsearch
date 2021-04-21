@@ -9,9 +9,12 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -21,6 +24,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.IntConsumer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalHistogramTests extends InternalMultiBucketAggregationTestCase<InternalHistogram> {
 
@@ -94,6 +100,37 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
         InternalHistogram newHistogram = histogram.create(newBuckets);
         newHistogram.reduce(Arrays.asList(newHistogram, histogram2),
                 InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction());
+    }
+
+    public void testLargeReduce() {
+        InternalHistogram histo = new InternalHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),
+            DocValueFormat.RAW,
+            false,
+            null
+        );
+        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            new IntConsumer() {
+                int buckets;
+
+                @Override
+                public void accept(int value) {
+                    buckets += value;
+                    if (buckets > 100000) {
+                        throw new IllegalArgumentException("too big!");
+                    }
+                }
+            },
+            PipelineTree.EMPTY
+        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> histo.reduce(List.of(histo), reduceContext));
+        assertThat(e.getMessage(), equalTo("too big!"));
     }
 
     @Override

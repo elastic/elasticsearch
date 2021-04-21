@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 
 public class GetServiceAccountCredentialsAction extends ActionType<GetServiceAccountCredentialsResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/security/service_account/token/get";
+    public static final String NAME = "cluster:admin/xpack/security/service_account/credential/get";
     public static final GetServiceAccountCredentialsAction INSTANCE = new GetServiceAccountCredentialsAction();
 
     public GetServiceAccountCredentialsAction() {

@@ -16,10 +16,6 @@
 ---
 
 "Test runtime field contexts not allowed as stored script":
-  - skip:
-      version:     " - 8.99.99"
-      reason:      Script while the string_field script context gets renamed
-
   - do:
       catch: bad_request
       put_script:
@@ -107,8 +103,8 @@
   - do:
       catch: bad_request
       put_script:
-        id: string_field_script
-        context: string_field
+        id: keyword_field_script
+        context: keyword_field
         body:
           script:
             source: "'should not reach compilation or this will error''"
@@ -116,4 +112,4 @@
 
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.caused_by.reason: "cannot store a script for context [string_field]" }
+  - match: { error.caused_by.reason: "cannot store a script for context [keyword_field]" }

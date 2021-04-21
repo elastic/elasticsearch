@@ -68,10 +68,10 @@ setup:
   - is_true: .$idx0name.settings
   - is_true: .$idx0name.mappings
   - match: { .$idx0name.settings.index.lifecycle.name: "logs" }
+  - is_true: .$idx0name.mappings.properties.message
   - match: { .$idx0name.mappings.properties.message.type: "text" }
   - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
   - match: { .$idx0name.mappings.properties.log.properties.file.properties.path.type: "keyword" }
-  - is_true: .$idx0name.mappings.properties.message
   - match: { .$idx0name.data_stream: "logs-foo-bar" }
 
   - do:
@@ -85,7 +85,6 @@ setup:
         index: metrics-foo-bar
         body:
           "@timestamp": "2020-01-01"
-          message: "test-log-message"
           source.ip: "10.1.2.3"
 
   - do:
@@ -107,10 +106,7 @@ setup:
   - is_true: .$idx0name.settings
   - is_true: .$idx0name.mappings
   - match: { .$idx0name.settings.index.lifecycle.name: "metrics" }
-  - match: { .$idx0name.settings.index.lifecycle.name: "metrics" }
-  - match: { .$idx0name.mappings.properties.message.type: "text" }
   - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
-  - is_true: .$idx0name.mappings.properties.message
   - match: { .$idx0name.data_stream: "metrics-foo-bar" }
 
   - do:
@@ -124,7 +120,6 @@ setup:
         index: synthetics-foo-bar
         body:
           "@timestamp": "2020-01-01"
-          message: "test-log-message"
           source.ip: "10.1.2.3"
 
   - do:
@@ -135,19 +130,19 @@ setup:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '.ds-synthetics-foo-bar-000001' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-synthetics-foo-bar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
 
   - do:
       indices.get:
         index: $idx0name
 
-  - is_true: $idx0name.settings
-  - is_true: $idx0name.mappings
-  - match: { $idx0name.settings.index.lifecycle.name: "synthetics" }
-  - match: { $idx0name.mappings.properties.message.type: "text" }
-  - match: { $idx0name.mappings.properties.source.properties.ip.type: "ip" }
-  - is_true: $idx0name.mappings.properties.message
-  - match: { $idx0name.data_stream: "synthetics-foo-bar" }
+  - is_true: .$idx0name.settings
+  - is_true: .$idx0name.mappings
+  - match: { .$idx0name.settings.index.lifecycle.name: "synthetics" }
+  - match: { .$idx0name.mappings.properties.source.properties.ip.type: "ip" }
+  - match: { .$idx0name.data_stream: "synthetics-foo-bar" }
 
   - do:
       indices.delete_data_stream:

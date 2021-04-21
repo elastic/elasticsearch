@@ -11,9 +11,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -137,7 +134,7 @@ public final class DataStreamTestHelper {
             metadata = Map.of("key", "value");
         }
         return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata,
-            randomBoolean(), randomBoolean(), timeProvider);
+            randomBoolean(), randomBoolean(), false, timeProvider);
     }
 
     /**

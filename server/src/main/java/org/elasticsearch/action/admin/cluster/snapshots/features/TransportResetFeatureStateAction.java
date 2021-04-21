@@ -60,15 +60,7 @@ public class TransportResetFeatureStateAction extends HandledTransportAction<Res
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> groupedActionListener = new GroupedActionListener<>(
             listener.map(responses -> {
                 assert features == responses.size();
-                boolean hasFailures = responses.stream()
-                    .anyMatch(response -> response.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE);
-                ResetFeatureStateResponse response = new ResetFeatureStateResponse(new ArrayList<>(responses));
-                if (hasFailures) {
-                    // TODO[wrb]: return with a 207?
-                    // TODO[wrb]: improve what's returned, not just error strings but stack traces too
-                    throw new IllegalStateException("Error resetting feature states: " + response);
-                }
-                return response;
+                return new ResetFeatureStateResponse(new ArrayList<>(responses));
             }),
             systemIndices.getFeatures().size()
         );

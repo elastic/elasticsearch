@@ -10,9 +10,11 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -39,6 +41,19 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
 
-        return restChannel -> client.execute(ResetFeatureStateAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
+        return restChannel -> client.execute(
+            ResetFeatureStateAction.INSTANCE,
+            req,
+            new RestToXContentListener<>(restChannel) {
+                @Override
+                protected RestStatus getStatus(ResetFeatureStateResponse response) {
+                    if (response.hasAllFailures()) {
+                        return RestStatus.INTERNAL_SERVER_ERROR;
+                    } else if (response.hasSomeFailures()) {
+                        return RestStatus.MULTI_STATUS;
+                    }
+                    return RestStatus.OK;
+                }
+            });
     }
 }

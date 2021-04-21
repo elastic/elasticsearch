@@ -105,10 +105,10 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
     public void testFailFastOnStateCleanupFailure() throws Exception {
         try {
             EvilSystemIndexTestPlugin.beEvil = true;
-            Exception e1 = expectThrows(Exception.class,
-                () -> client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get());
+            ResetFeatureStateResponse resetFeatureStateResponse = client().execute(ResetFeatureStateAction.INSTANCE,
+                new ResetFeatureStateRequest()).get();
 
-            assertThat(e1.getMessage(), containsString("problem!"));
+            assertTrue(resetFeatureStateResponse.hasSomeFailures());
         } finally {
             EvilSystemIndexTestPlugin.beEvil = false;
         }

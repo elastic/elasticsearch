@@ -47,6 +47,14 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         return this.resetFeatureStateStatusList;
     }
 
+    public boolean hasSomeFailures() {
+        return resetFeatureStateStatusList.stream().anyMatch(status -> status.getStatus().equals(ResetFeatureStateStatus.Status.FAILURE));
+    }
+
+    public boolean hasAllFailures() {
+        return resetFeatureStateStatusList.stream().allMatch(status -> status.getStatus().equals(ResetFeatureStateStatus.Status.FAILURE));
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

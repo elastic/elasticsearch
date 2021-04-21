@@ -259,8 +259,7 @@ public class ClientYamlTestClient implements Closeable {
     private ClientYamlSuiteRestApi restApi(String apiName) {
         ClientYamlSuiteRestApi restApi = restSpec.getApi(apiName);
         if (restApi == null) {
-            throw new IllegalArgumentException("rest api [" + apiName + "] doesn't exist in the rest spec, expected one of: "
-                + restSpec.getApis().stream().map(ClientYamlSuiteRestApi::getName).collect(Collectors.toList()));
+            throw new IllegalArgumentException("rest api [" + apiName + "] doesn't exist in the rest spec");
         }
         return restApi;
     }

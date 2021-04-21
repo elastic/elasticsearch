@@ -6,7 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -192,7 +192,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         setUpgradeModeTo(false);
         deleteAllDataStreams();
         cleanUpResources();
-        waitForPendingTasks();
     }
 
     @Override
@@ -207,18 +206,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         ));
     }
 
-    protected abstract void cleanUpResources();
-
-    private void waitForPendingTasks() {
-        ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setWaitForCompletion(true);
-        listTasksRequest.setDetailed(true);
-        listTasksRequest.setTimeout(TimeValue.timeValueSeconds(10));
-        try {
-            admin().cluster().listTasks(listTasksRequest).get();
-        } catch (Exception e) {
-            throw new AssertionError("Failed to wait for pending tasks to complete", e);
-        }
+    protected void cleanUpResources(){
+        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
     }
 
     protected void setUpgradeModeTo(boolean enabled) {

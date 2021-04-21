@@ -33,7 +33,7 @@ public class DoubleScriptFieldRangeQuery extends AbstractDoubleScriptFieldQuery 
     @Override
     protected boolean matches(double[] values, int count) {
         for (int i = 0; i < count; i++) {
-            if (lowerValue <= values[i] && values[i] <= upperValue) {
+            if (Double.compare(lowerValue, values[i]) <= 0 && Double.compare(values[i], upperValue) <= 0) {
                 return true;
             }
         }

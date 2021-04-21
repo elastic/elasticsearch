@@ -693,9 +693,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testNullInput() throws Exception {
+        assumeTrue("Mapper does not permit null values", allowsNullValues());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
         assertThat(doc.docs().get(0).getFields("field").length, equalTo(0));
         assertThat(doc.docs().get(0).getFields("_field_names").length, equalTo(0));
+    }
+
+    protected boolean allowsNullValues() {
+        return true;
     }
 }

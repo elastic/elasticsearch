@@ -16,6 +16,10 @@ setup:
 
   - do:
       cluster.get_component_template:
+        name: data-streams-mappings
+
+  - do:
+      cluster.get_component_template:
         name: logs-mappings
 
   - do:

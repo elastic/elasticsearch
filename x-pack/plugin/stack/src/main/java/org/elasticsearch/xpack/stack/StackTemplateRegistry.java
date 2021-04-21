@@ -43,6 +43,16 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private final ClusterService clusterService;
     private volatile boolean stackTemplateEnabled;
 
+    // General mappings conventions for any data that ends up in a data stream
+    public static final String DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "data-streams-mappings";
+
+    public static final IndexTemplateConfig DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE = new IndexTemplateConfig(
+        DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+        "/data-streams-mappings.json",
+        REGISTRY_VERSION,
+        TEMPLATE_VERSION_VARIABLE
+    );
+
     //////////////////////////////////////////////////////////
     // Logs components (for matching logs-*-* indices)
     //////////////////////////////////////////////////////////
@@ -177,6 +187,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     protected List<IndexTemplateConfig> getComponentTemplateConfigs() {
         if (stackTemplateEnabled) {
             return Arrays.asList(
+                DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE,
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE,
                 LOGS_SETTINGS_COMPONENT_TEMPLATE,
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE,

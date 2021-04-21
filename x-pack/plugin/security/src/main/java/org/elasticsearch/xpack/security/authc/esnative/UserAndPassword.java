@@ -57,6 +57,6 @@ class UserAndPassword {
 
     @Override
     public String toString() {
-        return "{" + user + " with password hash:" + (passwordHash == null ? "<null>" : hasher.name()) + "}";
+        return "{" + user + " with password hashed with :" + (passwordHash == null ? "<null>" : hasher.name()) + "}";
     }
 }

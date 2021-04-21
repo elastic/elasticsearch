@@ -41,6 +41,7 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         return Collections.singletonList(FailingInitializationPersistentTasksPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71995")
     public void testPersistentTasksThatFailDuringInitializationAreRemovedFromClusterState() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTasksCustomMetadata.PersistentTask<FailingInitializationTaskParams>> startPersistentTaskFuture =

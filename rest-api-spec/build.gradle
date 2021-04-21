@@ -160,10 +160,7 @@ tasks.named("yamlRestCompatTest").configure {
     'get_source/86_source_missing_with_types/Missing document source with ignore',
     'indices.clone/10_basic/Clone index via API',
     'indices.create/10_basic/Create index without soft deletes',
-    // 5 below await retrofitting Removes typed URLs from mapping APIs #41676
-    'indices.create/11_basic_with_types/Create index with mappings',
-    'indices.create/20_mix_typeless_typeful/Create a typed index while there is a typeless template',
-    'indices.create/20_mix_typeless_typeful/Create a typeless index while there is a typed template',
+    // type information about the type is removed and not passed down. The logic to check for this is also removed.
     'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
     'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
     //
@@ -311,8 +308,16 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceMatch("nodes.\$node_id.roles.9", "remote_cluster_client", "node_info role test")
   task.removeMatch("nodes.\$node_id.roles.10", "node_info role test")
   task.replaceIsTrue("test_index.mappings.type_1", "test_index.mappings._doc")
-  task.replaceIsFalse("test_index.mappings.type_1", "test_index.mappings._doc")
-  task.replaceIsFalse("test-1.mappings.my_type", "test-1.mappings._doc")
+  //override for indices.get and indices.create
+  //task.replaceIsFalse("test_index.mappings.type_1", "test_index.mappings._doc")
+  //overrides for indices.create/20_mix_typeless_typeful
+  task.replaceIsFalse("test-1.mappings._doc","false",  "Create a typed index while there is a typeless template")
+  task.replaceIsFalse("test-1.mappings._doc","false", "Create a typeless index while there is a typed template")
+
+  task.replaceIsTrue("test-1.mappings.my_type", "test-1.mappings._doc")
+  task.replaceIsTrue("test-1.mappings.my_type.properties.foo", "test-1.mappings._doc.properties.foo")
+  task.replaceIsTrue("test-1.mappings.my_type.properties.bar", "test-1.mappings._doc.properties.bar")
+
   // overrides for indices.get_field_mapping
   task.replaceKeyInLength("test_index.mappings.test_type.text.mapping.text.type",
     "test_index.mappings._doc.text.mapping.text.type"

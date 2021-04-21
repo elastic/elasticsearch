@@ -148,6 +148,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
     }
 
+    public void replaceIsFalse(String oldValue, Object newValue, String testName) {
+        transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
+    }
+
     /**
      * Removes the key/value of a match assertion all project REST tests for the matching subkey.
      * For example "match":{"_type": "foo"} to "match":{}

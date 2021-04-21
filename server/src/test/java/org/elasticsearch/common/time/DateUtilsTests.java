@@ -39,6 +39,7 @@ public class DateUtilsTests extends ESTestCase {
         "Asia/Qostanay" // this has been added in joda 2.10.2 but is not part of the JDK 12.0.1 tzdata yet
     ));
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72039")
     public void testTimezoneIds() {
         assertNull(DateUtils.dateTimeZoneToZoneId(null));
         assertNull(DateUtils.zoneIdToDateTimeZone(null));

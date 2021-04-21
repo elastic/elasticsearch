@@ -101,9 +101,8 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         // Create stuff and open job
-        registerJob(jobBuilder);
         putJob(jobBuilder);
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         openJob(jobId);
 

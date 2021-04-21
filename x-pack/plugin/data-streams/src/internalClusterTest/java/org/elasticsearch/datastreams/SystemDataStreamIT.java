@@ -8,6 +8,7 @@
 package org.elasticsearch.datastreams;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -56,6 +57,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72031")
 public class SystemDataStreamIT extends ESIntegTestCase {
 
     private static String nodeHttpTypeKey;

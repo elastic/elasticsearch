@@ -641,7 +641,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             );
 
             // Now test xcontent serialization and parsing on wire serialized object
-            XContentType xContentType = randomFrom(XContentType.values()).canonical();
+            XContentType xContentType = randomFrom(XContentType.values());
             BytesReference ref = XContentHelper.toXContent(serialized, xContentType, getToXContentParams(), false);
             XContentParser parser = this.createParser(XContentFactory.xContent(xContentType), ref);
             TransformConfig parsed = doParseInstance(parser);

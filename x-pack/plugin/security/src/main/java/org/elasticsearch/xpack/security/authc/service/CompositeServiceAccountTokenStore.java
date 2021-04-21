@@ -21,16 +21,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 
-public final class CompositeServiceAccountsTokenStore implements ServiceAccountsTokenStore {
+public final class CompositeServiceAccountTokenStore implements ServiceAccountTokenStore {
 
     private static final Logger logger =
-        LogManager.getLogger(org.elasticsearch.xpack.security.authc.service.CompositeServiceAccountsTokenStore.class);
+        LogManager.getLogger(CompositeServiceAccountTokenStore.class);
 
     private final ThreadContext threadContext;
-    private final List<ServiceAccountsTokenStore> stores;
+    private final List<ServiceAccountTokenStore> stores;
 
-    public CompositeServiceAccountsTokenStore(
-        List<ServiceAccountsTokenStore> stores, ThreadContext threadContext) {
+    public CompositeServiceAccountTokenStore(
+        List<ServiceAccountTokenStore> stores, ThreadContext threadContext) {
         this.stores = stores;
         this.threadContext = threadContext;
     }
@@ -38,7 +38,7 @@ public final class CompositeServiceAccountsTokenStore implements ServiceAccounts
     @Override
     public void authenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
         // TODO: optimize store order based on auth result?
-        final IteratingActionListener<Boolean, ServiceAccountsTokenStore> authenticatingListener = new IteratingActionListener<>(
+        final IteratingActionListener<Boolean, ServiceAccountTokenStore> authenticatingListener = new IteratingActionListener<>(
             listener,
             (store, successListener) -> store.authenticate(token, successListener),
             stores,

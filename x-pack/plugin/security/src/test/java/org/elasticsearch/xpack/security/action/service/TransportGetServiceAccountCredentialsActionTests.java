@@ -20,8 +20,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensRequest;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
@@ -38,9 +38,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class TransportGetServiceAccountTokensActionTests extends ESTestCase {
+public class TransportGetServiceAccountCredentialsActionTests extends ESTestCase {
 
-    private TransportGetServiceAccountTokensAction transportGetServiceAccountTokensAction;
+    private TransportGetServiceAccountCredentialsAction transportGetServiceAccountCredentialsAction;
     private ServiceAccountService serviceAccountService;
     private Transport transport;
 
@@ -66,18 +66,18 @@ public class TransportGetServiceAccountTokensActionTests extends ESTestCase {
             new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
         final Settings settings = builder.build();
         serviceAccountService = mock(ServiceAccountService.class);
-        transportGetServiceAccountTokensAction = new TransportGetServiceAccountTokensAction(
+        transportGetServiceAccountCredentialsAction = new TransportGetServiceAccountCredentialsAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
             settings, serviceAccountService, new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
     }
 
     public void testDoExecuteWillDelegate() {
-        final GetServiceAccountTokensRequest request =
-            new GetServiceAccountTokensRequest(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+        final GetServiceAccountCredentialsRequest request =
+            new GetServiceAccountCredentialsRequest(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         @SuppressWarnings("rawtypes")
         final ActionListener listener = mock(ActionListener.class);
         //noinspection unchecked
-        transportGetServiceAccountTokensAction.doExecute(mock(Task.class), request, listener);
+        transportGetServiceAccountCredentialsAction.doExecute(mock(Task.class), request, listener);
         verify(serviceAccountService).findTokensFor(
             eq(new ServiceAccount.ServiceAccountId(request.getNamespace(), request.getServiceName())),
             eq("node_name"), eq(listener));
@@ -91,12 +91,12 @@ public class TransportGetServiceAccountTokensActionTests extends ESTestCase {
         final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
         when(transport.boundAddress()).thenReturn(
             new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
-        final TransportGetServiceAccountTokensAction action = new TransportGetServiceAccountTokensAction(
+        final TransportGetServiceAccountCredentialsAction action = new TransportGetServiceAccountCredentialsAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
             settings, mock(ServiceAccountService.class), new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
 
-        final PlainActionFuture<GetServiceAccountTokensResponse> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), mock(GetServiceAccountTokensRequest.class), future);
+        final PlainActionFuture<GetServiceAccountCredentialsResponse> future = new PlainActionFuture<>();
+        action.doExecute(mock(Task.class), mock(GetServiceAccountCredentialsRequest.class), future);
         final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("[get service account tokens] requires TLS for the HTTP interface"));
     }

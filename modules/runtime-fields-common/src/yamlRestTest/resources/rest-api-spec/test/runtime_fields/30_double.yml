@@ -85,8 +85,8 @@ setup:
 ---
 "fetch fields":
   - skip:
-      version: " - 7.12.99"
-      reason: bugfix for 0.0 value was added in 7.13
+      version: " - 7.12.0"
+      reason: bugfix for 0.0 value was added in 7.12.1
   - do:
       search:
         index: sensor
@@ -108,8 +108,8 @@ setup:
 ---
 "docvalue_fields":
   - skip:
-      version: " - 7.12.99"
-      reason: bugfix for 0.0 value was added in 7.13
+      version: " - 7.12.0"
+      reason: bugfix for 0.0 value was added in 7.12.1
   - do:
       search:
         index: sensor
@@ -131,8 +131,8 @@ setup:
 ---
 "terms agg":
   - skip:
-      version: " - 7.12.99"
-      reason: bugfix for 0.0 value was added in 7.13
+      version: " - 7.12.0"
+      reason: bugfix for 0.0 value was added in 7.12.1
   - do:
       search:
         index: sensor
@@ -150,8 +150,8 @@ setup:
 ---
 "range query":
   - skip:
-      version: " - 7.12.99"
-      reason: bugfix for 0.0 value was added in 7.13
+      version: " - 7.12.0"
+      reason: bugfix for 0.0 value was added in 7.12.1
   - do:
       search:
         index: sensor
@@ -163,7 +163,7 @@ setup:
   - match: {hits.total.value: 2}
   - match: {hits.hits.0._source.voltage: 0.0}
   - match: {hits.hits.1._source.voltage: 4.0}
-  
+ 
   - do:
       search:
         index: sensor

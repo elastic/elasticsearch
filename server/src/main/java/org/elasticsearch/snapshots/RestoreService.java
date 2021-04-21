@@ -769,7 +769,7 @@ public class RestoreService implements ClusterStateApplier {
     }
 
     private boolean isSystemIndex(IndexMetadata indexMetadata) {
-        return indexMetadata.isSystem() || systemIndices.isSystemIndex(indexMetadata.getIndex());
+        return indexMetadata.isSystem() || systemIndices.isSystemName(indexMetadata.getIndex().getName());
     }
 
     private Map<String, DataStream> getDataStreamsToRestore(Repository repository, SnapshotId snapshotId, SnapshotInfo snapshotInfo,

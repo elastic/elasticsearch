@@ -32,21 +32,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
-public class CompositeServiceAccountsTokenStoreTests extends ESTestCase {
+public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
 
     private ThreadContext threadContext;
-    private ServiceAccountsTokenStore store1;
-    private ServiceAccountsTokenStore store2;
-    private ServiceAccountsTokenStore store3;
-    private CompositeServiceAccountsTokenStore compositeStore;
+    private ServiceAccountTokenStore store1;
+    private ServiceAccountTokenStore store2;
+    private ServiceAccountTokenStore store3;
+    private CompositeServiceAccountTokenStore compositeStore;
 
     @Before
     public void init() {
         threadContext = new ThreadContext(Settings.EMPTY);
-        store1 = mock(ServiceAccountsTokenStore.class);
-        store2 = mock(ServiceAccountsTokenStore.class);
-        store3 = mock(ServiceAccountsTokenStore.class);
-        compositeStore = new CompositeServiceAccountsTokenStore(
+        store1 = mock(ServiceAccountTokenStore.class);
+        store2 = mock(ServiceAccountTokenStore.class);
+        store3 = mock(ServiceAccountTokenStore.class);
+        compositeStore = new CompositeServiceAccountTokenStore(
             org.elasticsearch.common.collect.List.of(store1, store2, store3), threadContext);
     }
 

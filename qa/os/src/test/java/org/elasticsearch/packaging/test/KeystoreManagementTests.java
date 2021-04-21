@@ -50,7 +50,6 @@ import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -73,8 +72,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installArchive(sh, distribution);
         verifyArchiveInstallation(installation, distribution());
 
-        disableGeoIpDownloader(installation);
-
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");
         assertFalse("has-passwd should fail", r.isSuccess());
@@ -89,7 +86,6 @@ public class KeystoreManagementTests extends PackagingTestCase {
         installation = installPackage(sh, distribution);
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
-        disableGeoIpDownloader(installation);
 
         final Installation.Executables bin = installation.executables();
         Shell.Result r = sh.runIgnoreExitCode(bin.keystoreTool.toString() + " has-passwd");

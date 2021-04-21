@@ -44,8 +44,8 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;

@@ -242,7 +242,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         assertArrayEquals((long[])response.getResult(), new long[] {-1000L, 0L, 1L, 3L, 10L, 20000000000L});
     }
 
-    public void testStringFieldExecutionContext() throws IOException {
+    public void testKeywordFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
 
@@ -252,7 +252,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(doc['test_point'].value.lat.toString().substring(0, 5)); " +
                         "emit(doc['test_point'].value.lon.toString().substring(0, 5));", emptyMap()),
-                "string_field", contextSetup);
+                "keyword_field", contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
         assertArrayEquals((String[])response.getResult(), new String[] {"30.19", "40.19"});
 
@@ -260,7 +260,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
                 "emit(\"test\"); emit(\"baz was not here\"); emit(\"Data\"); emit(\"-10\"); emit(\"20\"); emit(\"9\");",
-                emptyMap()), "string_field", contextSetup);
+                emptyMap()), "keyword_field", contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
         assertArrayEquals((String[])response.getResult(), new String[] {"-10", "20", "9", "Data", "baz was not here", "test"});
     }

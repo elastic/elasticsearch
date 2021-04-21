@@ -18,7 +18,7 @@ import org.elasticsearch.ElasticsearchParseException;
  */
 public class RelativeByteSizeValue {
 
-    public static final String MAX_HEADROOM_PREFIX = "max_headroom=";
+    public static final RelativeByteSizeValue ZERO = new RelativeByteSizeValue(ByteSizeValue.ZERO);
     private final ByteSizeValue absolute;
     private final RatioValue ratio;
 

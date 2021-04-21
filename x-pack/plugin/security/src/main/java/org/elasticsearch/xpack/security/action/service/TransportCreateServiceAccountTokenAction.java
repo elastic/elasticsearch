@@ -18,23 +18,23 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 public class TransportCreateServiceAccountTokenAction
     extends HandledTransportAction<CreateServiceAccountTokenRequest, CreateServiceAccountTokenResponse> {
 
-    private final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore;
+    private final IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private final SecurityContext securityContext;
     private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
     @Inject
     public TransportCreateServiceAccountTokenAction(TransportService transportService, ActionFilters actionFilters,
-                                                    IndexServiceAccountsTokenStore indexServiceAccountsTokenStore,
+                                                    IndexServiceAccountTokenStore indexServiceAccountTokenStore,
                                                     SecurityContext securityContext,
                                                     HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
         super(CreateServiceAccountTokenAction.NAME, transportService, actionFilters, CreateServiceAccountTokenRequest::new);
-        this.indexServiceAccountsTokenStore = indexServiceAccountsTokenStore;
+        this.indexServiceAccountTokenStore = indexServiceAccountTokenStore;
         this.securityContext = securityContext;
         this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
@@ -47,7 +47,7 @@ public class TransportCreateServiceAccountTokenAction
             if (authentication == null) {
                 listener.onFailure(new IllegalStateException("authentication is required"));
             } else {
-                indexServiceAccountsTokenStore.createToken(authentication, request, listener);
+                indexServiceAccountTokenStore.createToken(authentication, request, listener);
             }
         });
     }

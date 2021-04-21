@@ -63,7 +63,6 @@ public class PackageTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
-        disableGeoIpDownloader(installation);
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
@@ -229,7 +228,6 @@ public class PackageTests extends PackagingTestCase {
         try {
             install();
             assertInstalled(distribution());
-            disableGeoIpDownloader(installation);
 
             startElasticsearch();
             restartElasticsearch(sh, installation);

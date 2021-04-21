@@ -412,7 +412,13 @@ public class RecoverySourceHandler {
         //       While practically unlikely at a min pool size of 128 we could technically block the whole pool by waiting on futures
         //       below and thus make it impossible for the store release to execute which in turn would block the futures forever
         threadPool.generic().execute(ActionRunnable.run(future, task));
-        FutureUtils.get(future);
+        try {
+            FutureUtils.get(future);
+        } catch (IllegalStateException e) {
+            if (threadPool.generic().isShutdown() == false) {
+                throw e;
+            }
+        }
     }
 
     static final class SendFileResult {

@@ -121,10 +121,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("[rank_features] fields can't be used in multi-fields");
         }
 
-        if (context.parser().currentToken() == Token.VALUE_NULL) {
-            return; // skip null values
-        }
-
         if (context.parser().currentToken() != Token.START_OBJECT) {
             throw new IllegalArgumentException("[rank_features] fields must be json objects, expected a START_OBJECT but got: " +
                     context.parser().currentToken());

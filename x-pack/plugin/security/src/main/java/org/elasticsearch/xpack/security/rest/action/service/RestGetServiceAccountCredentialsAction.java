@@ -12,8 +12,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensAction;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensRequest;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -21,9 +21,9 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetServiceAccountTokensAction extends SecurityBaseRestHandler {
+public class RestGetServiceAccountCredentialsAction extends SecurityBaseRestHandler {
 
-    public RestGetServiceAccountTokensAction(Settings settings, XPackLicenseState licenseState) {
+    public RestGetServiceAccountCredentialsAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 
@@ -36,15 +36,15 @@ public class RestGetServiceAccountTokensAction extends SecurityBaseRestHandler {
 
     @Override
     public String getName() {
-        return "xpack_security_get_service_account_tokens";
+        return "xpack_security_get_service_account_credentials";
     }
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final GetServiceAccountTokensRequest getServiceAccountTokensRequest =
-            new GetServiceAccountTokensRequest(request.param("namespace"), request.param("service"));
-        return channel -> client.execute(GetServiceAccountTokensAction.INSTANCE,
-            getServiceAccountTokensRequest,
+        final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest =
+            new GetServiceAccountCredentialsRequest(request.param("namespace"), request.param("service"));
+        return channel -> client.execute(
+            GetServiceAccountCredentialsAction.INSTANCE, getServiceAccountCredentialsRequest,
             new RestToXContentListener<>(channel));
     }
 }

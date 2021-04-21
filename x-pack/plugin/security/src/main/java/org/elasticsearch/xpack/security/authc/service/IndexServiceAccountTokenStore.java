@@ -64,9 +64,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 
-public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenStore {
+public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenStore {
 
-    private static final Logger logger = LogManager.getLogger(IndexServiceAccountsTokenStore.class);
+    private static final Logger logger = LogManager.getLogger(IndexServiceAccountTokenStore.class);
     static final String SERVICE_ACCOUNT_TOKEN_DOC_TYPE = "service_account_token";
 
     private final Clock clock;
@@ -75,9 +75,9 @@ public class IndexServiceAccountsTokenStore extends CachingServiceAccountsTokenS
     private final ClusterService clusterService;
     private final Hasher hasher;
 
-    public IndexServiceAccountsTokenStore(Settings settings, ThreadPool threadPool, Clock clock, Client client,
-                                          SecurityIndexManager securityIndex, ClusterService clusterService,
-                                          CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+    public IndexServiceAccountTokenStore(Settings settings, ThreadPool threadPool, Clock clock, Client client,
+                                         SecurityIndexManager securityIndex, ClusterService clusterService,
+                                         CacheInvalidatorRegistry cacheInvalidatorRegistry) {
         super(settings, threadPool);
         this.clock = clock;
         this.client = client;

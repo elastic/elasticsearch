@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
-public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
+public class CachingServiceAccountTokenStoreTests extends ESTestCase {
 
     private Settings globalSettings;
     private ThreadPool threadPool;
@@ -63,7 +63,7 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
         final ServiceAccountToken token2Invalid = new ServiceAccountToken(accountId, "token2", invalidSecret);
         final AtomicBoolean doAuthenticateInvoked = new AtomicBoolean(false);
 
-        final CachingServiceAccountsTokenStore store = new CachingServiceAccountsTokenStore(globalSettings, threadPool) {
+        final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
                 doAuthenticateInvoked.set(true);
@@ -76,7 +76,7 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
             }
         };
 
-        final Cache<String, ListenableFuture<CachingServiceAccountsTokenStore.CachedResult>> cache = store.getCache();
+        final Cache<String, ListenableFuture<CachingServiceAccountTokenStore.CachedResult>> cache = store.getCache();
         assertThat(cache.count(), equalTo(0));
 
         // 1st auth with the right token1
@@ -143,12 +143,12 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
     public void testCacheCanBeDisabled() throws ExecutionException, InterruptedException {
         final Settings settings = Settings.builder()
             .put(globalSettings)
-            .put(CachingServiceAccountsTokenStore.CACHE_TTL_SETTING.getKey(), "0")
+            .put(CachingServiceAccountTokenStore.CACHE_TTL_SETTING.getKey(), "0")
             .build();
 
         final boolean success = randomBoolean();
 
-        final CachingServiceAccountsTokenStore store = new CachingServiceAccountsTokenStore(settings, threadPool) {
+        final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(settings, threadPool) {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
                 listener.onResponse(success);
@@ -168,7 +168,7 @@ public class CachingServiceAccountsTokenStoreTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCacheInvalidateByKeys() {
-        final CachingServiceAccountsTokenStore store = new CachingServiceAccountsTokenStore(globalSettings, threadPool) {
+        final CachingServiceAccountTokenStore store = new CachingServiceAccountTokenStore(globalSettings, threadPool) {
             @Override
             void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
                 listener.onResponse(true);

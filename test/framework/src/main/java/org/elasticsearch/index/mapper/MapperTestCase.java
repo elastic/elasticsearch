@@ -691,4 +691,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             .fielddataBuilder("test", lookupSource)
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
+
+    public final void testNullInput() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        if (allowsNullValues()) {
+            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+            assertThat(doc.docs().get(0).getFields("field").length, equalTo(0));
+            assertThat(doc.docs().get(0).getFields("_field_names").length, equalTo(0));
+        } else {
+            expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
+        }
+    }
+
+    protected boolean allowsNullValues() {
+        return true;
+    }
 }

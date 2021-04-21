@@ -67,9 +67,12 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         SingleNodeShutdownMetadata thisNodeShutdownMetadata = getNodeShutdownMetadata(allocation.metadata(), node.getId());
 
         if (thisNodeShutdownMetadata == null) {
-            return allocation.decision(Decision.YES, NAME, "no nodes are currently shutting down");
+            return allocation.decision(Decision.YES, NAME, "node [%s] is not preparing for removal from the cluster");
+        } else if (SingleNodeShutdownMetadata.Type.RESTART.equals(thisNodeShutdownMetadata.getType())){
+            return allocation.decision(Decision.YES, NAME, "node [%s] is preparing for restart but will remain in the cluster",
+                node.getId());
         } else if (SingleNodeShutdownMetadata.Type.REMOVE.equals(thisNodeShutdownMetadata.getType())) {
-            return allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", node.getId());
+            return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
         } else {
             assert false : "node shutdown type should be either REMOVE or RESTART";
             return Decision.ALWAYS;

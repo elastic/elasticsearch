@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,7 +42,13 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         return Collections.singletonList(FailingInitializationPersistentTasksPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71995")
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
+        // We need to pass the plugin to the transport client in order to get FailingInitializationTaskParams registered
+        // into the transport client NamedWriteableRegistry
+        return Collections.singletonList(FailingInitializationPersistentTasksPlugin.class);
+    }
+
     public void testPersistentTasksThatFailDuringInitializationAreRemovedFromClusterState() throws Exception {
         PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
         PlainActionFuture<PersistentTasksCustomMetadata.PersistentTask<FailingInitializationTaskParams>> startPersistentTaskFuture =
@@ -54,9 +61,8 @@ public class PersistentTaskInitializationFailureIT extends ESIntegTestCase {
         startPersistentTaskFuture.actionGet();
 
         assertBusy(() -> {
-            final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
-            final PersistentTasksCustomMetadata persistentTasks =
-                clusterService.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            Metadata metadata = client().admin().cluster().prepareState().execute().actionGet().getState().getMetadata();
+            final PersistentTasksCustomMetadata persistentTasks = metadata.custom(PersistentTasksCustomMetadata.TYPE);
             assertThat(persistentTasks.tasks().toString(), persistentTasks.tasks(), empty());
         });
     }

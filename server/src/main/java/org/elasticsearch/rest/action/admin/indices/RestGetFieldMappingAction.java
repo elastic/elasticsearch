@@ -40,7 +40,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
     public static final String INCLUDE_TYPE_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
         "field mapping requests is deprecated. The parameter will be removed in the next major version.";
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in put mapping request is deprecated. " +
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get field mapping request is deprecated. " +
         "Use typeless api instead";
     @Override
     public List<Route> routes() {

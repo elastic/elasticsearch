@@ -29,6 +29,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -217,12 +218,33 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     /**
      * Writes a blob in the specific bucket
-     *  @param inputStream content of the blob to be written
+     * @param bytes       content of the blob to be written
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     */
+    void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        if (bytes.length() > getLargeBlobThresholdInBytes()) {
+            // Compute crc32c here so #writeBlobResumable forces the integrity check on the resumable upload.
+            // This is needed since we rely on atomic write behavior when writing BytesReferences in BlobStoreRepository which is not
+            // guaranteed for resumable uploads.
+            writeBlobResumable(
+                BlobInfo.newBuilder(bucketName, blobName).setCrc32c(Crc32C.checksum(bytes)).build(),
+                bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+        } else {
+            writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+        }
+    }
+
+    /**
+     * Writes a blob in the specific bucket
+     * @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
+        writeBlob(inputStream, blobSize, failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
+    }
+
+    private void writeBlob(InputStream inputStream, long blobSize, boolean failIfAlreadyExists, BlobInfo blobInfo) throws IOException {
         if (blobSize > getLargeBlobThresholdInBytes()) {
             writeBlobResumable(blobInfo, inputStream, blobSize, failIfAlreadyExists);
         } else {
@@ -234,6 +256,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     long getLargeBlobThresholdInBytes() {
         return LARGE_BLOB_THRESHOLD_BYTE_SIZE;
     }
+
+    // possible options for #writeBlobResumable uploads
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_NO_CRC = {Storage.BlobWriteOption.doesNotExist()};
+    private static final Storage.BlobWriteOption[] OVERWRITE_NO_CRC = new Storage.BlobWriteOption[0];
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_CHECK_CRC =
+            {Storage.BlobWriteOption.doesNotExist(), Storage.BlobWriteOption.crc32cMatch()};
+    private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_CRC = {Storage.BlobWriteOption.crc32cMatch()};
 
     /**
      * Uploads a blob using the "resumable upload" method (multiple requests, which
@@ -252,8 +281,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         inputStream.mark(Integer.MAX_VALUE);
         final byte[] buffer = new byte[size < bufferSize ? Math.toIntExact(size) : bufferSize];
         StorageException storageException = null;
-        final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
-            new Storage.BlobWriteOption[]{Storage.BlobWriteOption.doesNotExist()} : new Storage.BlobWriteOption[0];
+        final Storage.BlobWriteOption[] writeOptions;
+        if (blobInfo.getCrc32c() == null) {
+            // no crc32c, use options without checksum validation
+            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_CRC : OVERWRITE_NO_CRC;
+        } else {
+            // crc32c value is set so we use it by enabling checksum validation
+            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_CHECK_CRC : OVERWRITE_CHECK_CRC;
+        }
         for (int retry = 0; retry < 3; ++retry) {
             try {
                 final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));

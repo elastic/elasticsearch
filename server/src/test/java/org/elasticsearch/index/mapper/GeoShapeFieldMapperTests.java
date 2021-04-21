@@ -224,7 +224,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to geo_shape mappers has no effect and will be forbidden in future");
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
     }
 
     @Override

@@ -111,7 +111,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 DEPRECATION_LOGGER.deprecate(
                     DeprecationCategory.MAPPINGS,
                     "geo_shape_multifields",
-                    "Adding multifields to geo_shape mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
                 );
             }
             GeometryParser geometryParser = new GeometryParser(

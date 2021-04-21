@@ -101,7 +101,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<ParsedCar
                 DEPRECATION_LOGGER.deprecate(
                     DeprecationCategory.MAPPINGS,
                     "point_multifields",
-                    "Adding multifields to point mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [point] mappers has no effect and will be forbidden in future"
                 );
             }
             CartesianPointParser parser

@@ -240,7 +240,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
             b.startObject("keyword").field("type", "keyword").endObject();
             b.endObject();
         }));
-        assertWarnings("Adding multifields to shape mappers has no effect and will be forbidden in future");
+        assertWarnings("Adding multifields to [shape] mappers has no effect and will be forbidden in future");
     }
 
     public String toXContentString(ShapeFieldMapper mapper)  {

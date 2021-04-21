@@ -83,7 +83,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 DEPRECATION_LOGGER.deprecate(
                     DeprecationCategory.MAPPINGS,
                     "shape_multifields",
-                    "Adding multifields to shape mappers has no effect and will be forbidden in future"
+                    "Adding multifields to [shape] mappers has no effect and will be forbidden in future"
                 );
             }
             GeometryParser geometryParser

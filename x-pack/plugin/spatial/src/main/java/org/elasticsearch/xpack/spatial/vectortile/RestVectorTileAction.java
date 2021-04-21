@@ -18,6 +18,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
@@ -215,15 +216,7 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             // Add count as key value pair
             addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
             for (Aggregation aggregation : bucket.getAggregations()) {
-                Map<String, Object> responseMap = Maps.flatten(
-                    XContentHelper.convertToMap(XContentHelper.toXContent(aggregation, XContentType.CBOR, false), true, XContentType.CBOR).v2(),
-                    true
-                );
-                for (Map.Entry<String, Object> entry : responseMap.entrySet()) {
-                    if (entry.getValue() != null) {
-                        addPropertyToFeature(featureBuilder, layerProps, entry.getKey(), entry.getValue());
-                    }
-                }
+                addToXContentToFeature(featureBuilder, layerProps, aggregation);
             }
             aggLayerBuilder.addFeatures(featureBuilder);
         }
@@ -237,10 +230,6 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
         Request request,
         VectorTileGeometryBuilder geomBuilder
     ) throws IOException {
-        Map<String, Object> responseMap = Maps.flatten(
-            XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.CBOR, false), true, XContentType.CBOR).v2(),
-            true
-        );
         final VectorTile.Tile.Layer.Builder metaLayerBuilder = VectorTileUtils.createLayerBuilder(META_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
         final VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
@@ -252,14 +241,23 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             final Rectangle tile = request.getBoundingBox();
             geomBuilder.box(featureBuilder, tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat());
         }
-        for (Map.Entry<String, Object> entry : responseMap.entrySet()) {
-            if (entry.getValue() != null) {
-                addPropertyToFeature(featureBuilder, layerProps, entry.getKey(), entry.getValue());
-            }
-        }
+        addToXContentToFeature(featureBuilder, layerProps, response);
         metaLayerBuilder.addFeatures(featureBuilder);
         addPropertiesToLayer(metaLayerBuilder, layerProps);
         return metaLayerBuilder;
+    }
+
+    private void addToXContentToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, ToXContent toXContent)
+    throws IOException {
+        final Map<String, Object> map = Maps.flatten(
+            XContentHelper.convertToMap(XContentHelper.toXContent(toXContent, XContentType.CBOR, false), true, XContentType.CBOR).v2(),
+            true
+        );
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (entry.getValue() != null) {
+                addPropertyToFeature(feature, layerProps, entry.getKey(), entry.getValue());
+            }
+        }
     }
 
     private void addPropertyToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, String key, Object value) {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.spatial.vectortile;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
-import com.wdtinc.mapbox_vector_tile.encoding.MvtValue;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
@@ -17,10 +16,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.rest.RestRequest;
@@ -44,7 +39,6 @@ import org.elasticsearch.search.profile.SearchProfileShardResults;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -117,13 +111,13 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
                 s.getClusters()
             );
             if (hits.length > 0) {
-                tileBuilder.addLayers(getHitsLayer(s, request));
+                tileBuilder.addLayers(buildHitsLayer(s, request));
             }
             // TODO: should be expose the total number of buckets on InternalGeoTileGrid?
             if (grid != null && grid.getBuckets().size() > 0) {
-                tileBuilder.addLayers(getAggsLayer(grid, request, geomBuilder));
+                tileBuilder.addLayers(buildAggsLayer(grid, request, geomBuilder));
             }
-            tileBuilder.addLayers(getMetaLayer(meta, bounds, request, geomBuilder));
+            tileBuilder.addLayers(buildMetaLayer(meta, bounds, request, geomBuilder));
             tileBuilder.build().writeTo(b);
         };
     }
@@ -170,7 +164,7 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
         return searchRequestBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getHitsLayer(SearchResponse response, Request request) {
+    private VectorTile.Tile.Layer.Builder buildHitsLayer(SearchResponse response, Request request) {
         final FeatureFactory featureFactory = new FeatureFactory(request.getZ(), request.getX(), request.getY(), request.getExtent());
         final GeometryParser parser = new GeometryParser(true, false, false);
         final VectorTile.Tile.Layer.Builder hitsLayerBuilder = VectorTileUtils.createLayerBuilder(HITS_LAYER, request.getExtent());
@@ -179,12 +173,12 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             final IUserDataConverter tags = (userData, layerProps, featureBuilder) -> {
                 // TODO: It would be great if we can add the centroid information for polygons. That information can be
                 // used to place labels inside those geometries
-                addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
+                VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
                 if (fields != null) {
                     for (FieldAndFormat field : fields) {
-                        DocumentField documentField = searchHit.field(field.field);
+                        final DocumentField documentField = searchHit.field(field.field);
                         if (documentField != null) {
-                            addPropertyToFeature(featureBuilder, layerProps, field.field, documentField.getValue());
+                            VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field.field, documentField.getValue());
                         }
                     }
                 }
@@ -193,11 +187,11 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             final Geometry geometry = parser.parseGeometry(searchHit.field(request.getField()).getValue());
             hitsLayerBuilder.addAllFeatures(featureFactory.getFeatures(geometry, tags));
         }
-        addPropertiesToLayer(hitsLayerBuilder, featureFactory.getLayerProps());
+        VectorTileUtils.addPropertiesToLayer(hitsLayerBuilder, featureFactory.getLayerProps());
         return hitsLayerBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getAggsLayer(InternalGeoTileGrid grid, Request request, VectorTileGeometryBuilder geomBuilder)
+    private VectorTile.Tile.Layer.Builder buildAggsLayer(InternalGeoTileGrid grid, Request request, VectorTileGeometryBuilder geomBuilder)
         throws IOException{
         final VectorTile.Tile.Layer.Builder aggLayerBuilder = VectorTileUtils.createLayerBuilder(AGGS_LAYER, request.getExtent());
         final MvtLayerProps layerProps = new MvtLayerProps();
@@ -214,17 +208,17 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
                 geomBuilder.point(featureBuilder, point.lon(), point.lat());
             }
             // Add count as key value pair
-            addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
+            VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, COUNT_TAG, bucket.getDocCount());
             for (Aggregation aggregation : bucket.getAggregations()) {
-                addToXContentToFeature(featureBuilder, layerProps, aggregation);
+                VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, aggregation);
             }
             aggLayerBuilder.addFeatures(featureBuilder);
         }
-        addPropertiesToLayer(aggLayerBuilder, layerProps);
+        VectorTileUtils.addPropertiesToLayer(aggLayerBuilder, layerProps);
         return aggLayerBuilder;
     }
 
-    private VectorTile.Tile.Layer.Builder getMetaLayer(
+    private VectorTile.Tile.Layer.Builder buildMetaLayer(
         SearchResponse response,
         InternalGeoBounds bounds,
         Request request,
@@ -241,38 +235,10 @@ public class RestVectorTileAction extends AbstractVectorTileSearchAction<Abstrac
             final Rectangle tile = request.getBoundingBox();
             geomBuilder.box(featureBuilder, tile.getMinLon(), tile.getMaxLon(), tile.getMinLat(), tile.getMaxLat());
         }
-        addToXContentToFeature(featureBuilder, layerProps, response);
+        VectorTileUtils.addToXContentToFeature(featureBuilder, layerProps, response);
         metaLayerBuilder.addFeatures(featureBuilder);
-        addPropertiesToLayer(metaLayerBuilder, layerProps);
+        VectorTileUtils.addPropertiesToLayer(metaLayerBuilder, layerProps);
         return metaLayerBuilder;
-    }
-
-    private void addToXContentToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, ToXContent toXContent)
-    throws IOException {
-        final Map<String, Object> map = Maps.flatten(
-            XContentHelper.convertToMap(XContentHelper.toXContent(toXContent, XContentType.CBOR, false), true, XContentType.CBOR).v2(),
-            true
-        );
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            if (entry.getValue() != null) {
-                addPropertyToFeature(feature, layerProps, entry.getKey(), entry.getValue());
-            }
-        }
-    }
-
-    private void addPropertyToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, String key, Object value) {
-        feature.addTags(layerProps.addKey(key));
-        feature.addTags(layerProps.addValue(value));
-    }
-
-    private void addPropertiesToLayer(VectorTile.Tile.Layer.Builder layer, MvtLayerProps layerProps) {
-        // Add keys
-        layer.addAllKeys(layerProps.getKeys());
-        // Add values
-        final Iterable<Object> values = layerProps.getVals();
-        for (Object value : values) {
-            layer.addValues(MvtValue.toValue(value));
-        }
     }
 
     @Override

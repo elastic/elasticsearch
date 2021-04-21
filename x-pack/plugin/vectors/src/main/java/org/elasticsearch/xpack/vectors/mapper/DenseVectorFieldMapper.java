@@ -172,6 +172,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
         if (context.externalValueSet()) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
         }
+        if (context.parser().currentToken() == Token.VALUE_NULL) {
+            return;
+        }
         int dims = fieldType().dims(); //number of vector dimensions
 
         // encode array of floats as array of integers and store into buf

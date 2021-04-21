@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.precommit;
 
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Project;
 import org.gradle.api.Task;

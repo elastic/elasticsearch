@@ -9,8 +9,8 @@
 package org.elasticsearch.gradle;
 
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
-import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.precommit.PrecommitTasks;

@@ -12,7 +12,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.util.Node;
 import groovy.util.NodeList;
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.precommit.PomValidationPrecommitPlugin;
 import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.NamedDomainObjectSet;

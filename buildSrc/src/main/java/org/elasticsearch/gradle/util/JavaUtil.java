@@ -8,8 +8,8 @@
 
 package org.elasticsearch.gradle.util;
 
-import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.info.JavaHome;
+import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.JavaHome;
 import org.gradle.api.GradleException;
 
 import java.util.List;

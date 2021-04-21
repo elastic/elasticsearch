@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.internal.precommit.DependencyLicensesTask;
-import org.elasticsearch.gradle.precommit.LicenseAnalyzer;
+import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.DependencySet;

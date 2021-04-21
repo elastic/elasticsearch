@@ -8,9 +8,8 @@
 
 package org.elasticsearch.gradle.test;
 
-import org.elasticsearch.gradle.ElasticsearchTestBasePlugin;
+import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.FixtureStop;
-import org.elasticsearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;

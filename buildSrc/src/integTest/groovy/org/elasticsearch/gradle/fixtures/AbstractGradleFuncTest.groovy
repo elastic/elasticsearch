@@ -98,7 +98,7 @@ abstract class AbstractGradleFuncTest extends Specification {
           id 'elasticsearch.global-build-info'
         }
         import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.info.BuildParams
+        import org.elasticsearch.gradle.internal.info.BuildParams
 
         BuildParams.init { it.setIsInternal(true) }
 

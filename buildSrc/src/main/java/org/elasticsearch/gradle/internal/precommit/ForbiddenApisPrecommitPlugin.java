@@ -12,7 +12,7 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis;
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin;
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;

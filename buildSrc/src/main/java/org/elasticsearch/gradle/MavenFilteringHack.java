@@ -5,6 +5,10 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+<<<<<<< HEAD:buildSrc/src/main/java/org/elasticsearch/gradle/MavenFilteringHack.java
+=======
+package org.elasticsearch.gradle.internal
+>>>>>>> Restructure build tools java packages:buildSrc/src/main/groovy/org/elasticsearch/gradle/internal/MavenFilteringHack.groovy
 
 package org.elasticsearch.gradle;
 

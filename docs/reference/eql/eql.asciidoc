@@ -422,13 +422,12 @@ You can also use the `fields` parameter to retrieve and format specific fields
 in the response. This field is identical to the search API's
 <<search-fields,`fields` parameter>>.
 
-
 include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-desc]
 
-The following EQL search uses the `fields` parameter to retrieve values for the
-`event.type` field, all fields starting with `process.`, and the `@timestamp`
-field. The request also uses the `filter_path` query parameter to exclude the
-`_source` of each hit.
+The following search request uses the `fields` parameter to retrieve values for
+the `event.type` field, all fields starting with `process.`, and the
+`@timestamp` field. The request also uses the `filter_path` query parameter to
+exclude the `_source` of each hit.
 
 [source,console]
 ----
@@ -449,16 +448,10 @@ GET /my-data-stream/_eql/search?filter_path=-hits.events._source
 ----
 // TEST[setup:sec_logs]
 
-<1> Both full field names and wildcard patterns are accepted.
-<2> Use the `format` parameter to apply a custom format for the field's values.
-    <<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
-    <<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
-    accept either `geojson` for http://www.geojson.org[GeoJSON] (the default)
-    or `wkt` for
-    {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text].
-    Other field types do not support the `format` parameter.
+include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-callouts]
 
-The values are returned as a flat list in the `fields` section of each hit:
+The response includes values as a flat list in the `fields` section for each
+hit.
 
 [source,console-result]
 ----

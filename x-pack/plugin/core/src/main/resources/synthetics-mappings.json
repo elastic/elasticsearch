@@ -12,16 +12,6 @@
           }
         },
         {
-          "match_message": {
-            "match_mapping_type": "string",
-            "match": "message",
-            "mapping": {
-              "type": "text",
-              "norms": false
-            }
-          }
-        },
-        {
           "strings_as_keyword": {
             "mapping": {
               "ignore_above": 1024,

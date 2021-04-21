@@ -186,8 +186,14 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                     "realm [{}] does not have a cached result for user [{}]; attempting fresh authentication", name(), token.principal());
                 // attempt authentication against the authentication source
                 doAuthenticate(token, ActionListener.wrap(authResult -> {
-                    if (authResult.isAuthenticated() == false || authResult.getUser().enabled() == false) {
+                    if (authResult.isAuthenticated() == false) {
                         logger.trace("realm [{}] did not authenticate user [{}] ([{}])", name(), token.principal(), authResult);
+                        // a new request should trigger a new authentication
+                        cache.invalidate(token.principal(), listenableCacheEntry);
+                    } else if (authResult.getUser().enabled() == false) {
+                        logger.trace(
+                            "realm [{}] cannot authenticate [{}], user is not enabled ([{}])",
+                            name(), token.principal(), authResult.getUser());
                         // a new request should trigger a new authentication
                         cache.invalidate(token.principal(), listenableCacheEntry);
                     } else {

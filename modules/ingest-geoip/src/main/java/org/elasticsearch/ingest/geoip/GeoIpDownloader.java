@@ -179,7 +179,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     //visible for testing
-    int indexChunks(String name, InputStream is, int chunk, String expectedMd5, long timestamp) throws IOException {
+    int indexChunks(String name, InputStream is, int startChunk, String expectedMd5, long timestamp) throws IOException {
+        int chunk = startChunk;
         MessageDigest md = MessageDigests.md5();
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             md.update(buf);
@@ -192,13 +193,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             chunk++;
         }
 
-        // May take some time before automatic flush kicks in:
-        // (otherwise the translog will contain large documents for some time without good reason)
-        FlushRequest flushRequest = new FlushRequest(DATABASES_INDEX);
-        client.admin().indices().flush(flushRequest).actionGet();
-        // Ensure that the chunk documents are visible:
-        RefreshRequest refreshRequest = new RefreshRequest(DATABASES_INDEX);
-        client.admin().indices().refresh(refreshRequest).actionGet();
+        if (chunk != startChunk) {
+            // May take some time before automatic flush kicks in:
+            // (otherwise the translog will contain large documents for some time without good reason)
+            FlushRequest flushRequest = new FlushRequest(DATABASES_INDEX);
+            client.admin().indices().flush(flushRequest).actionGet();
+            // Ensure that the chunk documents are visible:
+            RefreshRequest refreshRequest = new RefreshRequest(DATABASES_INDEX);
+            client.admin().indices().refresh(refreshRequest).actionGet();
+        }
 
         String actualMd5 = MessageDigests.toHexString(md.digest());
         if (Objects.equals(expectedMd5, actualMd5) == false) {

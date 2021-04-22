@@ -13,6 +13,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest.OpType;
+import org.elasticsearch.action.admin.indices.flush.FlushAction;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -173,6 +179,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
             assertArrayEquals(chunksData[chunk], (byte[]) source.get("data"));
             assertEquals(chunk + 15, source.get("chunk"));
             listener.onResponse(mock(IndexResponse.class));
+        });
+        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
+            assertArrayEquals(new String[] {GeoIpDownloader.DATABASES_INDEX}, request.indices());
+            flushResponseActionListener.onResponse(mock(FlushResponse.class));
+        });
+        client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
+            assertArrayEquals(new String[] {GeoIpDownloader.DATABASES_INDEX}, request.indices());
+            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
         });
 
         InputStream big = new ByteArrayInputStream(bigArray);

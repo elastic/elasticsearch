@@ -85,7 +85,7 @@ enable <<deprecation-logging, deprecation logging>>.
 ====
 *Impact* +
 Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or
-<<eql-syntax-pattern-comparison-keywords,`regex`>> keywords instead.
+<<eql-syntax-pattern-comparison-keywords,`regex`>> keyword instead.
 ====
 
 [discrete]

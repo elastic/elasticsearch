@@ -1027,7 +1027,7 @@ If using a field as the argument, this parameter supports only
 [[eql-fn-wildcard]]
 === `wildcard`
 
-deprecated::[7.13.0,"The `wildcard` function is deprecated. Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or <<eql-syntax-pattern-comparison-keywords,`regex`>> keywords instead."]
+deprecated::[7.13.0,"The `wildcard` function is deprecated. Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or <<eql-syntax-pattern-comparison-keywords,`regex`>> keyword instead."]
 
 Returns `true` if a source string matches one or more provided wildcard
 expressions. Matching is case-sensitive by default.

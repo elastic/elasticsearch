@@ -28,11 +28,11 @@ public class MavenFilteringHack {
      * Adds a filter to the given copy spec that will substitute maven variables.
      * 
      */
-    static void filter(CopySpec copySpec, Map<String,String> substitutions) {
-        Map<String,String> mavenSubstitutions = new LinkedHashMap<>();
+    static void filter(CopySpec copySpec, Map<Object, Object> substitutions) {
+        Map<String, String> mavenSubstitutions = new LinkedHashMap<>();
         Map<String, Object> argMap = new LinkedHashMap<>();
 
-        substitutions.forEach((k,v) -> mavenSubstitutions.put("{" + k, v));
+        substitutions.forEach((k,v) -> mavenSubstitutions.put("{" + k.toString(), v.toString()));
 
         argMap.put("tokens",mavenSubstitutions);
         argMap.put("beginToken", "$");

@@ -28,11 +28,13 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
     public static final String DEPRECATION_WARNING = "Legacy index templates are deprecated and will be removed completely in a " +
         "future version. Please use composable templates instead.";
     private static final RestApiVersion DEPRECATION_VERSION = RestApiVersion.V_8;
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
-
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying include_type_name in put index template requests is deprecated."+
+        " The parameter will be removed in the next major version.";
     @Override
     public List<Route> routes() {
         return List.of(
@@ -67,7 +69,19 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
 
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
             request.getXContentType()).v2();
-        sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
+        if(request.getRestApiVersion() == RestApiVersion.V_7) {
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) ) {
+                deprecationLogger.compatibleApiWarning("put_index_template_with_types", TYPES_DEPRECATION_MESSAGE);
+            }
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            if(includeTypeName) {
+                sourceAsMap = RestCreateIndexAction.prepareMappingsV7(sourceAsMap, request);
+            } else {
+                sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
+            }
+        } else {
+            sourceAsMap = RestCreateIndexAction.prepareMappings(sourceAsMap);
+        }
         if (request.getRestApiVersion() == RestApiVersion.V_7 && sourceAsMap.containsKey("template")) {
             deprecationLogger.compatibleApiWarning("template_field_deprecation",
                 "Deprecated field [template] used, replaced by [index_patterns]");

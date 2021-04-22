@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.search.SearchRequest.DEFAULT_INDICES_OPTIONS;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -291,7 +292,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (request.indices().length > 0) {
             validationException = addValidationError("[indices] cannot be used with point in time", validationException);
         }
-        if (request.indicesOptions() != SearchRequest.DEFAULT_INDICES_OPTIONS) {
+        if (request.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
             validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
         }
         if (request.routing() != null) {

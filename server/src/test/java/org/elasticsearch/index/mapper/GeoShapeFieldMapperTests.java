@@ -217,6 +217,16 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
     }
 
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
+    }
+
     @Override
     protected boolean supportsMeta() {
         return false;

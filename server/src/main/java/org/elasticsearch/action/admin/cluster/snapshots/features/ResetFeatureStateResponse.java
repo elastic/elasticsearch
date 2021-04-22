@@ -44,6 +44,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         this.resetFeatureStateStatusList = in.readList(ResetFeatureStateStatus::new);
     }
 
+    // TODO: rename
     public List<ResetFeatureStateStatus> getItemList() {
         return this.resetFeatureStateStatusList;
     }
@@ -148,9 +149,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             builder.startObject();
             builder.field("feature_name", this.featureName);
             builder.field("status", this.status);
-            if (this.exception != null) {
-                builder.field("exception", this.exception);
-            }
+            ElasticsearchException.generateFailureXContent(builder, params, exception, true);
             builder.endObject();
             return builder;
         }

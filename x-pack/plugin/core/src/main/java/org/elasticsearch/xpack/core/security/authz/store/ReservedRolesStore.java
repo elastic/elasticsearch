@@ -356,7 +356,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("kibana-.kibana")
                     .resources("*")
-                    .privileges("read").build() },
+                    .privileges("read").build(),
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.*")
+                    .resources("*")
+                    .privileges("reserved_ml_user").build() },
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
@@ -383,7 +387,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("kibana-.kibana")
                     .resources("*")
-                    .privileges("all").build() },
+                    .privileges("all").build(),
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.*")
+                    .resources("*")
+                    .privileges("reserved_ml_admin").build() },
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,

@@ -1713,6 +1713,11 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // Check application privileges
         assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-read", "read"), "*"), is(true));
         assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", "all"), "*"), is(false));
+        final String kibIndex = "kibana-." + randomAlphaOfLengthBetween(5, 10);
+        assertThat(
+            role.application().grants(new ApplicationPrivilege(kibIndex, "app-reserved_ml_user", "reserved_ml_user"), "*"), is(true));
+        assertThat(
+            role.application().grants(new ApplicationPrivilege(kibIndex, "app-reserved_ml_admin", "reserved_ml_admin"), "*"), is(false));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
     }
@@ -1767,6 +1772,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         // Check application privileges
         assertThat(role.application().grants(new ApplicationPrivilege("kibana-.kibana", "kibana-all", "all"), "*"), is(true));
+        assertThat(role.application().grants(
+            new ApplicationPrivilege("kibana-." + randomAlphaOfLengthBetween(6, 10),
+                "app-reserved_ml", "reserved_ml_admin"), "*"), is(true));
 
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 20)), is(false));
     }

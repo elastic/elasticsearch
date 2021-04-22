@@ -6,15 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.xpack.core.ilm.AsyncActionStep.Listener;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -96,21 +95,7 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        step.performAction(indexMetadata, emptyClusterState(), null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertTrue(actionCompleted.get());
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -130,22 +115,8 @@ public class ShrinkSetAliasStepTests extends AbstractStepTestCase<ShrinkSetAlias
             return null;
         }).when(indicesClient).aliases(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, emptyClusterState(), null, new Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertSame(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertEquals(true, exceptionThrown.get());
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+            f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

@@ -22,6 +22,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.Collector;
@@ -35,6 +36,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -102,6 +104,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -540,6 +543,38 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
+    protected void withIndex(
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        CheckedConsumer<IndexSearcher, IOException> consume
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            buildIndex.accept(iw);
+            iw.close();
+            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+                consume.accept(newIndexSearcher(indexReader));
+            }
+        }
+    }
+
+    protected void withNonMergingIndex(
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        CheckedConsumer<IndexSearcher, IOException> consume
+    ) throws IOException {
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(
+                random(),
+                directory,
+                LuceneTestCase.newIndexWriterConfig(random(), new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
+            );
+            buildIndex.accept(iw);
+            iw.close();
+            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+                consume.accept(newIndexSearcher(indexReader));
+            }
+        }
+    }
+
     /**
      * Execute and aggregation and collect its {@link Aggregator#collectDebugInfo debug}
      * information. Unlike {@link #testCase} this doesn't randomly create an
@@ -550,49 +585,65 @@ public abstract class AggregatorTestCase extends ESTestCase {
         AggregationBuilder builder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
-        TriConsumer<R, Class<? extends Aggregator>, Map<String, Object>> verify,
+        TriConsumer<R, Class<? extends Aggregator>, Map<String, Map<String, Object>>> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        try (Directory directory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            buildIndex.accept(indexWriter);
-            indexWriter.close();
+        withIndex(buildIndex, searcher -> debugTestCase(builder, query, searcher, verify, fieldTypes));
+    }
 
-            try (DirectoryReader unwrapped = DirectoryReader.open(directory); IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
-                IndexSearcher searcher = newIndexSearcher(indexReader);
-                // Don't use searchAndReduce because we only want a single aggregator.
-                IndexReaderContext ctx = searcher.getTopReaderContext();
-                CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-                AggregationContext context = createAggregationContext(
-                    searcher,
-                    createIndexSettings(),
-                    searcher.rewrite(query),
-                    breakerService,
-                    builder.bytesToPreallocate(),
-                    DEFAULT_MAX_BUCKETS,
-                    fieldTypes
-                );
-                Aggregator aggregator = createAggregator(builder, context);
-                aggregator.preCollection();
-                searcher.search(context.query(), aggregator);
-                aggregator.postCollection();
-                InternalAggregation r = aggregator.buildTopLevel();
-                r = r.reduce(
-                    List.of(r),
-                    ReduceContext.forFinalReduction(
-                        context.bigArrays(),
-                        getMockScriptService(),
-                        context.multiBucketConsumer(),
-                        builder.buildPipelineTree()
-                    )
-                );
-                @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
-                R result = (R) r;
-                Map<String, Object> debug = new HashMap<>();
-                aggregator.collectDebugInfo(debug::put);
-                verify.apply(result, aggregator.getClass(), debug);
-                verifyOutputFieldNames(builder, result);
-            }
+    /**
+     * Execute and aggregation and collect its {@link Aggregator#collectDebugInfo debug}
+     * information. Unlike {@link #testCase} this doesn't randomly create an
+     * {@link Aggregator} per leaf and perform partial reductions. It always
+     * creates a single {@link Aggregator} so we can get consistent debug info.
+     */
+    protected <R extends InternalAggregation> void debugTestCase(
+        AggregationBuilder builder,
+        Query query,
+        IndexSearcher searcher,
+        TriConsumer<R, Class<? extends Aggregator>, Map<String, Map<String, Object>>> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        // Don't use searchAndReduce because we only want a single aggregator.
+        IndexReaderContext ctx = searcher.getTopReaderContext();
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        AggregationContext context = createAggregationContext(
+            searcher,
+            createIndexSettings(),
+            searcher.rewrite(query),
+            breakerService,
+            builder.bytesToPreallocate(),
+            DEFAULT_MAX_BUCKETS,
+            fieldTypes
+        );
+        Aggregator aggregator = createAggregator(builder, context);
+        aggregator.preCollection();
+        searcher.search(context.query(), aggregator);
+        aggregator.postCollection();
+        InternalAggregation r = aggregator.buildTopLevel();
+        r = r.reduce(
+            List.of(r),
+            ReduceContext.forFinalReduction(
+                context.bigArrays(),
+                getMockScriptService(),
+                context.multiBucketConsumer(),
+                builder.buildPipelineTree()
+            )
+        );
+        @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
+        R result = (R) r;
+        Map<String, Map<String, Object>> debug = new HashMap<>();
+        collectDebugInfo("", aggregator, debug);
+        verify.apply(result, aggregator.getClass(), debug);
+        verifyOutputFieldNames(builder, result);
+    }
+
+    private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
+        Map<String, Object> debug = new HashMap<>();
+        aggregator.collectDebugInfo(debug::put);
+        allDebug.put(prefix + aggregator.name(), debug);
+        for (Aggregator sub : aggregator.subAggregators()) {
+            collectDebugInfo(aggregator.name() + ".", sub, allDebug);
         }
     }
 
@@ -624,12 +675,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return;
         }
 
-        assert agg instanceof NumericMetricsAggregation.MultiValue : "only multi value aggs are supported";
-
-        NumericMetricsAggregation.MultiValue multiValueAgg = (NumericMetricsAggregation.MultiValue) agg;
         Set<String> valueNames = new HashSet<>();
-        for (String name : multiValueAgg.valueNames()) {
-            valueNames.add(name);
+
+        if (agg instanceof NumericMetricsAggregation.MultiValue) {
+            NumericMetricsAggregation.MultiValue multiValueAgg = (NumericMetricsAggregation.MultiValue) agg;
+            for (String name : multiValueAgg.valueNames()) {
+                valueNames.add(name);
+            }
+        } else if (agg instanceof MultiValueAggregation) {
+            MultiValueAggregation multiValueAgg = (MultiValueAggregation) agg;
+            for (String name : multiValueAgg.valueNames()) {
+                valueNames.add(name);
+            }
+        } else {
+            assert false : "only multi value aggs are supported";
         }
 
         assertEquals(aggregationBuilder.getOutputFieldNames().get(), valueNames);

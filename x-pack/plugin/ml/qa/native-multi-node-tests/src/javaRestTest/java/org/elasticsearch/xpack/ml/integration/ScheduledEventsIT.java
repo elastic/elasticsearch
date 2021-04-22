@@ -393,8 +393,6 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         job.setDataDescription(dataDescription);
         putJob(job);
-        // register for clean up
-        registerJob(job);
 
         return job;
     }

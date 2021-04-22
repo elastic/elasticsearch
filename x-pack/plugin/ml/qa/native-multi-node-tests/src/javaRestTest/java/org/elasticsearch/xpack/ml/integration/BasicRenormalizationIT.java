@@ -97,7 +97,6 @@ public class BasicRenormalizationIT extends MlNativeAutodetectIntegTestCase {
         if (renormalizationWindow != null) {
             job.setRenormalizationWindowDays(renormalizationWindow);
         }
-        registerJob(job);
         putJob(job);
         return job;
     }

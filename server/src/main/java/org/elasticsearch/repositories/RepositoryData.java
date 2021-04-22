@@ -969,7 +969,7 @@ public final class RepositoryData {
 
         public static SnapshotDetails EMPTY = new SnapshotDetails(null, null);
 
-        @Nullable // TODO when?
+        @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;
 
         @Nullable // may be omitted if pre-7.6 nodes were involved somewhere

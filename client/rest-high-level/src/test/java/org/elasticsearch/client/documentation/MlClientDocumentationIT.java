@@ -782,7 +782,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setQuery(QueryBuilders.matchAllQuery()) // <6>
                 .setQueryDelay(TimeValue.timeValueMinutes(1)) // <7>
                 .setScriptFields(scriptFields) // <8>
-                .setScrollSize(1000); // <9>
+                .setScrollSize(1000) // <9>
                 .setRuntimeMappings(runtimeMappings); // <10>
             // end::update-datafeed-config
 

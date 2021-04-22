@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -35,20 +34,15 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.ShardSnapshotContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import javax.crypto.KeyGenerator;
@@ -239,36 +233,14 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void snapshotShard(
-        Store store,
-        MapperService mapperService,
-        SnapshotId snapshotId,
-        IndexId indexId,
-        IndexCommit snapshotIndexCommit,
-        String shardStateIdentifier,
-        IndexShardSnapshotStatus snapshotStatus,
-        Version repositoryMetaVersion,
-        Map<String, Object> userMetadata,
-        ActionListener<ShardSnapshotResult> listener
-    ) {
+    public void snapshotShard(ShardSnapshotContext context) {
         try {
-            validateLocalRepositorySecret(userMetadata);
+            validateLocalRepositorySecret(context.userMetadata());
         } catch (RepositoryException passwordValidationException) {
-            listener.onFailure(passwordValidationException);
+            context.onFailure(passwordValidationException);
             return;
         }
-        super.snapshotShard(
-            store,
-            mapperService,
-            snapshotId,
-            indexId,
-            snapshotIndexCommit,
-            shardStateIdentifier,
-            snapshotStatus,
-            repositoryMetaVersion,
-            userMetadata,
-            listener
-        );
+        super.snapshotShard(context);
     }
 
     @Override

@@ -146,8 +146,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
-        final RepositoryData modifiedRepositoryData = repositoryData.withVersions(Collections.singletonMap(fakeOldSnapshot,
-            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion())).withoutUUIDs();
+        final RepositoryData modifiedRepositoryData = repositoryData
+                .withoutSnapshotVersion(fakeOldSnapshot.getUUID())
+                .withVersions(Collections.singletonMap(
+                        fakeOldSnapshot,
+                        SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
         final BytesReference serialized = BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(),
             SnapshotsService.OLD_SNAPSHOT_FORMAT));
         PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->

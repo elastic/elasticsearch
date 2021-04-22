@@ -628,17 +628,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             final SingleUseKey singleUseNonceAndDEK = singleUseDEKSupplier.get();
             final BytesReference dekIdBytes = getDEKBytes(singleUseNonceAndDEK);
             final long encryptedBlobSize = getEncryptedBlobByteLength(blobSize);
-            try (
-                InputStream encryptedInputStream = ChainingInputStream.chain(
-                    dekIdBytes.streamInput(),
-                    new EncryptionPacketsInputStream(
-                        inputStream,
-                        singleUseNonceAndDEK.getKey(),
-                        singleUseNonceAndDEK.getNonce(),
-                        PACKET_LENGTH_IN_BYTES
-                    )
-                )
-            ) {
+            try (InputStream encryptedInputStream = encryptedInput(inputStream, singleUseNonceAndDEK, dekIdBytes)) {
                 delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
             }
         }
@@ -654,21 +644,24 @@ public class EncryptedRepository extends BlobStoreRepository {
                     bigArrays
                 )
             ) {
-                try (
-                    InputStream encryptedInputStream = ChainingInputStream.chain(
-                        dekIdBytes.streamInput(),
-                        new EncryptionPacketsInputStream(
-                            bytes.streamInput(),
-                            singleUseNonceAndDEK.getKey(),
-                            singleUseNonceAndDEK.getNonce(),
-                            PACKET_LENGTH_IN_BYTES
-                        )
-                    )
-                ) {
+                try (InputStream encryptedInputStream = encryptedInput(bytes.streamInput(), singleUseNonceAndDEK, dekIdBytes)) {
                     org.elasticsearch.core.internal.io.Streams.copy(encryptedInputStream, tmp, false);
                 }
                 delegatedBlobContainer.writeBlob(blobName, tmp.bytes(), failIfAlreadyExists);
             }
+        }
+
+        private ChainingInputStream encryptedInput(InputStream inputStream, SingleUseKey singleUseNonceAndDEK, BytesReference dekIdBytes)
+            throws IOException {
+            return ChainingInputStream.chain(
+                dekIdBytes.streamInput(),
+                new EncryptionPacketsInputStream(
+                    inputStream,
+                    singleUseNonceAndDEK.getKey(),
+                    singleUseNonceAndDEK.getNonce(),
+                    PACKET_LENGTH_IN_BYTES
+                )
+            );
         }
 
         private BytesReference getDEKBytes(SingleUseKey singleUseNonceAndDEK) {

@@ -9,9 +9,7 @@ Allows a new node to join an existing cluster with security enabled.
 [[cluster-enroll-node-api-request]]
 ==== {api-request-title}
 
-`POST /_cluster/enroll_node`
-
-`PUT /_cluster/enroll_node`
+`GET /_cluster/enroll_node`
 
 [[cluster-enroll-node-api-prereqs]]
 ==== {api-prereq-title}
@@ -31,7 +29,7 @@ can successfully join the cluster.
 
 [source,console]
 --------------------------------------------------
-POST /_cluster/enroll_node
+GET /_cluster/enroll_node
 --------------------------------------------------
 
 The API returns a response such as

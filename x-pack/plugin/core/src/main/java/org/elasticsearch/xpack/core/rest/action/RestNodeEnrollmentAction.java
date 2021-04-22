@@ -30,8 +30,7 @@ public final class RestNodeEnrollmentAction extends BaseRestHandler {
 
     @Override public List<Route> routes() {
         return List.of(
-            new Route(RestRequest.Method.POST, "_cluster/enroll_node"),
-            new Route(RestRequest.Method.PUT, "_cluster/enroll_node")
+            new Route(RestRequest.Method.GET, "_cluster/enroll_node")
         );
     }
 

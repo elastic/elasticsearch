@@ -15,8 +15,7 @@
         {
           "path":"/_cluster/enroll_node",
           "methods":[
-            "PUT",
-            "POST"
+            "GET"
           ]
         }
       ]

@@ -8,6 +8,7 @@
 package org.elasticsearch.painless.action;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -75,15 +76,18 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -556,7 +560,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                             request.getScript().getParams(), context.lookup(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
                     DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
                     dateFieldScript.runForDoc(0);
-                    return new Response(dateFieldScript.asDocValues());
+                    return new Response(Arrays.stream(dateFieldScript.asDocValues()).
+                            mapToObj(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER::formatMillis).collect(Collectors.toList()));
                 }, indexService);
             } else if (scriptContext == DoubleFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
@@ -574,7 +579,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                             factory.newFactory(GeoPointFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
                     geoPointFieldScript.runForDoc(0);
-                    return new Response(geoPointFieldScript.asDocValues());
+                    return new Response(Arrays.stream(geoPointFieldScript.asDocValues()).mapToObj(p ->
+                            GeoEncodingUtils.decodeLatitude((int)(p >>> 32)) + ", " +
+                                    GeoEncodingUtils.decodeLongitude((int)(p & 0xFFFFFFFF))).collect(Collectors.toList()));
                 }, indexService);
             } else if (scriptContext == IpFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
@@ -583,7 +590,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                             factory.newFactory(IpFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
                     ipFieldScript.runForDoc(0);
-                    return new Response(ipFieldScript.asDocValues());
+                    return new Response(Arrays.stream(ipFieldScript.asDocValues()).
+                            map(ip -> ip == null ? null : DocValueFormat.IP.format(ip)).collect(Collectors.toList()));
                 }, indexService);
             } else if (scriptContext == LongFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {

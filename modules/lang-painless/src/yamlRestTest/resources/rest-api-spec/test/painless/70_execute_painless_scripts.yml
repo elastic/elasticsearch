@@ -128,7 +128,7 @@ setup:
             document:
               date: "2015-01-01T12:10:30Z"
             index: "my-index"
-  - match: { result: [ 1420114230000 ] }
+  - match: { result: [ "2015-01-01T12:10:30.000Z" ] }
 
 ---
 "Execute with date field context (multi-value)":
@@ -143,7 +143,7 @@ setup:
               date0: "2015-01-01T12:10:30Z"
               date1: "2010-11-30T13:14:35Z"
             index: "my-index"
-  - match: { result: [ 1291122875000, 1420114230000 ] }
+  - match: { result: [ "2010-11-30T13:14:35.000Z", "2015-01-01T12:10:30.000Z" ] }
 
 ---
 "Execute with double field context (single-value)":
@@ -189,7 +189,6 @@ setup:
             document:
               point: "30.0,40.0"
             index: "my-index"
-  - match: { result: [ 3176939252927413179 ] }
 
 ---
 "Execute with geo point field context (multi-value)":
@@ -204,7 +203,6 @@ setup:
               p0: "30.0,40.0"
               p1: "40.0,30.0"
             index: "my-index"
-  - match: { result: [ 3176939252927413179, 4201758367059757556 ] }
 
 ---
 "Execute with ip field context (single-value)":
@@ -218,6 +216,7 @@ setup:
             document:
               ip: "192.168.1.254"
             index: "my-index"
+  - match: { result: [ "192.168.1.254" ] }
 
 ---
 "Execute with ip field context (multi-value)":
@@ -231,6 +230,7 @@ setup:
             document:
               ip: "192.168.1.254"
             index: "my-index"
+  - match: { result: [ "127.0.0.1", "192.168.1.254", "255.255.255.255" ] }
 
 ---
 "Execute with long field context (single-value)":

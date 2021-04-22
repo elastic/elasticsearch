@@ -605,8 +605,7 @@ public class MatchQueryParser {
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                checkForPositions(field);
-                return fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                return fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -618,8 +617,7 @@ public class MatchQueryParser {
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                checkForPositions(field);
-                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements);
+                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -630,10 +628,7 @@ public class MatchQueryParser {
 
         private Query analyzePhrasePrefix(String field, TokenStream stream, int slop, int positionCount) throws IOException {
             try {
-                if (positionCount > 1) {
-                    checkForPositions(field);
-                }
-                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions);
+                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -781,12 +776,6 @@ public class MatchQueryParser {
                 return clauses.get(0);
             } else {
                 return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), 0, true);
-            }
-        }
-
-        private void checkForPositions(String field) {
-            if (fieldType.getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
     }

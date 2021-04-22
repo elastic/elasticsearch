@@ -9,18 +9,11 @@ beta::[]
 ++++
 
 Evicts a subset of all entries from the service account token caches.
-There are separate caches for tokens backed the `service_tokens` file
-and tokens backed by the `.security` index.
-The API will to clear matching entries from both caches.
-In addition, the cache for `.security` index backed tokens is
-automatically cleared on state changes of the security index
-and the cache for `service_tokens` file backed tokens is
-automatically cleared on file changes.
 
 [[security-api-clear-service-token-caches-request]]
 ==== {api-request-title}
 
-`POST /_security/service/{namespace}/{service}/credential/{name}/_clear_cache`
+`POST /_security/service/{namespace}/{service}/credential/{token_name}/_clear_cache`
 
 [[security-api-clear-service-token-caches-prereqs]]
 ==== {api-prereq-title}
@@ -30,9 +23,15 @@ privilege.
 
 [[security-api-clear-service-token-caches-desc]]
 ==== {api-description-title}
+Two, separate caches exist for service account tokens: one cache for tokens
+backed by the `service_tokens` file, and another for tokens backed by the
+`.security` index. This API clears matching entries from both caches.
 
-For more information about service account tokens, see <<security-api-create-service-token>>,
-<<security-api-get-service-credentials>>, and <<security-api-delete-service-token>>.
+The cache for service account tokens backed by the `.security` index is cleared
+automatically on state changes of the security index. The cache for tokens
+backed by the `service_tokens` file is cleared automatically on file changes.
+
+See <<service-accounts,Service accounts>> for more information.
 
 [[security-api-clear-service-token-caches-path-params]]
 ==== {api-path-parms-title}
@@ -43,29 +42,30 @@ For more information about service account tokens, see <<security-api-create-ser
 `service`::
 (Required, string) An identifier for the service name.
 
-`name`::
-(Required, string) Comma-separated list of token names to evict from the service account token caches.
-To evict all tokens belong to a service account, use `*`. Does not support other wildcard patterns.
+`token_name`::
+(Required, string) Comma-separated list of token names to evict from the
+service account token caches. Use a wildcard (`*`) to evict all tokens that
+belong to a service account.
 
 [[security-api-clear-service-token-caches-example]]
 ==== {api-examples-title}
-
-The clear service account token caches API evicts entries from the service account token cache.
-For example, to clear the entry of service account token with name `token1`.
+The following request clears the service account token cache for the `token1`
+token:
 
 [source,console]
---------------------------------------------------
+----
 POST /_security/service/elastic/fleet-server/credential/token/token1/_clear_cache
---------------------------------------------------
+----
 
-Specify multiple token names as a comma-separated list.
+Specify multiple token names as a comma-separated list:
 
 [source,console]
 ----
 POST /_security/service/elastic/fleet-server/credential/token/token1,token2/_clear_cache
 ----
 
-To clear all entries from the service account token caches, use `*`.
+To clear all entries from the service account token caches, use a wildcard
+(`*`) in place of token names:
 
 [source,console]
 ----

@@ -2,37 +2,38 @@
 [[token-authentication-services]]
 === Token-based authentication services
 
-The {stack-security-features} authenticate users by using realms and one or more token-based
-authentication services. The token-based authentication services are used for
-authentication and for the management of tokens. These tokens can be used as
-credentials attached to requests that are sent to {es}. When {es} receives a request
-that must be authenticated, it consults first the token-based authentication
-services then the realm chain.
+The {stack-security-features} authenticate users by using realms and one or
+more token-based authentication services. The token-based authentication
+services are used for authenticating and managing tokens. These tokens can be
+used as credentials attached to requests that are sent to {es}. When {es}
+receives a request that must be authenticated, it first consults the
+token-based authentication services then the realm chain.
 
-The {security-features} provide the following built-in token-based authentication
-services, which are listed in the order they are consulted:
-
-beta::["The service accounts feature is in beta and subject to change. The design and code is less mature than official GA features and is being provided as-is with no warranties. Beta features are not subject to the support SLA of official GA features."]
+The {security-features} provide the following built-in token-based
+authentication services, which are listed in the order they are consulted:
 
 _service-accounts_::
-The <<service-accounts,service accounts>> feature uses either the
-<<security-api-create-service-token,create service account token API>>
-or the <<service-tokens-command,elasticsearch-service-tokens>> CLI tool
-to generate service account tokens.
-You can use it by sending a request with an `Authorization`
-header with a value that has the prefix "Bearer " followed by the value of the
-service account token. For example:
 +
 --
-[source,shell]
---------------------------------------------------
-curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3" http://localhost:9200/_cluster/health
---------------------------------------------------
-// NOTCONSOLE
---
 
-Service accounts are purposely builtin for integration with external services.
-They are not intented for general use. See <<service-accounts>> for details.
+beta::[]
+
+<<service-accounts,Service accounts>> use either the
+<<security-api-create-service-token,create service account token API>>
+or the <<service-tokens-command,elasticsearch-service-tokens>> CLI tool to
+generate service account tokens.
+
+To use a service account token, include the generated token value in a request
+with an `Authorization: Bearer` header:
+
+[source,shell]
+----
+curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3" http://localhost:9200/_cluster/health
+----
+// NOTCONSOLE
+
+include::service-accounts.asciidoc[tag=service-accounts-usage]
+--
 
 _token-service_::
 The token service uses the <<security-api-get-token,get token API>> to

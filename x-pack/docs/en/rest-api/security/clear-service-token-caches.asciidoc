@@ -32,7 +32,7 @@ privilege.
 ==== {api-description-title}
 
 For more information about service account tokens, see <<security-api-create-service-token>>,
-<<security-api-get-service-tokens>>, and <<security-api-delete-service-token>>.
+<<security-api-get-service-credentials>>, and <<security-api-delete-service-token>>.
 
 [[security-api-clear-service-token-caches-path-params]]
 ==== {api-path-parms-title}

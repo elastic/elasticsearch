@@ -97,6 +97,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryData.SnapshotDetails;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -1129,8 +1130,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final ActionListener<Void> allMetaListener = new GroupedActionListener<>(
                 ActionListener.wrap(v -> {
+                    final SnapshotDetails snapshotDetails = new SnapshotDetails(snapshotInfo.state(), Version.CURRENT);
                     final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
-                        snapshotId, snapshotInfo.state(), Version.CURRENT, shardGenerations, indexMetas, indexMetaIdentifiers);
+                        snapshotId, snapshotDetails, shardGenerations, indexMetas, indexMetaIdentifiers);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, repositoryMetaVersion, stateTransformer,
                             ActionListener.wrap(
                                     newRepoData -> {

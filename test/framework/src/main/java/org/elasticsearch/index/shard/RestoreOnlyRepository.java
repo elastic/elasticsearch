@@ -89,7 +89,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
                 EMPTY_REPO_GEN,
                 Collections.emptyMap(),
                 Collections.emptyMap(),
-                Collections.emptyMap(),
                 Collections.singletonMap(indexId, emptyList()),
                 ShardGenerations.EMPTY,
                 IndexMetaDataGenerations.EMPTY,

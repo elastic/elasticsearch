@@ -61,7 +61,7 @@ You can also configure advanced settings. _Lookback interval_ sets an interval
 that is used to query previous anomalies during each condition check. _Number of 
 latest buckets_ sets how many buckets to check to obtain the highest anomaly 
 from all the anomalies that are found during the _Lookback interval_. An alert 
-is created based on anomaly with the the highest anomaly score from the most 
+is created based on the anomaly with the highest anomaly score from the most 
 anomalous bucket. _Lookback interval_ is derived from the bucket span of the job 
 and the query delay of the {dfeed} by default.
 

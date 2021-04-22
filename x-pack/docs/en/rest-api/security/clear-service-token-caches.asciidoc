@@ -55,19 +55,19 @@ For example, to clear the entry of service account token with name `token1`.
 
 [source,console]
 --------------------------------------------------
-POST /_security/service/elastic/fleet-server/credential/token1/_clear_cache
+POST /_security/service/elastic/fleet-server/credential/token/token1/_clear_cache
 --------------------------------------------------
 
 Specify multiple token names as a comma-separated list.
 
 [source,console]
 ----
-POST /_security/service/elastic/fleet-server/credential/token1,token2/_clear_cache
+POST /_security/service/elastic/fleet-server/credential/token/token1,token2/_clear_cache
 ----
 
 To clear all entries from the service account token caches, use `*`.
 
 [source,console]
 ----
-POST /_security/service/elastic/fleet-server/credential/*/_clear_cache
+POST /_security/service/elastic/fleet-server/credential/token/*/_clear_cache
 ----

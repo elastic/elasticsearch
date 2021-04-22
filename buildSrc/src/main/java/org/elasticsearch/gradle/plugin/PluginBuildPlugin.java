@@ -12,7 +12,7 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.lang.Closure;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.BuildPlugin;
+import org.elasticsearch.gradle.internal.BuildPlugin;
 import org.elasticsearch.gradle.NoticeTask;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;

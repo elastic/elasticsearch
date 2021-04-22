@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.gradle.tar;
+package org.elasticsearch.gradle.internal;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -133,16 +133,12 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
     }
 
     private void runBuild(final String task, final boolean preserveFileTimestamps) {
-        final GradleRunner runner = GradleRunner.create()
-            .withProjectDir(getProjectDir())
-            .withArguments(
-                task,
-                "-Dtests.symbolic_link_preserving_tar_source=" + temporaryFolder.getRoot().toString(),
-                "-Dtests.symbolic_link_preserving_tar_preserve_file_timestamps=" + preserveFileTimestamps,
-                "-i"
-            )
-            .withPluginClasspath();
-
+        final GradleRunner runner = getGradleRunner("symbolic-link-preserving-tar").withArguments(
+            task,
+            "-Dtests.symbolic_link_preserving_tar_source=" + temporaryFolder.getRoot().toString(),
+            "-Dtests.symbolic_link_preserving_tar_preserve_file_timestamps=" + preserveFileTimestamps,
+            "-i"
+        );
         runner.build();
     }
 

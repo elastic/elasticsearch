@@ -6,12 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle;
+package org.elasticsearch.gradle.internal;
 
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
+import org.elasticsearch.gradle.DependenciesGraphPlugin;
+import org.elasticsearch.gradle.DependenciesInfoPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.gradle.api.GradleException;

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.test;
 
-import org.elasticsearch.gradle.BuildPlugin;
+import org.elasticsearch.gradle.internal.BuildPlugin;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;

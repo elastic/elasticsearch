@@ -102,7 +102,7 @@ abstract class AbstractGradleFuncTest extends Specification {
 
         BuildParams.init { it.setIsInternal(true) }
 
-        import org.elasticsearch.gradle.BwcVersions
+        import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
 
         Version currentVersion = Version.fromString("8.0.0")

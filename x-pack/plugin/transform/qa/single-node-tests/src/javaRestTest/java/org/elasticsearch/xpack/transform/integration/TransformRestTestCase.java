@@ -442,8 +442,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         ensureNoInitializingShards();
         logAudits();
         if (preserveClusterUponCompletion() == false) {
-            wipeTransforms();
-            waitForPendingTransformTasks();
+            adminClient().performRequest(new Request("POST", "/_features/_reset"));
         }
     }
 
@@ -452,58 +451,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         // we might have disabled wiping indices, but now its time to get rid of them
         // note: can not use super.cleanUpCluster() as this method must be static
         wipeAllIndices();
-    }
-
-    public void wipeTransforms() throws IOException {
-        List<Map<String, Object>> transformConfigs = getTransforms();
-        for (Map<String, Object> transformConfig : transformConfigs) {
-            String transformId = (String) transformConfig.get("id");
-            Request request = new Request("POST", getTransformEndpoint() + transformId + "/_stop");
-            request.addParameter("wait_for_completion", "true");
-            request.addParameter("timeout", "10s");
-            request.addParameter("ignore", "404");
-            adminClient().performRequest(request);
-        }
-
-        for (Map<String, Object> transformConfig : transformConfigs) {
-            String transformId = (String) transformConfig.get("id");
-            String state = getTransformState(transformId);
-            assertEquals("Transform [" + transformId + "] is not in the stopped state", "stopped", state);
-        }
-
-        for (Map<String, Object> transformConfig : transformConfigs) {
-            String transformId = (String) transformConfig.get("id");
-            deleteTransform(transformId);
-        }
-
-        // transforms should be all gone
-        transformConfigs = getTransforms();
-        assertTrue(transformConfigs.isEmpty());
-
-        // the configuration index should be empty
-        Request request = new Request("GET", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_search");
-        request.setOptions(
-            expectWarnings(
-                "this request accesses system indices: ["
-                    + TransformInternalIndexConstants.LATEST_INDEX_NAME
-                    + "], but in a future major version, direct access to system indices will be prevented by default"
-            )
-        );
-        try {
-            Response searchResponse = adminClient().performRequest(request);
-            Map<String, Object> searchResult = entityAsMap(searchResponse);
-
-            assertEquals(0, XContentMapValues.extractValue("hits.total.value", searchResult));
-        } catch (ResponseException e) {
-            // 404 here just means we had no transforms, true for some tests
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
-    }
-
-    protected static void waitForPendingTransformTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TransformField.TASK_NAME) == false);
     }
 
     static int getTransformCheckpoint(String transformId) throws IOException {

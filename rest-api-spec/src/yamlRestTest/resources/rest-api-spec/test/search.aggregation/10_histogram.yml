@@ -636,8 +636,8 @@ setup:
 ---
 "Tiny tiny tiny range":
   - skip:
-      version: " - 7.99.99"
-      reason:  fixed in 8.0 and being backported to 7.13.0
+      version: " - 7.12.99"
+      reason:  fixed in 7.13.0
 
   - do:
       bulk:

@@ -1120,7 +1120,12 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     public void testPivotWithGeoBoundsAgg() throws Exception {
         String transformId = "geo_bounds_pivot";
         String transformIndex = "geo_bounds_pivot_reviews";
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+        String indexName = "reviews_geo_bounds";
+
+        // gh#71874 regression test: create some sparse data
+        createReviewsIndex(indexName, 1000, "date", false, 5, "location");
+
+        setupDataAccessRole(DATA_ACCESS_ROLE, indexName, transformIndex);
 
         final Request createTransformRequest = createRequestWithAuth(
             "PUT",
@@ -1130,7 +1135,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         String config = "{"
             + " \"source\": {\"index\":\""
-            + REVIEWS_INDEX_NAME
+            + indexName
             + "\"},"
             + " \"dest\": {\"index\":\""
             + transformIndex

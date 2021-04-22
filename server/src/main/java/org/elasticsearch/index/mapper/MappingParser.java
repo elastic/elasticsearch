@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -72,33 +73,28 @@ public final class MappingParser {
 
     @SuppressWarnings("unchecked")
     Mapping parse(@Nullable String type, CompressedXContent source) throws MapperParsingException {
-        Map<String, Object> mapping = null;
-        if (source != null) {
-            mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
-            if (mapping.isEmpty()) {
-                if (type == null) {
-                    throw new MapperParsingException("malformed mapping, no type name found");
-                }
-            } else {
-                String rootName = mapping.keySet().iterator().next();
-                if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
-                    type = rootName;
-                    mapping = (Map<String, Object>) mapping.get(rootName);
-                }
+        Objects.requireNonNull(source, "mapping source cannot be null");
+        Map<String, Object> mapping = XContentHelper.convertToMap(source.compressedReference(), true, XContentType.JSON).v2();
+        if (mapping.isEmpty()) {
+            if (type == null) {
+                throw new MapperParsingException("malformed mapping, no type name found");
+            }
+        } else {
+            String rootName = mapping.keySet().iterator().next();
+            if (type == null || type.equals(rootName) || documentTypeResolver.apply(type).equals(rootName)) {
+                type = rootName;
+                mapping = (Map<String, Object>) mapping.get(rootName);
             }
         }
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
-        if (mapping == null) {
-            mapping = new HashMap<>();
-        }
-        return parse(type, mapping);
+        return parse(type, mapping, parserContextSupplier.get());
     }
 
-    private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+    private Mapping parse(String type, Map<String, Object> mapping, Mapper.TypeParser.ParserContext parserContext)
+        throws MapperParsingException {
         ContentPath contentPath = new ContentPath(1);
-        Mapper.TypeParser.ParserContext parserContext = parserContextSupplier.get();
         RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(contentPath);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();

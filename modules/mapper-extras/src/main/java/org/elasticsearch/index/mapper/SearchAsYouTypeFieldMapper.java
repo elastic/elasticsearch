@@ -274,38 +274,52 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             }
         }
 
+        private void checkForPositions() {
+            if (getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+            }
+        }
+
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
+            checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
                 return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
-            return shingleField.phraseQuery(stream, 0, true);
+            return shingleField.phraseQuery(stream, 0, true, context);
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
+            checkForPositions();
             int numPos = countPosition(stream);
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
                 return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
-            return shingleField.multiPhraseQuery(stream, 0, true);
+            return shingleField.multiPhraseQuery(stream, 0, true, context);
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
+                SearchExecutionContext context) throws IOException {
             int numPos = countPosition(stream);
+            if (numPos > 1) {
+                checkForPositions();
+            }
             if (shingleFields.length == 0 || slop > 0 || hasGaps(stream) || numPos <= 1) {
                 return TextFieldMapper.createPhrasePrefixQuery(stream, name(), slop, maxExpansions,
                     null, null);
             }
             final ShingleFieldType shingleField = shingleFieldForPositions(numPos);
             stream = new FixedShingleFilter(stream, shingleField.shingleSize);
-            return shingleField.phrasePrefixQuery(stream, 0, maxExpansions);
+            return shingleField.phrasePrefixQuery(stream, 0, maxExpansions, context);
         }
 
         @Override
@@ -502,17 +516,20 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
             return TextFieldMapper.createPhraseQuery(stream, name(), slop, enablePositionIncrements);
         }
 
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions,
+                SearchExecutionContext context) throws IOException {
             final String prefixFieldName = slop > 0
                 ? null
                 : prefixFieldType.name();

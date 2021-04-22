@@ -208,8 +208,8 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                 if (Paths.get(blobName).getFileName().toString().startsWith(BlobStoreRepository.UPLOADED_DATA_BLOB_PREFIX) == false) {
                     final Map<String, Object> parsedBody = XContentHelper.convertToMap(requestBody, false, XContentType.JSON).v2();
-                    assert parsedBody.get("crc32c") != null :
-                            "file [" + blobName + "] is not a data blob but did not come with a crc32c checksum";
+                    assert parsedBody.get("md5Hash") != null :
+                            "file [" + blobName + "] is not a data blob but did not come with a md5 checksum";
                 }
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.getResponseHeaders().add("Location", httpServerUrl(exchange) + "/upload/storage/v1/b/" + bucket + "/o?"

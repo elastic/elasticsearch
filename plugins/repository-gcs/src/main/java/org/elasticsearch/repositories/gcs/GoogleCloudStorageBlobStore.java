@@ -21,6 +21,8 @@ import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -31,6 +33,7 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -42,7 +45,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -223,11 +228,17 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      */
     void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         if (bytes.length() > getLargeBlobThresholdInBytes()) {
-            // Compute crc32c here so #writeBlobResumable forces the integrity check on the resumable upload.
+            // Compute md5 here so #writeBlobResumable forces the integrity check on the resumable upload.
             // This is needed since we rely on atomic write behavior when writing BytesReferences in BlobStoreRepository which is not
             // guaranteed for resumable uploads.
+            MessageDigest md5 = MessageDigests.md5();
+            final BytesRefIterator iterator = bytes.iterator();
+            BytesRef ref;
+            while ((ref = iterator.next()) != null) {
+                md5.update(ref.bytes, ref.offset, ref.length);
+            }
             writeBlobResumable(
-                BlobInfo.newBuilder(bucketName, blobName).setCrc32c(Crc32C.checksum(bytes)).build(),
+                    BlobInfo.newBuilder(bucketName, blobName).setMd5(Base64.getEncoder().encodeToString(md5.digest())).build(),
                 bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         } else {
             writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
@@ -258,11 +269,11 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     // possible options for #writeBlobResumable uploads
-    private static final Storage.BlobWriteOption[] NO_OVERWRITE_NO_CRC = {Storage.BlobWriteOption.doesNotExist()};
-    private static final Storage.BlobWriteOption[] OVERWRITE_NO_CRC = new Storage.BlobWriteOption[0];
-    private static final Storage.BlobWriteOption[] NO_OVERWRITE_CHECK_CRC =
-            {Storage.BlobWriteOption.doesNotExist(), Storage.BlobWriteOption.crc32cMatch()};
-    private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_CRC = {Storage.BlobWriteOption.crc32cMatch()};
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_NO_MD5 = {Storage.BlobWriteOption.doesNotExist()};
+    private static final Storage.BlobWriteOption[] OVERWRITE_NO_MD5 = new Storage.BlobWriteOption[0];
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_CHECK_MD5 =
+            {Storage.BlobWriteOption.doesNotExist(), Storage.BlobWriteOption.md5Match()};
+    private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_MD5 = {Storage.BlobWriteOption.md5Match()};
 
     /**
      * Uploads a blob using the "resumable upload" method (multiple requests, which
@@ -282,12 +293,12 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         final byte[] buffer = new byte[size < bufferSize ? Math.toIntExact(size) : bufferSize];
         StorageException storageException = null;
         final Storage.BlobWriteOption[] writeOptions;
-        if (blobInfo.getCrc32c() == null) {
-            // no crc32c, use options without checksum validation
-            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_CRC : OVERWRITE_NO_CRC;
+        if (blobInfo.getMd5() == null) {
+            // no md5, use options without checksum validation
+            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_MD5 : OVERWRITE_NO_MD5;
         } else {
-            // crc32c value is set so we use it by enabling checksum validation
-            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_CHECK_CRC : OVERWRITE_CHECK_CRC;
+            // md5 value is set so we use it by enabling checksum validation
+            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_CHECK_MD5 : OVERWRITE_CHECK_MD5;
         }
         for (int retry = 0; retry < 3; ++retry) {
             try {

@@ -21,11 +21,11 @@ import org.elasticsearch.snapshots.SnapshotId;
 import java.util.Map;
 
 /**
- * Context holding the state for creating a shard snapshot via {@link Repository#snapshotShard(ShardSnapshotContext)}.
+ * Context holding the state for creating a shard snapshot via {@link Repository#snapshotShard(SnapshotShardContext)}.
  * Wraps a {@link org.elasticsearch.index.engine.Engine.IndexCommitRef} that is released once this instances is completed by invoking
  * either its {@link #onResponse(ShardSnapshotResult)} or {@link #onFailure(Exception)} callback.
  */
-public final class ShardSnapshotContext extends ActionListener.Delegating<ShardSnapshotResult, ShardSnapshotResult> {
+public final class SnapshotShardContext extends ActionListener.Delegating<ShardSnapshotResult, ShardSnapshotResult> {
 
     private final Store store;
     private final MapperService mapperService;
@@ -53,7 +53,7 @@ public final class ShardSnapshotContext extends ActionListener.Delegating<ShardS
      *                              {@link org.elasticsearch.cluster.SnapshotsInProgress.Entry#userMetadata()}
      * @param listener              listener invoked on completion
      */
-    public ShardSnapshotContext(
+    public SnapshotShardContext(
             Store store,
             MapperService mapperService,
             SnapshotId snapshotId,

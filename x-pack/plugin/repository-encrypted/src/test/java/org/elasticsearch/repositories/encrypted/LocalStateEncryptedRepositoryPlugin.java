@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.ShardSnapshotContext;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
@@ -86,7 +86,7 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
         }
 
         @Override
-        public void snapshotShard(ShardSnapshotContext context) {
+        public void snapshotShard(SnapshotShardContext context) {
             snapshotShardLock.lock();
             try {
                 while (snapshotShardBlock.get()) {

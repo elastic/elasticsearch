@@ -65,7 +65,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.ShardSnapshotContext;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
@@ -109,7 +109,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing("-1");
             final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
-            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(new ShardSnapshotContext(shard.store(),
+            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(new SnapshotShardContext(shard.store(),
                 shard.mapperService(), snapshotId, indexId, snapshotRef, null, indexShardSnapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future)));
             IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, future::actionGet);
@@ -136,7 +136,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             SnapshotId snapshotId = new SnapshotId("test", "test");
             final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
-            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(new ShardSnapshotContext(shard.store(),
+            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(new SnapshotShardContext(shard.store(),
                 shard.mapperService(), snapshotId, indexId, snapshotRef, null, indexShardSnapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future)));
             shardGeneration = future.actionGet().getGeneration();
@@ -153,7 +153,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
             final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
-            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(new ShardSnapshotContext(shard.store(),
+            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(new SnapshotShardContext(shard.store(),
                 shard.mapperService(), snapshotId, indexId, snapshotRef, null, indexShardSnapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future)));
             shardGeneration = future.actionGet().getGeneration();
@@ -170,7 +170,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
             final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
-            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(new ShardSnapshotContext(shard.store(),
+            runAsSnapshot(shard.getThreadPool(), () -> repository.snapshotShard(new SnapshotShardContext(shard.store(),
                 shard.mapperService(), snapshotId, indexId, snapshotRef, null, indexShardSnapshotStatus, Version.CURRENT,
                 Collections.emptyMap(), future)));
             future.actionGet();
@@ -219,7 +219,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
             final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
             runAsSnapshot(shard.getThreadPool(), () -> {
-                repository.snapshotShard(new ShardSnapshotContext(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef,
+                repository.snapshotShard(new SnapshotShardContext(shard.store(), shard.mapperService(), snapshotId, indexId, snapshotRef,
                     null, indexShardSnapshotStatus, Version.CURRENT, Collections.emptyMap(), future));
                 future.actionGet();
                 final PlainActionFuture<RepositoryData> finFuture = PlainActionFuture.newFuture();

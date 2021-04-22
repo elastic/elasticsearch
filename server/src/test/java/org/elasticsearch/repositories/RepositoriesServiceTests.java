@@ -249,7 +249,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void snapshotShard(ShardSnapshotContext context) {
+        public void snapshotShard(SnapshotShardContext context) {
 
         }
 

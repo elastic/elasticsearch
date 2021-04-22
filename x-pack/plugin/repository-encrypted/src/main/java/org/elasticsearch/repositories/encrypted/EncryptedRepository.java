@@ -41,7 +41,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.ShardSnapshotContext;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -233,7 +233,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void snapshotShard(ShardSnapshotContext context) {
+    public void snapshotShard(SnapshotShardContext context) {
         try {
             validateLocalRepositorySecret(context.userMetadata());
         } catch (RepositoryException passwordValidationException) {

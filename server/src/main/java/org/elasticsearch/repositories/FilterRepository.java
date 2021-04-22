@@ -111,7 +111,7 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void snapshotShard(ShardSnapshotContext context) {
+    public void snapshotShard(SnapshotShardContext context) {
         in.snapshotShard(context);
     }
     @Override

@@ -47,7 +47,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.ShardSnapshotContext;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
@@ -101,7 +101,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<ShardSnapshotResult> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                repository.snapshotShard(new ShardSnapshotContext(store, null, snapshotId, indexId,
+                repository.snapshotShard(new SnapshotShardContext(store, null, snapshotId, indexId,
                     new Engine.IndexCommitRef(indexCommit, () -> {}), null, snapshotStatus, Version.CURRENT, Collections.emptyMap(),
                     future1));
                 future1.actionGet();
@@ -131,7 +131,7 @@ public class FsRepositoryTests extends ESTestCase {
             final PlainActionFuture<ShardSnapshotResult> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-                repository.snapshotShard(new ShardSnapshotContext(store, null, incSnapshotId, indexId,
+                repository.snapshotShard(new SnapshotShardContext(store, null, incSnapshotId, indexId,
                     new Engine.IndexCommitRef(incIndexCommit, () -> {}), null, snapshotStatus, Version.CURRENT,
                     Collections.emptyMap(), future2));
                 future2.actionGet();

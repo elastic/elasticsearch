@@ -44,7 +44,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.ShardSnapshotContext;
+import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -125,7 +125,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
 
     @Override
-    public void snapshotShard(ShardSnapshotContext context) {
+    public void snapshotShard(SnapshotShardContext context) {
         final MapperService mapperService = context.mapperService();
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
@@ -175,7 +175,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            super.snapshotShard(new ShardSnapshotContext(tempStore, mapperService, context.snapshotId(), context.indexId(),
+            super.snapshotShard(new SnapshotShardContext(tempStore, mapperService, context.snapshotId(), context.indexId(),
                     new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)), context.stateIdentifier(),
                     context.status(), context.getRepositoryMetaVersion(), context.userMetadata(), context));
         } catch (IOException e) {

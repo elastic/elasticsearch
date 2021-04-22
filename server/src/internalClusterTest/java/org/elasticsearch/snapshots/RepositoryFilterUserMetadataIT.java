@@ -22,7 +22,7 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.ShardSnapshotContext;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -83,7 +83,7 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     }
 
                     @Override
-                    public void snapshotShard(ShardSnapshotContext context) {
+                    public void snapshotShard(SnapshotShardContext context) {
                         assertThat(context.userMetadata(), is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.snapshotShard(context);
                     }

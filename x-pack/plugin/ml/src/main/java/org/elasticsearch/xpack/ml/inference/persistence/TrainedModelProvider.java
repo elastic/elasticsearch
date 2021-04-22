@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
@@ -146,14 +147,20 @@ public class TrainedModelProvider {
         }
 
         TrainedModelDefinition definition = trainedModelConfig.getModelDefinition();
-        if (definition == null) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] is required",
+        TrainedModelLocation location = trainedModelConfig.getLocation();
+        if (definition == null && location == null) {
+            listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] or [{}] is required",
                 trainedModelConfig.getModelId(),
-                TrainedModelConfig.DEFINITION.getPreferredName()));
+                TrainedModelConfig.DEFINITION.getPreferredName(),
+                TrainedModelConfig.LOCATION.getPreferredName()));
             return;
         }
 
-        storeTrainedModelAndDefinition(trainedModelConfig, listener);
+        if (definition != null) {
+            storeTrainedModelAndDefinition(trainedModelConfig, listener);
+        } else {
+            storeTrainedModelConfig(trainedModelConfig, listener);
+        }
     }
 
     public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
@@ -1129,7 +1136,7 @@ public class TrainedModelProvider {
                 // lang ident model were the only models supported. Models created after
                 // VERSION_MODEL_TYPE_ADDED must have modelType set, if not set modelType
                 // is a tree ensemble
-                assert builder.getVersion().before(TrainedModelConfig.VERSION_MODEL_TYPE_ADDED);
+                assert builder.getVersion().before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED);
                 builder.setModelType(TrainedModelType.TREE_ENSEMBLE);
             }
             return builder;
@@ -1159,6 +1166,8 @@ public class TrainedModelProvider {
     }
 
     private IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body) {
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = body.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
             return request.opType(DocWriteRequest.OpType.CREATE).id(docId).source(source);

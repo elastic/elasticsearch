@@ -124,8 +124,6 @@ public class TransportStartTrainedModelDeploymentAction
 
 
                 TrainedModelConfig trainedModelConfig = getModelResponse.getResources().results().get(0);
-                logger.error(trainedModelConfig.toString());
-
                 if (trainedModelConfig.getModelType() != TrainedModelType.PYTORCH) {
                     listener.onFailure(ExceptionsHelper.badRequestException(
                         "model [{}] of type [{}] cannot be deployed. Only PyTorch models can be deployed",
@@ -133,20 +131,16 @@ public class TransportStartTrainedModelDeploymentAction
                     return;
                 }
 
-                trainedModelConfig.ensureParsedDefinition(xContentRegistry);
-                if (trainedModelConfig.getModelDefinition().getTrainedModel() instanceof PyTorchModel == false) {
+                if (trainedModelConfig.getLocation() == null) {
                     listener.onFailure(ExceptionsHelper.serverError(
-                        "model [{}] does not have PyTorch model definition", trainedModelConfig.getModelId()));
+                        "model [{}] does not have location", trainedModelConfig.getModelId()));
                     return;
                 }
 
-                PyTorchModel pyTorchModel = (PyTorchModel)trainedModelConfig.getModelDefinition().getTrainedModel();
-
-                logger.error("deploying");
                 persistentTasksService.sendStartRequest(
                     MlTasks.trainedModelDeploymentTaskId(request.getModelId()),
                     MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
-                    new TaskParams(pyTorchModel.getModelId()),
+                    new TaskParams(trainedModelConfig.getLocation().getModelId(), trainedModelConfig.getLocation().getIndex()),
                     waitForDeploymentToStart
                 );
             },

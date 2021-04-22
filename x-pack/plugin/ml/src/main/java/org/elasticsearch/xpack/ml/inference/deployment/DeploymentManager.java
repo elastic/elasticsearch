@@ -63,7 +63,7 @@ public class DeploymentManager {
     private void doStartDeployment(TrainedModelDeploymentTask task) {
         logger.debug("[{}] Starting model deployment", task.getModelId());
 
-        ProcessContext processContext = new ProcessContext(task.getModelId(), executorServiceForProcess);
+        ProcessContext processContext = new ProcessContext(task.getModelId(), task.getIndex(), executorServiceForProcess);
 
         if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
             throw ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId());
@@ -145,12 +145,14 @@ public class DeploymentManager {
     class ProcessContext {
 
         private final String modelId;
+        private final String index;
         private final SetOnce<PyTorchProcess> process = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 
-        ProcessContext(String modelId, ExecutorService executorService) {
+        ProcessContext(String modelId, String index, ExecutorService executorService) {
             this.modelId = Objects.requireNonNull(modelId);
+            this.index = Objects.requireNonNull(index);
             resultProcessor = new PyTorchResultProcessor(modelId);
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
         }
@@ -179,7 +181,7 @@ public class DeploymentManager {
         }
 
         void loadModel(ActionListener<Boolean> listener) {
-            process.get().loadModel(modelId, stateStreamer, listener);
+            process.get().loadModel(modelId, index, stateStreamer, listener);
         }
     }
 

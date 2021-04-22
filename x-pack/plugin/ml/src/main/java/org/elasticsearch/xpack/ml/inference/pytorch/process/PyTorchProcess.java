@@ -23,5 +23,5 @@ public interface PyTorchProcess extends NativeProcess {
      */
     String writeInferenceRequest(double[] inputs) throws IOException;
 
-    void loadModel(String modelId, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener);
+    void loadModel(String modelId, String index, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener);
 }

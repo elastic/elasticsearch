@@ -16,23 +16,16 @@
             "input": {
                 "field_names": ["text_field"]
             },
-            "definition": {
-              "preprocessors" : [],
-              "trained_model": {
-                "pytorch": {
-                  "model_id": "distilbert-finetuned-sst",
-                  "index": "big_model",
-                  "target_type": "classification"
-                }
-              }
+            "location": {
+              "model_id": "distilbert-finetuned-sst",
+              "index": "big_model"
             }
           }
 
   - do:
       ml.get_trained_models:
         model_id: distilbert-finetuned-sst
-        include: definition
-  - match: { trained_model_configs.0.definition.trained_model.pytorch.model_id: distilbert-finetuned-sst }
+  - match: { trained_model_configs.0.location.model_id: distilbert-finetuned-sst }
 
   - do:
       ml.start_deployment:

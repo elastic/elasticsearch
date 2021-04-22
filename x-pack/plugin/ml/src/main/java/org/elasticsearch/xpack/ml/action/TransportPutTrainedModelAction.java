@@ -75,73 +75,81 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                    ClusterState state,
                                    ActionListener<Response> listener) {
         TrainedModelConfig config = request.getTrainedModelConfig();
-        try {
-            config.ensureParsedDefinition(xContentRegistry);
-            config.getModelDefinition().getTrainedModel().validate();
-        } catch (IOException ex) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]",
-                ex,
-                config.getModelId()));
-            return;
-        } catch (ElasticsearchException ex) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.",
-                ex,
-                config.getModelId()));
-            return;
-        }
+        boolean hasModelDefinition = config.getModelDefinition() != null;
+        if (hasModelDefinition) {
+            try {
+                config.ensureParsedDefinition(xContentRegistry);
+                config.getModelDefinition().getTrainedModel().validate();
+            } catch (IOException ex) {
+                listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]",
+                    ex,
+                    config.getModelId()));
+                return;
+            } catch (ElasticsearchException ex) {
+                listener.onFailure(ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.",
+                    ex,
+                    config.getModelId()));
+                return;
+            }
 
-        TrainedModelType trainedModelType =
-            TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
-        if (trainedModelType == null) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Unknown trained model definition class [{}]",
-                config.getModelDefinition().getTrainedModel().getName()));
-            return;
-        }
+            TrainedModelType trainedModelType =
+                TrainedModelType.typeFromTrainedModel(config.getModelDefinition().getTrainedModel());
+            if (trainedModelType == null) {
+                listener.onFailure(ExceptionsHelper.badRequestException("Unknown trained model definition class [{}]",
+                    config.getModelDefinition().getTrainedModel().getName()));
+                return;
+            }
 
-        if (config.getModelType() == null) {
-            // Set the model type from the definition
-            config = new TrainedModelConfig.Builder(config).setModelType(trainedModelType).build();
-        } else if (trainedModelType != config.getModelType()) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                 "{} [{}] does not match the model definition type [{}]",
-                TrainedModelConfig.MODEL_TYPE.getPreferredName(), config.getModelType(),
-                trainedModelType));
-            return;
-        }
+            if (config.getModelType() == null) {
+                // Set the model type from the definition
+                config = new TrainedModelConfig.Builder(config).setModelType(trainedModelType).build();
+            } else if (trainedModelType != config.getModelType()) {
+                listener.onFailure(ExceptionsHelper.badRequestException(
+                    "{} [{}] does not match the model definition type [{}]",
+                    TrainedModelConfig.MODEL_TYPE.getPreferredName(), config.getModelType(),
+                    trainedModelType));
+                return;
+            }
 
-        if (config.getInferenceConfig()
-            .isTargetTypeSupported(config
+            if (config.getInferenceConfig()
+                .isTargetTypeSupported(config
+                    .getModelDefinition()
+                    .getTrainedModel()
+                    .targetType()) == false) {
+                listener.onFailure(ExceptionsHelper.badRequestException(
+                    "Model [{}] inference config type [{}] does not support definition target type [{}]",
+                    config.getModelId(),
+                    config.getInferenceConfig().getName(),
+                    config.getModelDefinition().getTrainedModel().targetType()));
+                return;
+            }
+
+            Version minCompatibilityVersion = config
                 .getModelDefinition()
                 .getTrainedModel()
-                .targetType()) == false) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "Model [{}] inference config type [{}] does not support definition target type [{}]",
-                config.getModelId(),
-                config.getInferenceConfig().getName(),
-                config.getModelDefinition().getTrainedModel().targetType()));
-            return;
+                .getMinimalCompatibilityVersion();
+            if (state.nodes().getMinNodeVersion().before(minCompatibilityVersion)) {
+                listener.onFailure(ExceptionsHelper.badRequestException(
+                    "Definition for [{}] requires that all nodes are at least version [{}]",
+                    config.getModelId(),
+                    minCompatibilityVersion.toString()));
+                return;
+            }
         }
 
-        Version minCompatibilityVersion = config
-            .getModelDefinition()
-            .getTrainedModel()
-            .getMinimalCompatibilityVersion();
-        if (state.nodes().getMinNodeVersion().before(minCompatibilityVersion)) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "Definition for [{}] requires that all nodes are at least version [{}]",
-                config.getModelId(),
-                minCompatibilityVersion.toString()));
-            return;
-        }
 
-        TrainedModelConfig trainedModelConfig = new TrainedModelConfig.Builder(config)
+
+
+        TrainedModelConfig.Builder trainedModelConfig = new TrainedModelConfig.Builder(config)
             .setVersion(Version.CURRENT)
             .setCreateTime(Instant.now())
             .setCreatedBy("api_user")
-            .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setEstimatedHeapMemory(config.getModelDefinition().ramBytesUsed())
-            .setEstimatedOperations(config.getModelDefinition().getTrainedModel().estimatedNumOperations())
-            .build();
+            .setLicenseLevel(License.OperationMode.PLATINUM.description());
+        if (hasModelDefinition) {
+            trainedModelConfig.setEstimatedHeapMemory(config.getModelDefinition().ramBytesUsed())
+                .setEstimatedOperations(config.getModelDefinition().getTrainedModel().estimatedNumOperations());
+        }
+
         if (ModelAliasMetadata.fromState(state).getModelId(trainedModelConfig.getModelId()) != null) {
             listener.onFailure(ExceptionsHelper.badRequestException(
                 "requested model_id [{}] is the same as an existing model_alias. Model model_aliases and ids must be unique",
@@ -151,9 +159,9 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
         }
 
         ActionListener<Void> tagsModelIdCheckListener = ActionListener.wrap(
-            r -> trainedModelProvider.storeTrainedModel(trainedModelConfig, ActionListener.wrap(
+            r -> trainedModelProvider.storeTrainedModel(trainedModelConfig.build(), ActionListener.wrap(
                 bool -> {
-                    TrainedModelConfig configToReturn = new TrainedModelConfig.Builder(trainedModelConfig).clearDefinition().build();
+                    TrainedModelConfig configToReturn = trainedModelConfig.clearDefinition().build();
                     listener.onResponse(new PutTrainedModelAction.Response(configToReturn));
                 },
                 listener::onFailure

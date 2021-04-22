@@ -22,6 +22,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -120,17 +121,24 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         public static final Version VERSION_INTRODUCED = Version.V_8_0_0;
 
         private final String modelId;
+        private final String index;
 
-        public TaskParams(String modelId) {
+        public TaskParams(String modelId, String index) {
             this.modelId = Objects.requireNonNull(modelId);
+            this.index = Objects.requireNonNull(index);
         }
 
         public TaskParams(StreamInput in) throws IOException {
             this.modelId = in.readString();
+            this.index = in.readString();
         }
 
         public String getModelId() {
             return modelId;
+        }
+
+        public String getIndex() {
+            return index;
         }
 
         @Override
@@ -146,12 +154,14 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(modelId);
+            out.writeString(index);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
+            builder.field(TrainedModelLocation.INDEX.getPreferredName(), index);
             builder.endObject();
             return builder;
         }

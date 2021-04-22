@@ -54,8 +54,8 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
     }
 
     @Override
-    public void loadModel(String modelId, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener) {
-        stateStreamer.writeStateToStream(modelId, processRestoreStream(), listener);
+    public void loadModel(String modelId, String index, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener) {
+        stateStreamer.writeStateToStream(modelId, index, processRestoreStream(), listener);
     }
 
     @Override

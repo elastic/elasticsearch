@@ -37,6 +37,10 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         return params.getModelId();
     }
 
+    public String getIndex() {
+        return params.getIndex();
+    }
+
     public void stop(String reason) {
         isStopping = true;
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);

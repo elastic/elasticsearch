@@ -60,14 +60,16 @@ public class PyTorchStateStreamer {
      * allocated memory then writes the chunks of binary state.
      *
      * @param modelId  The model to write
+     * @param index    The index to search for the model
      * @param restoreStream The stream to write to
      * @param listener  error and success listener
      */
-    public void writeStateToStream(String modelId, OutputStream restoreStream, ActionListener<Boolean> listener) {
+    public void writeStateToStream(String modelId, String index, OutputStream restoreStream, ActionListener<Boolean> listener) {
         ChunkedTrainedModelRestorer restorer = new ChunkedTrainedModelRestorer(modelId, client, executorService, xContentRegistry);
+        restorer.setSearchIndex(index);
         restorer.setSearchSize(1);
         restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), listener::onResponse, listener::onFailure);
-        logger.debug("model [{}] state restored from [{}] documents", modelId, restorer.getNumDocsWritten());
+        logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
     }
 
     private boolean writeChunk(TrainedModelDefinitionDoc doc, OutputStream outputStream) throws IOException {

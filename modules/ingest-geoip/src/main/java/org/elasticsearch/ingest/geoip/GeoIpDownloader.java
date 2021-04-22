@@ -14,7 +14,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
@@ -179,29 +178,25 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     //visible for testing
-    int indexChunks(String name, InputStream is, int startChunk, String expectedMd5, long timestamp) throws IOException {
-        int chunk = startChunk;
+    int indexChunks(String name, InputStream is, int chunk, String expectedMd5, long timestamp) throws IOException {
         MessageDigest md = MessageDigests.md5();
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             md.update(buf);
             IndexRequest indexRequest = new IndexRequest(DATABASES_INDEX)
                 .id(name + "_" + chunk + "_" + timestamp)
                 .create(true)
-                .source(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf)
-                .waitForActiveShards(ActiveShardCount.ALL);
+                .source(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf);
             client.index(indexRequest).actionGet();
             chunk++;
         }
 
-        if (chunk != startChunk) {
-            // May take some time before automatic flush kicks in:
-            // (otherwise the translog will contain large documents for some time without good reason)
-            FlushRequest flushRequest = new FlushRequest(DATABASES_INDEX);
-            client.admin().indices().flush(flushRequest).actionGet();
-            // Ensure that the chunk documents are visible:
-            RefreshRequest refreshRequest = new RefreshRequest(DATABASES_INDEX);
-            client.admin().indices().refresh(refreshRequest).actionGet();
-        }
+        // May take some time before automatic flush kicks in:
+        // (otherwise the translog will contain large documents for some time without good reason)
+        FlushRequest flushRequest = new FlushRequest(DATABASES_INDEX);
+        client.admin().indices().flush(flushRequest).actionGet();
+        // Ensure that the chunk documents are visible:
+        RefreshRequest refreshRequest = new RefreshRequest(DATABASES_INDEX);
+        client.admin().indices().refresh(refreshRequest).actionGet();
 
         String actualMd5 = MessageDigests.toHexString(md.digest());
         if (Objects.equals(expectedMd5, actualMd5) == false) {

@@ -132,7 +132,8 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 xContentRegistry(),
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                json.streamInput())
+                json.streamInput()
+            )
         ) {
 
             Request request = Request.fromXContent(parser);

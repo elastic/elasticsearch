@@ -3,7 +3,11 @@
 
 experimental[The painless execute api is new and the request / response format may change in a breaking way in the future]
 
-The Painless execute API allows an arbitrary script to be executed and a result to be returned.
+The Painless execute API runs an arbitrary script and returns a result.
+
+==== Standard contexts
+
+Standard contexts control how scripts are executed, what variables are available at runtime and what the return type is.
 
 [[painless-execute-api-parameters]]
 .Parameters
@@ -14,10 +18,6 @@ The Painless execute API allows an arbitrary script to be executed and a result 
 | `context`         | no        | `painless_test`        | The context the script should be executed in.
 | `context_setup`   | no        | -                      | Additional parameters to the context.
 |======
-
-==== Contexts
-
-Contexts control how scripts are executed, what variables are available at runtime and what the return type is.
 
 ===== Painless test context
 
@@ -57,7 +57,7 @@ Response:
 
 The `filter` context executes scripts as if they were executed inside a `script` query.
 For testing purposes, a document must be provided so that it will be temporarily indexed in-memory and
-is accessible from the script. More precisely, the _source, stored fields and doc values of such a 
+is accessible from the script. More precisely, the _source, stored fields and doc values of such a
 document are available to the script being tested.
 
 The following parameters may be specified in `context_setup` for a filter context:
@@ -162,5 +162,331 @@ Response:
 --------------------------------------------------
 {
   "result": 0.8
+}
+--------------------------------------------------
+
+==== Runtime field contexts
+
+Runtime field contexts execute a script used for a runtime field and return results in doc-values order.
+
+[[painless-execute-api-contexts-runtime-fields]]
+.Contexts
+[options="header"]
+|======
+| Name            | Emit Type      | Return Type
+| boolean_field   | boolean        | sorted list of booleans
+| date_field      | long (ms)      | sorted list of longs (ms)
+| double_field    | double         | sorted list of doubles
+| geo_point_field | long (encoded) | sorted list of longs (encoded)
+| ip_field        | String         | sorted list of BytesRef[] (encoded)
+| keyword_field   | String         | sorted list of Strings
+| long_field      | long           | sorted list of longs
+|======
+
+[[painless-execute-api-parameters-runtime-fields]]
+.Parameters
+[options="header"]
+|======
+| Name              | Required  | Default | Description
+| `script`          | yes       | -       | The script to execute.
+| `context`         | yes       | -       | The runtime field context the script should be executed in.
+| `context_setup`   | yes       | -       | Additional parameters to the context.
+|======
+
+Specification of the following parameters is required in `context_setup` for a runtime field context:
+
+document:: Contains the document that will be temporarily indexed in-memory and is accessible from the script.
+index:: The name of an index containing a mapping that is compatible with the document being indexed.
+
+*Examples*
+
+* boolean_field
++
+[source,console]
+----------------------------------------------------------------
+PUT /my-index-boolean
+{
+  "mappings": {
+    "properties": {
+      "b": {
+        "type": "boolean"
+      }
+    }
+  }
+}
+
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "emit(params['p']); emit(doc['b'].value);",
+    "params": {
+      "p": true
+    }
+  },
+  "context": "boolean_field",
+  "context_setup": {
+    "index": "my-index-boolean",
+    "document": {
+      "b": false
+    }
+  }
+}
+----------------------------------------------------------------
++
+Response:
++
+[source,console-result]
+--------------------------------------------------
+{
+  "result": [
+    false,
+    true
+  ]
+}
+--------------------------------------------------
++
+* date_field
++
+[source,console]
+----------------------------------------------------------------
+PUT /my-index-date
+{
+  "mappings": {
+    "properties": {
+      "d": {
+        "type": "date"
+      }
+    }
+  }
+}
+
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "emit(doc['d'].value.toInstant().toEpochMilli());"
+  },
+  "context": "date_field",
+  "context_setup": {
+    "index": "my-index-date",
+    "document": {
+      "d": 2075885659000
+    }
+  }
+}
+----------------------------------------------------------------
++
+Response:
++
+[source,console-result]
+--------------------------------------------------
+{
+  "result": [
+    2075885659000
+  ]
+}
+--------------------------------------------------
++
+* double_field
++
+[source,console]
+----------------------------------------------------------------
+PUT /my-index-double
+{
+  "mappings": {
+    "properties": {
+      "d": {
+        "type": "double"
+      }
+    }
+  }
+}
+
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "emit(doc['d'][0] + doc['d'][1])"
+  },
+  "context": "double_field",
+  "context_setup": {
+    "index": "my-index-double",
+    "document": {
+      "d": [2.0, 1.0]
+    }
+  }
+}
+----------------------------------------------------------------
++
+Response:
++
+[source,console-result]
+--------------------------------------------------
+{
+  "result": [ 3.0 ]
+}
+--------------------------------------------------
++
+* geo_point_field
++
+[source,console]
+----------------------------------------------------------------
+PUT /my-index-geo-point
+{
+  "mappings": {
+    "properties": {
+      "g": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "emit(doc['g'].value.lat + 1.2, doc['g'].value.lon - 2.3)"
+  },
+  "context": "geo_point_field",
+  "context_setup": {
+    "index": "my-index-geo-point",
+    "document": {
+      "g": "71.34,85.92"
+    }
+  }
+}
+----------------------------------------------------------------
++
+Response:
++
+[source,console-result]
+--------------------------------------------------
+{
+  "result": [
+    7434037857170656882
+  ]
+}
+--------------------------------------------------
++
+* ip_field
++
+[source,console]
+----------------------------------------------------------------
+PUT /my-index-ip
+{
+  "mappings": {
+    "properties": {
+      "i": {
+        "type": "ip"
+      }
+    }
+  }
+}
+
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "emit(doc['i'].value)"
+  },
+  "context": "ip_field",
+  "context_setup": {
+    "index": "my-index-ip",
+    "document": {
+      "i": "127.0.0.1"
+    }
+  }
+}
+----------------------------------------------------------------
++
+Response:
++
+[source,console-result]
+--------------------------------------------------
+{
+  "result": [
+    "AAAAAAAAAAAAAP//fwAAAQ=="
+  ]
+}
+--------------------------------------------------
++
+* keyword_field
++
+[source,console]
+----------------------------------------------------------------
+PUT /my-index-keyword
+{
+  "mappings": {
+    "properties": {
+      "k": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "emit(doc['k'].value + '_value'); emit('0'); emit('word');"
+  },
+  "context": "keyword_field",
+  "context_setup": {
+    "index": "my-index-keyword",
+    "document": {
+      "k": "my_keyword"
+    }
+  }
+}
+----------------------------------------------------------------
++
+Response:
++
+[source,console-result]
+--------------------------------------------------
+{
+  "result": [
+    "0",
+    "my_keyword_value",
+    "word"
+  ]
+}
+--------------------------------------------------
++
+* long_field
++
+[source,console]
+----------------------------------------------------------------
+PUT /my-index-long
+{
+  "mappings": {
+    "properties": {
+      "l": {
+        "type": "long"
+      }
+    }
+  }
+}
+
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "emit(doc['l'][0] + doc['l'][1])"
+  },
+  "context": "long_field",
+  "context_setup": {
+    "index": "my-index-long",
+    "document": {
+      "l": [2, 1]
+    }
+  }
+}
+----------------------------------------------------------------
++
+Response:
++
+[source,console-result]
+--------------------------------------------------
+{
+  "result": [
+    3
+  ]
 }
 --------------------------------------------------

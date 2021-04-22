@@ -138,10 +138,10 @@ two sources - first page:
                         field: kw
   - length: { aggregations.c.buckets: 2 }
   - match: { aggregations.c.buckets.0.key.date: 1609459200000 }
-  - match: { aggregations.c.buckets.0.key.kw: 1609459200000 }
+  - match: { aggregations.c.buckets.0.key.kw: cat }
   - match: { aggregations.c.buckets.0.doc_count: 1 }
   - match: { aggregations.c.buckets.1.key.date: 1609545600000 }
-  - match: { aggregations.c.buckets.0.key.kw: 1609459200000 }
+  - match: { aggregations.c.buckets.1.key.kw: cat }
   - match: { aggregations.c.buckets.1.doc_count: 1 }
 
 ---
@@ -168,6 +168,8 @@ two sources - second page:
                   kw: cat
   - length: { aggregations.c.buckets: 2 }
   - match: { aggregations.c.buckets.0.key.date: 1609632000000 }
+  - match: { aggregations.c.buckets.0.key.kw: cat }
   - match: { aggregations.c.buckets.0.doc_count: 1 }
   - match: { aggregations.c.buckets.1.key.date: 1609718400000 }
+  - match: { aggregations.c.buckets.1.key.kw: cat }
   - match: { aggregations.c.buckets.1.doc_count: 1 }

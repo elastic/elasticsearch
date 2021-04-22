@@ -55,6 +55,8 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -64,8 +66,6 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         createReviewsIndex();
         createReviewsIndexNano();
         indicesCreated = true;
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
     }
 
     public void testSimplePivot() throws Exception {

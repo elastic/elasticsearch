@@ -8,14 +8,14 @@ beta::[]
 <titleabbrev>Create service account tokens</titleabbrev>
 ++++
 
-Creates a service account token for access without requiring basic authentication.
+Creates a service account token without requiring basic authentication.
 
 [[security-api-create-service-token-request]]
 ==== {api-request-title}
 
-`POST /_security/service/<namespace>/<service>/credential/token/<name>`
+`POST /_security/service/<namespace>/<service>/credential/token/<token_name>`
 
-`PUT /_security/service/<namespace>/<service>/credential/token/<name>`
+`PUT /_security/service/<namespace>/<service>/credential/token/<token_name>`
 
 `POST /_security/service/<namespace>/<service>/credential/token`
 
@@ -23,6 +23,8 @@ Creates a service account token for access without requiring basic authenticatio
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_service_account` cluster privilege.
+* You must set `xpack.security.enabled` to `true` in the `elasticsearch.yml`
+file.
 
 [[security-api-create-service-token-desc]]
 ==== {api-description-title}
@@ -40,7 +42,7 @@ NOTE: Service account tokens never expire. You must actively <<security-api-dele
 `service`::
   (Required, string) An identifier for the service name.
 
-`name`::
+`token_name`::
   (Optional, string) An identifier for the token name. If omitted, a random name will be generated.
 +
 --
@@ -57,14 +59,14 @@ comprised of the service account principal and token name, such as
 [[security-api-create-service-token-example]]
 ==== {api-examples-title}
 
-The following example creates a service account token:
+The following request creates a service account token:
 
 [source,console]
 ----
 POST /_security/service/elastic/fleet-server/credential/token/token1
 ----
 
-A successful call returns a JSON structure that provides service account token information.
+The response includes the service account token, its name, and its secret value:
 
 [source,console-result]
 ----
@@ -77,10 +79,10 @@ A successful call returns a JSON structure that provides service account token i
 }
 ----
 // TESTRESPONSE[s/AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZWbVMxT0pOeXJXd3N3ZzBR/$body.token.value/]
-<1> the secret value to be used as a bearer token
+<1> The secret value to use as a bearer token
 
-The service account token returned by this API can then be used by sending a request with an
-`Authorization` header with a value having the prefix `Bearer` followed the secret token value.
+To use the service account token, include the generated value in a request with
+an `Authorization: Bearer` header:
 
 [source,shell]
 ----
@@ -88,16 +90,18 @@ curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaS
 ----
 // NOTCONSOLE
 
-NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` in the request URL.
+NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then
+you must specify `https` in the request URL.
 
-The following example creates a service token with an auto-generated token name:
+The following request creates a service token with an auto-generated token name:
 
 [source,console]
 ----
 POST /_security/service/elastic/fleet-server/credential/token
 ----
 
-A successful call returns a JSON structure that provides service account token information.
+The response includes the service account token, its auto-generated name, and
+its secret value:
 
 [source,console-result]
 ----

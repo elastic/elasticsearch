@@ -5,42 +5,39 @@
 
 beta::[]
 
-If you use file-based service account tokens, the `elasticsearch-service-tokens` command
-enables you to create, list and delete tokens.
+Use the `elasticsearch-service-tokens` command to create, list, and delete file-based service account tokens.
 
 [discrete]
 === Synopsis
 
 [source,shell]
---------------------------------------------------
+----
 bin/elasticsearch-service-tokens
 ([create <service_account_principal> <token_name>]) |
 ([list] [<service_account_principal>]) |
 ([delete <service_account_principal> <token_name>])
---------------------------------------------------
+----
 
 [discrete]
 === Description
+This command creates a `service_tokens` file in the `$ES_HOME/config` directory
+when you create the first service account token. This file does not exist by
+default. {es} monitors this file for changes and dynamically reloads it,
+similar to the `users` or `users_roles` files.
 
-Service account tokens can be specified in the `service_tokens` file. This file
-does not exist by default. It will be created automatically inside `$ES_HOME/config`
-when creating the first service token. Similar to the `users` or `users_roles` file,
-this file is also monitored by {es} and reloaded dynamically on changes.
+See <<service-accounts,service accounts>> for more information.
 
-For more information, see <<service-accounts>>.
-
-TIP: To ensure that {es} can read the service tokens information at startup, run
-`elasticsearch-service-tokens` as the same user you use to run {es}. Running the
-command as root or some other user updates the permissions for the `service_tokens`
-file and prevents {es} from accessing it.
+IMPORTANT: To ensure that {es} can read the service account token information at
+startup, run `elasticsearch-service-tokens` as the same user you use to run
+{es}. Running this command as `root` or some other user updates the permissions
+for the `service_tokens` file and prevents {es} from accessing it.
 
 [discrete]
 [[service-tokens-command-parameters]]
 === Parameters
 
 `create`::
-Creates a service token with the specified token name for the specified service account.
-The token name must be unique in the context of the specified service account.
+Creates a service account token for the specified service account.
 +
 .Properties of `create`
 [%collapsible%open]
@@ -53,7 +50,7 @@ service accounts, and `service` is the name of the service. For example, `elasti
 The service account principal must match a known service account.
 
 `<token_name>`:::
-(Optional, string) An identifier for the token name. If omitted, a random name will be generated.
+(Required, string) An identifier for the token name.
 +
 --
 Token names must be at least 1 and no more than 256 characters. They can contain
@@ -61,14 +58,12 @@ alphanumeric characters (`a-z`, `A-Z`, `0-9`), dashes (`-`), and underscores
 (`_`), but cannot begin with an underscore.
 
 NOTE: Token names must be unique in the context of the associated service
-account. They must also use a globally unique fully qualified token, which is
-comprised of the service account principal and token name, such as
-`<namespace>/<service>/<token-name>`.
+account.
 --
 ====
 
 `list`::
-List all service tokens defined in the `service_tokens` file. If you also
+Lists all service account tokens defined in the `service_tokens` file. If you
 specify a service account principal, the command lists only the tokens that
 belong to the specified service account.
 +
@@ -84,7 +79,7 @@ The service account principal must match a known service account.
 ====
 
 `delete`::
-Delete a service token for the specified service account.
+Deletes a service account token for the specified service account.
 +
 .Properties of `delete`
 [%collapsible%open]
@@ -98,43 +93,57 @@ The service account principal must match a known service account.
 ====
 
 `<token_name>`:::
-(Required, string) Identifier of an existing token.
+(Required, string) Name of an existing token.
 
 [discrete]
 === Examples
 
-The following example creates a new service token named `my-token` for the
-`elastic/fleet-server` service account.
+The following command creates a service account token named `my-token` for
+the `elastic/fleet-server` service account.
 
 [source,shell]
--------------------------------------------------------------------
+----
 bin/elasticsearch-service-tokens create elastic/fleet-server my-token
-SERVICE_TOKEN elastic/fleet-server/my-token = AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL215LXRva2VuOkZPU1BlRVJSVEJXRFNfSE1tdmZGZXc
--------------------------------------------------------------------
+----
 
-The based64 encode string printed on the terminal is the bearer token string
-that can be used to authenticate to the {es} cluster.
+The output is a bearer token, which is a Base64 encoded string.
 
 [source,shell]
---------------------------------------------------
+----
+SERVICE_TOKEN elastic/fleet-server/my-token = AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL215LXRva2VuOkZPU1BlRVJSVEJXRFNfSE1tdmZGZXc
+----
+
+Use this bearer token to authenticate with your {es} cluster.
+
+[source,shell]
+----
 curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL215LXRva2VuOkZPU1BlRVJSVEJXRFNfSE1tdmZGZXc" http://localhost:9200/_cluster/health
---------------------------------------------------
+----
 // NOTCONSOLE
 
-NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then you must specify `https` in the above URL.
+NOTE: If your node has `xpack.security.http.ssl.enabled` set to `true`, then
+you must specify `https` in the request URL.
 
-The following example lists all the service tokens defined in the `service_tokens` file.
-
-[source, shell]
-----------------------------------
-bin/elasticsearch-service-tokens list
-elastic/fleet-server/my-token
-elastic/fleet-server/another-token
-----------------------------------
-
-The following example delete the `my-token` service token for the `elastic/fleet-server` service account:
+The following command lists all service account tokens that are defined in the
+`service_tokens` file.
 
 [source,shell]
-------------------------------------------------------------
+----
+bin/elasticsearch-service-tokens list
+----
+
+A list of all service account tokens displays in your terminal:
+
+[source,txt]
+----
+elastic/fleet-server/my-token
+elastic/fleet-server/another-token
+----
+
+The following command deletes the `my-token` service account token for the
+`elastic/fleet-server` service account:
+
+[source,shell]
+----
 bin/elasticsearch-service-tokens delete elastic/fleet-server my-token
-------------------------------------------------------------
+----

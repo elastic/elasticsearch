@@ -32,6 +32,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -386,7 +387,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     // pkg-private for tests
-    static final class EncryptedBlobStore implements BlobStore {
+    class EncryptedBlobStore implements BlobStore {
         private final BlobStore delegatedBlobStore;
         private final BlobPath delegatedBasePath;
         private final String repositoryName;
@@ -524,7 +525,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
     }
 
-    private static final class EncryptedBlobContainer extends AbstractBlobContainer {
+    private final class EncryptedBlobContainer extends AbstractBlobContainer {
         private final String repositoryName;
         private final BlobContainer delegatedBlobContainer;
         // supplier for the DEK used for encryption (snapshot)
@@ -625,14 +626,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
             // reuse, but possibly generate and store a new DEK
             final SingleUseKey singleUseNonceAndDEK = singleUseDEKSupplier.get();
-            final BytesReference dekIdBytes = singleUseNonceAndDEK.getKeyId();
-            if (dekIdBytes.length() != DEK_ID_LENGTH) {
-                throw new RepositoryException(
-                    repositoryName,
-                    "Unexpected fatal internal error",
-                    new IllegalStateException("Unexpected DEK Id length [" + dekIdBytes.length() + "]")
-                );
-            }
+            final BytesReference dekIdBytes = getDEKBytes(singleUseNonceAndDEK);
             final long encryptedBlobSize = getEncryptedBlobByteLength(blobSize);
             try (
                 InputStream encryptedInputStream = ChainingInputStream.chain(
@@ -647,6 +641,46 @@ public class EncryptedRepository extends BlobStoreRepository {
             ) {
                 delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
             }
+        }
+
+        @Override
+        public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+            // reuse, but possibly generate and store a new DEK
+            final SingleUseKey singleUseNonceAndDEK = singleUseDEKSupplier.get();
+            final BytesReference dekIdBytes = getDEKBytes(singleUseNonceAndDEK);
+            try (
+                ReleasableBytesStreamOutput tmp = new ReleasableBytesStreamOutput(
+                    Math.toIntExact(getEncryptedBlobByteLength(bytes.length())),
+                    bigArrays
+                )
+            ) {
+                try (
+                    InputStream encryptedInputStream = ChainingInputStream.chain(
+                        dekIdBytes.streamInput(),
+                        new EncryptionPacketsInputStream(
+                            bytes.streamInput(),
+                            singleUseNonceAndDEK.getKey(),
+                            singleUseNonceAndDEK.getNonce(),
+                            PACKET_LENGTH_IN_BYTES
+                        )
+                    )
+                ) {
+                    org.elasticsearch.core.internal.io.Streams.copy(encryptedInputStream, tmp, false);
+                }
+                delegatedBlobContainer.writeBlob(blobName, tmp.bytes(), failIfAlreadyExists);
+            }
+        }
+
+        private BytesReference getDEKBytes(SingleUseKey singleUseNonceAndDEK) {
+            final BytesReference dekIdBytes = singleUseNonceAndDEK.getKeyId();
+            if (dekIdBytes.length() != DEK_ID_LENGTH) {
+                throw new RepositoryException(
+                    repositoryName,
+                    "Unexpected fatal internal error",
+                    new IllegalStateException("Unexpected DEK Id length [" + dekIdBytes.length() + "]")
+                );
+            }
+            return dekIdBytes;
         }
 
         @Override

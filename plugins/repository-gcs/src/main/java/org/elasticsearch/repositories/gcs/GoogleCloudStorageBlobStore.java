@@ -241,7 +241,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     BlobInfo.newBuilder(bucketName, blobName).setMd5(Base64.getEncoder().encodeToString(md5.digest())).build(),
                 bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         } else {
-            writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+            writeBlob(bytes.streamInput(), bytes.length(), failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
         }
     }
 

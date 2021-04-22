@@ -108,7 +108,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
-                .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG"))
+                .put("logger.org.elasticsearch.xpack.ml.process", "DEBUG")
+                .put("logger.org.elasticsearch.xpack.ml.dataframe", "DEBUG")
+            )
             .get();
     }
 
@@ -118,7 +120,9 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
-                .putNull("logger.org.elasticsearch.xpack.ml.process"))
+                .putNull("logger.org.elasticsearch.xpack.ml.process")
+                .putNull("logger.org.elasticsearch.xpack.ml.dataframe")
+            )
             .get();
         cleanUp();
     }

@@ -453,6 +453,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             for (int i = 0; i < request.getBlobCount(); i++) {
                 final long targetLength = blobSizes.get(i);
                 final boolean smallBlob = targetLength <= MAX_ATOMIC_WRITE_SIZE; // avoid the atomic API for larger blobs
+                final boolean abortWrite = smallBlob && random.nextDouble() < request.getRareActionProbability();
                 final VerifyBlobTask verifyBlobTask = new VerifyBlobTask(
                     nodes.get(random.nextInt(nodes.size())),
                     new BlobAnalyzeAction.Request(
@@ -469,6 +470,8 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                             && repository.hasAtomicOverwrites()
                             && smallBlob
                             && random.nextDouble() < request.getRareActionProbability()
+                            && abortWrite == false,
+                        abortWrite
                     )
                 );
                 queue.add(verifyBlobTask);
@@ -500,7 +503,9 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
                         @Override
                         public void handleResponse(BlobAnalyzeAction.Response response) {
                             logger.trace("finished [{}]", thisTask);
-                            expectedBlobs.add(thisTask.request.getBlobName()); // each task cleans up its own mess on failure
+                            if (thisTask.request.getAbortWrite() == false) {
+                                expectedBlobs.add(thisTask.request.getBlobName()); // each task cleans up its own mess on failure
+                            }
                             if (request.detailed) {
                                 synchronized (responses) {
                                     responses.add(response);

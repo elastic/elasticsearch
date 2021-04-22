@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsyncStatusRequest, AsyncStatusResponse> {
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private final AsyncTaskIndexService<AsyncSearchResponse> store;
+    private final AsyncTaskIndexService<AsyncSearchResponse, AsyncStatusResponse> store;
 
     @Inject
     public TransportGetAsyncStatusAction(TransportService transportService,
@@ -60,7 +60,8 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
                 taskManager,
                 AsyncSearchTask.class,
                 AsyncSearchTask::getStatusResponse,
-                AsyncStatusResponse::getStatusFromStoredSearch,
+                AsyncStatusResponse::getStatusFromSearchResponse,
+                AsyncStatusResponse::new,
                 listener
             );
         } else {

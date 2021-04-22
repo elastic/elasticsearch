@@ -11,11 +11,16 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.Version;
+
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.VERSION_SEPARATE_STATUS_FIELD;
+
 
 /**
  * A class that contains all information related to a submitted async execution.
@@ -23,15 +28,23 @@ import java.util.Objects;
 public final class AsyncExecutionId {
     private final String docId;
     private final TaskId taskId;
+    private final Version version;
     private final String encoded;
 
-    public AsyncExecutionId(String docId, TaskId taskId) {
-        this(docId, taskId, encode(docId, taskId));
+    public AsyncExecutionId(String docId, TaskId taskId, Version version) {
+        this(docId,
+            taskId,
+            // we store versions for async searches created starting from VERSION_SEPARATE_STATUS_FIELD,
+            // before that we assume "version" field to be empty
+            version.onOrAfter(VERSION_SEPARATE_STATUS_FIELD) ? version : Version.V_EMPTY,
+            encode(docId, taskId, version)
+        );
     }
 
-    private AsyncExecutionId(String docId, TaskId taskId, String encoded) {
+    private AsyncExecutionId(String docId, TaskId taskId, Version version, String encoded) {
         this.docId = docId;
         this.taskId = taskId;
+        this.version = version;
         this.encoded = encoded;
     }
 
@@ -50,10 +63,22 @@ public final class AsyncExecutionId {
     }
 
     /**
+     * The {@link Version} of the .async-search index at the moment
+     * when this async search was created
+     */
+    public Version getVersion() {
+        return version;
+    }
+
+    /**
      * Gets the encoded string that represents this execution.
      */
     public String getEncoded() {
         return encoded;
+    }
+
+    public boolean versionOnOrAfterSeparateStatusField() {
+        return version.onOrAfter(VERSION_SEPARATE_STATUS_FIELD);
     }
 
     @Override
@@ -62,12 +87,13 @@ public final class AsyncExecutionId {
         if (o == null || getClass() != o.getClass()) return false;
         AsyncExecutionId searchId = (AsyncExecutionId) o;
         return docId.equals(searchId.docId) &&
-            taskId.equals(searchId.taskId);
+            taskId.equals(searchId.taskId) &&
+            version.equals(searchId.version);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(docId, taskId);
+        return Objects.hash(docId, taskId, version);
     }
 
     @Override
@@ -75,6 +101,7 @@ public final class AsyncExecutionId {
         return "AsyncExecutionId{" +
             "docId='" + docId + '\'' +
             ", taskId=" + taskId +
+            ", version=" + version.toString() +
             '}';
     }
 
@@ -82,10 +109,13 @@ public final class AsyncExecutionId {
      * Encodes the informations needed to retrieve a async response
      * in a base64 encoded string.
      */
-    public static String encode(String docId, TaskId taskId) {
+    public static String encode(String docId, TaskId taskId, Version version) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeString(docId);
             out.writeString(taskId.toString());
+            if (version.onOrAfter(VERSION_SEPARATE_STATUS_FIELD)) {
+                Version.writeVersion(version, out);
+            }
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
@@ -105,15 +135,19 @@ public final class AsyncExecutionId {
         }
         String docId;
         String taskId;
+        Version version = Version.V_EMPTY;
         try (StreamInput in = new ByteBufferStreamInput(byteBuffer)) {
             docId = in.readString();
             taskId = in.readString();
             if (in.available() > 0) {
-                throw new IllegalArgumentException("invalid id: [" + id + "]");
+                version = Version.readVersion(in);
+                if (version.before(VERSION_SEPARATE_STATUS_FIELD) || in.available() > 0) {
+                    throw new IllegalArgumentException("invalid id: [" + id + "]");
+                }
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
-        return new AsyncExecutionId(docId, new TaskId(taskId), id);
+        return new AsyncExecutionId(docId, new TaskId(taskId), version, id);
     }
 }

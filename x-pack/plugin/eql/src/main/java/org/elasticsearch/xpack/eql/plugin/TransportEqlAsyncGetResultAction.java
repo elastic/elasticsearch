@@ -26,13 +26,14 @@ import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
+import org.elasticsearch.xpack.eql.action.EqlStatusResponse;
 import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportEqlAsyncGetResultAction extends HandledTransportAction<GetAsyncResultRequest, EqlSearchResponse> {
-    private final AsyncResultsService<EqlSearchTask, StoredAsyncResponse<EqlSearchResponse>> resultsService;
+    private final AsyncResultsService<EqlSearchTask, StoredAsyncResponse<EqlSearchResponse>, EqlStatusResponse> resultsService;
     private final TransportService transportService;
 
     @Inject
@@ -47,15 +48,15 @@ public class TransportEqlAsyncGetResultAction extends HandledTransportAction<Get
         this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool);
     }
 
-    static AsyncResultsService<EqlSearchTask, StoredAsyncResponse<EqlSearchResponse>> createResultsService(
-        TransportService transportService,
-        ClusterService clusterService,
-        NamedWriteableRegistry registry,
-        Client client,
-        ThreadPool threadPool) {
+    static AsyncResultsService<EqlSearchTask, StoredAsyncResponse<EqlSearchResponse>, EqlStatusResponse> createResultsService(
+            TransportService transportService,
+            ClusterService clusterService,
+            NamedWriteableRegistry registry,
+            Client client,
+            ThreadPool threadPool) {
         Writeable.Reader<StoredAsyncResponse<EqlSearchResponse>> reader = in -> new StoredAsyncResponse<>(EqlSearchResponse::new, in);
-        AsyncTaskIndexService<StoredAsyncResponse<EqlSearchResponse>> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX,
-            clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry);
+        AsyncTaskIndexService<StoredAsyncResponse<EqlSearchResponse>, EqlStatusResponse> store = new AsyncTaskIndexService<>(
+            XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry);
         return new AsyncResultsService<>(store, false, EqlSearchTask.class,
             (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
             transportService.getTaskManager(), clusterService);

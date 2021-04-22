@@ -23,12 +23,13 @@ import org.elasticsearch.xpack.core.async.AsyncResultsService;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsyncResultRequest, AsyncSearchResponse> {
-    private final AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> resultsService;
+    private final AsyncResultsService<AsyncSearchTask, AsyncSearchResponse, AsyncStatusResponse> resultsService;
     private final TransportService transportService;
 
     @Inject
@@ -43,12 +44,11 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool);
     }
 
-    static AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> createResultsService(TransportService transportService,
-                                                                                          ClusterService clusterService,
-                                                                                          NamedWriteableRegistry registry,
-                                                                                          Client client,
-                                                                                          ThreadPool threadPool) {
-        AsyncTaskIndexService<AsyncSearchResponse> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
+    static AsyncResultsService<AsyncSearchTask, AsyncSearchResponse, AsyncStatusResponse> createResultsService(
+            TransportService transportService, ClusterService clusterService, NamedWriteableRegistry registry,
+            Client client, ThreadPool threadPool) {
+        AsyncTaskIndexService<AsyncSearchResponse, AsyncStatusResponse> store = new AsyncTaskIndexService<>(
+                XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
             threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
         return new AsyncResultsService<>(store, true, AsyncSearchTask.class, AsyncSearchTask::addCompletionListener,
             transportService.getTaskManager(), clusterService);

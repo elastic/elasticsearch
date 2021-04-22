@@ -29,7 +29,7 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
     private final boolean isRunning;
     private final boolean isPartial;
     private final Long startTimeMillis;
-    private final long expirationTimeMillis;
+    private long expirationTimeMillis;
     private final RestStatus completionStatus;
 
     public EqlStatusResponse(String id,
@@ -53,7 +53,7 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
      * @param id – encoded async search id
      * @return a status response
      */
-    public static EqlStatusResponse getStatusFromStoredSearch(StoredAsyncResponse<EqlSearchResponse> storedResponse,
+    public static EqlStatusResponse getStatusFromSearchResponse(StoredAsyncResponse<EqlSearchResponse> storedResponse,
             long expirationTimeMillis, String id) {
         EqlSearchResponse searchResponse = storedResponse.getResponse();
         if (searchResponse != null) {
@@ -179,6 +179,14 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
     @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
+    }
+
+    /**
+     * Sets a new timestamp when the eql search will be expired, in milliseconds since epoch.
+     */
+    @Override
+    public void setExpirationTime(long expirationTime) {
+        this.expirationTimeMillis = expirationTime;
     }
 
     /**

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -75,7 +76,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
         List<Object> components = new ArrayList<>();
         if (DiscoveryNode.canContainData(environment.settings())) {
             // only data nodes should be eligible to run the maintenance service.
-            AsyncTaskIndexService<AsyncSearchResponse> indexService = new AsyncTaskIndexService<>(
+            AsyncTaskIndexService<AsyncSearchResponse, AsyncStatusResponse> indexService = new AsyncTaskIndexService<>(
                 XPackPlugin.ASYNC_RESULTS_INDEX,
                 clusterService,
                 threadPool.getThreadContext(),

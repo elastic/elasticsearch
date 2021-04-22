@@ -38,7 +38,7 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         super(DeleteAsyncResultAction.NAME, transportService, actionFilters, DeleteAsyncResultRequest::new);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        AsyncTaskIndexService<?> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
+        AsyncTaskIndexService<?, ?> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
             threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN,
             (in) -> {throw new UnsupportedOperationException("Reading is not supported during deletion");}, registry);
         this.deleteResultsService = new DeleteAsyncResultsService(store, transportService.getTaskManager());

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -31,7 +32,7 @@ import java.util.function.Consumer;
 public class DeleteAsyncResultsService {
     private final Logger logger = LogManager.getLogger(DeleteAsyncResultsService.class);
     private final TaskManager taskManager;
-    private final AsyncTaskIndexService<? extends AsyncResponse<?>> store;
+    private final AsyncTaskIndexService<? extends AsyncResponse<?>, ? extends SearchStatusResponse> store;
 
     /**
      * Creates async results service
@@ -39,7 +40,7 @@ public class DeleteAsyncResultsService {
      * @param store          AsyncTaskIndexService for the response we are working with
      * @param taskManager    task manager
      */
-    public DeleteAsyncResultsService(AsyncTaskIndexService<? extends AsyncResponse<?>> store,
+    public DeleteAsyncResultsService(AsyncTaskIndexService<? extends AsyncResponse<?>, ? extends SearchStatusResponse> store,
                                      TaskManager taskManager) {
         this.taskManager = taskManager;
         this.store = store;

@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
@@ -54,7 +55,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
-    private final AsyncTaskIndexService<AsyncSearchResponse> store;
+    private final AsyncTaskIndexService<AsyncSearchResponse, AsyncStatusResponse> store;
 
     @Inject
     public TransportSubmitAsyncSearchAction(ClusterService clusterService,
@@ -87,11 +88,11 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                         // the task is still running and the user cannot wait more so we create
                         // a document for further retrieval
                         try {
-                            final String docId = searchTask.getExecutionId().getDocId();
                             // creates the fallback response if the node crashes/restarts in the middle of the request
                             // TODO: store intermediate results ?
                             AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
-                            store.createResponse(docId, searchTask.getOriginHeaders(), initialResp,
+                            store.createResponse(searchTask.getExecutionId(), searchTask.getOriginHeaders(), initialResp,
+                                AsyncStatusResponse::getStatusFromSearchResponse,
                                 new ActionListener<>() {
                                     @Override
                                     public void onResponse(IndexResponse r) {
@@ -142,7 +143,10 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
-                AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
+                AsyncExecutionId searchId = new AsyncExecutionId(
+                    docID,
+                    new TaskId(nodeClient.getLocalNodeId(), id),
+                    AsyncTaskIndexService.getIndexVersion());
                 Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
                         () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId, this::buildDescription, keepAlive,
@@ -175,7 +179,8 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+        store.updateResponse(searchTask.getExecutionId(), threadContext.getResponseHeaders(), response,
+            AsyncStatusResponse::getStatusFromSearchResponse,
             ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                 exc -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(exc);

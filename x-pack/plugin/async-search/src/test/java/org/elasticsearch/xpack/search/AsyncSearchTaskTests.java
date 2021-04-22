@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -73,7 +74,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
 
     private AsyncSearchTask createAsyncSearchTask() {
         return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
-            Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
+            Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1), Version.CURRENT),
             new NoOpClient(threadPool), threadPool, null);
     }
 
@@ -81,7 +82,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest("index1", "index2").source(
             new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
         AsyncSearchTask asyncSearchTask = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), searchRequest::buildDescription,
-            TimeValue.timeValueHours(1), Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
+            TimeValue.timeValueHours(1), Collections.emptyMap(), Collections.emptyMap(),
+            new AsyncExecutionId("0", new TaskId("node1", 1), Version.CURRENT),
             new NoOpClient(threadPool), threadPool, null);
         assertEquals("async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], " +
             "source[{\"query\":{\"term\":{\"field\":{\"value\":\"value\",\"boost\":1.0}}}}]}", asyncSearchTask.getDescription());
@@ -89,7 +91,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
 
     public void testWaitForInit() throws InterruptedException {
         AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
-            Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
+            Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1), Version.CURRENT),
             new NoOpClient(threadPool), threadPool, null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();

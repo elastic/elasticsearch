@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -41,7 +40,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
      * no parameters are specified on the rest request itself.
      */
     @SuppressWarnings("unchecked")
-    public void testRequestParameterDefaults() throws IOException {
+    public void testRequestParameterDefaults() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> {
                 assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));

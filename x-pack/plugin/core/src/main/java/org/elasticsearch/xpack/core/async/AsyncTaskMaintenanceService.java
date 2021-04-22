@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,8 +30,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATION_TIME_FIELD;
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.VERSION_SEPARATE_STATUS_FIELD;
 
 /**
  * A service that runs a periodic cleanup over the async execution index.
@@ -55,17 +58,18 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     private final String index;
     private final String localNodeId;
     private final ThreadPool threadPool;
-    private final AsyncTaskIndexService<?> indexService;
+    private final AsyncTaskIndexService<?, ?> indexService;
     private final TimeValue delay;
 
     private boolean isCleanupRunning;
     private volatile Scheduler.Cancellable cancellable;
+    private Version indexVersion = Version.V_EMPTY;
 
     public AsyncTaskMaintenanceService(ClusterService clusterService,
                                        String localNodeId,
                                        Settings nodeSettings,
                                        ThreadPool threadPool,
-                                       AsyncTaskIndexService<?> indexService) {
+                                       AsyncTaskIndexService<?, ?> indexService) {
         this.clusterService = clusterService;
         this.index = XPackPlugin.ASYNC_RESULTS_INDEX;
         this.localNodeId = localNodeId;
@@ -93,6 +97,12 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
+        // monitor if the mapping of .async-search index gets updated to include a new field for status
+        if (indexVersion.before(VERSION_SEPARATE_STATUS_FIELD)) {
+            indexVersion = getMappingVersion(state, this.index);
+            AsyncTaskIndexService.setIndexVersion(indexVersion);
+        }
+
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // Wait until the gateway has recovered from disk.
             return;
@@ -151,5 +161,24 @@ public class AsyncTaskMaintenanceService extends AbstractLifecycleComponent impl
             }
             isCleanupRunning = false;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Version getMappingVersion(ClusterState clusterState, String index) {
+        if (clusterState.metadata().hasIndex(index) == false) {
+            // mappings will come from the master since the index doesn't exist
+            return clusterState.nodes().getMasterNode().getVersion();
+        }
+        Map<String, Object> mapping = clusterState.metadata().index(index).mapping().sourceAsMap();
+        Map<String, Object> meta = (Map<String, Object>) mapping.get("_meta");
+        if (meta == null) {
+            throw new IllegalStateException("Cannot read version string in index [" + index + "]");
+        }
+        final String versionString = (String) meta.get("version");
+        if (versionString == null) {
+            // If we called `Version.fromString(null)`, it would return `Version.CURRENT`
+            return Version.V_EMPTY;
+        }
+        return Version.fromString(versionString);
     }
 }

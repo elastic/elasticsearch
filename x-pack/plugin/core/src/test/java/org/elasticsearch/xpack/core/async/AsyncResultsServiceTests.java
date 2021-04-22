@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -22,15 +23,19 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncSearchIndexServiceTests.TestAsyncResponse;
+import org.elasticsearch.xpack.core.async.AsyncSearchIndexServiceTests.TestStatusResponse;
 import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.async.AsyncExecutionIdTests.randomAsyncId;
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.EXPIRATION_TIME_FIELD;
+import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.STATUS_FIELD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -40,7 +45,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
     private ClusterService clusterService;
     private TaskManager taskManager;
-    private AsyncTaskIndexService<TestAsyncResponse> indexService;
+    private AsyncTaskIndexService<TestAsyncResponse, TestStatusResponse> indexService;
 
     public static class TestTask extends CancellableTask implements AsyncTask {
         private final AsyncExecutionId executionId;
@@ -114,7 +119,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             AsyncExecutionId asyncExecutionId = new AsyncExecutionId(randomAlphaOfLength(10),
-                new TaskId(clusterService.localNode().getId(), id));
+                new TaskId(clusterService.localNode().getId(), id), Version.CURRENT);
             return new TestTask(asyncExecutionId, id, type, action, string, parentTaskId, headers);
         }
     }
@@ -124,12 +129,17 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
         taskManager = transportService.getTaskManager();
+
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setMapping(STATUS_FIELD, "type=binary,store=true,doc_values=false",
+                EXPIRATION_TIME_FIELD, "type=long,store=true")
+            .get());
         indexService = new AsyncTaskIndexService<>("test", clusterService, transportService.getThreadPool().getThreadContext(),
             client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry());
 
     }
 
-    private AsyncResultsService<TestTask, TestAsyncResponse> createResultsService(boolean updateInitialResultsInStore) {
+    private AsyncResultsService<TestTask, TestAsyncResponse, TestStatusResponse> createResultsService(boolean updateInitialResultsInStore) {
         return new AsyncResultsService<>(indexService, updateInitialResultsInStore, TestTask.class, TestTask::addListener,
             taskManager, clusterService);
     }
@@ -139,7 +149,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRecordNotFound() {
-        AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(randomBoolean());
+        AsyncResultsService<TestTask, TestAsyncResponse, TestStatusResponse> service = createResultsService(randomBoolean());
         DeleteAsyncResultsService deleteService = createDeleteResultsService();
         PlainActionFuture<TestAsyncResponse> listener = new PlainActionFuture<>();
         service.retrieveResult(new GetAsyncResultRequest(randomAsyncId().getEncoded()), listener);
@@ -151,7 +161,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
     public void testRetrieveFromMemoryWithExpiration() throws Exception {
         boolean updateInitialResultsInStore = randomBoolean();
-        AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(updateInitialResultsInStore);
+        AsyncResultsService<TestTask, TestAsyncResponse, TestStatusResponse> service = createResultsService(updateInitialResultsInStore);
         TestTask task = (TestTask) taskManager.register("test", "test", new TestRequest("test request"));
         try {
             boolean shouldExpire = randomBoolean();
@@ -161,8 +171,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             if (updateInitialResultsInStore) {
                 // we need to store initial result
                 PlainActionFuture<IndexResponse> future = new PlainActionFuture<>();
-                indexService.createResponse(task.getExecutionId().getDocId(), task.getOriginHeaders(),
-                    new TestAsyncResponse(null, task.getExpirationTime()), future);
+                indexService.createResponse(task.getExecutionId(), task.getOriginHeaders(),
+                    new TestAsyncResponse(null, task.getExpirationTime()), TestAsyncResponse::getStatusResponse, future);
                 future.actionGet(TimeValue.timeValueSeconds(10));
             }
 
@@ -193,7 +203,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
     public void testAssertExpirationPropagation() throws Exception {
         boolean updateInitialResultsInStore = randomBoolean();
-        AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(updateInitialResultsInStore);
+        AsyncResultsService<TestTask, TestAsyncResponse, TestStatusResponse> service = createResultsService(updateInitialResultsInStore);
         TestRequest request = new TestRequest("test request");
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
@@ -203,8 +213,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             if (updateInitialResultsInStore) {
                 // we need to store initial result
                 PlainActionFuture<IndexResponse> future = new PlainActionFuture<>();
-                indexService.createResponse(task.getExecutionId().getDocId(), task.getOriginHeaders(),
-                    new TestAsyncResponse(null, task.getExpirationTime()), future);
+                indexService.createResponse(task.getExecutionId(), task.getOriginHeaders(),
+                    new TestAsyncResponse(null, task.getExpirationTime()), TestAsyncResponse::getStatusResponse, future);
                 future.actionGet(TimeValue.timeValueSeconds(10));
             }
 
@@ -230,29 +240,38 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
     public void testRetrieveFromDisk() throws Exception {
         boolean updateInitialResultsInStore = randomBoolean();
-        AsyncResultsService<TestTask, TestAsyncResponse> service = createResultsService(updateInitialResultsInStore);
+        AsyncResultsService<TestTask, TestAsyncResponse, TestStatusResponse> service = createResultsService(updateInitialResultsInStore);
         DeleteAsyncResultsService deleteService = createDeleteResultsService();
         TestRequest request = new TestRequest("test request");
         TestTask task = (TestTask) taskManager.register("test", "test", request);
+        long expirationTime = 0L;
         try {
             long startTime = System.currentTimeMillis();
-            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+            expirationTime = startTime + TimeValue.timeValueMinutes(1).getMillis();
+            task.setExpirationTime(expirationTime);
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
                 PlainActionFuture<IndexResponse> futureCreate = new PlainActionFuture<>();
-                indexService.createResponse(task.getExecutionId().getDocId(), task.getOriginHeaders(),
-                    new TestAsyncResponse(null, task.getExpirationTime()), futureCreate);
+                indexService.createResponse(task.getExecutionId(), task.getOriginHeaders(),
+                    new TestAsyncResponse(null, task.getExpirationTime()), TestAsyncResponse::getStatusResponse, futureCreate);
                 futureCreate.actionGet(TimeValue.timeValueSeconds(10));
 
                 PlainActionFuture<UpdateResponse> futureUpdate = new PlainActionFuture<>();
-                indexService.updateResponse(task.getExecutionId().getDocId(), emptyMap(),
-                    new TestAsyncResponse("final_response", task.getExpirationTime()), futureUpdate);
+                indexService.updateResponse(task.getExecutionId(), emptyMap(),
+                    new TestAsyncResponse("final_response", task.getExpirationTime()), TestAsyncResponse::getStatusResponse, futureUpdate);
                 futureUpdate.actionGet(TimeValue.timeValueSeconds(10));
+
+                //also extend keep_alive time
+                futureUpdate = new PlainActionFuture<>();
+                expirationTime += TimeValue.timeValueMinutes(1).getMillis();
+                indexService.updateExpirationTime(task.getExecutionId().getDocId(), expirationTime, futureUpdate);
+                futureUpdate.actionGet(TimeValue.timeValueSeconds(10));
+
             } else {
                 PlainActionFuture<IndexResponse> futureCreate = new PlainActionFuture<>();
-                indexService.createResponse(task.getExecutionId().getDocId(), task.getOriginHeaders(),
-                    new TestAsyncResponse("final_response", task.getExpirationTime()), futureCreate);
+                indexService.createResponse(task.getExecutionId(), task.getOriginHeaders(),
+                    new TestAsyncResponse("final_response", task.getExpirationTime()), TestAsyncResponse::getStatusResponse, futureCreate);
                 futureCreate.actionGet(TimeValue.timeValueSeconds(10));
             }
 
@@ -265,6 +284,19 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         service.retrieveResult(new GetAsyncResultRequest(task.getExecutionId().getEncoded()), listener);
         TestAsyncResponse response = listener.actionGet(TimeValue.timeValueSeconds(10));
         assertThat(response.test, equalTo("final_response"));
+
+        PlainActionFuture<TestStatusResponse> statusListener = new PlainActionFuture<>();
+        indexService.retrieveStatus(new GetAsyncStatusRequest(task.getExecutionId().getEncoded()),
+            taskManager,
+            TestTask.class,
+            (t) -> {throw new UnsupportedOperationException("Status must not be retrieved from task!");},
+            (ar, ex, it) -> {throw new UnsupportedOperationException("Status must not be retrieved from the stored async response!");},
+            TestStatusResponse::new,
+            statusListener);
+
+        TestStatusResponse status = statusListener.actionGet(TimeValue.timeValueSeconds(10));
+        assertThat(status.test, equalTo("final_response"));
+        assertEquals(expirationTime, status.getExpirationTime());
 
         PlainActionFuture<AcknowledgedResponse> deleteListener = new PlainActionFuture<>();
         deleteService.deleteResponse(new DeleteAsyncResultRequest(task.getExecutionId().getEncoded()), deleteListener);

@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
-    private AsyncResultsService<TestTask, StoredAsyncResponse<TestResponse>> results;
+    private AsyncResultsService<TestTask, StoredAsyncResponse<TestResponse>, ?> results;
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
 
@@ -129,7 +129,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         clusterService = getInstanceFromNode(ClusterService.class);
         transportService = getInstanceFromNode(TransportService.class);
-        AsyncTaskIndexService<StoredAsyncResponse<TestResponse>> store =
+        AsyncTaskIndexService<StoredAsyncResponse<TestResponse>, ?> store =
             new AsyncTaskIndexService<>(index, clusterService, transportService.getThreadPool().getThreadContext(), client(), "test",
                 in -> new StoredAsyncResponse<>(TestResponse::new, in), writableRegistry());
         results = new AsyncResultsService<>(store, true, TestTask.class,
@@ -145,14 +145,17 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
         executorService.shutdown();
     }
 
-    private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
+    private AsyncTaskManagementService<TestRequest, TestResponse, TestTask, ?> createManagementService(
         AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation) {
         return new AsyncTaskManagementService<>(index, client(), "test_origin", writableRegistry(),
-            transportService.getTaskManager(), "test_action", operation, TestTask.class, clusterService, transportService.getThreadPool());
+            transportService.getTaskManager(), "test_action", operation, TestTask.class,
+            clusterService, transportService.getThreadPool(),
+            (r, et, asyncID) -> { throw new UnsupportedOperationException("Retrieving status is not supported");});
     }
 
     public void testReturnBeforeTimeout() throws Exception {
-        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation());
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask, ?> service =
+            createManagementService(new TestOperation());
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
         CountDownLatch latch = new CountDownLatch(1);
@@ -173,7 +176,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
 
     public void testReturnAfterTimeout() throws Exception {
         CountDownLatch executionLatch = new CountDownLatch(1);
-        AsyncTaskManagementService<TestRequest, TestResponse, TestTask> service = createManagementService(new TestOperation() {
+        AsyncTaskManagementService<TestRequest, TestResponse, TestTask, ?> service = createManagementService(new TestOperation() {
             @Override
             public void execute(TestRequest request, TestTask task, ActionListener<TestResponse> listener) {
                 executorService.submit(() -> {

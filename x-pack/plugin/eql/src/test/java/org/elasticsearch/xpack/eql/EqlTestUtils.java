@@ -59,7 +59,7 @@ public final class EqlTestUtils {
 
     public static EqlSearchTask randomTask() {
         return new EqlSearchTask(randomLong(), "transport", EqlSearchAction.NAME, "", null, emptyMap(), emptyMap(),
-            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)), TimeValue.timeValueDays(5));
+            new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1), Version.CURRENT), TimeValue.timeValueDays(5));
     }
 
     public static InsensitiveEquals seq(Expression left, Expression right) {

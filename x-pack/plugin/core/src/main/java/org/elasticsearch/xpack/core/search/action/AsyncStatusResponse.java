@@ -29,7 +29,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     private final boolean isRunning;
     private final boolean isPartial;
     private final long startTimeMillis;
-    private final long expirationTimeMillis;
+    private long expirationTimeMillis;
     private final int totalShards;
     private final int successfulShards;
     private final int skippedShards;
@@ -65,7 +65,7 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
      * @param id – encoded async search id
      * @return status response
      */
-    public static AsyncStatusResponse getStatusFromStoredSearch(AsyncSearchResponse asyncSearchResponse,
+    public static AsyncStatusResponse getStatusFromSearchResponse(AsyncSearchResponse asyncSearchResponse,
             long expirationTimeMillis, String id) {
         int totalShards = 0;
         int successfulShards = 0;
@@ -213,6 +213,14 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
     @Override
     public long getExpirationTime() {
         return expirationTimeMillis;
+    }
+
+    /**
+     * Sets a new timestamp when the search will be expired, in milliseconds since epoch.
+     */
+    @Override
+    public void setExpirationTime(long expirationTime) {
+        this.expirationTimeMillis = expirationTime;
     }
 
     /**

@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
+import org.elasticsearch.xpack.eql.action.EqlStatusResponse;
 import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
@@ -59,7 +60,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     private final PlanExecutor planExecutor;
     private final ThreadPool threadPool;
     private final TransportService transportService;
-    private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
+    private final AsyncTaskManagementService
+        <EqlSearchRequest, EqlSearchResponse, EqlSearchTask, EqlStatusResponse> asyncTaskManagementService;
 
     @Inject
     public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -75,7 +77,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         this.transportService = transportService;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, client, ASYNC_SEARCH_ORIGIN,
-            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool);
+            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool,
+            EqlStatusResponse::getStatusFromSearchResponse);
     }
 
     @Override

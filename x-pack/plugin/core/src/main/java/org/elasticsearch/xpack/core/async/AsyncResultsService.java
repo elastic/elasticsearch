@@ -19,6 +19,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 
 import java.util.Objects;
 
@@ -26,12 +27,13 @@ import java.util.Objects;
  * Service that is capable of retrieving and cleaning up AsyncTasks regardless of their state. It works with the TaskManager, if a task
  * is still running and AsyncTaskIndexService if task results already stored there.
  */
-public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncResponse<Response>> {
+public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncResponse<Response>,
+        StatusResponse extends SearchStatusResponse> {
     private final Logger logger = LogManager.getLogger(AsyncResultsService.class);
     private final Class<? extends Task> asyncTaskClass;
     private final TaskManager taskManager;
     private final ClusterService clusterService;
-    private final AsyncTaskIndexService<Response> store;
+    private final AsyncTaskIndexService<Response, StatusResponse> store;
     private final boolean updateInitialResultsInStore;
     private final TriConsumer<Task, ActionListener<Response>, TimeValue> addCompletionListener;
 
@@ -45,7 +47,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
      * @param taskManager                 task manager
      * @param clusterService              cluster service
      */
-    public AsyncResultsService(AsyncTaskIndexService<Response> store,
+    public AsyncResultsService(AsyncTaskIndexService<Response, StatusResponse> store,
                                boolean updateInitialResultsInStore,
                                Class<? extends Task> asyncTaskClass,
                                TriConsumer<Task, ActionListener<Response>, TimeValue> addCompletionListener,

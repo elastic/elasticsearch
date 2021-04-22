@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -23,6 +24,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
@@ -35,7 +37,7 @@ import java.util.List;
 
 // TODO: test CRUD operations
 public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
-    private AsyncTaskIndexService<AsyncSearchResponse> indexService;
+    private AsyncTaskIndexService<AsyncSearchResponse, AsyncStatusResponse> indexService;
 
     public String index = ".async-search";
 
@@ -134,11 +136,11 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
     public void testAutoCreateIndex() throws Exception {
         // To begin with, the results index should be auto-created.
-        AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
+        AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0), Version.CURRENT);
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
         {
             PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
-            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            indexService.createResponse(id, Collections.emptyMap(), resp, AsyncStatusResponse::getStatusFromSearchResponse, future);
             future.get();
             assertSettings();
         }
@@ -157,7 +159,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // So do updates
         {
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            indexService.updateResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            indexService.updateResponse(id, Collections.emptyMap(), resp, AsyncStatusResponse::getStatusFromSearchResponse, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
         }
@@ -173,7 +175,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // But the index is still auto-created
         {
             PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
-            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            indexService.createResponse(id, Collections.emptyMap(), resp, AsyncStatusResponse::getStatusFromSearchResponse, future);
             future.get();
             assertSettings();
         }

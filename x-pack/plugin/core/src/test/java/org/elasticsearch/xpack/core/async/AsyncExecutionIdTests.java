@@ -7,41 +7,63 @@
 
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Base64;
 
+import static org.elasticsearch.Version.fromId;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class AsyncExecutionIdTests extends ESTestCase {
     public void testEncodeAndDecode() {
         for (int i = 0; i < 10; i++) {
-            AsyncExecutionId instance = randomAsyncId();
-            String encoded = AsyncExecutionId.encode(instance.getDocId(), instance.getTaskId());
+            AsyncExecutionId instance = randomBoolean() ? randomAsyncId() : randomAsyncIdOldFormat();
+            String encoded = AsyncExecutionId.encode(instance.getDocId(), instance.getTaskId(), instance.getVersion());
             AsyncExecutionId same = AsyncExecutionId.decode(encoded);
             assertEquals(same, instance);
         }
     }
 
+    private static AsyncExecutionId randomAsyncIdOldFormat() {
+        return new AsyncExecutionId(
+            UUIDs.randomBase64UUID(),
+            new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()),
+            VersionUtils.randomVersionBetween(random(), fromId(7070099), fromId(7120199))
+        );
+    }
+
     public static AsyncExecutionId randomAsyncId() {
-        return new AsyncExecutionId(UUIDs.randomBase64UUID(), new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()));
+        return new AsyncExecutionId(
+            UUIDs.randomBase64UUID(),
+            new TaskId(randomAlphaOfLengthBetween(5, 20), randomNonNegativeLong()),
+            VersionUtils.randomVersionBetween(random(), fromId(7130099), Version.CURRENT)
+        );
     }
 
     private static AsyncExecutionId mutate(AsyncExecutionId id) {
-        int rand = randomIntBetween(0, 1);
+        int rand = id.versionOnOrAfterSeparateStatusField() ? randomIntBetween(0, 2) : randomIntBetween(0, 1);
         switch (rand) {
             case 0:
-                return new AsyncExecutionId(randomAlphaOfLength(id.getDocId().length()+1), id.getTaskId());
+                return new AsyncExecutionId(randomAlphaOfLength(id.getDocId().length() + 1), id.getTaskId(), id.getVersion());
 
             case 1:
                 return new AsyncExecutionId(id.getDocId(),
-                    new TaskId(randomAlphaOfLength(id.getTaskId().getNodeId().length()), randomNonNegativeLong()));
+                    new TaskId(randomAlphaOfLength(id.getTaskId().getNodeId().length()), randomNonNegativeLong()), id.getVersion());
+
+            case 2:
+                Version randomVersion = VersionUtils.randomVersion(random());
+                while (randomVersion == id.getVersion()) {
+                    randomVersion = VersionUtils.randomVersion(random());
+                }
+                return new AsyncExecutionId(id.getDocId(), id.getTaskId(), randomVersion);
 
             default:
                 throw new AssertionError();
@@ -50,7 +72,7 @@ public class AsyncExecutionIdTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomAsyncId(),
-            instance -> new AsyncExecutionId(instance.getDocId(), instance.getTaskId()),
+            instance -> new AsyncExecutionId(instance.getDocId(), instance.getTaskId(), instance.getVersion()),
             AsyncExecutionIdTests::mutate);
     }
 

@@ -56,18 +56,25 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.search.fetch.subphase.FetchSourceContext.DO_NOT_FETCH_SOURCE;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
+
 
 /**
  * A service that exposes the CRUD operations for the async task-specific index.
  */
-public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
+public final class AsyncTaskIndexService<R extends AsyncResponse<R>, SR extends SearchStatusResponse> {
 
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
+    public static final String STATUS_FIELD = "status";
+    public static final Version VERSION_SEPARATE_STATUS_FIELD = Version.V_7_13_0;
+
+    private static volatile Version indexVersion = Version.V_EMPTY;
+
 
     // Usually the settings, mappings and system index descriptor below
     // would be co-located with the SystemIndexPlugin implementation,
@@ -106,8 +113,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                 .field("type", "object")
                                 .field("enabled", "false")
                             .endObject()
+                            .startObject(STATUS_FIELD)
+                                .field("type", "binary")
+                                .field("store", "true")
+                                .field("doc_values", "false")
+                            .endObject()
                             .startObject(EXPIRATION_TIME_FIELD)
                                 .field("type", "long")
+                                .field("store", "true")
                             .endObject()
                         .endObject()
                     .endObject()
@@ -128,6 +141,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .setVersionMetaKey("version")
             .setOrigin(ASYNC_SEARCH_ORIGIN)
             .build();
+    }
+
+    public static void setIndexVersion(Version version) {
+        indexVersion = version;
+    }
+
+    public static Version getIndexVersion() {
+        return indexVersion;
     }
 
     private final String index;
@@ -177,17 +198,22 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
      */
-    public void createResponse(String docId,
+    public void createResponse(AsyncExecutionId asyncExecutionId,
                                Map<String, String> headers,
                                R response,
+                               TriFunction<R, Long, String, SR> statusProducer,
                                ActionListener<IndexResponse> listener) throws IOException {
         Map<String, Object> source = new HashMap<>();
         source.put(HEADERS_FIELD, headers);
         source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
         source.put(RESULT_FIELD, encodeResponse(response));
+        if (asyncExecutionId.versionOnOrAfterSeparateStatusField()) {
+            SR statusResponse = statusProducer.apply(response, response.getExpirationTime(), asyncExecutionId.getEncoded());
+            source.put(STATUS_FIELD, encodeStatus(statusResponse));
+        }
         IndexRequest indexRequest = new IndexRequest(index)
             .create(true)
-            .id(docId)
+            .id(asyncExecutionId.getDocId())
             .source(source, XContentType.JSON);
         clientWithOrigin.index(indexRequest, listener);
     }
@@ -195,17 +221,22 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Stores the final response if the place-holder document is still present (update).
      */
-    public void updateResponse(String docId,
+    public void updateResponse(AsyncExecutionId asyncExecutionId,
                             Map<String, List<String>> responseHeaders,
                             R response,
+                            TriFunction<R, Long, String, SR> statusProducer,
                             ActionListener<UpdateResponse> listener) {
         try {
             Map<String, Object> source = new HashMap<>();
             source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
             source.put(RESULT_FIELD, encodeResponse(response));
+            if (asyncExecutionId.versionOnOrAfterSeparateStatusField()) {
+                SR statusResponse = statusProducer.apply(response, response.getExpirationTime(), asyncExecutionId.getEncoded());
+                source.put(STATUS_FIELD, encodeStatus(statusResponse));
+            }
             UpdateRequest request = new UpdateRequest()
                 .index(index)
-                .id(docId)
+                .id(asyncExecutionId.getDocId())
                 .doc(source, XContentType.JSON)
                 .retryOnConflict(5);
             clientWithOrigin.update(request, listener);
@@ -341,12 +372,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Retrieve the status of the async search or async or stored eql search.
      * Retrieve from the task if the task is still available or from the index.
      */
-     public <T extends AsyncTask, SR extends SearchStatusResponse> void retrieveStatus(
+     public <T extends AsyncTask> void retrieveStatus(
             GetAsyncStatusRequest request,
             TaskManager taskManager,
             Class<T> tClass,
             Function<T, SR> statusProducerFromTask,
             TriFunction<R, Long, String, SR> statusProducerFromIndex,
+            Writeable.Reader<SR> statusReader,
             ActionListener<SR> listener) {
         AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
         try {
@@ -355,8 +387,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 SR response = statusProducerFromTask.apply(asyncTask);
                 sendFinalStatusResponse(request, response, listener);
             } else { // get status response from index
-                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex, listener.delegateFailure(
+                if (asyncExecutionId.versionOnOrAfterSeparateStatusField()) {
+                    getStatusResponseFromIndexStoredFields(asyncExecutionId, statusReader, listener.delegateFailure(
                         (l, searchStatusResponse) -> sendFinalStatusResponse(request, searchStatusResponse, l)));
+                } else {
+                    getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex, listener.delegateFailure(
+                        (l, searchStatusResponse) -> sendFinalStatusResponse(request, searchStatusResponse, l)));
+                }
             }
         } catch (Exception exc) {
             listener.onFailure(exc);
@@ -377,6 +414,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         GetRequest internalGet = new GetRequest(index)
             .preference(asyncId)
             .id(asyncExecutionId.getDocId());
+
         clientWithOrigin.get(internalGet, ActionListener.wrap(
             get -> {
                 if (get.isExists() == false) {
@@ -395,10 +433,47 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         ));
     }
 
-    private static <SR extends SearchStatusResponse> void sendFinalStatusResponse(
-        GetAsyncStatusRequest request,
-        SR response,
+    /**
+     * Gets the status response of the stored search from the index using stored fields
+     * @param asyncExecutionId – id of the stored search (async search or stored eql search)
+     * @param statusReader – a producer of status from bytes
+     * @param listener – listener to report result to
+     */
+    private void getStatusResponseFromIndexStoredFields(
+        AsyncExecutionId asyncExecutionId,
+        Writeable.Reader<SR> statusReader,
         ActionListener<SR> listener) {
+        String asyncId = asyncExecutionId.getEncoded();
+        GetRequest internalGet = new GetRequest(index)
+            .preference(asyncId)
+            .id(asyncExecutionId.getDocId())
+            .storedFields(STATUS_FIELD, EXPIRATION_TIME_FIELD)
+            .fetchSourceContext(DO_NOT_FETCH_SOURCE);
+
+        clientWithOrigin.get(internalGet, ActionListener.wrap(
+            get -> {
+                if (get.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                    return;
+                }
+                // A binary stored field returns bytes in already decoded from base64 encoding format
+                BytesReference encoded = get.getField(STATUS_FIELD).getValue();
+                if (encoded != null) {
+                    Long expirationTime = get.getField(EXPIRATION_TIME_FIELD).getValue();
+                    SR statusResponse = readStatus(encoded, statusReader);
+                    if (statusResponse.getExpirationTime() != expirationTime) {
+                        statusResponse.setExpirationTime(expirationTime);
+                    }
+                    listener.onResponse(statusResponse);
+                } else {
+                    listener.onResponse(null);
+                }
+            },
+            listener::onFailure
+        ));
+    }
+
+    private void sendFinalStatusResponse(GetAsyncStatusRequest request, SR response, ActionListener<SR> listener) {
         if (response.getExpirationTime() < System.currentTimeMillis()) { // check if the result has expired
             listener.onFailure(new ResourceNotFoundException(request.getId()));
         } else {
@@ -471,6 +546,31 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));
                 return reader.read(in);
+            }
+        }
+    }
+
+
+    /**
+     * Encode the provided status in a binary form using base64 encoding.
+     */
+    private String encodeStatus(SR status) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            Version.writeVersion(Version.CURRENT, out);
+            status.writeTo(out);
+            return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
+        }
+    }
+
+    /**
+     * Read the provided bytes into a status response
+     * @param value – represents original bytes decoded from base 64 encoding
+     */
+    private SR readStatus(BytesReference value, Writeable.Reader<SR> statusReader) throws IOException {
+        try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(BytesReference.toBytes(value)))) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
+                in.setVersion(Version.readVersion(in));
+                return statusReader.read(in);
             }
         }
     }

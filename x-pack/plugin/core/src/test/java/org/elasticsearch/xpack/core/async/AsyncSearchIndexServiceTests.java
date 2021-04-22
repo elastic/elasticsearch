@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 // TODO: test CRUD operations
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
-    private AsyncTaskIndexService<TestAsyncResponse> indexService;
+    private AsyncTaskIndexService<TestAsyncResponse, TestStatusResponse> indexService;
 
     public static class TestAsyncResponse implements AsyncResponse<TestAsyncResponse> {
         public final String test;
@@ -65,6 +66,41 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         @Override
         public int hashCode() {
             return Objects.hash(test, expirationTimeMillis);
+        }
+
+        public static TestStatusResponse getStatusResponse(TestAsyncResponse asyncResponse, long expirationTimeMillis, String id) {
+            return new TestStatusResponse(asyncResponse.test, expirationTimeMillis);
+        }
+    }
+
+    public static class TestStatusResponse implements SearchStatusResponse {
+        public final String test;
+        public long expirationTimeMillis;
+
+        public TestStatusResponse(String test, long expirationTimeMillis) {
+            this.test = test;
+            this.expirationTimeMillis = expirationTimeMillis;
+        }
+
+        public TestStatusResponse(StreamInput in) throws IOException {
+            this.test = in.readOptionalString();
+            this.expirationTimeMillis = in.readLong();
+        }
+
+        @Override
+        public long getExpirationTime() {
+            return expirationTimeMillis;
+        }
+
+        @Override
+        public void setExpirationTime(long expirationTime) {
+            this.expirationTimeMillis = expirationTime;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(test);
+            out.writeLong(expirationTimeMillis);
         }
     }
 

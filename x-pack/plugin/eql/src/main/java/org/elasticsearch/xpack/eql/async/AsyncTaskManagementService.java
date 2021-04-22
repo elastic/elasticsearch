@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
+import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 
 import java.io.IOException;
 import java.util.Map;
@@ -42,17 +44,18 @@ import java.util.concurrent.atomic.AtomicReference;
  * Service for managing EQL requests
  */
 public class AsyncTaskManagementService<Request extends TaskAwareRequest, Response extends ActionResponse,
-    T extends StoredAsyncTask<Response>> {
+    T extends StoredAsyncTask<Response>, SSR extends SearchStatusResponse> {
 
     private static final Logger logger = LogManager.getLogger(AsyncTaskManagementService.class);
 
     private final TaskManager taskManager;
     private final String action;
-    private final AsyncTaskIndexService<StoredAsyncResponse<Response>> asyncTaskIndexService;
+    private final AsyncTaskIndexService<StoredAsyncResponse<Response>, SSR> asyncTaskIndexService;
     private final AsyncOperation<Request, Response, T> operation;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final Class<T> taskClass;
+    private final TriFunction<StoredAsyncResponse<Response>, Long, String, SSR> statusProducer;
 
     public interface AsyncOperation<Request extends TaskAwareRequest, Response extends ActionResponse,
         T extends CancellableTask & AsyncTask> {
@@ -95,7 +98,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
             return operation.createTask(request, id, type, action, parentTaskId, headers, originHeaders, new AsyncExecutionId(doc,
-                    new TaskId(node, id)));
+                    new TaskId(node, id), AsyncTaskIndexService.getIndexVersion()));
         }
 
         @Override
@@ -107,7 +110,8 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
     public AsyncTaskManagementService(String index, Client client, String origin, NamedWriteableRegistry registry, TaskManager taskManager,
                                       String action, AsyncOperation<Request, Response, T> operation, Class<T> taskClass,
                                       ClusterService clusterService,
-                                      ThreadPool threadPool) {
+                                      ThreadPool threadPool,
+                                      TriFunction<StoredAsyncResponse<Response>, Long, String, SSR> statusProducer) {
         this.taskManager = taskManager;
         this.action = action;
         this.operation = operation;
@@ -116,6 +120,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
             origin, i -> new StoredAsyncResponse<>(operation::readResponse, i), registry);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+        this.statusProducer = statusProducer;
     }
 
     public void asyncExecute(Request request, TimeValue waitForCompletionTimeout, TimeValue keepAlive, boolean keepOnCompletion,
@@ -195,8 +200,8 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
 
     private void storeResults(T searchTask, StoredAsyncResponse<Response> storedResponse, ActionListener<Void> finalListener) {
         try {
-            asyncTaskIndexService.createResponse(searchTask.getExecutionId().getDocId(),
-                searchTask.getOriginHeaders(), storedResponse, ActionListener.wrap(
+            asyncTaskIndexService.createResponse(searchTask.getExecutionId(),
+                searchTask.getOriginHeaders(), storedResponse, statusProducer, ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
                         logger.trace(() -> new ParameterizedMessage("stored eql search results for [{}]",

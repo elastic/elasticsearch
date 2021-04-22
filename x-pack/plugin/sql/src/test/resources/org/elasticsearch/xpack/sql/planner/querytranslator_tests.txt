@@ -19,7 +19,7 @@
 //
 // Notes:
 //   - The SQL query could span multiple lines and should be terminated with semicolon (;)
-//   - The currently supported matchers: `CONTAINS` (the default one), `STARTS_WITH`, `ENDS_WITH`, `REGEX`
+//   - The currently supported matchers: `CONTAINS` (the default one), `REGEX`
 //   - To ignore a test, add the -Ignore to the end of the name
 //   - Matchers can be skipped, if you just want to test that a query is optimized/plan without errors
 //   - Do not use whitespaces in the relevant parts of the query itself, as they will be removed.

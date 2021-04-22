@@ -37,6 +37,7 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
@@ -107,9 +108,9 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         MatchOnlyTextFieldType fieldType = new MatchOnlyTextFieldType("field");
 
-        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
-        assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
-        assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
+        assertEquals(Collections.singletonList("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(Collections.singletonList("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(Collections.singletonList("true"), fetchSourceValue(fieldType, true));
     }
 
     private Query unwrapPositionalQuery(Query query) {

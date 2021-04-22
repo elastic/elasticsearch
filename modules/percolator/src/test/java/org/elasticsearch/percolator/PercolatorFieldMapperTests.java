@@ -692,7 +692,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties").startObject("").field("type", "percolator").endObject().endObject()
             .endObject().endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> mapperService.parse("type1", new CompressedXContent(mapping))
+            () -> mapperService.parseMapping("type1", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }

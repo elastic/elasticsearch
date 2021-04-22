@@ -16,8 +16,8 @@
         "data_stream": {
           "properties": {
             "type": {
-               "type": "constant_keyword",
-               "value": "logs"
+              "type": "constant_keyword",
+              "value": "logs"
             }
           }
         }

@@ -5,8 +5,8 @@
         "data_stream": {
           "properties": {
             "type": {
-               "type": "constant_keyword",
-               "value": "synthetics"
+              "type": "constant_keyword",
+              "value": "synthetics"
             }
           }
         }

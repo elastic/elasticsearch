@@ -2223,7 +2223,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         if (needsWrite) {
                             filesToSnapshot.add(snapshotFileInfo);
                         }
-                        assert needsWrite || assertFileContentsMatchHash(snapshotFileInfo, store);
+                        assert needsWrite || assertFileContentsMatchHash(snapshotStatus, snapshotFileInfo, store);
                     } else {
                         indexCommitPointFiles.add(existingFileInfo);
                     }
@@ -2368,13 +2368,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return store::decRef;
     }
 
-    private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
-        try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
-            final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
-            indexInput.readBytes(tmp, 0, tmp.length);
-            assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
-        } catch (IOException e) {
-            throw new AssertionError(e);
+    private static boolean assertFileContentsMatchHash(IndexShardSnapshotStatus snapshotStatus,
+                                                       BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
+        if (store.tryIncRef()) {
+            try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
+                final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
+                indexInput.readBytes(tmp, 0, tmp.length);
+                assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            } finally {
+                store.decRef();
+            }
+        } else {
+            assert snapshotStatus.isAborted() : "if the store is already closed we must have been aborted";
         }
         return true;
     }

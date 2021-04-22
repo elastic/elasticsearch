@@ -1,0 +1,61 @@
+[[cluster-enroll-node]]
+=== Enroll Node API
+++++
+<titleabbrev>Enroll Node</titleabbrev>
+++++
+
+Allows a new node to join an existing cluster with security enabled.
+
+[[cluster-enroll-node-api-request]]
+==== {api-request-title}
+
+`POST /_cluster/enroll_node`
+
+`PUT /_cluster/enroll_node`
+
+[[cluster-enroll-node-api-prereqs]]
+==== {api-prereq-title}
+
+* You must have the `enroll` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cluster-enroll-node-api-desc]]
+==== {api-description-title}
+
+The purpose of the enroll node API is to allow a new node to join an existing cluster
+where security is enabled. The enroll node API response contains all the necessary information
+for the joining node to bootstrap discovery and security related settings so that it
+can successfully join the cluster.
+
+[[cluster-enroll-node-api-examples]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST /_cluster/enroll_node
+--------------------------------------------------
+
+The API returns a response such as
+
+[source,console-result]
+--------------------------------------------------
+{
+  "http_ca_keystore" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <1>
+  "transport_keystore" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuE/yiOXvqZ6j+xuVSQ0CAwGGoA==", <2>
+  "cluster_name" : "cluster-name",               <3>
+  "nodes_addresses" : [                          <4>
+    "192.168.1.2:9300",
+    "192.168.1.3:9301",
+    "192.168.1.5:9300",
+    "192.168.1.6:9300",
+    "192.168.1.7:9301",
+  ]
+}
+--------------------------------------------------
+
+<1> The keystore containing the CA private key and X509 certificate that can be used by the
+    new node in order to sign its certificate for the HTTP layer, as a Base64 encoded string.
+<2> The keystore containing the private key and X509 certificate that the node can use for
+    TLS for its transport layer, as a Base64 encoded string.
+<3> The name of the cluster the new node is joining
+<4> A list of transport addresses in the form of `host:port` for the nodes that are already
+    members of the cluster.

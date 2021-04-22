@@ -240,9 +240,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             return;
         }
 
-        // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
         client.admin().cluster()
             .prepareGetSnapshots(repositories.toArray(Strings.EMPTY_ARRAY))
+            // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
             .setMasterNodeTimeout(TimeValue.MAX_VALUE)
             .setIgnoreUnavailable(true)
             .execute(ActionListener.wrap(resp -> {

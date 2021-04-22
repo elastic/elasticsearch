@@ -70,6 +70,8 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
+        setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
+        setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -79,13 +81,11 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         createReviewsIndex();
         indicesCreated = true;
 
-        setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
-        setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
     }
 
     @After
     public void clearOutTransforms() throws Exception {
-        wipeTransforms();
+        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     @SuppressWarnings("unchecked")

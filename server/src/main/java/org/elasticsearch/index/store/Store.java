@@ -21,8 +21,6 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.NoMergeScheduler;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -96,6 +94,7 @@ import java.util.zip.Checksum;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 
 /**
  * A Store provides plain access to files written by an elasticsearch index shard. Each shard
@@ -1549,14 +1548,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     private static IndexWriterConfig newTemporaryIndexWriterConfig() {
-        return new IndexWriterConfig(null)
+        // this config is only used for temporary IndexWriter instances, used to initialize the index or update the commit data,
+        // so we don't want any merges to happen
+        return indexWriterConfigWithNoMerging(null)
                 .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                .setCommitOnClose(false)
-                // this config is only used for temporary IndexWriter instances, used to initialize the index or update the commit data,
-                // so we don't want any merges to happen
-                .setMergePolicy(NoMergePolicy.INSTANCE)
-                // also override the default of ConcurrentMergeScheduler which calls IOUtils#spins on all mount points, which is problematic
-                // if the system has an otherwise-irrelevant mount point that's not responding
-                .setMergeScheduler(NoMergeScheduler.INSTANCE);
+                .setCommitOnClose(false);
     }
 }

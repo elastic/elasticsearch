@@ -26,8 +26,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -108,7 +110,11 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             ResetFeatureStateResponse resetFeatureStateResponse = client().execute(ResetFeatureStateAction.INSTANCE,
                 new ResetFeatureStateRequest()).get();
 
-            assertTrue(resetFeatureStateResponse.hasSomeFailures());
+            List<String> failedFeatures = resetFeatureStateResponse.getItemList().stream()
+                .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                .map(ResetFeatureStateResponse.ResetFeatureStateStatus::getFeatureName)
+                .collect(Collectors.toList());
+            assertThat(failedFeatures, contains("EvilSystemIndexTestPlugin"));
         } finally {
             EvilSystemIndexTestPlugin.beEvil = false;
         }

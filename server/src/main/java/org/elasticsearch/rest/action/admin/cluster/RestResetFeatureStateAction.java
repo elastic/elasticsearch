@@ -47,12 +47,15 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
             new RestToXContentListener<>(restChannel) {
                 @Override
                 protected RestStatus getStatus(ResetFeatureStateResponse response) {
-                    if (response.hasAllFailures()) {
+                    long failures = response.getItemList().stream()
+                        .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                        .count();
+                    if (failures == 0) {
+                        return RestStatus.OK;
+                    } else if (failures == response.getItemList().size()) {
                         return RestStatus.INTERNAL_SERVER_ERROR;
-                    } else if (response.hasSomeFailures()) {
-                        return RestStatus.MULTI_STATUS;
                     }
-                    return RestStatus.OK;
+                    return RestStatus.MULTI_STATUS;
                 }
             });
     }

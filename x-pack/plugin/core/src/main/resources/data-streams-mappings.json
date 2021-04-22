@@ -45,18 +45,10 @@
           }
         },
         "host": {
-          "properties": {
-            "ip": {
-              "type": "ip"
-            }
-          }
+          "type": "object"
         },
         "observer": {
-          "properties": {
-            "ip": {
-              "type": "ip"
-            }
-          }
+          "type": "object"
         }
       }
     }

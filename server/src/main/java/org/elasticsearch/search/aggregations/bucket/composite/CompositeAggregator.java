@@ -406,10 +406,19 @@ final class CompositeAggregator extends BucketsAggregator {
                 // We have an after key and index sort is applicable so we jump directly to the doc
                 // that is after the index sort prefix using the rawAfterKey and we start collecting
                 // document from there.
-                processLeafFromQuery(ctx, indexSortPrefix);
+                try {
+                    processLeafFromQuery(ctx, indexSortPrefix);
+                } catch (CollectionTerminatedException ex) {
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
-                final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                final LeafBucketCollector inner;
+                try {
+                     inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                } catch (CollectionTerminatedException ex) {
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long zeroBucket) throws IOException {

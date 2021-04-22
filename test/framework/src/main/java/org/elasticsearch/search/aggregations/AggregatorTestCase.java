@@ -490,7 +490,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         } else {
             root.preCollection();
-            searcher.search(rewritten, root);
+            searcher.search(rewritten, MultiBucketCollector.wrap(true, org.elasticsearch.common.collect.List.of(root)));
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }

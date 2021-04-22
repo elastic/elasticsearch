@@ -9,6 +9,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
@@ -104,7 +105,7 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * Registers the given listener to be notified with the result of this step.
      */
     public void addListener(ActionListener<Response> listener) {
-        delegate.addListener(listener);
+        delegate.addListener(listener, EsExecutors.newDirectExecutorService());
     }
 
 }

@@ -1,7 +1,7 @@
 setup:
 
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.13.99"
       reason: "match_only_text was added in 7.14"
 
   - do:

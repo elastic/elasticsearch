@@ -10,7 +10,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;

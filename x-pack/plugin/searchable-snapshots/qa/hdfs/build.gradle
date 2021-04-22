@@ -7,8 +7,8 @@
 
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.util.ports.ReservedPortRange
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.util.ports.ReservedPortRange
 
 import java.nio.file.Files
 import java.nio.file.Paths

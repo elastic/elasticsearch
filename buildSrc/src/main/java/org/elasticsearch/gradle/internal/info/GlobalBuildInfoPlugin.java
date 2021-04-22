@@ -10,7 +10,7 @@ package org.elasticsearch.gradle.internal.info;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.util.Util;
+import org.elasticsearch.gradle.internal.util.Util;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;

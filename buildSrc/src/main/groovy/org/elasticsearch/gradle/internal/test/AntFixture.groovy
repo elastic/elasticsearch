@@ -11,7 +11,7 @@ package org.elasticsearch.gradle.internal.test
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.internal.AntFixtureStop
 import org.elasticsearch.gradle.internal.AntTask
-import org.elasticsearch.gradle.test.Fixture
+import org.elasticsearch.gradle.internal.test.Fixture
 import org.gradle.api.GradleException
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskProvider

@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 
 import java.util.HashMap;
 import java.util.List;

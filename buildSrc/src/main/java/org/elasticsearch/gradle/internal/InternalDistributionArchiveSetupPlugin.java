@@ -21,7 +21,7 @@ import org.gradle.api.tasks.bundling.Zip;
 
 import java.io.File;
 
-import static org.elasticsearch.gradle.util.Util.capitalize;
+import static org.elasticsearch.gradle.internal.util.Util.capitalize;
 import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT;
 
 /**

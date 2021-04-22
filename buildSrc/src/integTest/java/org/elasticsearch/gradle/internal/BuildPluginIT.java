@@ -9,7 +9,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.Rule;
@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-import static org.elasticsearch.gradle.test.TestClasspathUtils.setupJarJdkClasspath;
+import static org.elasticsearch.gradle.internal.test.TestClasspathUtils.setupJarJdkClasspath;
 
 public class BuildPluginIT extends GradleIntegrationTestCase {
 

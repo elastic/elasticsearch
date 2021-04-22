@@ -11,7 +11,7 @@ import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.api.GradleException;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.Before;

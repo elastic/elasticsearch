@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 
 public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTestCase {

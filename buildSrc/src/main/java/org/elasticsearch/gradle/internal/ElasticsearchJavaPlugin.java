@@ -14,7 +14,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.util.Util;
+import org.elasticsearch.gradle.internal.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
@@ -48,7 +48,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.gradle.util.Util.toStringable;
+import static org.elasticsearch.gradle.internal.util.Util.toStringable;
 
 /**
  * A wrapper around Gradle's Java plugin that applies our common configuration.

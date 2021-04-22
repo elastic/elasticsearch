@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 
 import java.net.URL;
 import java.nio.file.Paths;

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 
 import java.util.List;
 

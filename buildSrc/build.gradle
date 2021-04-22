@@ -232,10 +232,10 @@ if (project != rootProject) {
     naming.clear()
     naming {
       Tests {
-        baseClass 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+        baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
       }
       IT {
-        baseClass 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
+        baseClass 'org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase'
       }
     }
   }

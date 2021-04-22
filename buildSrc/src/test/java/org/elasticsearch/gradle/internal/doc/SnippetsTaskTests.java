@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.doc;
 
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 
 public class SnippetsTaskTests extends GradleUnitTestCase {
 

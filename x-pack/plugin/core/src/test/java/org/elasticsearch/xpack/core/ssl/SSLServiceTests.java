@@ -42,10 +42,13 @@ import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
+import javax.net.ssl.X509TrustManager;
 import javax.security.cert.X509Certificate;
 import java.nio.file.Path;
 import java.security.AccessController;
+import java.security.KeyStore;
 import java.security.Principal;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -60,13 +63,17 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -88,6 +95,7 @@ public class SSLServiceTests extends ESTestCase {
     private Path testnodeCert;
     private Path testnodeKey;
     private Environment env;
+    private X509TrustManager systemTrust;
 
     @Before
     public void setup() throws Exception {
@@ -105,6 +113,18 @@ public class SSLServiceTests extends ESTestCase {
         testnodeKey = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         testclientStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
         env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
+
+        final String trustAlgo = TrustManagerFactory.getDefaultAlgorithm();
+        final TrustManagerFactory tmf = TrustManagerFactory.getInstance(trustAlgo);
+        tmf.init((KeyStore) null);
+        final X509TrustManager[] systemTrustManagers = Arrays.stream(tmf.getTrustManagers())
+            .filter(tm -> tm instanceof X509TrustManager)
+            .map(X509TrustManager.class::cast)
+            .toArray(X509TrustManager[]::new);
+        assertThat(systemTrustManagers, arrayWithSize(1));
+        systemTrust = systemTrustManagers[0];
+        // Simple check that we really loaded the system trust store, and that it's not empty
+        assertThat(systemTrust.getAcceptedIssuers(), arrayWithSize(greaterThan(10)));
     }
 
     public void testThatCustomTruststoreCanBeSpecified() throws Exception {
@@ -256,6 +276,41 @@ public class SSLServiceTests extends ESTestCase {
         SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
 
         assertTrue(sslService.isConfigurationValidForServerUsage(sslService.getSSLConfiguration("xpack.security.transport.ssl")));
+    }
+
+    public void testTransportWithKeystoreAndNoTruststore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, JKS keystores can't be used", inFipsJvm());
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        Settings settings = Settings.builder()
+            .put("xpack.security.transport.ssl.enabled", true)
+            .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
+            .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)
+            .setSecureSettings(secureSettings)
+            .build();
+        SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
+
+        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        assertThat(sslConfiguration, notNullValue());
+        final TrustConfig trust = sslConfiguration.trustConfig();
+        assertThat(trust, notNullValue());
+        final List<Path> files = trust.filesToMonitor(env);
+        assertThat(files, hasItem(testnodeStore));
+
+        final java.security.cert.X509Certificate[] issuers = trust.createTrustManager(env).getAcceptedIssuers();
+        assertThat(issuers, arrayWithSize(greaterThan(30)));
+        final Set<String> issuerNames = Arrays.stream(issuers)
+            .map(java.security.cert.X509Certificate::getSubjectX500Principal)
+            .map(Principal::getName)
+            .collect(Collectors.toSet());
+        // These are (some of) the trusted certs in the "testnode" keystore
+        assertThat(issuerNames, hasItem("CN=Elasticsearch Test Node,OU=elasticsearch,O=org"));
+        assertThat(issuerNames, hasItem("CN=Elasticsearch Test Node"));
+        assertThat(issuerNames, hasItem("CN=Elasticsearch Test Client,OU=elasticsearch,O=org"));
+
+        for (java.security.cert.X509Certificate systemIssuer : systemTrust.getAcceptedIssuers()) {
+            assertThat(Arrays.asList(issuers), hasItem(systemIssuer));
+        }
     }
 
     public void testValidForServer() throws Exception {

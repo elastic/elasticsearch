@@ -79,6 +79,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -808,7 +809,7 @@ public class OpenIdConnectAuthenticator {
                     future = reloadFutureRef.get();
                 }
             }
-            future.addListener(toNotify);
+            future.addListener(toNotify, EsExecutors.newDirectExecutorService(), null);
         }
 
         void reloadAsync(final ListenableFuture<Void> future) {

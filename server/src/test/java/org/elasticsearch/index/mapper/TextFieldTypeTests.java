@@ -8,6 +8,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -156,5 +158,45 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Collections.singletonList("value"), fetchSourceValue(fieldType, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(fieldType, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(fieldType, true));
+    }
+
+    public void testTermIntervals() throws IOException {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.term(new BytesRef("foo")), termIntervals);
+    }
+
+    public void testPrefixIntervals() throws IOException {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.prefix(new BytesRef("foo")), prefixIntervals);
+    }
+
+    public void testWildcardIntervals() throws IOException {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
+    }
+
+    public void testFuzzyIntervals() throws IOException {
+        MappedFieldType ft = createFieldType();
+        IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
+        FuzzyQuery fq = new FuzzyQuery(new Term("field", "foo"), 1, 2, 128, true);
+        IntervalsSource expectedIntervals = Intervals.multiterm(fq.getAutomata(), "foo");
+        assertEquals(expectedIntervals, fuzzyIntervals);
+    }
+
+    public void testPrefixIntervalsWithIndexedPrefixes() {
+        TextFieldType ft = createFieldType();
+        ft.setIndexPrefixes(1, 4);
+        IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.fixField("field._index_prefix", Intervals.term(new BytesRef("foo"))), prefixIntervals);
+    }
+
+    public void testWildcardIntervalsWithIndexedPrefixes() {
+        TextFieldType ft = createFieldType();
+        ft.setIndexPrefixes(1, 4);
+        IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertEquals(Intervals.wildcard(new BytesRef("foo")), wildcardIntervals);
     }
 }

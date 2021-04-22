@@ -73,6 +73,11 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         writeBlob(blobName, bytes, failIfAlreadyExists);
     }

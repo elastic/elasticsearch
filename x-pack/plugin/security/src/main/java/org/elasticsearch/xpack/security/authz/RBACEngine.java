@@ -317,7 +317,7 @@ public class RBACEngine implements AuthorizationEngine {
                     // check action name
                     authorizeIndexActionName(action, authorizationInfo, IndicesAccessControl.ALLOW_NO_INDICES, listener);
                 } else {
-                    buildIndicesAccessControl(authentication, action, authorizationInfo,
+                    buildIndicesAccessControl(action, authorizationInfo,
                         Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
                 }
             }, listener::onFailure));
@@ -333,7 +333,7 @@ public class RBACEngine implements AuthorizationEngine {
                             if (resolvedIndices.isNoIndicesPlaceholder()) {
                                 listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.ALLOW_NO_INDICES));
                             } else {
-                                buildIndicesAccessControl(authentication, action, authorizationInfo,
+                                buildIndicesAccessControl(action, authorizationInfo,
                                     Sets.newHashSet(resolvedIndices.getLocal()), aliasOrIndexLookup, listener);
                             }
                         }, listener::onFailure));
@@ -546,7 +546,7 @@ public class RBACEngine implements AuthorizationEngine {
         return Collections.unmodifiableList(new ArrayList<>(indicesAndAliases));
     }
 
-    private void buildIndicesAccessControl(Authentication authentication, String action,
+    private void buildIndicesAccessControl(String action,
                                            AuthorizationInfo authorizationInfo, Set<String> indices,
                                            Map<String, IndexAbstraction> aliasAndIndexLookup,
                                            ActionListener<IndexAuthorizationResult> listener) {

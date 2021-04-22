@@ -129,6 +129,9 @@ public class User implements ToXContentObject {
         sb.append(",email=").append(email);
         sb.append(",metadata=");
         sb.append(metadata);
+        if (enabled == false) {
+            sb.append(",(disabled)");
+        }
         if (authenticatedUser != null) {
             sb.append(",authenticatedUser=[").append(authenticatedUser.toString()).append("]");
         }

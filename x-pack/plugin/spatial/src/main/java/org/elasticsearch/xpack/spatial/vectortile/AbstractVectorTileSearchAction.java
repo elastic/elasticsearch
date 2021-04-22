@@ -28,14 +28,22 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -226,8 +234,30 @@ public abstract class AbstractVectorTileSearchAction<R extends AbstractVectorTil
         }
 
         public void setAggBuilder(AggregatorFactories.Builder aggBuilder) {
-            // TODO: validation
+            for (AggregationBuilder aggregation : aggBuilder.getAggregatorFactories()) {
+                final String type = aggregation.getType();
+                switch (type)  {
+                    case MinAggregationBuilder.NAME:
+                    case MaxAggregationBuilder.NAME:
+                    case AvgAggregationBuilder.NAME:
+                    case SumAggregationBuilder.NAME:
+                    case CardinalityAggregationBuilder.NAME:
+                        break;
+                    default:
+                        // top term and percentile should be supported
+                        throw new IllegalArgumentException("Unsupported aggregation of type [" + type + "]");
+                }
+            }
+            for (PipelineAggregationBuilder aggregation : aggBuilder.getPipelineAggregatorFactories()) {
+                // should not have pipeline aggregations
+                final String type = aggregation.getType();
+                throw new IllegalArgumentException("Unsupported pipeline aggregation of type [" + type + "]");
+            }
             this.aggBuilder = aggBuilder;
+        }
+
+        public Collection<AggregationBuilder> getAggregations() {
+            return aggBuilder == null ? emptyList() : aggBuilder.getAggregatorFactories();
         }
     }
 

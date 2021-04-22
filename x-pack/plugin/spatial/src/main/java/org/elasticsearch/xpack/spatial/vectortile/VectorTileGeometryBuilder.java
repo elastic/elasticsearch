@@ -57,10 +57,10 @@ class VectorTileGeometryBuilder {
     }
 
     private int lat(double lat) {
-        return (int) (pointYScale * (VectorTileUtils.latToSphericalMercator(lat) - rectangle.getMinY())) + extent;
+        return (int) Math.round(pointYScale * (VectorTileUtils.latToSphericalMercator(lat) - rectangle.getMinY())) + extent;
     }
 
     private int lon(double lon) {
-        return (int) (pointXScale * (VectorTileUtils.lonToSphericalMercator(lon) - rectangle.getMinX()));
+        return (int) Math.round(pointXScale * (VectorTileUtils.lonToSphericalMercator(lon) - rectangle.getMinX()));
     }
 }

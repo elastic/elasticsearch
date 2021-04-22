@@ -40,7 +40,7 @@ public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
 
         Mapping parsedMapping = mapperService.parseMapping("type", new CompressedXContent(mapping));
-        assertEquals(mapping, parsedMapping.getSource().toString());
+        assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
         assertNotNull(parsedMapping.getMetadataMapperByClass(RankFeatureMetaFieldMapper.class));
     }
 

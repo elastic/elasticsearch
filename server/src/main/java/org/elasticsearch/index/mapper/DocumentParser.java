@@ -39,12 +39,12 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /** A parser for documents, given mappings from a DocumentMapper */
-public final class DocumentParser {
+final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
 
-    public DocumentParser(NamedXContentRegistry xContentRegistry,
+    DocumentParser(NamedXContentRegistry xContentRegistry,
                    Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
         this.xContentRegistry = xContentRegistry;
         this.dateParserContext = dateParserContext;

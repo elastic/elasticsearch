@@ -237,7 +237,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // serialization is the same as the existing mapper
             Mapping newMapping = parseMapping(mapping.type(), mapping.source());
             final CompressedXContent currentSource = this.mapper.mappingSource();
-            final CompressedXContent newSource = newMapping.getSource();
+            final CompressedXContent newSource = newMapping.toCompressedXContent();
             if (Objects.equals(currentSource, newSource) == false) {
                 throw new IllegalStateException("expected current mapping [" + currentSource
                     + "] to be the same as new mapping [" + newSource + "]");
@@ -304,10 +304,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
         Mapping newMapping = parseMapping(mapper.type(), mappingSource);
-        if (newMapping.getSource().equals(mappingSource) == false) {
+        if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
             throw new IllegalStateException("Mapping serialization result is different from source. \n--> Source ["
                 + mappingSource + "]\n--> Result ["
-                + newMapping.getSource() + "]");
+                + newMapping.toCompressedXContent() + "]");
         }
         return true;
     }

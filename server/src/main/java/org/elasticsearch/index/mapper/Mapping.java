@@ -46,7 +46,6 @@ public final class Mapping implements ToXContentFragment {
     private final MetadataFieldMapper[] metadataMappers;
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
-    private final CompressedXContent source;
 
     public Mapping(RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.metadataMappers = metadataMappers;
@@ -67,15 +66,15 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
+
+    }
+
+    CompressedXContent toCompressedXContent() {
         try {
-            source = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+            return new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
         }
-    }
-
-    CompressedXContent getSource() {
-        return source;
     }
 
     /**

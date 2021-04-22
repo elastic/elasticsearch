@@ -47,12 +47,14 @@ public class ResetFeaturesResponse {
     public static class ResetFeatureStateStatus {
         private final String featureName;
         private final String status;
+        private final Exception exception;
 
         private static final ParseField FEATURE_NAME = new ParseField("feature_name");
         private static final ParseField STATUS = new ParseField("status");
+        private static final ParseField EXCEPTION = new ParseField("exception");
 
         private static final ConstructingObjectParser<ResetFeatureStateStatus, Void> PARSER =  new ConstructingObjectParser<>(
-            "features", true, (a, ctx) -> new ResetFeatureStateStatus((String) a[0], (String) a[1])
+            "features", true, (a, ctx) -> new ResetFeatureStateStatus((String) a[0], (String) a[1], (Exception) a[2])
         );
 
         static {
@@ -60,11 +62,14 @@ public class ResetFeaturesResponse {
                 (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
             PARSER.declareField(ConstructingObjectParser.constructorArg(),
                 (p, c) -> p.text(), STATUS, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> p.text(), EXCEPTION, ObjectParser.ValueType.OBJECT_OR_NULL);
         }
 
-        ResetFeatureStateStatus(String featureName, String status) {
+        ResetFeatureStateStatus(String featureName, String status, Exception exception) {
             this.featureName = featureName;
             this.status = status;
+            this.exception = exception;
         }
 
         public static ResetFeatureStateStatus parse(XContentParser parser, Void ctx) {
@@ -77,6 +82,10 @@ public class ResetFeaturesResponse {
 
         public String getStatus() {
             return status;
+        }
+
+        public Exception getException() {
+            return exception;
         }
     }
 }

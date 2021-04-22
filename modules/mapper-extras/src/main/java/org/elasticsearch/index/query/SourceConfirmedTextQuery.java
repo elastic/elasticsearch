@@ -233,7 +233,7 @@ public final class SourceConfirmedTextQuery extends Query {
             }
         }
         final SimScorer simScorer = searcher.getSimilarity()
-            .scorer(boost, searcher.collectionStatistics(field), termStats.toArray(TermStatistics[]::new));
+            .scorer(boost, searcher.collectionStatistics(field), termStats.toArray(new TermStatistics[0]));
         final Weight approximationWeight = searcher.createWeight(approximate(in), ScoreMode.COMPLETE_NO_SCORES, 1f);
 
         return new Weight(this) {

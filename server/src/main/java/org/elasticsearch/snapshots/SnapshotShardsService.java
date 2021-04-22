@@ -44,6 +44,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportException;
@@ -331,10 +332,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             Engine.IndexCommitRef snapshotRef = null;
             try {
                 snapshotRef = indexShard.acquireIndexCommitForSnapshot();
-                final IndexCommit snapshotIndexCommit = snapshotRef.getIndexCommit();
-                repository.snapshotShard(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(), indexId,
-                    snapshotRef.getIndexCommit(), getShardStateId(indexShard, snapshotIndexCommit), snapshotStatus, version, userMetadata,
-                    ActionListener.runBefore(listener, snapshotRef::close));
+                repository.snapshotShard(new SnapshotShardContext(indexShard.store(), indexShard.mapperService(), snapshot.getSnapshotId(),
+                    indexId, snapshotRef, getShardStateId(indexShard, snapshotRef.getIndexCommit()), snapshotStatus, version, userMetadata,
+                    listener));
             } catch (Exception e) {
                 IOUtils.close(snapshotRef);
                 throw e;

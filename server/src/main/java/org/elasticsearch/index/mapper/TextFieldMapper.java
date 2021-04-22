@@ -710,15 +710,20 @@ public class TextFieldMapper extends FieldMapper {
             if (getTextSearchInfo().hasPositions() == false) {
                 throw new IllegalArgumentException("Cannot create intervals over field [" + name() + "] with no positions indexed");
             }
-            if (prefixFieldType != null) {
-                return prefixFieldType.intervals(pattern);
-            }
             return Intervals.wildcard(pattern);
         }
 
+        private void checkForPositions() {
+            if (getTextSearchInfo().hasPositions() == false) {
+                throw new IllegalStateException("field:[" + name() + "] was indexed without position data; cannot run PhraseQuery");
+            }
+        }
+
         @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements) throws IOException {
+        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements,
+                SearchExecutionContext context) throws IOException {
             String field = name();
+            checkForPositions();
             // we can't use the index_phrases shortcut with slop, if there are gaps in the stream,
             // or if the incoming token stream is the output of a token graph due to
             // https://issues.apache.org/jira/browse/LUCENE-8916
@@ -751,7 +756,8 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
+        public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements,
+                SearchExecutionContext context) throws IOException {
             String field = name();
             if (indexPhrases && slop == 0 && hasGaps(stream) == false) {
                 stream = new FixedShingleFilter(stream, 2);
@@ -760,8 +766,21 @@ public class TextFieldMapper extends FieldMapper {
             return createPhraseQuery(stream, field, slop, enablePositionIncrements);
         }
 
+        private int countTokens(TokenStream ts) throws IOException {
+            ts.reset();
+            int count = 0;
+            while (ts.incrementToken()) {
+                count++;
+            }
+            ts.end();
+            return count;
+        }
+
         @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) throws IOException {
+        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) throws IOException {
+            if (countTokens(stream) > 1) {
+                checkForPositions();
+            }
             return analyzePhrasePrefix(stream, slop, maxExpansions);
         }
 

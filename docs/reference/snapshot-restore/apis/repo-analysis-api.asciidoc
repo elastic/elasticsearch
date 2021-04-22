@@ -220,6 +220,10 @@ always happen in the same order on each run.
 information for every operation performed during the analysis. Defaults to
 `false`, meaning to return only a summary of the analysis.
 
+`rarely_abort_writes`::
+(Optional, boolean) Whether to rarely abort some write requests. Defaults to
+`true`.
+
 [role="child_attributes"]
 [[repo-analysis-api-response-body]]
 ==== {api-response-body-title}

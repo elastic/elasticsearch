@@ -99,6 +99,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnReadError() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
+        request.abortWritePermitted(false);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
         blobStore.setDisruption(new Disruption() {
@@ -120,6 +121,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnNotFoundAfterWrite() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
+        request.abortWritePermitted(false);
         request.rareActionProbability(0.0); // not found on an early read or an overwrite is ok
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
@@ -140,6 +142,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnChecksumMismatch() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
+        request.abortWritePermitted(false);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
 
@@ -161,6 +164,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnWriteException() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
+        request.abortWritePermitted(false);
 
         final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
 
@@ -184,6 +188,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnIncompleteListing() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
+        request.abortWritePermitted(false);
 
         blobStore.setDisruption(new Disruption() {
 
@@ -202,6 +207,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnListingException() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
+        request.abortWritePermitted(false);
 
         final CountDown countDown = new CountDown(1);
         blobStore.setDisruption(new Disruption() {
@@ -221,6 +227,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnDeleteException() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
+        request.abortWritePermitted(false);
 
         blobStore.setDisruption(new Disruption() {
             @Override
@@ -235,6 +242,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
     public void testFailsOnIncompleteDelete() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
         request.maxBlobSize(new ByteSizeValue(10L));
+        request.abortWritePermitted(false);
 
         blobStore.setDisruption(new Disruption() {
 

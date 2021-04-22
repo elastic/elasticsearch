@@ -15,7 +15,7 @@ import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.internal.BuildPlugin;
 import org.elasticsearch.gradle.NoticeTask;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;

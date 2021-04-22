@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.test;
 
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
-import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
+import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.RepositoriesSetupPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;

@@ -9,11 +9,10 @@ package org.elasticsearch.gradle.internal.doc
 
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.VersionProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
-import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.TaskProvider
 

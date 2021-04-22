@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle;
+package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;

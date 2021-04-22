@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.gradle;
+package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;

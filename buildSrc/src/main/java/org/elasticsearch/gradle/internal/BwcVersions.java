@@ -9,7 +9,6 @@ package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
 
 import java.util.ArrayList;
 import java.util.Collection;

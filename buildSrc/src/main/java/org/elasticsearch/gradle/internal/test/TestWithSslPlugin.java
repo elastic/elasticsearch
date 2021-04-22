@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
+import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin;
 import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin;

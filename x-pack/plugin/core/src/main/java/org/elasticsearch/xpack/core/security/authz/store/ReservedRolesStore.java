@@ -358,7 +358,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .resources("*")
                     .privileges("read").build(),
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application("kibana-.*")
+                    .application("kibana-*")
                     .resources("*")
                     .privileges("reserved_ml_user").build() },
             null,
@@ -389,7 +389,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .resources("*")
                     .privileges("all").build(),
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application("kibana-.*")
+                    .application("kibana-*")
                     .resources("*")
                     .privileges("reserved_ml_admin").build() },
             null,

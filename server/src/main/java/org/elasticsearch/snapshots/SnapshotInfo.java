@@ -421,11 +421,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         userMetadata = in.readMap();
         dataStreams = in.readStringList();
         featureStates = Collections.unmodifiableList(in.readList(SnapshotFeatureInfo::new));
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.indexSnapshotDetails = in.readMap(StreamInput::readString, IndexSnapshotDetails::new);
-        } else {
-            this.indexSnapshotDetails = Collections.emptyMap();
-        }
+        indexSnapshotDetails = in.readMap(StreamInput::readString, IndexSnapshotDetails::new);
     }
 
     /**
@@ -898,9 +894,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeStringCollection(dataStreams);
         out.writeList(featureStates);
 
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(indexSnapshotDetails, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
-        }
+        out.writeMap(indexSnapshotDetails, StreamOutput::writeString, (stream, value) -> value.writeTo(stream));
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {

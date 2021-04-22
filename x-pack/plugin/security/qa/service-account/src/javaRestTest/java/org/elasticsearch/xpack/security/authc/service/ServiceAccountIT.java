@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -282,7 +281,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("document already exists"));
     }
 
-    public void testGetServiceAccountTokens() throws IOException {
+    public void testGetServiceAccountCredentials() throws IOException {
         final Request getTokensRequest = new Request("GET", "_security/service/elastic/fleet-server/credential");
         final Response getTokensResponse1 = client().performRequest(getTokensRequest);
         assertOK(getTokensResponse1);
@@ -330,6 +329,17 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response deleteTokenResponse2 = client().performRequest(deleteTokenRequest2);
         assertOK(deleteTokenResponse2);
         assertThat(responseAsMap(deleteTokenResponse2).get("found"), is(false));
+    }
+
+    public void testClearCache() throws IOException {
+        final Request clearCacheRequest = new Request("POST", "_security/service/elastic/fleet-server/credential/token/"
+            + randomFrom("", "*", "api-token-1", "api-token-1,api-token2") + "/_clear_cache");
+        final Response clearCacheResponse = client().performRequest(clearCacheRequest);
+        assertOK(clearCacheResponse);
+        final Map<String, Object> clearCacheResponseMap = responseAsMap(clearCacheResponse);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> nodesMap = (Map<String, Object>) clearCacheResponseMap.get("_nodes");
+        assertThat(nodesMap.get("failed"), equalTo(0));
     }
 
     public void testManageOwnApiKey() throws IOException {

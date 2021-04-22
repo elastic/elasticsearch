@@ -42,10 +42,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -257,8 +259,17 @@ public class ServerUtils {
         Path yml = installation.config("elasticsearch.yml");
         try (Stream<String> lines = Files.readAllLines(yml).stream()) {
             if (lines.noneMatch(s -> s.startsWith("ingest.geoip.downloader.enabled"))) {
-                Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
+                Files.write(yml, yaml, CREATE, APPEND);
             }
         }
+    }
+
+    public static void enableGeoIpDownloader(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("ingest.geoip.downloader.enabled") == false).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
     }
 }

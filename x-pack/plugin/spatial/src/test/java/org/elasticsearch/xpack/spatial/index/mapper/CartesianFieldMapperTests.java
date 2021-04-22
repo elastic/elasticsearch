@@ -145,7 +145,7 @@ public abstract class CartesianFieldMapperTests  extends MapperTestCase {
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> mapper2.parse(source(b -> b.field(FIELD_NAME, "POINT (2000.1 305.6 34567.33)")))
         );
-        assertThat(e.getMessage(), containsString("Failed to parse field [" + FIELD_NAME + "] of type"));
+        assertThat(e.getMessage(), containsString("failed to parse field [" + FIELD_NAME + "] of type"));
         assertThat(e.getRootCause().getMessage(),
             containsString("found Z value [34567.33] but [ignore_z_value] parameter is [false]"));
     }

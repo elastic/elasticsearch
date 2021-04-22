@@ -32,7 +32,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -279,10 +278,34 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Create an {@link IntervalsSource} to be used for proximity queries
+     * Create an {@link IntervalsSource} for the given term.
      */
-    public IntervalsSource intervals(String query, int max_gaps, boolean ordered,
-                                     NamedAnalyzer analyzer, boolean prefix) throws IOException {
+    public IntervalsSource termIntervals(BytesRef term, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    /**
+     * Create an {@link IntervalsSource} for the given prefix.
+     */
+    public IntervalsSource prefixIntervals(BytesRef prefix, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    /**
+     * Create a fuzzy {@link IntervalsSource} for the given term.
+     */
+    public IntervalsSource fuzzyIntervals(String term, int maxDistance, int prefixLength,
+            boolean transpositions, SearchExecutionContext context) {
+        throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    /**
+     * Create a wildcard {@link IntervalsSource} for the given pattern.
+     */
+    public IntervalsSource wildcardIntervals(BytesRef pattern, SearchExecutionContext context) {
         throw new IllegalArgumentException("Can only use interval queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }

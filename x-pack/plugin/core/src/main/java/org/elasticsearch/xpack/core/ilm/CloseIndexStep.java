@@ -28,7 +28,7 @@ public class CloseIndexStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
             CloseIndexRequest request = new CloseIndexRequest(indexMetadata.getIndex().getName());
             getClient().admin().indices()

@@ -1148,8 +1148,8 @@ setup:
 ---
 "Nested then filter then nested then terms":
   - skip:
-      version: " - 7.99.99"
-      reason:  Filter support not backported yet
+      version: " - 7.12.99"
+      reason:  Filter support added in 7.13
   - do:
       search:
         rest_total_hits_as_int: true
@@ -1192,8 +1192,8 @@ setup:
 ---
 "Filter without nesting":
   - skip:
-      version: " - 7.99.99"
-      reason:  Filter support not backported yet
+      version: " - 7.12.99"
+      reason:  Filter added in 7.13
   - do:
       search:
         rest_total_hits_as_int: true

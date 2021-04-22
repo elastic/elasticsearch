@@ -67,6 +67,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         return input.readLines()
                 .collect { it.replace('\\', '/') }
                 .collect {it.replace(normalizedPathPrefix , '.') }
+                .collect {it.replaceAll(/Gradle Test Executor \d/ , 'Gradle Test Executor 1') }
                 .join("\n")
     }
 

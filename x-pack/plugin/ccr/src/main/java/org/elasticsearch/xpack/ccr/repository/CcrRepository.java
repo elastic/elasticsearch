@@ -12,7 +12,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
@@ -50,7 +49,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.RetentionLeaseAlreadyExistsException;
 import org.elasticsearch.index.seqno.RetentionLeaseInvalidRetainingSeqNoException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -71,6 +69,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -250,8 +249,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             Metadata remoteMetadata = response.getState().getMetadata();
 
             Map<String, SnapshotId> copiedSnapshotIds = new HashMap<>();
-            Map<String, SnapshotState> snapshotStates = new HashMap<>(copiedSnapshotIds.size());
-            Map<String, Version> snapshotVersions = new HashMap<>(copiedSnapshotIds.size());
+            Map<String, RepositoryData.SnapshotDetails> snapshotsDetails = new HashMap<>(copiedSnapshotIds.size());
             Map<IndexId, List<SnapshotId>> indexSnapshots = new HashMap<>(copiedSnapshotIds.size());
 
             ImmutableOpenMap<String, IndexMetadata> remoteIndices = remoteMetadata.getIndices();
@@ -259,8 +257,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 // Both the Snapshot name and UUID are set to _latest_
                 SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
                 copiedSnapshotIds.put(indexName, snapshotId);
-                snapshotStates.put(indexName, SnapshotState.SUCCESS);
-                snapshotVersions.put(indexName, Version.CURRENT);
+                snapshotsDetails.put(indexName, new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT));
                 Index index = remoteIndices.get(indexName).getIndex();
                 indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }
@@ -268,8 +265,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     MISSING_UUID,
                     1,
                     copiedSnapshotIds,
-                    snapshotStates,
-                    snapshotVersions,
+                    snapshotsDetails,
                     indexSnapshots,
                     ShardGenerations.EMPTY,
                     IndexMetaDataGenerations.EMPTY,
@@ -326,10 +322,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     }
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                              Version repositoryMetaVersion, Map<String, Object> userMetadata,
-                              ActionListener<ShardSnapshotResult> listener) {
+    public void snapshotShard(SnapshotShardContext context) {
         throw new UnsupportedOperationException("Unsupported for repository of type: " + TYPE);
     }
 

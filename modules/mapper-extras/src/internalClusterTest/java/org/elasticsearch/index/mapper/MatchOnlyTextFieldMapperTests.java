@@ -25,7 +25,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +34,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        return List.of(new MapperExtrasPlugin());
+        return Collections.singleton(new MapperExtrasPlugin());
     }
 
     @Override

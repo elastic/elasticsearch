@@ -28,10 +28,6 @@
         },
         "data_stream": {
           "properties": {
-            "type": {
-              "type": "constant_keyword",
-              "value": "synthetics"
-            },
             "dataset": {
               "type": "constant_keyword"
             },

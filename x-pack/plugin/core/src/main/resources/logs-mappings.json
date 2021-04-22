@@ -7,12 +7,21 @@
             "match_mapping_type": "string",
             "match": "message",
             "mapping": {
-              "type": "text",
-              "norms": false
+              "type": "match_only_text"
             }
           }
         }
-      ]
+      ],
+      "properties": {
+        "data_stream": {
+          "properties": {
+            "type": {
+               "type": "constant_keyword",
+               "value": "logs"
+            }
+          }
+        }
+      }
     }
   },
   "_meta": {

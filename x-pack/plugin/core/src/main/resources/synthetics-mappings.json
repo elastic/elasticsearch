@@ -1,5 +1,17 @@
 {
   "template": {
+    "mappings": {
+      "properties": {
+        "data_stream": {
+          "properties": {
+            "type": {
+               "type": "constant_keyword",
+               "value": "synthetics"
+            }
+          }
+        }
+      }
+    }
   },
   "_meta": {
     "description": "default mappings for the synthetics index template installed by x-pack",

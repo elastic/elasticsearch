@@ -315,7 +315,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
 
         CombinedFieldsBuilder builder = new CombinedFieldsBuilder(fieldsAndBoosts,
-            sharedAnalyzer, canGenerateSynonymsPhraseQuery);
+            sharedAnalyzer, canGenerateSynonymsPhraseQuery, context);
         Query query = builder.createBooleanQuery(placeholderFieldName, value.toString(), operator.toBooleanClauseOccur());
 
         query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
@@ -353,13 +353,16 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
     private static class CombinedFieldsBuilder extends QueryBuilder {
         private final List<FieldAndBoost> fields;
+        private final SearchExecutionContext context;
 
         CombinedFieldsBuilder(List<FieldAndBoost> fields,
                               Analyzer analyzer,
-                              boolean autoGenerateSynonymsPhraseQuery) {
+                              boolean autoGenerateSynonymsPhraseQuery,
+                              SearchExecutionContext context) {
             super(analyzer);
             this.fields = fields;
             setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+            this.context = context;
         }
 
         @Override
@@ -409,7 +412,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (FieldAndBoost fieldAndBoost : fields) {
-                Query query = fieldAndBoost.fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                Query query = fieldAndBoost.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldAndBoost.boost != 1f) {
                     query = new BoostQuery(query, fieldAndBoost.boost);
                 }

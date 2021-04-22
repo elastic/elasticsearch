@@ -216,9 +216,7 @@ public class PersistJobIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = new Job.Builder(jobId);
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(new DataDescription.Builder());
-        registerJob(job);
         putJob(job);
-
         openJob(job.getId());
     }
 

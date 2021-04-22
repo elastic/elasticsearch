@@ -249,14 +249,17 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
 
         this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
+        this.aliasName = aliasName;
 
         final Automaton automaton = buildAutomaton(indexPattern, aliasName);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
+        if (primaryIndex != null && indexPatternAutomaton.run(primaryIndex) == false) {
+            throw new IllegalArgumentException("primary index does not match the index pattern!");
+        }
 
         this.description = description;
         this.mappings = mappings;
         this.settings = settings;
-        this.aliasName = aliasName;
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
@@ -384,7 +387,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
 
     public Version getMappingVersion() {
         if (type.isManaged() == false) {
-            throw new IllegalStateException(toString() + " is not managed so there are no mappings or version");
+            throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
         return mappingVersion;
     }

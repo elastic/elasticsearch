@@ -81,25 +81,6 @@ public class InferenceIngestIT extends ESRestTestCase {
     @After
     public void cleanUpData() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
-        RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> {
-                if (warnings.isEmpty()) {
-                    // There may not be an index to delete, in which case there's no warning
-                    return false;
-                } else if (warnings.size() > 1) {
-                    return true;
-                }
-                // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
-                final String warning = warnings.get(0);
-                final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
-                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                return isSystemIndexWarning == false;
-            }).build();
-        final Request deleteInferenceRequest = new Request("DELETE", InferenceIndexConstants.INDEX_PATTERN);
-        deleteInferenceRequest.setOptions(allowSystemIndexAccessWarningOptions);
-        client().performRequest(deleteInferenceRequest);
-        final Request deleteStatsRequest = new Request("DELETE", MlStatsIndex.indexPattern());
-        client().performRequest(deleteStatsRequest);
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("" +
             "{" +
@@ -108,7 +89,6 @@ public class InferenceIngestIT extends ESRestTestCase {
             "    }" +
             "}");
         client().performRequest(loggingSettings);
-        ESRestTestCase.waitForPendingTasks(adminClient());
     }
 
     public void testPathologicalPipelineCreationAndDeletion() throws Exception {

@@ -299,7 +299,7 @@ public class AuthorizationService {
             });
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
                 metadata.getIndicesLookup(), wrapPreservingContext(new AuthorizationResultListener<>(result ->
-                    handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine, authorizedIndicesSupplier,
+                    handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine,
                         resolvedIndicesAsyncSupplier, metadata, listener),
                     listener::onFailure, requestInfo, requestId, authzInfo), threadContext));
         } else {
@@ -312,7 +312,6 @@ public class AuthorizationService {
     private void handleIndexActionAuthorizationResult(final IndexAuthorizationResult result, final RequestInfo requestInfo,
                                                       final String requestId, final AuthorizationInfo authzInfo,
                                                       final AuthorizationEngine authzEngine,
-                                                      final AsyncSupplier<List<String>> authorizedIndicesSupplier,
                                                       final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier,
                                                       final Metadata metadata,
                                                       final ActionListener<Void> listener) {

@@ -896,6 +896,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
 
         List<IndexRequest> indexRequests = indexRequestStream.collect(Collectors.toList());
+        if (logger.isDebugEnabled()) {
+            if (indexRequests.isEmpty()) {
+                logger.debug("[{}] processed buckets, nothing to be indexed", getJobId());
+            } else {
+                logger.debug(
+                    "[{}] processed buckets and created [{}] documents to be indexed, 1st document: [{}]",
+                    getJobId(),
+                    indexRequests.size(),
+                    indexRequests.get(0)
+                );
+            }
+        }
         IterationResult<TransformIndexerPosition> result = new IterationResult<>(indexRequests, newPosition, indexRequests.isEmpty());
 
         // NOTE: progress is also mutated in onFinish

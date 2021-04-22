@@ -1020,30 +1020,6 @@ public class QueryTranslatorTests extends ESTestCase {
 
     // Count
     ///////////
-    public void testCountAndCountDistinctFolding() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec ee = (EsQueryExec) p;
-        assertEquals(2, ee.output().size());
-        assertThat(ee.output().get(0).toString(), startsWith("dkey{r}"));
-        assertThat(ee.output().get(1).toString(), startsWith("key{r}"));
-
-        Collection<AggregationBuilder> subAggs = ee.queryContainer().aggs().asAggBuilder().getSubAggregations();
-        assertEquals(2, subAggs.size());
-        assertTrue(subAggs.toArray()[0] instanceof CardinalityAggregationBuilder);
-        assertTrue(subAggs.toArray()[1] instanceof FilterAggregationBuilder);
-
-        CardinalityAggregationBuilder cardinalityKeyword = (CardinalityAggregationBuilder) subAggs.toArray()[0];
-        assertEquals("keyword", cardinalityKeyword.field());
-
-        FilterAggregationBuilder existsKeyword = (FilterAggregationBuilder) subAggs.toArray()[1];
-        assertTrue(existsKeyword.getFilter() instanceof ExistsQueryBuilder);
-        assertEquals("keyword", ((ExistsQueryBuilder) existsKeyword.getFilter()).fieldName());
-
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-                endsWith("{\"filter\":{\"exists\":{\"field\":\"keyword\",\"boost\":1.0}}}}}}"));
-    }
-
     public void testAllCountVariantsWithHavingGenerateCorrectAggregations() {
         PhysicalPlan p = optimizeAndPlan("SELECT AVG(int), COUNT(keyword) ln, COUNT(distinct keyword) dln, COUNT(some.dotted.field) fn,"
                 + "COUNT(distinct some.dotted.field) dfn, COUNT(*) ccc FROM test GROUP BY bool "
@@ -1105,55 +1081,6 @@ public class QueryTranslatorTests extends ESTestCase {
                         +   "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a5,params.v5))))\","
                         + "\"lang\":\"painless\",\"params\":{\"v0\":3,\"v1\":32,\"v2\":1,\"v3\":2,\"v4\":5,\"v5\":50000}},"
                         + "\"gap_policy\":\"skip\"}}}}}"));
-    }
-
-    public void testGlobalCountInImplicitGroupByForcesTrackHits() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
-    }
-
-    public void testGlobalCountAllInImplicitGroupByForcesTrackHits() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL *) FROM test");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertTrue("Should be tracking hits", eqe.queryContainer().shouldTrackHits());
-    }
-
-    public void testGlobalCountInSpecificGroupByDoesNotForceTrackHits() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(*) FROM test GROUP BY int");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
-    }
-
-    public void testFieldAllCountDoesNotTrackHits() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(ALL int) FROM test");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
-    }
-
-    public void testFieldCountDoesNotTrackHits() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(int) FROM test");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
-    }
-
-    public void testDistinctCountDoesNotTrackHits() {
-        PhysicalPlan p = optimizeAndPlan("SELECT COUNT(DISTINCT int) FROM test");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
-    }
-
-    public void testNoCountDoesNotTrackHits() {
-        PhysicalPlan p = optimizeAndPlan("SELECT int FROM test");
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
-        assertFalse("Should NOT be tracking hits", eqe.queryContainer().shouldTrackHits());
     }
 
 

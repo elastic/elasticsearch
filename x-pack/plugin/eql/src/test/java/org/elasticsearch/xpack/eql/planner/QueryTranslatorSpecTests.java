@@ -20,17 +20,19 @@ import static org.hamcrest.Matchers.not;
 
 public class QueryTranslatorSpecTests extends AbstractQueryTranslatorTestCase {
 
+    private final String filename;
     private final String name;
     private final String query;
     private final List<Matcher<String>> matchers;
 
-    public QueryTranslatorSpecTests(String name, String query, List<Matcher<String>> matchers) {
+    public QueryTranslatorSpecTests(String filename, String name, String query, List<Matcher<String>> matchers) {
+        this.filename = filename;
         this.name = name;
         this.query = query;
         this.matchers = matchers;
     }
 
-    @ParametersFactory(shuffle = false, argumentFormatting = "%1$s")
+    @ParametersFactory(shuffle = false, argumentFormatting = "%2$s")
     public static Iterable<Object[]> parameters() throws Exception {
         return TestUtils.readSpec(QueryTranslatorSpecTests.class, "/querytranslator_tests.txt");
     }

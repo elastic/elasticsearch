@@ -57,6 +57,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -327,7 +328,7 @@ public final class TestUtils {
         return runtimeFields;
     }
 
-    public static Iterable<Object[]> readSpec(Class<?> clazz, String testFileName) throws Exception {
+    public static Collection<Object[]> readSpec(Class<?> clazz, String testFileName) throws Exception {
         ArrayList<Object[]> arr = new ArrayList<>();
         Map<String, Integer> testNames = new LinkedHashMap<>();
 
@@ -401,7 +402,7 @@ public final class TestUtils {
 
                     if (done) {
                         // Add and zero out for the next spec
-                        arr.add(new Object[] { name, query, matchers });
+                        arr.add(new Object[] { testFileName, name, query, matchers });
                         name = null;
                         query = null;
                         matchers = new ArrayList<>(8);

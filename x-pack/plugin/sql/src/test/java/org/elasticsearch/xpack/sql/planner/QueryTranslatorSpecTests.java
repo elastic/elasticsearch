@@ -29,12 +29,13 @@ import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 public class QueryTranslatorSpecTests extends ESTestCase {
 
-    private static final String TEST_FILENAME = "querytranslator_tests.txt";
+    private static final List<String> TEST_FILENAMES = List.of("querytranslator_tests.txt", "querytranslator_subqueries_tests.txt");
 
     private static class TestContext {
         private final SqlParser parser;
@@ -76,19 +77,25 @@ public class QueryTranslatorSpecTests extends ESTestCase {
         testContext = new TestContext("mapping-multi-field-variation.json");
     }
 
+    private final String filename;
     private final String name;
     private final String query;
     private final List<Matcher<String>> matchers;
 
-    public QueryTranslatorSpecTests(String name, String query, List<Matcher<String>> matchers) {
+    public QueryTranslatorSpecTests(String filename, String name, String query, List<Matcher<String>> matchers) {
+        this.filename = filename;
         this.name = name;
         this.query = query;
         this.matchers = matchers;
     }
 
-    @ParametersFactory(shuffle = false, argumentFormatting = "%1$s")
+    @ParametersFactory(shuffle = false, argumentFormatting = "%1$s/%2$s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return TestUtils.readSpec(QueryTranslatorSpecTests.class, TEST_FILENAME);
+        List<Object[]> params = new ArrayList<>();
+        for (String filename : TEST_FILENAMES) {
+            params.addAll(TestUtils.readSpec(QueryTranslatorSpecTests.class, filename));
+        }
+        return params;
     }
 
     public void test() {

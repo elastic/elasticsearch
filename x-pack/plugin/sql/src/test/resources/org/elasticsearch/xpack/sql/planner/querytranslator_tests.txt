@@ -19,7 +19,7 @@
 //
 // Notes:
 //   - The SQL query could span multiple lines and should be terminated with semicolon (;)
-//   - The currently supported matchers: `CONTAINS` (the default one), `REGEX`
+//   - The currently supported matchers: `CONTAINS` (the default one), `STARTS_WITH`, `ENDS_WITH`, `REGEX`
 //   - To ignore a test, add the -Ignore to the end of the name
 //   - Matchers can be skipped, if you just want to test that a query is optimized/plan without errors
 //   - Do not use whitespaces in the relevant parts of the query itself, as they will be removed.
@@ -117,6 +117,51 @@ InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptU
 "params":{"v0":"INTEGER","v1":10}}
 ;
 
+// Count
+////////
+CountAndCountDistinctFolding
+SELECT COUNT(DISTINCT keyword) dkey, COUNT(keyword) key FROM test;
+REGEX ^\{"size":0,.*"aggregations":\{"[a-zA-Z0-9]+":\{"cardinality":\{"field":"keyword"\}\},"[a-zA-Z0-9]+":\{"filter":\{"exists":\{"field":"keyword","boost":1.0\}\}\}\}\}\}
+;
+
+GlobalCountInImplicitGroupByForcesTrackHits
+SELECT COUNT(*) FROM test;
+REGEX ^\{"size":0,.*"track_total_hits":\d+.*$
+;
+
+GlobalCountAllInImplicitGroupByForcesTrackHits
+SELECT COUNT(ALL *) FROM test;
+REGEX ^\{"size":0,.*"track_total_hits":\d+.*$
+;
+
+GlobalCountInSpecificGroupByDoesNotForceTrackHits
+SELECT COUNT(*) FROM test GROUP BY int;
+REGEX ^((?!"track_total_hits":).)*$
+CONTAINS {"terms":{"field":"int","missing_bucket":true,"order":"asc"}}
+;
+
+FieldAllCountDoesNotTrackHits
+SELECT COUNT(ALL int) FROM test;
+REGEX ^((?!"track_total_hits":).)*$
+REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"filter":\{"exists":\{"field":"int","boost":1.0\}\}\}\}
+;
+
+FieldCountDoesNotTrackHits
+SELECT COUNT(int) FROM test;
+REGEX ^((?!"track_total_hits":).)*$
+REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"filter":\{"exists":\{"field":"int","boost":1.0\}\}\}\}\}\}\}$
+;
+
+DistinctCountDoesNotTrackHits
+SELECT COUNT(DISTINCT int) FROM test;
+REGEX ^((?!"track_total_hits":).)*$
+REGEX "aggregations":\{"[a-zA-Z0-9]+":\{"cardinality":\{"field":"int"\}\}\}
+;
+
+NoCountDoesNotTrackHits
+SELECT int FROM test;
+REGEX ^((?!"track_total_hits":).)*$
+;
 
 // Aggregate Functions
 //////////////////////
@@ -653,174 +698,4 @@ SELECT LAST(date, int) FROM test;
 "explain":false,"docvalue_fields":[{"field":"date","format":"strict_date_optional_time_nanos"}],
 "sort":[{"int":{"order":"desc","missing":"_last","unmapped_type":"integer"}},
 {"date":{"order":"desc","missing":"_last","unmapped_type":"date"}}]}}}}}
-;
-
-
-// Subqueries
-/////////////
-SubqueryBasicSelect
-SELECT int FROM
-    (SELECT int FROM test);
-;
-
-SubquerySelectOnFieldAlias
-SELECT i FROM
-    (SELECT int AS i FROM test);
-;
-
-SubqueryGroupByNoAlias
-SELECT int FROM
-    (SELECT int FROM test)
-GROUP BY int;
-;
-
-SubqueryGroupByOnFieldAlias
-SELECT i FROM
-    (SELECT int AS i FROM test)
-GROUP BY i;
-;
-
-SubqueryFilterOrderByAlias
-SELECT i FROM
-    (SELECT int AS i FROM test)
-WHERE i IS NOT NULL
-ORDER BY i;
-;
-
-SubqueryGroupByFilterAndOrderByByAlias
-SELECT i FROM
-    (SELECT int AS i FROM test)
-WHERE i IS NOT NULL
-GROUP BY i
-ORDER BY i;
-;
-
-SubqueryFilterByAlias
-SELECT i FROM
-    (SELECT int AS i FROM test)
-WHERE i > 10;
-;
-
-SubqueryOrderByAlias
-SELECT i FROM
-    (SELECT int AS i FROM test)
-ORDER BY i;
-;
-
-SubqueryWithAliasBasicSelect
-SELECT int FROM
-    (SELECT int FROM test) AS s;
-;
-
-SubqueryWithAliasBasicQualifiedSelect
-SELECT s.int FROM
-    (SELECT int FROM test) AS s;
-;
-
-SubqueryWithAliasSelectOnFieldAlias
-SELECT i FROM
-    (SELECT int AS i FROM test) AS s;
-;
-
-SubqueryWithAliasQualifiedSelectOnFieldAlias
-SELECT s.i FROM
-    (SELECT int AS i FROM test) AS s;
-;
-
-SubqueryWithAliasGroupBy
-SELECT i FROM
-    (SELECT int AS i FROM test) AS s
-GROUP BY s.i;
-;
-
-SubqueryWithAliasFilterByAlias
-SELECT i FROM
-    (SELECT int AS i FROM test) AS s
-WHERE s.i > 10;
-;
-
-SubqueryWithAliasOrderByAlias
-SELECT i FROM
-    (SELECT int AS i FROM test) AS s
-ORDER BY s.i > 10;
-;
-
-MultiLevelSubqueriesOrderByByAlias1
-SELECT i AS j FROM
-    (SELECT int AS i FROM test)
-ORDER BY j;
-;
-
-MultiLevelSubqueriesOrderByByAlias2
-SELECT j AS k FROM
-    (SELECT i AS j FROM
-        (SELECT int AS i FROM test)
-    )
-ORDER BY k;
-;
-
-SubqueryGroupByOrderByAliasedExpression
-SELECT int_group AS g, min_date AS d FROM (
-   SELECT int % 2 AS int_group, MIN(date) AS min_date
-   FROM test WHERE date > '1970-01-01'::datetime
-   GROUP BY int_group
-)
-ORDER BY d DESC;
-;
-
-SubqueryGroupByOrderByAliasedAggFunction
-SELECT int_group AS g, min_date AS d FROM (
-    SELECT int % 2 AS int_group, MIN(date) AS min_date
-    FROM test WHERE date > '1970-01-01'::datetime
-    GROUP BY int_group
-)
-ORDER BY g DESC;
-;
-
-MultiLevelSubquerySelectStar
-SELECT * FROM (
-    SELECT * FROM (
-        SELECT * FROM test
-    )
-);
-;
-
-MultiLevelSubquerySelectStarWithAliases
-SELECT * FROM (
-    SELECT * FROM (
-        SELECT * FROM test
-    ) b
-) c;
-;
-
-MultiLevelSubqueryGroupBy1
-SELECT i AS j FROM (
-    SELECT int AS i FROM test
-)
-GROUP BY j;
-;
-
-MultiLevelSubqueryGroupBy2
-SELECT j AS k FROM (
-    SELECT i AS j FROM (
-        SELECT int AS i FROM test
-    )
-) GROUP BY k;
-;
-
-SubqueryGroupByFilterAndOrderByByRealiased
-SELECT g as h FROM (
-    SELECT date AS f, int AS g FROM test
-) WHERE h IS NOT NULL
-GROUP BY h
-ORDER BY h ASC;
-;
-
-FilterAfterGroupBy
-SELECT j AS k FROM (
-    SELECT i AS j FROM (
-        SELECT int AS i FROM test
-    )
-    GROUP BY j
-) WHERE j < 5;
 ;

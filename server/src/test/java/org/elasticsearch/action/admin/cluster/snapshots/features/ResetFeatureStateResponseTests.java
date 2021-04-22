@@ -41,10 +41,10 @@ public class ResetFeatureStateResponseTests extends AbstractWireSerializingTestC
     @Override
     protected ResetFeatureStateResponse mutateInstance(ResetFeatureStateResponse instance) throws IOException {
         int minSize = 0;
-        if (instance.getItemList().size() == 0) {
+        if (instance.getFeatureStateResetStatusList().size() == 0) {
             minSize = 1;
         }
-        Set<String> existingFeatureNames = instance.getItemList().stream()
+        Set<String> existingFeatureNames = instance.getFeatureStateResetStatusList().stream()
             .map(ResetFeatureStateResponse.ResetFeatureStateStatus::getFeatureName)
             .collect(Collectors.toSet());
         return new ResetFeatureStateResponse(randomList(minSize, 10,

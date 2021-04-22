@@ -68,7 +68,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
-        assertThat(apiResponse.getItemList(), containsInAnyOrder(
+        assertThat(apiResponse.getFeatureStateResetStatusList(), containsInAnyOrder(
             ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
             ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
             ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
@@ -110,7 +110,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             ResetFeatureStateResponse resetFeatureStateResponse = client().execute(ResetFeatureStateAction.INSTANCE,
                 new ResetFeatureStateRequest()).get();
 
-            List<String> failedFeatures = resetFeatureStateResponse.getItemList().stream()
+            List<String> failedFeatures = resetFeatureStateResponse.getFeatureStateResetStatusList().stream()
                 .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
                 .map(ResetFeatureStateResponse.ResetFeatureStateStatus::getFeatureName)
                 .collect(Collectors.toList());

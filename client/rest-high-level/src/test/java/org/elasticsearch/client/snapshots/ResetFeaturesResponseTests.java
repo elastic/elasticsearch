@@ -47,15 +47,15 @@ public class ResetFeaturesResponseTests extends AbstractResponseTestCase<ResetFe
     @Override
     protected void assertInstances(ResetFeatureStateResponse serverTestInstance, ResetFeaturesResponse clientInstance) {
 
-        assertNotNull(serverTestInstance.getItemList());
+        assertNotNull(serverTestInstance.getFeatureStateResetStatusList());
         assertNotNull(clientInstance.getFeatures());
 
-        assertThat(clientInstance.getFeatures(), hasSize(serverTestInstance.getItemList().size()));
+        assertThat(clientInstance.getFeatures(), hasSize(serverTestInstance.getFeatureStateResetStatusList().size()));
 
         Map<String, String> clientFeatures = clientInstance.getFeatures()
             .stream()
             .collect(Collectors.toMap(f -> f.getFeatureName(), f -> f.getStatus()));
-        Map<String, String> serverFeatures = serverTestInstance.getItemList()
+        Map<String, String> serverFeatures = serverTestInstance.getFeatureStateResetStatusList()
             .stream()
             .collect(Collectors.toMap(f -> f.getFeatureName(), f -> f.getStatus().toString()));
 

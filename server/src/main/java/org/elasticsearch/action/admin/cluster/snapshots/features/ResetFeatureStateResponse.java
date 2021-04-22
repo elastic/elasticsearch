@@ -44,8 +44,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         this.resetFeatureStateStatusList = in.readList(ResetFeatureStateStatus::new);
     }
 
-    // TODO: rename
-    public List<ResetFeatureStateStatus> getItemList() {
+    public List<ResetFeatureStateStatus> getFeatureStateResetStatusList() {
         return this.resetFeatureStateStatusList;
     }
 

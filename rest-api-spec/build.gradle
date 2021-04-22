@@ -247,36 +247,21 @@ tasks.named("yamlRestCompatTest").configure {
     'mget/80_deprecated_with_types/Deprecated parameters should fail in Multi Get query',
     'mlt/20_docs/Basic mlt query with docs',
     'mlt/30_unlike/Basic mlt query with unlike',
-    'msearch/12_basic_with_types/Basic multi-search',
-    'msearch/12_basic_with_types/Least impact smoke test',
     'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
     'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
     'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
-    'search.aggregation/10_histogram/Deprecated _time order',
-    'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
-    'search.aggregation/20_terms/Deprecated _term order',
-    'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
-    'search.inner_hits/10_basic/Nested doc version and seqIDs',
-    'search.inner_hits/10_basic/Nested inner hits',
-    'search/100_stored_fields/Stored fields',
-    'search/10_source_filtering/docvalue_fields with default format',
-    'search/110_field_collapsing/field collapsing',
-    'search/110_field_collapsing/field collapsing and from',
-    'search/110_field_collapsing/field collapsing and multiple inner_hits',
-    'search/110_field_collapsing/field collapsing, inner_hits and maxConcurrentGroupRequests',
-    'search/110_field_collapsing/field collapsing, inner_hits and seq_no',
-    'search/110_field_collapsing/field collapsing, inner_hits and version',
-    'search/110_field_collapsing/field collapsing and inner_hits',
-    'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once',
+//
+    // field search on _type field- not implementing. The data for _type is considered incorrect in this search
     'search/160_exists_query/Test exists query on _type field',
-    'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL',
-    'search/20_default_values/Basic search',
-    'search/260_parameter_validation/test size=-1 is deprecated',
-    'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception',
-    'search/340_type_query/type query',
-    'search/40_indices_boost/Indices boost using object',
-    'search/70_response_filtering/Search with response filtering',
-    'search/90_search_after/search with search_after parameter',
+    //
+    'search/10_source_filtering/docvalue_fields with default format', //use_field_mapping change
+    'search/40_indices_boost/Indices boost using object', //indices_boost
+    'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
+    'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', //bulk
+    'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
+    'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
+    'search/340_type_query/type query', // type_query - probably should behave like match_all
+
     'search_shards/10_basic/Search shards aliases with and without filters',
     'snapshot.get/10_basic/Get missing snapshot info succeeds when ignore_unavailable is true',
     'snapshot.get/10_basic/Get missing snapshot info throws an exception',
@@ -404,6 +389,8 @@ tasks.named("transformV7RestTests").configure({ task ->
   // overrides for indices.get_mapping
   task.replaceIsTrue("test_1.mappings.doc", "test_1.mappings._doc")
   task.replaceIsTrue("test_2.mappings.doc", "test_2.mappings._doc")
+
+  //override for
 })
 
 tasks.register('enforceYamlTestConvention').configure {

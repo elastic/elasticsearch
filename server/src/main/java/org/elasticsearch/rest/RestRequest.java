@@ -151,7 +151,7 @@ public class RestRequest implements ToXContent.Params {
             requestIdGenerator.incrementAndGet());
     }
 
-    private static Map<String, String> params(final String uri) {
+    public static Map<String, String> params(final String uri) {
         final Map<String, String> params = new HashMap<>();
         int index = uri.indexOf('?');
         if (index >= 0) {
@@ -497,7 +497,7 @@ public class RestRequest implements ToXContent.Params {
             XContentType xContentType = tuple.v1();
             try (InputStream stream = content.streamInput();
                  XContentParser parser = xContentType.xContent()
-                     .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+                     .createParserForCompatibility(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
                 withParser.accept(parser);
             }
         } else {

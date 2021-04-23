@@ -110,14 +110,14 @@ The output is a bearer token, which is a Base64 encoded string.
 
 [source,shell]
 ----
-SERVICE_TOKEN elastic/fleet-server/my-token = AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL215LXRva2VuOkZPU1BlRVJSVEJXRFNfSE1tdmZGZXc
+SERVICE_TOKEN elastic/fleet-server/my-token = AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ
 ----
 
 Use this bearer token to authenticate with your {es} cluster.
 
 [source,shell]
 ----
-curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL215LXRva2VuOkZPU1BlRVJSVEJXRFNfSE1tdmZGZXc" http://localhost:9200/_cluster/health
+curl -H "Authorization: Bearer AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ" http://localhost:9200/_cluster/health
 ----
 // NOTCONSOLE
 

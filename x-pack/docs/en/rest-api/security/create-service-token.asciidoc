@@ -8,7 +8,8 @@ beta::[]
 <titleabbrev>Create service account tokens</titleabbrev>
 ++++
 
-Creates a service account token without requiring basic authentication.
+Creates a  <<service-accounts,service accounts>> token without requiring basic
+authentication.
 
 [[security-api-create-service-token-request]]
 ==== {api-request-title}
@@ -73,11 +74,11 @@ The response includes the service account token, its name, and its secret value:
   "created": true,
   "token": {
     "name": "token1",
-    "value": "AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZWb" <1>
+    "value": "AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ" <1>
   }
 }
 ----
-// TESTRESPONSE[s/AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZWb/$body.token.value/]
+// TESTRESPONSE[s/AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ/$body.token.value/]
 <1> The secret value to use as a bearer token
 
 To use the service account token, include the generated value in a request with
@@ -85,7 +86,7 @@ an `Authorization: Bearer` header:
 
 [source,shell]
 ----
-curl -H "Authorization: Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZWbVMxT0pOeXJXd3N3ZzBR" http://localhost:9200/_cluster/health
+curl -H "Authorization: Bearer AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ" http://localhost:9200/_cluster/health
 ----
 // NOTCONSOLE
 
@@ -108,9 +109,9 @@ its secret value:
   "created": true,
   "token": {
     "name": "Jk5J1HgBuyBK5TpDrdo4",
-    "value": "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL0prNUoxSGdCdXlCSzVUcERyZG80OjdpcHBmWHY1UmsycDczbWl6UUhucnc"
+    "value": "AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ"
   }
 }
 ----
 // TESTRESPONSE[s/Jk5J1HgBuyBK5TpDrdo4/$body.token.name/]
-// TESTRESPONSE[s/AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL0prNUoxSGdCdXlCSzVUcERyZG80OjdpcHBmWHY1UmsycDczbWl6UUhucnc/$body.token.value/]
+// TESTRESPONSE[s/AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ/$body.token.value/]

@@ -8,7 +8,8 @@ beta::[]
 <titleabbrev>Delete service account token</titleabbrev>
 ++++
 
-Deletes service account tokens for a `service` in a specified `namespace`.
+Deletes  <<service-accounts,service account>> tokens for a `service` in a
+specified `namespace`.
 
 [[security-api-delete-service-token-request]]
 ==== {api-request-title}

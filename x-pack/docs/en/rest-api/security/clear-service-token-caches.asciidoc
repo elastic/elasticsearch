@@ -8,7 +8,8 @@ beta::[]
 <titleabbrev>Clear service account token caches</titleabbrev>
 ++++
 
-Evicts a subset of all entries from the service account token caches.
+Evicts a subset of all entries from the  <<service-accounts,service account>>
+token caches.
 
 [[security-api-clear-service-token-caches-request]]
 ==== {api-request-title}

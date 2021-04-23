@@ -33,7 +33,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         where:
         version                              | platform                                   | distType
-        VersionProperties.getElasticsearch() | ElasticsearchDistribution.Platform.LINUX | "current"
+        VersionProperties.getElasticsearch() | ElasticsearchDistribution.Platform.LINUX   | "current"
         "8.1.0-SNAPSHOT"                     | ElasticsearchDistribution.Platform.LINUX   | "bwc"
         "7.0.0"                              | ElasticsearchDistribution.Platform.WINDOWS | "released"
     }

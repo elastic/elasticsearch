@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeployme
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcess;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
@@ -34,11 +34,13 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 public class DeploymentManager {
 
     private static final Logger logger = LogManager.getLogger(DeploymentManager.class);
+    private static final AtomicLong requestIdCounter = new AtomicLong(1);
 
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
@@ -100,8 +102,11 @@ public class DeploymentManager {
         }
     }
 
-    public void infer(TrainedModelDeploymentTask task, double[] inputs, ActionListener<PyTorchResult> listener) {
+    public void infer(TrainedModelDeploymentTask task, String requestId, String jsonDoc, ActionListener<PyTorchResult> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
+
+        final String resolvedId = requestId == null ? String.valueOf(requestIdCounter.getAndIncrement()) : requestId;
+
         executorServiceForProcess.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
@@ -111,8 +116,8 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    String requestId = processContext.process.get().writeInferenceRequest(inputs);
-                    waitForResult(processContext, requestId, listener);
+                    processContext.process.get().writeInferenceRequest(jsonDoc);
+                    waitForResult(processContext, resolvedId, listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
@@ -146,7 +151,7 @@ public class DeploymentManager {
 
         private final String modelId;
         private final String index;
-        private final SetOnce<PyTorchProcess> process = new SetOnce<>();
+        private final SetOnce<NativePyTorchProcess> process = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 

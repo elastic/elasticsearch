@@ -54,7 +54,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
     }
 
     @Override
-    public PyTorchProcess createProcess(String modelId, ExecutorService executorService, Consumer<String> onProcessCrash) {
+    public NativePyTorchProcess createProcess(String modelId, ExecutorService executorService, Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(
             env,

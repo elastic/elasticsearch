@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -42,10 +41,11 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String deploymentId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
+        String requestID = restRequest.param(InferTrainedModelDeploymentAction.Request.REQUEST_ID);
         InferTrainedModelDeploymentAction.Request request;
-        if (restRequest.hasContentOrSourceParam()) {
-            XContentParser parser = restRequest.contentOrSourceParamParser();
-            request = InferTrainedModelDeploymentAction.Request.parseRequest(deploymentId, parser);
+        if (restRequest.hasContent()) {
+            String content = restRequest.content().utf8ToString();
+            request = new InferTrainedModelDeploymentAction.Request(deploymentId, requestID, content);
         } else {
             throw ExceptionsHelper.badRequestException("requires body");
         }

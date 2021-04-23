@@ -49,7 +49,6 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.PyTorchModel;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
@@ -58,7 +57,6 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -147,8 +145,7 @@ public class TransportStartTrainedModelDeploymentAction
             listener::onFailure
         );
 
-        GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(
-            request.getModelId(), null, Collections.singleton(GetTrainedModelsAction.Request.DEFINITION));
+        GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
 

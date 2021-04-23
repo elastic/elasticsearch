@@ -138,6 +138,10 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             }
         }
 
+        public Request(String id) {
+            this(id, null, null);
+        }
+
         public Request(String id, List<String> tags, Set<String> includes) {
             setResourceId(id);
             setAllowNoResources(true);

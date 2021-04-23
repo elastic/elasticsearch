@@ -18,17 +18,13 @@ import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-public class NativePyTorchProcess extends AbstractNativeProcess implements PyTorchProcess {
+public class NativePyTorchProcess extends AbstractNativeProcess {
 
     private static final String NAME = "pytorch_inference";
-
-    private static AtomicLong requestIdCounter = new AtomicLong(1);
 
     private final ProcessResultsParser<PyTorchResult> resultsParser;
 
@@ -53,31 +49,16 @@ public class NativePyTorchProcess extends AbstractNativeProcess implements PyTor
         throw new UnsupportedOperationException();
     }
 
-    @Override
     public void loadModel(String modelId, String index, PyTorchStateStreamer stateStreamer, ActionListener<Boolean> listener) {
         stateStreamer.writeStateToStream(modelId, index, processRestoreStream(), listener);
     }
 
-    @Override
     public Iterator<PyTorchResult> readResults() {
         return resultsParser.parseResults(processOutStream());
     }
 
-    @Override
-    public String writeInferenceRequest(double[] inputs) throws IOException {
-        long requestId = requestIdCounter.getAndIncrement();
-        String json = new StringBuilder("{")
-            .append("\"request_id\":\"")
-            .append(requestId)
-            .append("\",")
-            .append("\"inputs\":")
-            .append(Arrays.toString(inputs))
-            .append("}\n")
-            .toString();
-
-        processInStream().write(json.getBytes(StandardCharsets.UTF_8));
+    public void writeInferenceRequest(String jsonDoc) throws IOException {
+        processInStream().write(jsonDoc.getBytes(StandardCharsets.UTF_8));
         processInStream().flush();
-
-        return String.valueOf(requestId);
     }
 }

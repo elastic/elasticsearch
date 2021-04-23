@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -69,7 +68,6 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return new NodeShutdownMetadataDiff(in);
     }
 
-    @Nullable
     public static Optional<NodesShutdownMetadata> getShutdowns(final ClusterState state) {
         return Optional.ofNullable(state)
             .map(ClusterState::metadata)

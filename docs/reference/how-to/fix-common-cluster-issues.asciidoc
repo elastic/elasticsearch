@@ -273,16 +273,16 @@ GET _cluster/settings?flat_settings=true&include_defaults=true
 ----
 // TEST[s/^/PUT my-index\n/]
 
-You can fix the settings using the <<indices-update-settings,update index
+You can change the settings using the <<indices-update-settings,update index
 settings>> and <<cluster-update-settings,update cluster settings>> APIs.
 
 **Allocate or reduce replicas**
 
-To prevent data loss from hardware failure, {es} will not assign a replica to
-the node containing its primary shard. If no other data nodes are available to
-host the replica, it remains unassigned. To fix this, you can:
+To protect against hardware failure, {es} will not assign a replica to the same
+node as its primary shard. If no other data nodes are available to host the
+replica, it remains unassigned. To fix this, you can:
 
-* Add a data node to host the replica.
+* Add a data node to the same tier to host the replica.
 
 * Change the `index.number_of_replicas` index setting to reduce the number of
 replicas per primary shard. We recommend keeping at least one replica for each
@@ -343,9 +343,9 @@ unassigned. See <<high-jvm-memory-pressure>>.
 
 **Recover data for a lost primary shard**
 
-If a primary shard is unassigned due to a lost node, you can typically recover
-the data from a replica on another node. If no replicas exist and you can't
-recover the node, you'll need to re-add the missing data from a
+If a node containing a primary shard is lost, {es} can typically replace it
+using a replica on another node. If no replicas exist and you can't recover the
+node, you'll need to re-add the missing data from a
 <<snapshot-restore,snapshot>> or the original data source.
 
 WARNING: Only use this option if node recovery is no longer possible. This

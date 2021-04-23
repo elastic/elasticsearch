@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
@@ -150,11 +149,7 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalInt();
         indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            this.runtimeMappings = in.readBoolean() ? in.readMap() : null;
-        } else {
-            this.runtimeMappings = null;
-        }
+        this.runtimeMappings = in.readBoolean() ? in.readMap() : null;
     }
 
     /**
@@ -196,13 +191,11 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (this.runtimeMappings != null) {
-                out.writeBoolean(true);
-                out.writeMap(this.runtimeMappings);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (this.runtimeMappings != null) {
+            out.writeBoolean(true);
+            out.writeMap(this.runtimeMappings);
+        } else {
+            out.writeBoolean(false);
         }
     }
 

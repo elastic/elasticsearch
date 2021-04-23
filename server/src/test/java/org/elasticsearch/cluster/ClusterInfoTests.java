@@ -19,7 +19,7 @@ public class ClusterInfoTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         ClusterInfo clusterInfo = new ClusterInfo(
-                randomDiskUsage(), randomDiskUsage(), randomShardSizes(), randomRoutingToDataPath(),
+                randomDiskUsage(), randomDiskUsage(), randomShardSizes(), randomDataSetSizes(), randomRoutingToDataPath(),
                 randomReservedSpace());
         BytesStreamOutput output = new BytesStreamOutput();
         clusterInfo.writeTo(output);
@@ -28,6 +28,7 @@ public class ClusterInfoTests extends ESTestCase {
         assertEquals(clusterInfo.getNodeLeastAvailableDiskUsages(), result.getNodeLeastAvailableDiskUsages());
         assertEquals(clusterInfo.getNodeMostAvailableDiskUsages(), result.getNodeMostAvailableDiskUsages());
         assertEquals(clusterInfo.shardSizes, result.shardSizes);
+        assertEquals(clusterInfo.shardDataSetSizes, result.shardDataSetSizes);
         assertEquals(clusterInfo.routingToDataPath, result.routingToDataPath);
         assertEquals(clusterInfo.reservedSpace, result.reservedSpace);
     }
@@ -51,6 +52,17 @@ public class ClusterInfoTests extends ESTestCase {
         ImmutableOpenMap.Builder<String, Long> builder = ImmutableOpenMap.builder(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
+            long shardSize = randomIntBetween(0, Integer.MAX_VALUE);
+            builder.put(key, shardSize);
+        }
+        return builder.build();
+    }
+
+    private static ImmutableOpenMap<ShardId, Long> randomDataSetSizes() {
+        int numEntries = randomIntBetween(0, 128);
+        ImmutableOpenMap.Builder<ShardId, Long> builder = ImmutableOpenMap.builder(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            ShardId key = new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), between(0, Integer.MAX_VALUE));
             long shardSize = randomIntBetween(0, Integer.MAX_VALUE);
             builder.put(key, shardSize);
         }

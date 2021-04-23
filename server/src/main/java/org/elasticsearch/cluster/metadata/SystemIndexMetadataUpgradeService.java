@@ -54,7 +54,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             if (lastIndexMetadataMap != indexMetadataMap) {
                 for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
                     if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
-                        if (systemIndices.isSystemIndex(cursor.value.getIndex()) != cursor.value.isSystem()) {
+                        final boolean isSystem = systemIndices.isSystemIndex(cursor.value.getIndex()) ||
+                            systemIndices.isSystemIndexBackingDataStream(cursor.value.getIndex().getName());
+                        if (isSystem != cursor.value.isSystem()) {
                             updateTaskPending = true;
                             clusterService.submitStateUpdateTask("system_index_metadata_upgrade_service {system metadata change}",
                                 new SystemIndexMetadataUpdateTask());
@@ -74,7 +76,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
             for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
                 if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
-                    if (systemIndices.isSystemIndex(cursor.value.getIndex()) != cursor.value.isSystem()) {
+                    final boolean isSystem = systemIndices.isSystemIndex(cursor.value.getIndex()) ||
+                        systemIndices.isSystemIndexBackingDataStream(cursor.value.getIndex().getName());
+                    if (isSystem != cursor.value.isSystem()) {
                         updatedMetadata.add(IndexMetadata.builder(cursor.value).system(cursor.value.isSystem() == false).build());
                     }
                 }

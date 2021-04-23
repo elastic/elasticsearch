@@ -232,7 +232,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             new ObjectParser<>(SnapshotInfoBuilder.class.getName(), true, SnapshotInfoBuilder::new);
 
     private static final ObjectParser<ShardStatsBuilder, Void> SHARD_STATS_PARSER =
-            new ObjectParser<>(ShardStatsBuilder.class.getName(), true, ShardStatsBuilder::new);
+        new ObjectParser<>(ShardStatsBuilder.class.getName(), true, ShardStatsBuilder::new);
 
     static {
         SNAPSHOT_INFO_PARSER.declareString(SnapshotInfoBuilder::setSnapshotName, new ParseField(SNAPSHOT));

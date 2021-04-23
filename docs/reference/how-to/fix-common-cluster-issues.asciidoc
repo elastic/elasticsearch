@@ -74,8 +74,33 @@ GET _nodes/stats/breaker
 [[prevent-circuit-breaker-errors]]
 ==== Prevent circuit breaker errors
 
+{es} uses several types of circuit breakers. The following tips outline the
+most common causes of circuit breaker errors and their solutions.
+
+**Reduce JVM memory pressure**
+
 High JVM memory pressure often causes circuit breaker errors. See
 <<high-jvm-memory-pressure>>.
+
+**Avoid using fielddata on `text` fields**
+
+For high-cardinality `text` fields, fielddata can use a large amount of JVM
+memory. To avoid this, {es} disables fielddata on `text` fields by default. If
+you've enabled fielddata and triggered the <<fielddata-circuit-breaker,fielddata
+circuit breaker>>, consider disabling it and using a `keyword` field instead.
+See <<fielddata>>.
+
+**Clear the fieldata cache**
+
+If you've triggered the fielddata circuit breaker and can't disable fielddata,
+use the <<indices-clearcache,clear cache API>> to clear the fielddata cache.
+This may disrupt any in-flight searches that use fielddata.
+
+[source,console]
+----
+POST _all_/_cache/clear?fielddata=true
+----
+// TEST[s/^/PUT my-index\n/]
 
 [discrete]
 [[high-jvm-memory-pressure]]
@@ -99,7 +124,9 @@ include::{es-repo-dir}/tab-widgets/jvm-memory-pressure-widget.asciidoc[]
 
 As memory usage increases, garbage collection becomes more frequent and takes
 longer. You can track the frequency and length of garbage collection events in
-<<logging,`elasticsearch.log`>>.
+<<logging,`elasticsearch.log`>>. For example, the following event states {es}
+`spent` more than 50% (21 seconds) of the `last` 40 seconds in garbage
+collection.
 
 [source,log]
 ----
@@ -151,7 +178,7 @@ PUT _cluster/settings
   }
 }
 ----
-// TEST[setup:my_index]
+// TEST[s/^/PUT my-index\n/]
 
 **Prevent mapping explosions**
 
@@ -159,6 +186,13 @@ Defining too many fields or nesting fields too deeply can lead to
 <<mapping-limit-settings,mapping explosions>> that use large amounts of memory.
 To prevent mapping explosions, use the <<mapping-settings-limit,mapping limit
 settings>> to limit the number of field mappings.
+
+**Spread out bulk requests**
+
+While more efficient than individual requests, large <<docs-bulk,bulk indexing>>
+or <<search-multi-search,multi-search>> requests can still create high JVM
+memory pressure. If possible, try using smaller requests and allow more time
+between them.
 
 **Upgrade node memory**
 

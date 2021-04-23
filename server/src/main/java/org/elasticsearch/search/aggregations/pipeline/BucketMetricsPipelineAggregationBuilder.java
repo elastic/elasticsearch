@@ -97,29 +97,33 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
     @Override
     protected abstract PipelineAggregator createInternal(Map<String, Object> metadata);
 
+    protected void validateBucketPath(ValidationContext context, String bucketsPath) {
+        // Need to find the first agg name in the buckets path to check its a
+        // multi bucket agg: aggs are split with '>' and can optionally have a
+        // metric name after them by using '.' so need to split on both to get
+        // just the agg name
+        final String firstAgg = bucketsPath.split("[>\\.]")[0];
+        Optional<AggregationBuilder> aggBuilder = context.getSiblingAggregations().stream()
+            .filter(builder -> builder.getName().equals(firstAgg))
+            .findAny();
+        if (aggBuilder.isEmpty()) {
+            context.addBucketPathValidationError("aggregation does not exist for aggregation [" + name + "]: " + bucketsPath);
+            return;
+        }
+        if (aggBuilder.get().bucketCardinality() != AggregationBuilder.BucketCardinality.MANY) {
+            context.addValidationError("The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
+                + " must be a multi-bucket aggregation for aggregation [" + name + "] found :"
+                + aggBuilder.get().getClass().getName() + " for buckets path: " + bucketsPath);
+        }
+    }
+
     @Override
     protected void validate(ValidationContext context) {
         if (bucketsPaths.length != 1) {
             context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
             return;
         }
-        // Need to find the first agg name in the buckets path to check its a
-        // multi bucket agg: aggs are split with '>' and can optionally have a
-        // metric name after them by using '.' so need to split on both to get
-        // just the agg name
-        final String firstAgg = bucketsPaths[0].split("[>\\.]")[0];
-        Optional<AggregationBuilder> aggBuilder = context.getSiblingAggregations().stream()
-                .filter(builder -> builder.getName().equals(firstAgg))
-                .findAny();
-        if (aggBuilder.isEmpty()) {
-            context.addBucketPathValidationError("aggregation does not exist for aggregation [" + name + "]: " + bucketsPaths[0]);
-            return;
-        }
-        if (aggBuilder.get().bucketCardinality() != AggregationBuilder.BucketCardinality.MANY) {
-            context.addValidationError("The first aggregation in " + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must be a multi-bucket aggregation for aggregation [" + name + "] found :"
-                    + aggBuilder.get().getClass().getName() + " for buckets path: " + bucketsPaths[0]);
-        }
+        validateBucketPath(context, bucketsPaths[0]);
     }
 
     @Override

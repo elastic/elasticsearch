@@ -83,13 +83,15 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         final String shutdownNode;
         final String candidateNode;
         NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
-        final String node1Id = nodes.getNodes().stream()
+        final String node1Id = nodes.getNodes()
+            .stream()
             .map(NodeInfo::getNode)
             .filter(node -> node.getName().equals(node1))
             .map(DiscoveryNode::getId)
             .findFirst()
             .orElseThrow();
-        final String node2Id = nodes.getNodes().stream()
+        final String node2Id = nodes.getNodes()
+            .stream()
             .map(NodeInfo::getNode)
             .filter(node -> node.getName().equals(node2))
             .map(DiscoveryNode::getId)
@@ -106,8 +108,10 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         logger.info("--> node {} will be shut down, {} will remain", shutdownNode, candidateNode);
 
         // Mark the node as shutting down
-        client().execute(PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing")).get();
+        client().execute(
+            PutShutdownNodeAction.INSTANCE,
+            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing")
+        ).get();
 
         // Tell the persistent task executor it can start allocating the task
         startTask.set(true);
@@ -132,29 +136,39 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         TaskExecutor taskExecutor;
 
         @Override
-        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                                   NamedXContentRegistry xContentRegistry, Environment environment,
-                                                   NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   Supplier<RepositoriesService> repositoriesServiceSupplier) {
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier
+        ) {
             taskExecutor = new TaskExecutor(client, clusterService, threadPool);
             return Collections.singletonList(taskExecutor);
         }
 
         @Override
-        public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                           ThreadPool threadPool,
-                                                                           Client client,
-                                                                           SettingsModule settingsModule,
-                                                                           IndexNameExpressionResolver expressionResolver) {
+        public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            Client client,
+            SettingsModule settingsModule,
+            IndexNameExpressionResolver expressionResolver
+        ) {
             return Collections.singletonList(taskExecutor);
         }
 
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-            return Collections.singletonList(new NamedWriteableRegistry.Entry(PersistentTaskParams.class,
-                "task_name", TestTaskParams::new));
+            return Collections.singletonList(
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, "task_name", TestTaskParams::new)
+            );
         }
     }
 
@@ -169,8 +183,11 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(TestTaskParams params, Collection<DiscoveryNode> candidateNodes,
-                                                                      ClusterState clusterState) {
+        public PersistentTasksCustomMetadata.Assignment getAssignment(
+            TestTaskParams params,
+            Collection<DiscoveryNode> candidateNodes,
+            ClusterState clusterState
+        ) {
             candidates.set(candidateNodes);
             return super.getAssignment(params, candidateNodes, clusterState);
         }
@@ -183,8 +200,7 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         private void startTask() {
             logger.info("--> sending start request");
-            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), ActionListener.wrap(r -> {
-            }, e -> {
+            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), ActionListener.wrap(r -> {}, e -> {
                 if (e instanceof ResourceAlreadyExistsException == false) {
                     logger.error("failed to create task", e);
                     fail("failed to create task");
@@ -210,11 +226,9 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             return builder;
         }
 
-        public TestTaskParams() {
-        }
+        public TestTaskParams() {}
 
-        public TestTaskParams(StreamInput in) {
-        }
+        public TestTaskParams(StreamInput in) {}
 
         @Override
         public String getWriteableName() {

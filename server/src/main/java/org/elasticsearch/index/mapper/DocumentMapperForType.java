@@ -20,8 +20,4 @@ public class DocumentMapperForType {
     public DocumentMapper getDocumentMapper() {
         return documentMapper;
     }
-
-    public Mapping getMapping() {
-        return mapping;
-    }
 }

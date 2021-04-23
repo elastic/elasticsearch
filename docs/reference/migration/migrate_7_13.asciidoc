@@ -45,7 +45,7 @@ enable <<deprecation-logging, deprecation logging>>.
 In earlier versions, geo fields could theoretically be used as a subfield
 if their parent field set a geometry object as an external value during
 parsing. This functionality was unused within the {es} codebase and
-blocked required changes to allow index-time scripts on geo_point fields,
+blocked required changes to allow index-time scripts on `geo_point` fields,
 so it has been removed.
 ====
 
@@ -65,7 +65,7 @@ geohash strings.
 === Deprecations
 
 The following functionality has been deprecated in {es} 7.13
-and will be removed in 8.0
+and will be removed in 8.0.
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to 7.13.
@@ -88,6 +88,20 @@ if there are other explicitly configured realms.
 or disallowed by the license, the file and native realms are always enabled
 even when they are explicitly disabled.
 
-Both of the above behaviours are deprecated. In version 8.0.0, the file and
+Both of the above behaviours are deprecated. In version 8.0, the file and
 native realms will always be enabled unless explicitly disabled. If they are
 explicitly disabled, they remain disabled at all times.
+
+[discrete]
+[[breaking_713_infra_core_changes]]
+==== Core changes
+
+[[multiple-data-paths]]
+Multiple Data Paths (MDP) is a pseudo-software-RAID-0 feature within
+{es} that allows multiple paths to be specified in the `path.data` setting
+(which usually point to different disks). Although it has been used in the
+past as a simple way to fully utilize multi-disk setups, it has long been a
+source of user complaints due to confusing or unintuitive behavior.
+Additionally, the implementation is complex, and not well-tested nor
+maintained, with practically no benefit over simply using RAID. This option
+is now deprecated.

@@ -1,0 +1,279 @@
+[[release-notes-7.13.0]]
+== {es} version 7.13.0
+
+Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[[deprecation-7.13.0]]
+[float]
+=== Deprecations
+
+Aggregations::
+* Deprecate date aggregations on boolean fields {es-pull}70030[#70030] (issue: {es-issue}59255[#59255])
+
+Authentication::
+* Deprecate the behaviour of implicitly disabling file/native realm {es-pull}69320[#69320] (issue: {es-issue}50892[#50892])
+
+Features/Indices APIs::
+* Deprecate legacy index template API endpoints {es-pull}71309[#71309] (issue: {es-issue}71307[#71307])
+
+Infra/Core::
+* Add migration check for legacy role settings {es-pull}71197[#71197] (issues: {es-issue}54998[#54998], {es-issue}71143[#71143])
+* Add multiple data paths deprecation to the deprecation API {es-pull}71209[#71209] (issue: {es-issue}71205[#71205])
+* Deprecate multiple `path.data` entries {es-pull}71207[#71207] (issue: {es-issue}71205[#71205])
+
+Infra/Settings::
+* Add clear deprecation around legacy role settings {es-pull}71143[#71143] (issue: {es-issue}54998[#54998])
+* Add deprecation warning for default value of `action.destructive_requires_name` {es-pull}70932[#70932] (issues: {es-issue}66908[#66908], {es-issue}67543[#67543])
+
+
+
+[[feature-7.13.0]]
+[float]
+=== New features
+
+EQL::
+* Adds "fields" request field to the EQL request {es-pull}68962[#68962] (issue: {es-issue}68115[#68115])
+
+Features/ILM+SLM::
+* Make all the shrink action steps retryable {es-pull}70107[#70107] (issue: {es-issue}48183[#48183])
+
+Features/Ingest::
+* Add tool for preparing local `GeoIp` database service {es-pull}71018[#71018] (issue: {es-issue}68920[#68920])
+* Add support for validating IPv4/IPv6 addresses to Convert processor {es-pull}69989[#69989] (issue: {es-issue}36145[#36145])
+* Add Registered domain processor {es-pull}67611[#67611]
+
+Infra/Core::
+* Add API for resetting state of a `SystemIndexPlugin` {es-pull}69469[#69469]
+
+Machine Learning::
+* Adds new trained model alias API to simplify trained model updates and deployments {es-pull}68922[#68922]
+
+Search::
+* Introduce `combined_fields` query {es-pull}71213[#71213] (issue: {es-issue}41106[#41106])
+
+
+
+[[enhancement-7.13.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Improve handling of incompatible after key types in composite aggregations {es-pull}70839[#70839] (issue: {es-issue}70480[#70480])
+* Increase `search.max_bucket` default value by one {es-pull}70645[#70645] (issue: {es-issue}57042[#57042])
+* Modest memory savings in a `date_histogram` followed by a terms aggregation {es-pull}68592[#68592]
+* Speed up `top_metrics` on hot shards {es-pull}70579[#70579] (issue: {es-issue}70453[#70453])
+* Speed up aggregations with sub-aggregations {es-pull}69806[#69806] (issues: {es-issue}63643[#63643], {es-issue}68871[#68871])
+* Speed up terms aggregation when alone {es-pull}69377[#69377] (issue: {es-issue}68871[#68871])
+* Speed up terms aggregation when not force merged {es-pull}71241[#71241] (issue: {es-issue}71086[#71086])
+* Use `#updateTop` to speed up `InternalComposite#reduce` {es-pull}71278[#71278]
+
+Allocation::
+* Improve awareness allocation explanation {es-pull}69371[#69371]
+* Skip zone/host awareness with auto-expand replicas {es-pull}69334[#69334] (issues: {es-issue}2869[#2869], {es-issue}54151[#54151])
+
+Analysis::
+* Allow `updateable` flag for `keyword_marker` filter {es-pull}65457[#65457] (issue: {es-issue}65355[#65355])
+
+Audit::
+* Support audit ignore policy by actions {es-pull}67477[#67477] (issues: {es-issue}10836[#10836], {es-issue}37148[#37148], {es-issue}60877[#60877])
+
+Authentication::
+* Add a deprecation message if a REST wrapper implementing plugin presents {es-pull}66827[#66827]
+* Service Accounts - Authentication with file tokens {es-pull}70543[#70543]
+* Service Accounts - Fleet integration {es-pull}70724[#70724]
+* Service Accounts - Get service account API {es-pull}71315[#71315]
+* Service Accounts - Initial bootstrap plumbing to add essential classes {es-pull}70391[#70391]
+* Service Accounts - New CLI tool for managing file tokens {es-pull}70454[#70454]
+* Service Accounts - delete index backed service account token {es-pull}71165[#71165]
+* Service Accounts - token name in response to Authenticate API {es-pull}71382[#71382]
+* Support metadata on API keys {es-pull}70292[#70292] (issue: {es-issue}48182[#48182])
+
+Authorization::
+* Add read permissions for `apm_user` role to APM fleet indices {es-pull}68749[#68749]
+* Include role names in access denied errors {es-pull}69318[#69318] (issue: {es-issue}42166[#42166])
+
+Autoscaling::
+* Frozen tier autoscaling decider based on shards {es-pull}71042[#71042]
+
+Cluster Coordination::
+* Include node roles in cluster state JSON response {es-pull}71386[#71386] (issue: {es-issue}71385[#71385])
+* Remove node attributes from cluster membership messages {es-pull}69811[#69811]
+
+Distributed::
+* Add fleet polling API for global checkpoint {es-pull}71093[#71093]
+* Reduce size of `MANAGEMENT` threadpool on small node {es-pull}71171[#71171] (issue: {es-issue}70435[#70435])
+
+EQL::
+* Allow Unicode escape sequences in strings {es-pull}70514[#70514] (issue: {es-issue}62832[#62832])
+* Improve null handling in the optimizer {es-pull}70557[#70557]
+
+Engine::
+* Support `include_unloaded_segments` in node stats {es-pull}69682[#69682]
+
+Features/ILM+SLM::
+* Add `max_single_primary_size` as a condition for the ILM rollover action {es-pull}68917[#68917] (issues: {es-issue}63026[#63026], {es-issue}67842[#67842])
+* Reject creating ILM policies with phase timings that are not greater than or equal to the previous phase {es-pull}70089[#70089] (issue: {es-issue}70032[#70032])
+* Switch built-in policies to `max_primary_shard_size` {es-pull}69995[#69995] (issue: {es-issue}63026[#63026])
+
+Features/Indices APIs::
+* Date math support for aliases {es-pull}67226[#67226] (issue: {es-issue}20367[#20367])
+* Introduce separate shard limit for frozen shards {es-pull}71392[#71392] (issues: {es-issue}34021[#34021], {es-issue}71042[#71042])
+* Support specifying multiple templates names in delete component template api {es-pull}70314[#70314] (issue: {es-issue}69973[#69973])
+* Support specifying multiple templates names in delete composable index template api {es-pull}70094[#70094] (issue: {es-issue}69973[#69973])
+
+Features/Ingest::
+* Accept more ingest simulate params as integers or strings {es-pull}66197[#66197] (issues: {es-issue}23823[#23823], {es-issue}65992[#65992])
+* Allow custom geoip databases to be updated at runtime {es-pull}68901[#68901]
+* Extract device type from user agent info {es-pull}69322[#69322]
+* GeoIP database downloader {es-pull}68424[#68424] (issue: {es-issue}68920[#68920])
+* Network direction processor additions {es-pull}68712[#68712]
+* Summary option for listing ingest pipelines without their definitions {es-pull}69756[#69756] (issue: {es-issue}31954[#31954])
+* `MurmurHash3` support for fingerprint processor {es-pull}70632[#70632] (issue: {es-issue}69182[#69182])
+
+Features/Java Low Level REST Client::
+* Support new data roles {es-pull}66947[#66947]
+
+Features/Stats::
+* Add info on each HTTP client to HTTP stats {es-pull}64561[#64561] (issue: {es-issue}61609[#61609])
+* Make indices stats requests cancellable {es-pull}69174[#69174] (issue: {es-issue}55550[#55550])
+* Make recovery APIs cancellable {es-pull}69177[#69177] (issue: {es-issue}55550[#55550])
+* Total data set size in stats {es-pull}70625[#70625] (issue: {es-issue}69820[#69820])
+
+Features/Watcher::
+* Migrate watcher to system indices infrastructure {es-pull}67588[#67588] (issue: {es-issue}61656[#61656])
+
+Infra/Core::
+* Manage Fleet system indices within Elasticsearch {es-pull}70689[#70689]
+* Support mixed node versions in system index descriptors {es-pull}71144[#71144]
+
+Infra/Logging::
+* Only install templates for deprecation indices from elected master node {es-pull}70057[#70057] (issues: {es-issue}69918[#69918], {es-issue}70020[#70020])
+
+Infra/Scripting::
+* Add Runtime Fields Contexts to Painless Execute API {es-pull}71374[#71374] (issue: {es-issue}70467[#70467])
+* Add a new ANTLR lexer for Painless suggestions {es-pull}70517[#70517]
+* Improve null def access error message {es-pull}69226[#69226] (issue: {es-issue}53129[#53129])
+* Make the available `ScriptContexts` accessible from `ScriptService` {es-pull}70465[#70465]
+* Whitelist the CIDR convenience API {es-pull}71258[#71258] (issue: {es-issue}60668[#60668])
+
+Query Languages::
+* Adds `runtime_mappings` to EQL and SQL requests {es-pull}71356[#71356] (issue: {es-issue}68116[#68116])
+
+Machine Learning::
+* Add new delete trained model aliases API {es-pull}69195[#69195]
+* Add runtime mappings to data frame analytics source config {es-pull}69183[#69183] (issue: {es-issue}65056[#65056])
+* Adding new `_preview` endpoint for data frame analytics {es-pull}69453[#69453]
+* Adding support for composite aggregations in anomaly detection {es-pull}69970[#69970]
+* Allow datafeed and job configs for datafeed preview API {es-pull}70836[#70836] (issue: {es-issue}70264[#70264])
+* Improve messages related to assigning machine learning jobs {es-pull}69752[#69752]
+* Add put and delete trained model alias APIs to rest high-level client {es-pull}69214[#69214]
+
+Mapping::
+* Add calculated numeric fields {es-pull}69531[#69531]
+* Allow specify dynamic templates in bulk request {es-pull}69948[#69948] (issue: {es-issue}61939[#61939])
+* Change default format for `date_nanos` field {es-pull}70463[#70463] (issues: {es-issue}67063[#67063], {es-issue}69192[#69192])
+* Expose if a field is a metadata field in the field capabilities response {es-pull}69977[#69977]
+* Field capabilities index action should not fork its execution {es-pull}69865[#69865]
+* Improve error message for invalid field name {es-pull}70972[#70972] (issue: {es-issue}70960[#70960])
+* New queryable `_tier` metadata field {es-pull}69288[#69288] (issue: {es-issue}68135[#68135])
+* Output script stats for indexed fields {es-pull}71219[#71219]
+* Preserve `half_float` precision in fields API {es-pull}70653[#70653] (issue: {es-issue}70260[#70260])
+* Support fetching flattened subfields {es-pull}70916[#70916] (issue: {es-issue}70605[#70605])
+
+Network::
+* Suppress warning on request if transport not ready {es-pull}69686[#69686] (issues: {es-issue}16746[#16746], {es-issue}44939[#44939], {es-issue}61356[#61356])
+
+Ranking::
+* Add access to `dense_vector` values {es-pull}71313[#71313] (issue: {es-issue}51964[#51964])
+* Make wildcard field use constant scoring queries for wildcard queries {es-pull}70452[#70452] (issue: {es-issue}69604[#69604])
+
+Recovery::
+* Fix retention lease expiry to not mark stale {es-pull}68577[#68577]
+
+SQL::
+* Removed the always on total hit tracking {es-pull}70319[#70319] (issue: {es-issue}52787[#52787])
+
+Search::
+* Add `_size` and `_doc_count` to fields output {es-pull}70575[#70575] (issue: {es-issue}63569[#63569])
+* Add `positive_score_impact` to `rank_features` type {es-pull}69994[#69994] (issue: {es-issue}68619[#68619])
+* Add earlier validation for some `SearchSourceBuilder` settings {es-pull}69548[#69548] (issue: {es-issue}54958[#54958])
+* Allow format sort values of date fields {es-pull}70357[#70357] (issue: {es-issue}69192[#69192])
+* Cancel searches earlier {es-pull}69795[#69795]
+* Close search contexts on reassigned shard {es-pull}68539[#68539]
+* Improve lookup for "include_unmapped" field pattern {es-pull}69984[#69984] (issue: {es-issue}69983[#69983])
+* Support fetching `_tier` field value {es-pull}71379[#71379] (issues: {es-issue}63569[#63569], {es-issue}68135[#68135])
+
+Security::
+* Service Accounts - CLI to delete and list file tokens {es-pull}71380[#71380]
+* Warn users if security is implicitly disabled {es-pull}70114[#70114]
+
+Snapshot/Restore::
+* Add searchable snapshot stats for reads from Lucene {es-pull}70464[#70464]
+* Add support for range reads and retries to URL repositories {es-pull}69521[#69521]
+* Change tier preference for `shared_cache` searchable snapshots to frozen only {es-pull}70786[#70786] (issue: {es-issue}70341[#70341])
+* Enforce `data_frozen` for partial searchable snapshot `_tier_preference` {es-pull}71155[#71155] (issues: {es-issue}70786[#70786], {es-issue}71014[#71014])
+* Forbid dedicated frozen nodes w/ unfrozen indices {es-pull}71395[#71395]
+* Include min/max/average file size in Searchable Snapshots Stats API {es-pull}70294[#70294]
+* Make searchable snapshot cache size effectively zero on non-frozen nodes {es-pull}71134[#71134] (issues: {es-issue}70341[#70341], {es-issue}70846[#70846], {es-issue}71013[#71013])
+* Skip `TRANSLOG` stage for searchable snapshots recovery stage {es-pull}70311[#70311] (issue: {es-issue}65531[#65531])
+* Use default application credentials for GCS repositories {es-pull}71239[#71239]
+
+Transform::
+* Add support for `geo_line` aggregation in pivot function {es-pull}69299[#69299]
+* Enhance transform role checks {es-pull}70139[#70139] (issue: {es-issue}69518[#69518])
+* Redirect transform actions to `transform` and `remote_cluster_client` node when needed {es-pull}70125[#70125]
+* Report warnings in `_preview` response {es-pull}68396[#68396] (issue: {es-issue}70059[#70059])
+
+
+
+[[bug-7.13.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Significant text aggregation - return empty results rather than error if field unmapped {es-pull}70778[#70778] (issue: {es-issue}69809[#69809])
+* Stop terms aggregation from losing buckets {es-pull}70493[#70493] (issues: {es-issue}68871[#68871], {es-issue}70449[#70449])
+
+Authentication::
+* Fix inconsistency of internal user checking {es-pull}70123[#70123]
+
+Engine::
+* Allow force-merges to run in parallel on a node {es-pull}69416[#69416] (issue: {es-issue}69327[#69327])
+
+Features/Features::
+* Unique names for bulk processor scheduler threads {es-pull}69432[#69432] (issues: {es-issue}1[#1], {es-issue}68470[#68470])
+
+Features/Java High Level REST Client::
+* Fix ignoring `require_alias` parameter in high level rest client {es-pull}67865[#67865] (issue: {es-issue}67819[#67819])
+
+Features/Java Low Level REST Client::
+* Fix Suppressing Interrupted Flag in Client {es-pull}68999[#68999] (issue: {es-issue}68525[#68525])
+
+Geo::
+* Fix overflow in `GeoTileGridTiler` {es-pull}70222[#70222]
+
+Infra/Logging::
+* Add `RateLimitingFiltering` to plaintext deprecation logs {es-pull}69190[#69190] (issues: {es-issue}61474[#61474], {es-issue}69188[#69188])
+* Do not throttle deprecated field logs {es-pull}70009[#70009] (issue: {es-issue}55115[#55115])
+
+Infra/Scripting::
+* Script: Always dup new objects {es-pull}70479[#70479] (issue: {es-issue}70478[#70478])
+
+Machine Learning::
+* Consider `xpack.ml.max_ml_node_size` in `effective_model_memory_limit` {es-pull}70473[#70473] (issue: {es-issue}70069[#70069])
+* Do not create ML annotations index in upgrade mode {es-pull}71175[#71175]
+* Do not track ML usage when collecting monitoring {es-pull}71314[#71314]
+* Ensure `auc_roc` curve is monotonic {es-pull}70628[#70628]
+* Exclude nested fields in data frame analytics {es-pull}71400[#71400]
+* Improve readability of messages written when assigning machine learning jobs to nodes {es-pull}69629[#69629] (issue: {es-issue}59602[#59602])
+
+Mapping::
+* Fix binary `docvalue_fields` with padding {es-pull}70826[#70826] (issue: {es-issue}70244[#70244])
+* Propagate index errors in `field_caps` {es-pull}70245[#70245] (issue: {es-issue}68994[#68994])
+
+Search::
+* Correct service time parameter in ARS formula {es-pull}70283[#70283] (issue: {es-issue}65838[#65838])
+* In ARS, correct default number of outstanding requests {es-pull}71022[#71022] (issue: {es-issue}70283[#70283])
+* Prevent aliased fields being used for index sorts {es-pull}70879[#70879]
+
+

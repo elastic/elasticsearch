@@ -38,3 +38,10 @@ Other versions:
 // === Heading
 //
 // Description.
+
+tag::notable-highlights[]
+[discrete]
+=== Frozen tier is now GA
+
+Description.
+end::notable-highlights[]

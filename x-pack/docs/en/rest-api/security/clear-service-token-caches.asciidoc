@@ -38,10 +38,10 @@ See <<service-accounts,Service accounts>> for more information.
 ==== {api-path-parms-title}
 
 `namespace`::
-(Required, string) An identifier for the namespace.
+(Required, string) Name of the namespace.
 
 `service`::
-(Required, string) An identifier for the service name.
+(Required, string) Name of the service name.
 
 `token_name`::
 (Required, string) Comma-separated list of token names to evict from the

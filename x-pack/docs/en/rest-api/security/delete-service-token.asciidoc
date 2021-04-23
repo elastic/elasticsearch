@@ -31,13 +31,13 @@ and deleted or it is not found.
 ==== {api-path-parms-title}
 
 `namespace`::
-(Required, string) An identifier for the namespace.
+(Required, string) Name of the namespace.
 
 `service`::
-(Required, string) An identifier for the service name.
+(Required, string) Name of the service name.
 
 `token_name`::
-(Required, string) An identifier for the token name.
+(Required, string) Name of the service account token.
 
 [[security-api-delete-service-token-example]]
 ==== {api-examples-title}

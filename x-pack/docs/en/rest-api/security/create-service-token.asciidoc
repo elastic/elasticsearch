@@ -37,13 +37,13 @@ NOTE: Service account tokens never expire. You must actively <<security-api-dele
 ==== {api-path-parms-title}
 
 `namespace`::
-  (Required, string) An identifier for the namespace.
+  (Required, string) Name of the namespace.
 
 `service`::
-  (Required, string) An identifier for the service name.
+  (Required, string) Name of the service name.
 
 `token_name`::
-  (Optional, string) An identifier for the token name. If omitted, a random name will be generated.
+  (Optional, string) Name for the service account token. If omitted, a random name will be generated.
 +
 --
 Token names must be at least 1 and no more than 256 characters. They can contain

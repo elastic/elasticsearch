@@ -425,7 +425,7 @@ end::index-ignore-unavailable[]
 
 tag::include-defaults[]
 `include_defaults`::
-(Optional, string) If `true`, return all default settings in the response.
+(Optional, Boolean) If `true`, return all default settings in the response.
 Defaults to `false`.
 end::include-defaults[]
 

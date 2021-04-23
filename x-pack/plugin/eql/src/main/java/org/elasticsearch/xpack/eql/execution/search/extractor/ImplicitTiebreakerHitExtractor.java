@@ -55,7 +55,7 @@ public class ImplicitTiebreakerHitExtractor implements HitExtractor {
 
     @Override
     public int hashCode() {
-        return 35;
+        return ImplicitTiebreakerHitExtractor.class.hashCode();
     }
 
     @Override

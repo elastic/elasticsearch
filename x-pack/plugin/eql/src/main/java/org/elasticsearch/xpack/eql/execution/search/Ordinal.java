@@ -68,7 +68,7 @@ public class Ordinal implements Comparable<Ordinal> {
             if (tiebreaker != null) {
                 if (o.tiebreaker != null) {
                     if (tiebreaker.compareTo(o.tiebreaker) == 0) {
-                        return Long.valueOf(implicitTiebreaker).compareTo(Long.valueOf(o.implicitTiebreaker));
+                        return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
                     }
                     return tiebreaker.compareTo(o.tiebreaker);
                 } else {
@@ -81,7 +81,7 @@ public class Ordinal implements Comparable<Ordinal> {
                 // this ordinal is greater (after) then the other tiebreaker
                 // so fall through to 1
                 if (o.tiebreaker == null) {
-                    return Long.valueOf(implicitTiebreaker).compareTo(Long.valueOf(o.implicitTiebreaker));
+                    return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
                 }
             }
         }

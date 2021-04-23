@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -81,6 +82,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -550,8 +553,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     BooleanFieldScript.LeafFactory leafFactory =
                             factory.newFactory(BooleanFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
-                    booleanFieldScript.runForDoc(0);
-                    return new Response(booleanFieldScript.asDocValues());
+                    List<Boolean> booleans = new ArrayList<>();
+                    booleanFieldScript.runForDoc(0, b -> booleans.add(b));
+                    return new Response(booleans);
                 }, indexService);
             } else if (scriptContext == DateFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
@@ -559,9 +563,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     DateFieldScript.LeafFactory leafFactory = factory.newFactory(DateFieldScript.CONTEXT.name,
                             request.getScript().getParams(), context.lookup(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
                     DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
-                    dateFieldScript.runForDoc(0);
-                    return new Response(Arrays.stream(dateFieldScript.asDocValues()).
-                            mapToObj(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER::formatMillis).collect(Collectors.toList()));
+                    List<String> dates = new ArrayList<>();
+                    dateFieldScript.runForDoc(0, d -> dates.add(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(d)));
+                    return new Response(dates);
                 }, indexService);
             } else if (scriptContext == DoubleFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
@@ -569,8 +573,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     DoubleFieldScript.LeafFactory leafFactory =
                             factory.newFactory(DoubleFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
-                    doubleFieldScript.runForDoc(0);
-                    return new Response(doubleFieldScript.asDocValues());
+                    List<Double> doubles = new ArrayList<>();
+                    doubleFieldScript.runForDoc(0, d -> doubles.add(d));
+                    return new Response(doubles);
                 }, indexService);
             } else if (scriptContext == GeoPointFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
@@ -578,10 +583,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     GeoPointFieldScript.LeafFactory leafFactory =
                             factory.newFactory(GeoPointFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
-                    geoPointFieldScript.runForDoc(0);
-                    return new Response(Arrays.stream(geoPointFieldScript.asDocValues()).mapToObj(p ->
-                            GeoEncodingUtils.decodeLatitude((int)(p >>> 32)) + ", " +
-                                    GeoEncodingUtils.decodeLongitude((int)(p & 0xFFFFFFFF))).collect(Collectors.toList()));
+                    List<GeoPoint> points = new ArrayList<>();
+                    geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
+                    return new Response(points);
                 }, indexService);
             } else if (scriptContext == IpFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
@@ -589,9 +593,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     IpFieldScript.LeafFactory leafFactory =
                             factory.newFactory(IpFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
-                    ipFieldScript.runForDoc(0);
-                    return new Response(Arrays.stream(ipFieldScript.asDocValues()).
-                            map(ip -> ip == null ? null : DocValueFormat.IP.format(ip)).collect(Collectors.toList()));
+                    List<InetAddress> ips = new ArrayList<>();
+                    ipFieldScript.runForDoc(0, ip -> ips.add(ip));
+                    return new Response(ips);
                 }, indexService);
             } else if (scriptContext == LongFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {

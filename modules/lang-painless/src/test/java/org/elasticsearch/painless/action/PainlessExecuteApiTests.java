@@ -8,6 +8,7 @@
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -115,7 +116,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(doc['rank'].value < params.max_rank)", singletonMap("max_rank", 5.0)), "boolean_field",
                 contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
-        assertArrayEquals((boolean[])response.getResult(), new boolean[] {true});
+        assertEquals(Collections.singletonList(true), response.getResult());
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
@@ -123,7 +124,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(false); emit(true); emit (false);", emptyMap()), "boolean_field",
                 contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
-        assertArrayEquals((boolean[])response.getResult(), new boolean[] {false, false, true});
+        assertEquals(Arrays.asList(false, false, true), response.getResult());
     }
 
     public void testDateFieldExecutionContext() throws IOException {
@@ -137,7 +138,7 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(doc['test_date'].value.toInstant().toEpochMilli())", emptyMap()), "date_field",
                 contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
-        assertEquals(response.getResult(), Collections.singletonList("2015-01-01T12:10:30.000Z"));
+        assertEquals(Collections.singletonList("2015-01-01T12:10:30.000Z"), response.getResult());
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
@@ -147,10 +148,15 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(ZonedDateTime.parse(\"2035-10-13T10:54:19Z\").toInstant().toEpochMilli());",
                 emptyMap()), "date_field", contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
-        assertEquals(response.getResult(),
-                Arrays.asList("1942-05-31T15:16:17.000Z", "2021-01-01T00:00:00.000Z", "2035-10-13T10:54:19.000Z"));
+        assertEquals(
+                Arrays.asList(
+                        "2021-01-01T00:00:00.000Z",
+                        "1942-05-31T15:16:17.000Z",
+                        "2035-10-13T10:54:19.000Z"),
+                response.getResult());
     }
 
+    @SuppressWarnings("unchecked")
     public void testDoubleFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
@@ -162,7 +168,9 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(doc['rank'].value); emit(Math.log(doc['rank'].value))", emptyMap()), "double_field",
                 contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
-        assertArrayEquals((double[])response.getResult(), new double[] {Math.log(4.0), 4.0}, 0.00001);
+        List<Double> doubles = (List<Double>)response.getResult();
+        assertEquals(4.0, doubles.get(0), 0.00001);
+        assertEquals(Math.log(4.0), doubles.get(1), 0.00001);
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
@@ -170,9 +178,16 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(3.1); emit(2.29); emit(-12.47); emit(-12.46); emit(Double.MAX_VALUE); emit(0.0);",
                 emptyMap()), "double_field", contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
-        assertArrayEquals((double[])response.getResult(), new double[] {-12.47, -12.46, 0.0, 2.29, 3.1, Double.MAX_VALUE}, 0.00001);
+        doubles = (List<Double>)response.getResult();
+        assertEquals(3.1, doubles.get(0), 0.00001);
+        assertEquals(2.29, doubles.get(1), 0.00001);
+        assertEquals(-12.47, doubles.get(2), 0.00001);
+        assertEquals(-12.46, doubles.get(3), 0.00001);
+        assertEquals(Double.MAX_VALUE, doubles.get(4), 0.00001);
+        assertEquals(0.0, doubles.get(5), 0.00001);
     }
 
+    @SuppressWarnings("unchecked")
     public void testGeoPointFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
@@ -184,11 +199,9 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(doc['test_point'].value.lat, doc['test_point'].value.lon)", emptyMap()),
                 "geo_point_field", contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
-        @SuppressWarnings("unchecked")
-        List<String> point = (List<String>)response.getResult();
-        String[] xy = point.get(0).split(", ");
-        assertEquals(Double.parseDouble(xy[0]), 30.0, 0.00001);
-        assertEquals(Double.parseDouble(xy[1]), 40.0, 0.00001);
+        List<GeoPoint> points = (List<GeoPoint>)response.getResult();
+        assertEquals(points.get(0).getLat(), 30.0, 0.00001);
+        assertEquals(points.get(0).getLon(), 40.0, 0.00001);
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
@@ -196,14 +209,11 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(78.96, 12.12); emit(13.45, 56.78);",
                 emptyMap()), "geo_point_field", contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
-        @SuppressWarnings("unchecked")
-        List<String> points = (List<String>)response.getResult();
-        xy = points.get(0).split(", ");
-        assertEquals(Double.parseDouble(xy[0]), 13.45, 0.00001);
-        assertEquals(Double.parseDouble(xy[1]), 56.78, 0.00001);
-        xy = points.get(1).split(", ");
-        assertEquals(Double.parseDouble(xy[0]), 78.96, 0.00001);
-        assertEquals(Double.parseDouble(xy[1]), 12.12, 0.00001);
+        points = (List<GeoPoint>)response.getResult();
+        assertEquals(points.get(0).getLat(), 78.96, 0.00001);
+        assertEquals(points.get(0).getLon(), 12.12, 0.00001);
+        assertEquals(points.get(1).getLat(), 13.45, 0.00001);
+        assertEquals(points.get(1).getLon(), 56.78, 0.00001);
     }
 
     public void testIpFieldExecutionContext() throws IOException {

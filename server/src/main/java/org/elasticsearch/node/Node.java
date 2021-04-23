@@ -332,6 +332,11 @@ public class Node implements Closeable {
                     "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
                         "multiple disks. This feature will be removed in 8.0.");
             }
+            if (Environment.dataPathUsesList(tmpSettings)) {
+                // already checked for multiple values above, so if this is a list it is a single valued list
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "multiple-data-paths-list",
+                    "Configuring [path.data] with a list is deprecated. Instead specify as a string value.");
+            }
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",

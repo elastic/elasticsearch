@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.termenum.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -362,41 +360,31 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
                     
                     SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
                     final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-                    final IndexShard indexShard = indexService.getShard(shardId.getId());
-                    ArrayList<Closeable> openedResources = new ArrayList<>();
-                    try {
+                    final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
+                        shardId.id(),
+                        0,
+                        null,
+                        request::shardStartedTimeMillis,
+                        null,
+                        Collections.emptyMap()
+                    );
 
-                        Engine.Searcher searcher = indexShard.acquireSearcher(Engine.SEARCH_SOURCE);
-                        openedResources.add(searcher);
-                        final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
-                            shardId.id(),
-                            0,
-                            searcher,
-                            request::shardStartedTimeMillis,
-                            null,
-                            Collections.emptyMap()
+                    // Current user has potentially many roles and therefore potentially many queries
+                    // defining sets of docs accessible
+                    Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
+                    for (BytesReference querySource : queries) {
+                        QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
+                            querySource,
+                            scriptService,
+                            queryShardContext.getXContentRegistry(),
+                            securityContext.getUser()
                         );
-
-                        // Current user has potentially many roles and therefore potentially many queries
-                        // defining sets of docs accessible
-                        Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
-                        for (BytesReference querySource : queries) {
-                            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
-                                querySource,
-                                scriptService,
-                                queryShardContext.getXContentRegistry(),
-                                securityContext.getUser()
-                            );
-                            QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
-                            if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
-                                // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
-                                return true;
-                            }
-
+                        QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+                        if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
+                            // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
+                            return true;
                         }
-                    } finally {
-                        IOUtils.close(openedResources);
-                    }                    
+                    }
                     return false;
                 }
             }

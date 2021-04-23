@@ -81,8 +81,8 @@ The response includes the service account token, its name, and its secret value:
 // TESTRESPONSE[s/AAEAAWVsYXN0aWM...vZmxlZXQtc2VydmVyL3Rva2VuMTo3TFdaSDZ/$body.token.value/]
 <1> The secret value to use as a bearer token
 
-To use the service account token, include the generated value in a request with
-an `Authorization: Bearer` header:
+To use the service account token, include the generated token value in a
+request with an `Authorization: Bearer` header:
 
 [source,shell]
 ----

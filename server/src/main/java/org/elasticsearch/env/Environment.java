@@ -296,6 +296,15 @@ public class Environment {
         }
     }
 
+    /** Returns true if the data path is a list, false otherwise */
+    public static boolean dataPathUsesList(Settings settings) {
+        if (settings.hasValue(PATH_DATA_SETTING.getKey()) == false) {
+            return false;
+        }
+        String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
+        return rawDataPath.startsWith("[");
+    }
+
     public static FileStore getFileStore(final Path path) throws IOException {
         return new ESFileStore(Files.getFileStore(path));
     }

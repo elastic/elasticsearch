@@ -51,7 +51,7 @@ public class RestCreateEnrollmentTokenAction extends SecurityBaseRestHandler {
 
     @Override
     public String getName() {
-        return "cluster_enrolment_token";
+        return "cluster_enrolment_token_action";
     }
 
     @Override
@@ -63,7 +63,7 @@ public class RestCreateEnrollmentTokenAction extends SecurityBaseRestHandler {
                 @Override
                 public RestResponse buildResponse(CreateEnrollmentTokenResponse response, XContentBuilder builder) throws Exception {
                     builder.startObject();
-                    builder.field("enrollment_token", response.getEnrollmentToken());
+                    builder.field("enrollment_token", response.getEnrollmentToken().toString());
                     builder.endObject();
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

@@ -15,8 +15,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -87,7 +85,6 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenRequest;
-import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -261,9 +258,15 @@ public class ApiKeyService {
         }
     }
 
+    public boolean isInEnrollmentMode () {
+        return licenseState.isInEnrollmentMode();
+    }
+
     public void createApiKeyForEnrollment(Authentication authentication, CreateEnrollmentTokenRequest request,
-                             Set<RoleDescriptor> userRoles, ActionListener<CreateEnrollmentTokenResponse> listener) {
-        ensureEnabled();
+                             Set<RoleDescriptor> userRoles, ActionListener<CreateApiKeyResponse> listener) {
+        if (isInEnrollmentMode () == false) {
+            listener.onFailure(new IllegalArgumentException("Enrollment mode is not enabled"));
+        }
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
@@ -304,7 +307,7 @@ public class ApiKeyService {
     }
 
     private void createApiKeyAndIndexItForEnrollmentToken(Authentication authentication, CreateEnrollmentTokenRequest request,
-                                         Set<RoleDescriptor> roleDescriptorSet, ActionListener<CreateEnrollmentTokenResponse> listener) {
+                                         Set<RoleDescriptor> roleDescriptorSet, ActionListener<CreateApiKeyResponse> listener) {
         final Instant created = clock.instant();
         final Instant expiration = created.plusSeconds(ENROLL_API_KEY_EXPIRATION_SEC);
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();

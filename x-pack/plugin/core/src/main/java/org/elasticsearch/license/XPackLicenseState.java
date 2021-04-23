@@ -13,6 +13,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.enrollment.EnrollmentSettings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -405,6 +406,7 @@ public class XPackLicenseState {
     private final boolean isSecurityExplicitlyEnabled;
     private final Map<Feature, LongAccumulator> lastUsed;
     private final LongSupplier epochMillisProvider;
+    private final boolean isInEnrollmentMode;
 
     // Since Status is the only field that can be updated, we do not need to synchronize access to
     // XPackLicenseState. However, if status is read multiple times in a method, it can change in between
@@ -416,6 +418,7 @@ public class XPackLicenseState {
         this.listeners = new CopyOnWriteArrayList<>();
         this.isSecurityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.isSecurityExplicitlyEnabled = isSecurityEnabled && isSecurityExplicitlyEnabled(settings);
+        this.isInEnrollmentMode = EnrollmentSettings.ENROLLMENT_ENABLED.get(settings);
 
         // prepopulate feature last used map with entries for non basic features, which are the ones we
         // care to actually keep track of
@@ -430,13 +433,15 @@ public class XPackLicenseState {
     }
 
     private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
-                              Status status, Map<Feature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider) {
+                              Status status, Map<Feature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider,
+                              boolean isInEnrollmentMode) {
         this.listeners = listeners;
         this.isSecurityEnabled = isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
         this.status = status;
         this.lastUsed = lastUsed;
         this.epochMillisProvider = epochMillisProvider;
+        this.isInEnrollmentMode = isInEnrollmentMode;
     }
 
     private static boolean isSecurityExplicitlyEnabled(Settings settings) {
@@ -559,6 +564,10 @@ public class XPackLicenseState {
         return isSecurityEnabled(status.mode, isSecurityExplicitlyEnabled, isSecurityEnabled);
     }
 
+    public boolean isInEnrollmentMode() {
+        return this.isInEnrollmentMode;
+    }
+
     public static boolean isTransportTlsRequired(License license, Settings settings) {
         if (license == null) {
             return false;
@@ -611,7 +620,8 @@ public class XPackLicenseState {
      */
     public XPackLicenseState copyCurrentLicenseState() {
         return executeAgainstStatus(status ->
-            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, lastUsed, epochMillisProvider));
+            new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, lastUsed, epochMillisProvider,
+                isInEnrollmentMode));
     }
 
     /**

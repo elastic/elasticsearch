@@ -1,0 +1,57 @@
+[[create-enrollment-token]]
+=== Create Enrollment Token API
+++++
+<titleabbrev>Create Enrollment Token</titleabbrev>
+++++
+
+Create an enrollment token to enroll a new node to join an existing cluster with security enabled.
+
+[[create-enrollment-token-api-request]]
+==== {api-request-title}
+
+`POST /_cluster/enrollment_token`
+
+[[cluster-create-enrollment-token-api-prereqs]]
+==== {api-prereq-title}
+
+* You must have the `manage_enrollment` <<privileges-list-cluster,cluster privilege>> to use this API.
+[[cluster-create-enrollment-token-api-desc]]
+==== {api-description-title}
+
+The purpose of the create enrollment token API is to generate a token with which user can enroll a new node
+to join an existing cluster where security is enabled.
+
+[[cluster-create-enrollment-token-api-examples]]
+==== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST /_cluster/enrollment_token
+--------------------------------------------------
+
+The API returns a response such as
+
+[source,console-result]
+--------------------------------------------------
+{
+  "enrollment_token" : "eyJhZHIiOiIxOTQ2ZHY0JDZGJrU....UTm1zeWFrdzl0dk5udyJ9Cg==" <1>
+}
+--------------------------------------------------
+
+<1> The enrollment token containing information about:
+    - IP Address and port number for the interface where the Elasticsearch node is listening on;
+    - The fingerprint of the CA certificate that is used to sign the certificate that the Elasticsearch node presents;
+    - Credentials by which the holder of the token can authenticate itself to the elasticsearch node. An API key is used for this.
+
+as Base64 encoded string.
+
+The enrollment key may look like:
+[source,console-result]
+--------------------------------------------------
+{
+"adr":"192.168.1.43:9201",
+"fgr":"48:CC:6C:F8:76:43:3C:97:85:....0A:C8:8D:AE:5C:4D",
+"key":"VuaCfGcBCdbkQm-e5aOx:ui2lp2axTNmsyakw9tvNnw"
+}
+--------------------------------------------------
+

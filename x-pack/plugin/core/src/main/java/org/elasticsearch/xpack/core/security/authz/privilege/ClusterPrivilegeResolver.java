@@ -134,7 +134,7 @@ public class ClusterPrivilegeResolver {
         "manage_autoscaling",
         Set.of("cluster:admin/autoscaling/*")
     );
-    private static final Set<String> MANAGE_ENROLLMENT_PATTERN = Set.of("cluster:admin/xpack/security/enrollment/*");
+    private static final Set<String> MANAGE_ENROLLMENT_PATTERN = Set.of("cluster:admin/enrollment/*");
 
     public static final NamedClusterPrivilege MANAGE_CCR =            new ActionClusterPrivilege("manage_ccr", MANAGE_CCR_PATTERN);
     public static final NamedClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.action.enrollment;
 
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -18,6 +19,8 @@ import java.util.Objects;
  * Response containing the enrollment token string that was generated from an enrollment token creation request.
  */
 public class CreateEnrollmentTokenResponse  extends ActionResponse {
+    private static final ParseField ENROLLMENT_TOKEN = new ParseField("enrollment_token");
+
     private String enrollmentTokenString;
 
     public CreateEnrollmentTokenResponse(StreamInput in) throws IOException {

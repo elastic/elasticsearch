@@ -89,10 +89,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Integer preFilterShardSize;
 
-    private Boolean ccsMinimizeRoundtrips;
+    private boolean ccsMinimizeRoundtrips;
 
     @Nullable
-    private Version minCompatibleShardNode;
+    private final Version minCompatibleShardNode;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS =
         IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
@@ -225,10 +225,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             finalReduce = true;
         }
         ccsMinimizeRoundtrips = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            if (in.readBoolean()) {
-                minCompatibleShardNode = Version.readVersion(in);
-            }
+        if (in.getVersion().onOrAfter(Version.V_7_12_0) && in.readBoolean()) {
+            minCompatibleShardNode = Version.readVersion(in);
+        } else {
+            minCompatibleShardNode = null;
         }
     }
 
@@ -408,6 +408,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
         this.ccsMinimizeRoundtrips = ccsMinimizeRoundtrips;
+    }
+
+    /**
+     * Returns the default value of {@link #ccsMinimizeRoundtrips} of a search request
+     */
+    public static boolean defaultCcsMinimizeRoundtrips(SearchRequest request) {
+        return request.minCompatibleShardNode == null;
     }
 
     /**

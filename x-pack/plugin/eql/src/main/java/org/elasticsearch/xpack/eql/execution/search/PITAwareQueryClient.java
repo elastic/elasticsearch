@@ -128,15 +128,11 @@ public class PITAwareQueryClient extends BasicQueryClient {
     }
 
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
-            indices,
-            IndexResolver.FIELD_CAPS_INDICES_OPTIONS,
-            keepAlive,
-            null,
-            null
-        );
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices)
+            .indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
+            .keepAlive(keepAlive);
         client.execute(OpenPointInTimeAction.INSTANCE, request, wrap(r -> {
-                pitId = r.getSearchContextId();
+                pitId = r.getPointInTimeId();
                 runnable.run();
             },
             listener::onFailure));

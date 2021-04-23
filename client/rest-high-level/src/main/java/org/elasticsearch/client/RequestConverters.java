@@ -30,7 +30,9 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -401,7 +403,9 @@ final class RequestConverters {
         params.withPreference(searchRequest.preference());
         params.withIndicesOptions(searchRequest.indicesOptions());
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        if (searchRequest.isCcsMinimizeRoundtrips() != SearchRequest.defaultCcsMinimizeRoundtrips(searchRequest)) {
+            params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        }
         if (searchRequest.getPreFilterShardSize() != null) {
             params.putParam("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
         }
@@ -427,6 +431,23 @@ final class RequestConverters {
     static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_search/scroll");
         request.setEntity(createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request openPointInTime(OpenPointInTimeRequest openRequest) {
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(openRequest.indices(), "_pit"));
+        Params params = new Params();
+        params.withIndicesOptions(openRequest.indicesOptions());
+        params.withRouting(openRequest.routing());
+        params.withPreference(openRequest.preference());
+        params.putParam("keep_alive", openRequest.keepAlive());
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request closePointInTime(ClosePointInTimeRequest closeRequest) throws IOException {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_pit");
+        request.setEntity(createEntity(closeRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

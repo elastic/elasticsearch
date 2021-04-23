@@ -206,9 +206,10 @@ public class FrozenIndexIT extends ESIntegTestCase {
             client().prepareIndex(indexName).setSource("created_date", "2011-02-02").get();
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
-        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE,
-            new OpenPointInTimeRequest(new String[]{indexName}, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
-                TimeValue.timeValueMinutes(2), null, null)).actionGet().getSearchContextId();
+        final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indexName).
+            indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+            .keepAlive(TimeValue.timeValueMinutes(2));
+        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
             SearchResponse resp = client().prepareSearch()
                 .setIndices(indexName)

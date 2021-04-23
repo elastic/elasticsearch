@@ -83,10 +83,11 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
     }
 
     String openReaders(TimeValue keepAlive, String... indices) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
-            indices, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED, keepAlive, null, null);
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices)
+            .indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+            .keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
-        return response.getSearchContextId();
+        return response.getPointInTimeId();
     }
 
     public void testCloseFreezeAndOpen() throws Exception {

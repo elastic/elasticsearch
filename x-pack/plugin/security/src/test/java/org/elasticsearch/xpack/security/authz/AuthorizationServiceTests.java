@@ -630,10 +630,14 @@ public class AuthorizationServiceTests extends ESTestCase {
                     "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*"),
                 "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*")
             };
-            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(
-                indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, TimeValue.timeValueMinutes(randomLongBetween(1, 10)),
-                randomAlphaOfLength(5), randomAlphaOfLength(5)
-            );
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indices)
+                .keepAlive(TimeValue.timeValueMinutes(randomLongBetween(1, 10)));
+            if (randomBoolean()) {
+                openPointInTimeRequest.routing(randomAlphaOfLength(5));
+            }
+            if (randomBoolean()) {
+                openPointInTimeRequest.preference(randomAlphaOfLength(5));
+            }
             if (hasLocalIndices) {
                 assertThrowsAuthorizationException(
                     () -> authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest),

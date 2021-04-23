@@ -98,7 +98,7 @@ This may disrupt any in-flight searches that use fielddata.
 
 [source,console]
 ----
-POST _all_/_cache/clear?fielddata=true
+POST _all/_cache/clear?fielddata=true
 ----
 // TEST[s/^/PUT my-index\n/]
 

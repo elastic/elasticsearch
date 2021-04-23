@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.LongConsumer;
 

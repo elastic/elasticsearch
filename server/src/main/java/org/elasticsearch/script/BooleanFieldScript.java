@@ -11,7 +11,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Consumer;
 

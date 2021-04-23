@@ -19,7 +19,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Consumer;
 

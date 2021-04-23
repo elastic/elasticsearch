@@ -71,15 +71,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
-
-        // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
-        if (indicesCreated) {
-            return;
-        }
-
-        createReviewsIndex();
-        indicesCreated = true;
-
         // at random test the old deprecated roles, to be removed in 9.0.0
         if (useDeprecatedEndpoints() && randomBoolean()) {
             setupUser(TEST_USER_NAME, Collections.singletonList("data_frame_transforms_user"));
@@ -88,11 +79,19 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
             setupUser(TEST_USER_NAME, Collections.singletonList("transform_user"));
             setupUser(TEST_ADMIN_USER_NAME, Collections.singletonList("transform_admin"));
         }
+        // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
+        if (indicesCreated) {
+            return;
+        }
+
+        createReviewsIndex();
+        indicesCreated = true;
+
     }
 
     @After
     public void clearOutTransforms() throws Exception {
-        wipeTransforms();
+        adminClient().performRequest(new Request("POST", "/_features/_reset"));
     }
 
     @SuppressWarnings("unchecked")

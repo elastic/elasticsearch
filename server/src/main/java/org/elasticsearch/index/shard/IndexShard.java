@@ -971,11 +971,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
-        DocumentMapper mapper = mapperService.documentMapper();
-        if (mapper == null) {
-            return GetResult.NOT_EXISTS;
-        }
-        return getEngine().get(get, mapper, this::wrapSearcher);
+        return getEngine().get(get, mapperService.mappingLookup(), this::wrapSearcher);
     }
 
     /**

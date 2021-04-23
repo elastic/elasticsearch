@@ -378,7 +378,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappingLookup mappingLookup() {
         DocumentMapper mapper = this.mapper;
-        return mapper == null ? MappingLookup.EMPTY : mapper.mappers();
+        if (mapper == null) {
+            return MappingLookup.empty(indexSettings.getIndexVersionCreated(),
+                getMetadataMappers().values().toArray(new MetadataFieldMapper[0]), documentParser, indexSettings, indexAnalyzers);
+        }
+        return mapper.mappers();
     }
 
     /**

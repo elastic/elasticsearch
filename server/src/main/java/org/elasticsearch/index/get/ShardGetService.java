@@ -181,7 +181,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         // check first if stored fields to be loaded don't contain an object field
         DocumentMapper docMapper = mapperService.documentMapper();
-        if (storedFields != null) {
+        if (storedFields != null && docMapper != null) {
             for (String field : storedFields) {
                 Mapper fieldMapper = docMapper.mappers().getMapper(field);
                 if (fieldMapper == null) {

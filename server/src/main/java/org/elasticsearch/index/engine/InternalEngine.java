@@ -63,6 +63,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -606,10 +607,10 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private GetResult getFromTranslog(Get get, Translog.Index index, DocumentMapper mapper,
+    private GetResult getFromTranslog(Get get, Translog.Index index, MappingLookup mappingLookup,
                                       Function<Searcher, Searcher> searcherWrapper) throws IOException {
         assert get.isReadFromTranslog();
-        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mapper, config().getAnalyzer());
+        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mappingLookup, config().getAnalyzer());
         final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
             config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
@@ -628,7 +629,7 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, DocumentMapper mapper, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
+    public GetResult get(Get get, MappingLookup mappingLookup, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
         assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -659,7 +660,7 @@ public class InternalEngine extends Engine {
                             try {
                                 final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
                                 if (operation != null) {
-                                    return getFromTranslog(get, (Translog.Index) operation, mapper, searcherWrapper);
+                                    return getFromTranslog(get, (Translog.Index) operation, mappingLookup, searcherWrapper);
                                 }
                             } catch (IOException e) {
                                 maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event

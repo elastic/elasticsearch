@@ -36,10 +36,17 @@ import static java.util.Collections.unmodifiableMap;
  */
 public final class Mapping implements ToXContentFragment {
 
-    public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath()),
-        new MetadataFieldMapper[0],
-        Collections.emptyMap());
+    //TODO we may want to replace all usages of the constant with calling the method
+    public static final Mapping EMPTY = empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT, new MetadataFieldMapper[0]);
+
+    static Mapping empty(String type,
+                         Version indexVersionCreated,
+                         MetadataFieldMapper[] metadataMappers) {
+        return new Mapping(
+            new RootObjectMapper.Builder(type, indexVersionCreated).build(new ContentPath()),
+            metadataMappers,
+            Collections.emptyMap());
+    }
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;

@@ -719,7 +719,7 @@ currently supported:
 * <<search-aggregations-metrics-stats-aggregation,Stats>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
 * <<search-aggregations-bucket-terms-aggregation, Terms>>
-* <<search-aggregations-metrics-top-metrics-aggregation,Top Metrics>>
+* <<search-aggregations-metrics-top-metrics,Top Metrics>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 

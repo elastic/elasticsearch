@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.termenum.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -27,6 +28,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.MemoizedSupplier;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -35,12 +37,16 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -52,8 +58,10 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -76,6 +84,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
     protected final TransportService transportService;
     private final SearchService searchService;
     private final IndicesService indicesService;
+    private final ScriptService scriptService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     final String transportShardAction;
@@ -89,6 +98,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         SearchService searchService,
         TransportService transportService,
         IndicesService indicesService,
+        ScriptService scriptService,
         ActionFilters actionFilters,
         XPackLicenseState licenseState,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -102,6 +112,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         this.transportShardAction = actionName + "[s]";
         this.shardExecutor = ThreadPool.Names.AUTO_COMPLETE;
         this.indicesService = indicesService;
+        this.scriptService = scriptService;
         this.licenseState = licenseState;
 
         transportService.registerRequestHandler(
@@ -330,16 +341,62 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         return new NodeTermEnumResponse(request.nodeId(), termsList, error, true);
     }
 
-    // TODO remove this so we can shift code to server module - write a separate Interceptor class to rewrite requests according to
-    // security rules (only allowing access to shards where role query rewrites to a match_all
-    private boolean canAccess(String indexName, String fieldName, XPackLicenseState frozenLicenseState, ThreadContext threadContext) {
+    // TODO remove this so we can shift code to server module - write a separate Interceptor class to 
+    // rewrite requests according to security rules 
+    private boolean canAccess(
+        ShardId shardId,
+        NodeTermEnumRequest request,
+        XPackLicenseState frozenLicenseState,
+        ThreadContext threadContext        
+    ) throws IOException {
         if (frozenLicenseState.isSecurityEnabled()) {
             var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
+            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
+
+         
             if (indexAccessControl != null) {
                 final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                 if ( dls && licenseChecker.get()) {
+                    // Check to see if any of the roles defined for the current user rewrite to match_all 
+                    
+                    SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
+                    final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+                    final IndexShard indexShard = indexService.getShard(shardId.getId());
+                    ArrayList<Closeable> openedResources = new ArrayList<>();
+                    try {
+
+                        Engine.Searcher searcher = indexShard.acquireSearcher(Engine.SEARCH_SOURCE);
+                        openedResources.add(searcher);
+                        final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
+                            shardId.id(),
+                            0,
+                            searcher,
+                            request::shardStartedTimeMillis,
+                            null,
+                            Collections.emptyMap()
+                        );
+
+                        // Current user has potentially many roles and therefore potentially many queries
+                        // defining sets of docs accessible
+                        Set<BytesReference> queries = indexAccessControl.getDocumentPermissions().getQueries();
+                        for (BytesReference querySource : queries) {
+                            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(
+                                querySource,
+                                scriptService,
+                                queryShardContext.getXContentRegistry(),
+                                securityContext.getUser()
+                            );
+                            QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
+                            if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
+                                // One of the roles assigned has "all" permissions - allow unfettered access to termsDict
+                                return true;
+                            }
+
+                        }
+                    } finally {
+                        IOUtils.close(openedResources);
+                    }                    
                     return false;
                 }
             }
@@ -535,7 +592,7 @@ public class TransportTermEnumAction extends HandledTransportAction<TermEnumRequ
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
         for (ShardId shardId : request.shardIds().toArray(new ShardId[0])) {
-            if (canAccess(shardId.getIndexName(), request.field(), frozenLicenseState, threadContext) == false || canMatchShard(
+            if (canAccess(shardId, request, frozenLicenseState, threadContext) == false || canMatchShard(
                 shardId,
                 request
             ) == false) {

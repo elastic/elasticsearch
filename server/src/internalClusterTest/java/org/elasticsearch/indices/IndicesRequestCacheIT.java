@@ -47,7 +47,12 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index")
                 .setMapping("f", "type=date")
-                .setSettings(Settings.builder().put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)).get());
+                .setSettings(Settings.builder()
+                    .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+            .get());
         indexRandom(true,
                 client.prepareIndex("index").setSource("f", "2014-03-10T00:00:00.000Z"),
                 client.prepareIndex("index").setSource("f", "2014-05-13T00:00:00.000Z"));
@@ -62,6 +67,8 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 .get();
         assertSearchResponse(r1);
 
+        assertCacheState(client, "index", 0, 1);
+
         // The cached is actually used
         assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache()
             .getMemorySizeInBytes(), greaterThan(0L));
@@ -72,6 +79,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                             .timeZone(ZoneId.of("+01:00")).minDocCount(0).dateHistogramInterval(DateHistogramInterval.MONTH))
                     .get();
             assertSearchResponse(r2);
+            assertCacheState(client, "index", i + 1, 1);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");
             final List<? extends Bucket> buckets1 = h1.getBuckets();

@@ -62,17 +62,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         resultsForDoc(docId).forEach(consumer);
     }
 
-    /**
-     * Reorders the values from the last time {@link #resultsForDoc(int)} was called to
-     * how this would appear in doc-values order.
-     */
-    public final String[] asDocValues() {
-        String[] values = new String[results.size()];
-        results.toArray(values);
-        Arrays.sort(values);
-        return values;
-    }
-
     public final void emit(String v) {
         checkMaxSize(results.size());
         chars += v.length();

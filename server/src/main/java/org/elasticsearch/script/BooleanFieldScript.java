@@ -69,17 +69,6 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
         return falses;
     }
 
-    /**
-     * Reorders the values from the last time {@link #runForDoc(int)} was called to
-     * how this would appear in doc-values order.
-     */
-    public final boolean[] asDocValues() {
-        boolean[] values = new boolean[falses + trues];
-        Arrays.fill(values, 0, falses, false);
-        Arrays.fill(values, falses, falses + trues, true);
-        return values;
-    }
-
     public final void emit(boolean v) {
         if (v) {
             trues++;

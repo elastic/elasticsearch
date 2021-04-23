@@ -57,17 +57,6 @@ public abstract class AbstractLongFieldScript extends AbstractFieldScript {
     }
 
     /**
-     * Reorders the values from the last time {@link #values()} was called to
-     * how this would appear in doc-values order. Truncates garbage values
-     * based on {@link #count()}.
-     */
-    public final long[] asDocValues() {
-        long[] truncated = Arrays.copyOf(values, count());
-        Arrays.sort(truncated);
-        return truncated;
-    }
-
-    /**
      * The number of results produced the last time {@link #runForDoc(int)} was called.
      */
     public final int count() {

@@ -50,26 +50,6 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
         return DUMMY;
     }
 
-    public void testAsDocValues() {
-        DateFieldScript script = new DateFieldScript(
-                "test",
-                Map.of(),
-                new SearchLookup(field -> null, (ft, lookup) -> null),
-                DateFormatter.forPattern("YYYY-MM-DD 'T' HH:MM:SSZ"),
-                null
-        ) {
-            @Override
-            public void execute() {
-                emit(ZonedDateTime.parse("2021-01-01T00:00:00Z").toInstant().toEpochMilli());
-                emit(ZonedDateTime.parse("1942-05-31T15:16:17Z").toInstant().toEpochMilli());
-                emit(ZonedDateTime.parse("2035-10-13T10:54:19Z").toInstant().toEpochMilli());
-            }
-        };
-        script.execute();
-
-        assertArrayEquals(new long[] {-870597823000L, 1609459200000L, 2075885659000L}, script.asDocValues());
-    }
-
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));

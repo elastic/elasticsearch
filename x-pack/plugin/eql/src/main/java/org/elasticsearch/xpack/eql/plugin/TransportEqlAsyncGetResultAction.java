@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
-import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
+import org.elasticsearch.xpack.ql.async.StoredAsyncResponse;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 

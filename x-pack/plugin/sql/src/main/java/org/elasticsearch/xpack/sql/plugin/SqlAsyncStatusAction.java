@@ -4,16 +4,16 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.eql.plugin;
+package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
-public class EqlAsyncGetStatusAction extends ActionType<QlStatusResponse> {
-    public static final EqlAsyncGetStatusAction INSTANCE = new EqlAsyncGetStatusAction();
-    public static final String NAME = "cluster:monitor/eql/async/status";
+public class SqlAsyncStatusAction extends ActionType<QlStatusResponse> {
+    public static final SqlAsyncStatusAction INSTANCE = new SqlAsyncStatusAction();
+    public static final String NAME = "cluster:monitor/sql/async/status";
 
-    private EqlAsyncGetStatusAction() {
+    private SqlAsyncStatusAction() {
         super(NAME, QlStatusResponse::new);
     }
 }

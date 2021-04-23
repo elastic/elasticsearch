@@ -40,26 +40,11 @@ public final class SqlTestUtils {
 
     public static final SqlConfiguration TEST_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN,
-            null, null, null, null, false, false);
+            null, null, null, null, false, false,
+            Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT, Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
 
-    public static SqlConfiguration randomConfiguration() {
-        return new SqlConfiguration(randomZone(),
-                randomIntBetween(0, 1000),
-                new TimeValue(randomNonNegativeLong()),
-                new TimeValue(randomNonNegativeLong()),
-                null,
-                null,
-                randomFrom(Mode.values()),
-                randomAlphaOfLength(10),
-                null,
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                false,
-                randomBoolean());
-    }
-
-    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
-        return new SqlConfiguration(providedZoneId,
+    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId, SqlVersion sqlVersion) {
+        return new SqlConfiguration(providedZoneId != null ? providedZoneId : randomZone(),
             randomIntBetween(0, 1000),
             new TimeValue(randomNonNegativeLong()),
             new TimeValue(randomNonNegativeLong()),
@@ -67,27 +52,26 @@ public final class SqlTestUtils {
             null,
             randomFrom(Mode.values()),
             randomAlphaOfLength(10),
-            null,
+            sqlVersion,
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
             false,
-            randomBoolean());
+            randomBoolean(),
+            new TimeValue(randomNonNegativeLong()),
+            randomBoolean(),
+            new TimeValue(randomNonNegativeLong()));
+    }
+
+    public static SqlConfiguration randomConfiguration() {
+        return randomConfiguration(null, null);
+    }
+
+    public static SqlConfiguration randomConfiguration(ZoneId providedZoneId) {
+        return randomConfiguration(providedZoneId, null);
     }
 
     public static SqlConfiguration randomConfiguration(SqlVersion version) {
-        return new SqlConfiguration(randomZone(),
-                randomIntBetween(0, 1000),
-                new TimeValue(randomNonNegativeLong()),
-                new TimeValue(randomNonNegativeLong()),
-                null,
-                null,
-                randomFrom(Mode.values()),
-                randomAlphaOfLength(10),
-                version,
-                randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                false,
-                randomBoolean());
+        return randomConfiguration(null, version);
     }
 
     public static String randomWhitespaces() {

@@ -57,7 +57,8 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
                 request.requestTimeout(), request.pageTimeout(), request.filter(), request.runtimeMappings(),
                 request.mode(), request.clientId(), request.version(),
                 username(securityContext), clusterName(clusterService), Protocol.FIELD_MULTI_VALUE_LENIENCY,
-                Protocol.INDEX_INCLUDE_FROZEN);
+                Protocol.INDEX_INCLUDE_FROZEN, Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
+                Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
 
         planExecutor.searchSource(cfg, request.query(), request.params(), ActionListener.wrap(
                 searchSourceBuilder -> listener.onResponse(new SqlTranslateResponse(searchSourceBuilder)), listener::onFailure));

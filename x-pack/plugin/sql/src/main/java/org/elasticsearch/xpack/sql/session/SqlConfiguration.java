@@ -27,6 +27,9 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final SqlVersion version;
     private final boolean multiValueFieldLeniency;
     private final boolean includeFrozenIndices;
+    private final TimeValue waitForCompletionTimeout;
+    private final boolean keepOnCompletion;
+    private final TimeValue keepAlive;
 
     @Nullable
     private QueryBuilder filter;
@@ -39,7 +42,8 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
                          Mode mode, String clientId, SqlVersion version,
                          String username, String clusterName,
                          boolean multiValueFieldLeniency,
-                         boolean includeFrozen) {
+                         boolean includeFrozen,
+                         TimeValue waitForCompletionTimeout, boolean keepOnCompletion, TimeValue keepAlive) {
 
         super(zi, username, clusterName);
 
@@ -53,6 +57,9 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.version = version != null ? version : SqlVersion.fromId(Version.CURRENT.id);
         this.multiValueFieldLeniency = multiValueFieldLeniency;
         this.includeFrozenIndices = includeFrozen;
+        this.waitForCompletionTimeout = waitForCompletionTimeout;
+        this.keepOnCompletion = keepOnCompletion;
+        this.keepAlive = keepAlive;
     }
 
     public int pageSize() {
@@ -93,5 +100,17 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public SqlVersion version() {
         return version;
+    }
+
+    public TimeValue waitForCompletionTimeout() {
+        return waitForCompletionTimeout;
+    }
+
+    public boolean keepOnCompletion() {
+        return keepOnCompletion;
+    }
+
+    public TimeValue keepAlive() {
+        return keepAlive;
     }
 }

@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.eql.action;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.eql.async.StoredAsyncTask;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
+import org.elasticsearch.xpack.ql.async.StoredAsyncTask;
 
 import java.util.Map;
 
@@ -32,8 +33,8 @@ public class EqlSearchTask extends StoredAsyncTask<EqlSearchResponse> {
     /**
      * Returns the status from {@link EqlSearchTask}
      */
-    public static EqlStatusResponse getStatusResponse(EqlSearchTask asyncTask) {
-        return new EqlStatusResponse(
+    public static QlStatusResponse getStatusResponse(EqlSearchTask asyncTask) {
+        return new QlStatusResponse(
             asyncTask.getExecutionId().getEncoded(),
             true,
             true,

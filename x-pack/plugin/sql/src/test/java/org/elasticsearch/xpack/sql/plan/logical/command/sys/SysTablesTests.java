@@ -60,7 +60,8 @@ public class SysTablesTests extends ESTestCase {
     private final IndexInfo frozen = new IndexInfo("frozen", IndexType.FROZEN_INDEX);
 
     private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN, null, null, null, null, false, true);
+            Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN, null, null, null, null, false, true,
+            Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT, Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
 
     //
     // catalog enumeration

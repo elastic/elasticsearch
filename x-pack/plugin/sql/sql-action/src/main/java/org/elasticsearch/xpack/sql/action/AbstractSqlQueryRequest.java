@@ -47,6 +47,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
@@ -72,6 +73,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
 
     static final ParseField QUERY = new ParseField(QUERY_NAME);
     static final ParseField CURSOR = new ParseField(CURSOR_NAME);
+    static final ParseField ID = new ParseField(ID_NAME);
     static final ParseField PARAMS = new ParseField(PARAMS_NAME);
     static final ParseField TIME_ZONE = new ParseField(TIME_ZONE_NAME);
     static final ParseField FETCH_SIZE = new ParseField(FETCH_SIZE_NAME);

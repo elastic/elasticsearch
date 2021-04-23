@@ -49,7 +49,8 @@ public class TransportSqlClearCursorAction extends HandledTransportAction<SqlCle
         planExecutor.cleanCursor(
                 new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null,
                         emptyMap(), request.mode(), StringUtils.EMPTY, request.version(), StringUtils.EMPTY, StringUtils.EMPTY,
-                        Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN),
+                        Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
+                        Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE),
                 cursor, ActionListener.wrap(
                 success -> listener.onResponse(new SqlClearCursorResponse(success)), listener::onFailure));
     }

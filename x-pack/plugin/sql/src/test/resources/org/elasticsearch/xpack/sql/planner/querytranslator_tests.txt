@@ -240,7 +240,7 @@ InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalSqlScriptU
 "params":{"v0":"month","v1":"date","v2":"Z","v3":"2018-09-04T00:00:00.000Z"}
 ;
 
-DateTimeFormat_hereClause
+DateTimeFormatWhereClause
 SELECT int FROM test WHERE DATETIME_FORMAT(date, 'YYYY_MM_dd') = '2018_09_04';
 InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.dateTimeFormat(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))
 "params":{"v0":"date","v1":"YYYY_MM_dd","v2":"Z","v3":"2018_09_04"}
@@ -461,7 +461,8 @@ SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', '
 {"terms":{"keyword":["foo","bar","lala"],"boost":1.0}}
 ;
 
-InExpressionWhereClause21
+InExpressionWhereClause2
+InExpressionWhereClause2
 SELECT int FROM test WHERE POWER(int, 2) IN (10, null, 20, 30 - 10);
 InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(InternalSqlScriptUtils.power(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))
 "params":{"v0":"int","v1":2,"v2":[10.0,null,20.0]}
@@ -529,7 +530,7 @@ SELECT * FROM test WHERE keyword IS NOT NULL;
 "query":{"exists":{"field":"keyword","boost":1.0}
 ;
 
-IsNotNullExpression_WhereClause
+IsNotNullExpressionWhereClauseWithScalar
 SELECT * FROM test WHERE POSITION('x', keyword) IS NOT NULL;
 InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(InternalSqlScriptUtils.position(params.v0,InternalQlScriptUtils.docValue(doc,params.v1))))
 "params":{"v0":"x","v1":"keyword"}

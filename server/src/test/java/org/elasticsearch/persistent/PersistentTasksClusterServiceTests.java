@@ -573,9 +573,6 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 .build()));
         ClusterState state = initialState();
 
-        DiscoveryNode initialNode = state.nodes().get("this_node");
-        DiscoveryNode otherNode = new DiscoveryNode("_node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-
         state = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata())
                 .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata)
@@ -585,8 +582,8 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 .build())
             .build();
 
-        assertThat(PersistentTasksClusterService.isNodeShuttingDown(state, initialNode), equalTo(true));
-        assertThat(PersistentTasksClusterService.isNodeShuttingDown(state, otherNode), equalTo(false));
+        assertThat(PersistentTasksClusterService.isNodeShuttingDown(state, "this_node"), equalTo(true));
+        assertThat(PersistentTasksClusterService.isNodeShuttingDown(state, "_node_1"), equalTo(false));
     }
 
     public void testTasksNotAssignedToShuttingDownNodes() {

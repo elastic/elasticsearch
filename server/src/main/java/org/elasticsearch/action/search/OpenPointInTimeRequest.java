@@ -28,7 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public final class OpenPointInTimeRequest extends ActionRequest implements IndicesRequest.Replaceable {
     private String[] indices;
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
-    private TimeValue keepAlive = TimeValue.ZERO;
+    private TimeValue keepAlive;
 
     @Nullable
     private String routing;

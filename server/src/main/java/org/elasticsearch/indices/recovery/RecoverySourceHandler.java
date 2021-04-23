@@ -249,7 +249,7 @@ public class RecoverySourceHandler {
                     sendFileStep.whenComplete(r -> IOUtils.close(safeCommitRef, releaseStore), e -> {
                         try {
                             IOUtils.close(safeCommitRef, releaseStore);
-                        } catch (final IOException ex) {
+                        } catch (Exception ex) {
                             logger.warn("releasing snapshot caused exception", ex);
                         }
                     });

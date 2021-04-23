@@ -74,12 +74,9 @@ GET _nodes/stats/breaker
 [[prevent-circuit-breaker-errors]]
 ==== Prevent circuit breaker errors
 
-{es} uses several types of circuit breakers. The following tips outline the
-most common causes of circuit breaker errors and their solutions.
-
 **Reduce JVM memory pressure**
 
-High JVM memory pressure often causes circuit breaker errors. See
+High JVM memory pressure often triggers circuit breaker errors. See
 <<high-jvm-memory-pressure>>.
 
 **Avoid using fielddata on `text` fields**

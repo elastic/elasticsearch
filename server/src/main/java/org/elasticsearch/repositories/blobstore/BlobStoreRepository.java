@@ -175,7 +175,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String SNAPSHOT_INDEX_NAME_FORMAT = SNAPSHOT_INDEX_PREFIX + "%s";
 
-    private static final String UPLOADED_DATA_BLOB_PREFIX = "__";
+    public static final String UPLOADED_DATA_BLOB_PREFIX = "__";
 
     // Expose a copy of URLRepository#TYPE here too, for a better error message until https://github.com/elastic/elasticsearch/issues/68918
     // is resolved.
@@ -273,7 +273,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final NamedXContentRegistry namedXContentRegistry;
 
-    private final BigArrays bigArrays;
+    protected final BigArrays bigArrays;
 
     /**
      * Flag that is set to {@code true} if this instance is started with {@link #metadata} that has a higher value for
@@ -2221,7 +2221,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         if (needsWrite) {
                             filesToSnapshot.add(snapshotFileInfo);
                         }
-                        assert needsWrite || assertFileContentsMatchHash(snapshotFileInfo, store);
+                        assert needsWrite || assertFileContentsMatchHash(snapshotStatus, snapshotFileInfo, store);
                     } else {
                         indexCommitPointFiles.add(existingFileInfo);
                     }
@@ -2366,13 +2366,20 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return store::decRef;
     }
 
-    private static boolean assertFileContentsMatchHash(BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
-        try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
-            final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
-            indexInput.readBytes(tmp, 0, tmp.length);
-            assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
-        } catch (IOException e) {
-            throw new AssertionError(e);
+    private static boolean assertFileContentsMatchHash(IndexShardSnapshotStatus snapshotStatus,
+                                                       BlobStoreIndexShardSnapshot.FileInfo fileInfo, Store store) {
+        if (store.tryIncRef()) {
+            try (IndexInput indexInput = store.openVerifyingInput(fileInfo.physicalName(), IOContext.READONCE, fileInfo.metadata())) {
+                final byte[] tmp = new byte[Math.toIntExact(fileInfo.metadata().length())];
+                indexInput.readBytes(tmp, 0, tmp.length);
+                assert fileInfo.metadata().hash().bytesEquals(new BytesRef(tmp));
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            } finally {
+                store.decRef();
+            }
+        } else {
+            assert snapshotStatus.isAborted() : "if the store is already closed we must have been aborted";
         }
         return true;
     }

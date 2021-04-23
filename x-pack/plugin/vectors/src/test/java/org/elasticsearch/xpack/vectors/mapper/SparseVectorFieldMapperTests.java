@@ -246,4 +246,9 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
         assumeFalse("doesn't support docvalues_fetcher", true);
         return null;
     }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;
+    }
 }

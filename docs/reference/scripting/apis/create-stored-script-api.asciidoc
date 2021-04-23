@@ -24,11 +24,11 @@ PUT _scripts/my-stored-script
 [[create-stored-script-api-request]]
 ==== {api-request-title}
 
-`PUT _search/<script-id>`
+`PUT _scripts/<script-id>`
 
 `POST _scripts/<script-id>`
 
-`PUT _search/<script-id>/<context>`
+`PUT _scripts/<script-id>/<context>`
 
 `POST _scripts/<script-id>/<context>`
 

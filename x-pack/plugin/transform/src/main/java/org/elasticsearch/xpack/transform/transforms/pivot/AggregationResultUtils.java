@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.MultiValue;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
@@ -64,7 +65,8 @@ public final class AggregationResultUtils {
         tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
         tempMap.put(MultiBucketsAggregation.class.getName(), new MultiBucketsAggExtractor());
         tempMap.put(GeoShapeMetricAggregation.class.getName(), new GeoShapeMetricAggExtractor());
-        tempMap.put(MultiValue.class.getName(), new MultiValueAggExtractor());
+        tempMap.put(MultiValue.class.getName(), new NumericMultiValueAggExtractor());
+        tempMap.put(MultiValueAggregation.class.getName(), new MultiValueAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -159,6 +161,8 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
         } else if (aggregation instanceof MultiValue) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValue.class.getName());
+        } else if (aggregation instanceof MultiValueAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValueAggregation.class.getName());
         } else if (aggregation instanceof SingleBucketAggregation) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(SingleBucketAggregation.class.getName());
         } else if (aggregation instanceof MultiBucketsAggregation) {
@@ -268,6 +272,26 @@ public final class AggregationResultUtils {
     static class MultiValueAggExtractor implements AggValueExtractor {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            MultiValueAggregation aggregation = (MultiValueAggregation) agg;
+            Map<String, Object> extracted = new HashMap<>();
+
+            // String fieldLookupPrefix = (lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()) + ".";
+            for (String valueName : aggregation.valueNames()) {
+                List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
+
+                // todo: support size > 1
+                if (valueAsStrings.size() > 0) {
+                    extracted.put(valueName, valueAsStrings.get(0));
+                }
+            }
+
+            return extracted;
+        }
+    }
+
+    static class NumericMultiValueAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValue aggregation = (MultiValue) agg;
             Map<String, Object> extracted = new HashMap<>();
 
@@ -276,16 +300,8 @@ public final class AggregationResultUtils {
                 double value = aggregation.value(valueName);
 
                 String fieldType = fieldTypeMap.get(fieldLookupPrefix + valueName);
-                if (isNumericType(fieldType)) {
-                    if (Numbers.isValidDouble(value)) {
-                        extracted.put(valueName, dropFloatingPointComponentIfTypeRequiresIt(fieldType, value));
-                    }
-                } else {
-                    String valueAsString = aggregation.valueAsString(valueName);
-                    if (valueAsString.equals(String.valueOf(value))) {
-                        extracted.put(valueName, value);
-                    }
-                    extracted.put(valueName, valueAsString);
+                if (Numbers.isValidDouble(value)) {
+                    extracted.put(valueName, dropFloatingPointComponentIfTypeRequiresIt(fieldType, value));
                 }
             }
 

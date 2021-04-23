@@ -74,7 +74,6 @@ public final class TransformAggregations {
         "sampler",
         "significant_terms", // https://github.com/elastic/elasticsearch/issues/51073
         "significant_text",
-        "stats", // https://github.com/elastic/elasticsearch/issues/51925
         "string_stats", // https://github.com/elastic/elasticsearch/issues/51925
         "top_hits",
         "t_test", // https://github.com/elastic/elasticsearch/issues/54503,
@@ -114,7 +113,8 @@ public final class TransformAggregations {
         TERMS("terms", FLATTENED),
         RARE_TERMS("rare_terms", FLATTENED),
         MISSING("missing", LONG),
-        TOP_METRICS("top_metrics", SOURCE);
+        TOP_METRICS("top_metrics", SOURCE),
+        STATS("stats", DOUBLE);
 
         private final String aggregationType;
         private final String targetMapping;
@@ -198,6 +198,7 @@ public final class TransformAggregations {
      * @return a tuple with 2 mappings that maps the used field(s) and aggregation type(s)
      */
     public static Tuple<Map<String, String>, Map<String, String>> getAggregationInputAndOutputTypes(AggregationBuilder agg) {
+        // todo: can this be removed?
         if (agg instanceof PercentilesAggregationBuilder) {
             PercentilesAggregationBuilder percentilesAgg = (PercentilesAggregationBuilder) agg;
 
@@ -209,6 +210,32 @@ public final class TransformAggregations {
                     .mapToObj(OutputFieldNameConverter::fromDouble)
                     .collect(
                         Collectors.toMap(p -> percentilesAgg.getName() + "." + p, p -> { return percentilesAgg.getType(); }, (p1, p2) -> p1)
+                    )
+            );
+        }
+
+        // Note: order is important
+        // does the agg specify output field names
+        Optional<Set<String>> outputFieldNames = agg.getOutputFieldNames();
+        if (outputFieldNames.isPresent()) {
+            return new Tuple<>(
+                outputFieldNames.get()
+                    .stream()
+                    .collect(
+                        Collectors.toMap(
+                            outputField -> agg.getName() + "." + outputField,
+                            outputField -> { return outputField; },
+                            (v1, v2) -> v1
+                        )
+                    ),
+                outputFieldNames.get()
+                    .stream()
+                    .collect(
+                        Collectors.toMap(
+                            outputField -> agg.getName() + "." + outputField,
+                            outputField -> { return agg.getType(); },
+                            (v1, v2) -> v1
+                        )
                     )
             );
         }
@@ -239,32 +266,6 @@ public final class TransformAggregations {
             }
 
             return new Tuple<>(inputTypes, outputTypes);
-        }
-
-        // does the agg specify output field names
-        Optional<Set<String>> outputFieldNames = agg.getOutputFieldNames();
-        if (outputFieldNames.isPresent()) {
-            return new Tuple<>(
-                outputFieldNames.get()
-                    .stream()
-                    .collect(
-                        Collectors.toMap(
-                            outputField -> agg.getName() + "." + outputField,
-                            outputField -> { return outputField; },
-                            (v1, v2) -> v1
-                        )
-                    ),
-                outputFieldNames.get()
-                    .stream()
-                    .collect(
-
-                        Collectors.toMap(
-                            outputField -> agg.getName() + "." + outputField,
-                            outputField -> { return agg.getType(); },
-                            (v1, v2) -> v1
-                        )
-                    )
-            );
         }
 
         // catch all in case no special handling required

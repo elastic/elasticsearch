@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuild
 import org.elasticsearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.InternalMultiValueAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
@@ -120,11 +121,61 @@ public class AggregationResultUtilsTests extends ESTestCase {
             .collect(Collectors.toList());
     }
 
-    class TestMultiValueAggregation extends InternalNumericMetricsAggregation.MultiValue {
+    class TestMultiValueAggregation extends InternalMultiValueAggregation {
 
-        private final Map<String, Object> values;
+        private final Map<String, String> values;
 
-        TestMultiValueAggregation(String name, Map<String, Object> values) {
+        TestMultiValueAggregation(String name, Map<String, String> values) {
+            super(name, emptyMap());
+            this.values = values;
+        }
+
+        @Override
+        public String getWriteableName() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public List<String> getValuesAsStrings(String name) {
+            return Collections.singletonList(values.get(name).toString());
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Iterable<String> valueNames() {
+            return values.keySet();
+        }
+
+        @Override
+        protected boolean mustReduceOnSingleInternalAgg() {
+            return false;
+        }
+
+        @Override
+        public Object getProperty(List<String> path) {
+            return null;
+        }
+    }
+
+    class TestNumericMultiValueAggregation extends InternalNumericMetricsAggregation.MultiValue {
+
+        private final Map<String, Double> values;
+
+        TestNumericMultiValueAggregation(String name, Map<String, Double> values) {
             super(name, emptyMap());
             this.values = values;
         }
@@ -136,17 +187,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         @Override
         public double value(String name) {
-            Object o = values.get(name);
-            if (o instanceof Double) {
-                return ((Double) o).doubleValue();
-            }
-
-            return Double.NaN;
-        }
-
-        @Override
-        public String valueAsString(String name) {
-            return values.get(name).toString();
+            return values.get(name);
         }
 
         @Override
@@ -719,43 +760,55 @@ public class AggregationResultUtilsTests extends ESTestCase {
     }
 
     public void testMultiValueAggExtractor() {
-        Aggregation agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("approx_answer", Double.valueOf(42.2)));
-
-        assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.approx_answer", "double"), ""),
-            equalTo(Collections.singletonMap("approx_answer", Double.valueOf(42.2)))
-        );
-
-        agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("exact_answer", Double.valueOf(42.0)));
-
-        assertThat(
-            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.exact_answer", "long"), ""),
-            equalTo(Collections.singletonMap("exact_answer", Long.valueOf(42)))
-        );
-
-        agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("ip", "192.168.1.1"));
+        Aggregation agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("ip", "192.168.1.1"));
 
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.ip", "ip"), ""),
             equalTo(Collections.singletonMap("ip", "192.168.1.1"))
         );
 
-        agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("written_answer", "fortytwo"));
+        agg = new TestMultiValueAggregation("mv_metric", Collections.singletonMap("top_answer", "fortytwo"));
 
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.written_answer", "written_answer"), ""),
-            equalTo(Collections.singletonMap("written_answer", "fortytwo"))
+            equalTo(Collections.singletonMap("top_answer", "fortytwo"))
         );
 
-        agg = new TestMultiValueAggregation(
+        agg = new TestMultiValueAggregation("mv_metric", Map.of("ip", "192.168.1.1", "top_answer", "fortytwo"));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Map.of("mv_metric.top_answer", "keyword", "mv_metric.ip", "ip"), ""),
+            equalTo(Map.of("top_answer", "fortytwo", "ip", "192.168.1.1"))
+        );
+    }
+
+    public void testNumericMultiValueAggExtractor() {
+        Aggregation agg = new TestNumericMultiValueAggregation(
             "mv_metric",
-            Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Double.valueOf(42.0), "ip", "192.168.1.1")
+            Collections.singletonMap("approx_answer", Double.valueOf(42.2))
+        );
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.approx_answer", "double"), ""),
+            equalTo(Collections.singletonMap("approx_answer", Double.valueOf(42.2)))
+        );
+
+        agg = new TestNumericMultiValueAggregation("mv_metric", Collections.singletonMap("exact_answer", Double.valueOf(42.0)));
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.singletonMap("mv_metric.exact_answer", "long"), ""),
+            equalTo(Collections.singletonMap("exact_answer", Long.valueOf(42)))
+        );
+
+        agg = new TestNumericMultiValueAggregation(
+            "mv_metric",
+            Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Double.valueOf(42.0))
         );
 
         assertThat(
             AggregationResultUtils.getExtractor(agg)
-                .value(agg, Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long", "mv_metric.ip", "ip"), ""),
-            equalTo(Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42), "ip", "192.168.1.1"))
+                .value(agg, Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long"), ""),
+            equalTo(Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
         );
     }
 

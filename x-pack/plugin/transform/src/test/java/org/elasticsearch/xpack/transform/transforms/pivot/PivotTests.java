@@ -76,7 +76,7 @@ public class PivotTests extends ESTestCase {
         .map(AggregationType::getName)
         .filter(agg -> externalAggregations.contains(agg) == false)
         .collect(Collectors.toSet());
-    private final String[] unsupportedAggregations = { "stats" };
+    private final String[] unsupportedAggregations = { "global" };
 
     @Before
     public void registerAggregationNamedObjects() throws Exception {
@@ -306,6 +306,11 @@ public class PivotTests extends ESTestCase {
         if (agg.equals(AggregationType.GEO_LINE.getName())) {
             return parseAggregations(
                 "{\"pivot_geo_line\": {\"geo_line\": {\"point\": {\"field\": \"values\"}, \"sort\":{\"field\": \"timestamp\"}}}}"
+            );
+        }
+        if (agg.equals("global")) {
+            return parseAggregations(
+                "{\"pivot_global\": {\"global\": {}}}"
             );
         }
 

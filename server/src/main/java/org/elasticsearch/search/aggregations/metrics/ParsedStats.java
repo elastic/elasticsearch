@@ -93,20 +93,6 @@ public class ParsedStats extends ParsedAggregation implements Stats {
     }
 
     @Override
-    public String valueAsString(String name) {
-        Metrics metrics = Metrics.valueOf(name);
-        switch (metrics) {
-            case min: return getMinAsString();
-            case max: return getMaxAsString();
-            case avg: return getAvgAsString();
-            case count: return Double.toString(count);
-            case sum: return getSumAsString();
-            default:
-                throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
-        }
-    }
-
-    @Override
     public Iterable<String> valueNames() {
         return METRIC_NAMES;
     }

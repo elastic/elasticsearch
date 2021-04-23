@@ -26,8 +26,13 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
@@ -69,17 +74,18 @@ final class KeyStoreUtil {
             }
             return keyStore;
         } catch (IOException e) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
+            throw new SslConfigException(
+                "cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
                 e);
         }
     }
 
     /**
      * Construct an in-memory keystore with a single key entry.
-     * @param certificateChain A certificate chain (ordered from subject to issuer)
-     * @param privateKey The private key that corresponds to the subject certificate (index 0 of {@code certificateChain})
-     * @param password The password for the private key
      *
+     * @param certificateChain A certificate chain (ordered from subject to issuer)
+     * @param privateKey       The private key that corresponds to the subject certificate (index 0 of {@code certificateChain})
+     * @param password         The password for the private key
      * @throws GeneralSecurityException If there is a problem with the provided certificates/key
      */
     static KeyStore buildKeyStore(Collection<Certificate> certificateChain, PrivateKey privateKey, char[] password)
@@ -91,6 +97,7 @@ final class KeyStoreUtil {
 
     /**
      * Construct an in-memory keystore with multiple trusted cert entries.
+     *
      * @param certificates The root certificates to trust
      */
     static KeyStore buildTrustStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
@@ -146,6 +153,48 @@ final class KeyStoreUtil {
         }
         throw new SslConfigException("failed to find a X509ExtendedTrustManager in the trust manager factory for [" + algorithm
             + "] and truststore [" + trustStore + "]");
+    }
+
+    static Stream<KeyStoreEntry> stream(KeyStore keyStore) throws KeyStoreException {
+        return Collections.list(keyStore.aliases()).stream().map(a -> new KeyStoreEntry(keyStore, a));
+    }
+
+    static class KeyStoreEntry {
+        private final KeyStore store;
+        private final String alias;
+
+        KeyStoreEntry(KeyStore store, String alias) {
+            this.store = store;
+            this.alias = alias;
+        }
+
+        public String getAlias() {
+            return alias;
+        }
+
+        public X509Certificate getX509Certificate() throws KeyStoreException {
+            final Certificate c = store.getCertificate(alias);
+            if (c instanceof X509Certificate) {
+                return (X509Certificate) c;
+            } else {
+                return null;
+            }
+        }
+
+        public boolean isKeyEntry() throws KeyStoreException {
+            return store.isKeyEntry(alias);
+        }
+
+        public List<? extends X509Certificate> getX509CertificateChain() throws KeyStoreException {
+            final Certificate[] certificates = store.getCertificateChain(alias);
+            if (certificates == null || certificates.length == 0) {
+                return List.of();
+            }
+            return Stream.of(certificates)
+                .filter(c -> c instanceof X509Certificate)
+                .map(X509Certificate.class::cast)
+                .collect(Collectors.toUnmodifiableList());
+        }
     }
 
 

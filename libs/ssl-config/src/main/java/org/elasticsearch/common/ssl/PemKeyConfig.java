@@ -18,6 +18,8 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -39,8 +41,27 @@ public final class PemKeyConfig implements SslKeyConfig {
     }
 
     @Override
+    public boolean hasKeyMaterial() {
+        return true;
+    }
+
+    @Override
     public Collection<Path> getDependentFiles() {
         return Arrays.asList(certificate, key);
+    }
+
+    @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        final List<Certificate> certificates = getCertificates();
+        final List<StoredCertificate> info = new ArrayList<>(certificates.size());
+        boolean first = true;
+        for (Certificate cert : certificates) {
+            if (cert instanceof X509Certificate) {
+                info.add(new StoredCertificate((X509Certificate) cert, this.certificate, "PEM", null, first));
+            }
+            first = false;
+        }
+        return info;
     }
 
     @Override
@@ -77,7 +98,7 @@ public final class PemKeyConfig implements SslKeyConfig {
         } catch (FileNotFoundException | NoSuchFileException e) {
             throw new SslConfigException("the configured ssl certificate file [" + certificate.toAbsolutePath() + "] does not exist", e);
         } catch (IOException e) {
-            throw new SslConfigException("the configured ssl certificate file [" + certificate .toAbsolutePath()+ "] cannot be read", e);
+            throw new SslConfigException("the configured ssl certificate file [" + certificate.toAbsolutePath() + "] cannot be read", e);
         } catch (GeneralSecurityException e) {
             throw new SslConfigException("cannot load ssl certificate from [" + certificate.toAbsolutePath() + "]", e);
         }

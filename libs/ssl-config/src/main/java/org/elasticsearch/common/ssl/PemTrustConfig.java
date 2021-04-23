@@ -19,6 +19,8 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -57,31 +59,56 @@ public final class PemTrustConfig implements SslTrustConfig {
     }
 
     @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        final List<StoredCertificate> info = new ArrayList<>(certificateAuthorities.size());
+        for (Path path : certificateAuthorities) {
+            for (Certificate cert : readCertificates(List.of(path))) {
+                if (cert instanceof X509Certificate) {
+                    info.add(new StoredCertificate((X509Certificate) cert, path, "PEM", null, false));
+                }
+            }
+        }
+        return info;
+    }
+
+    @Override
     public X509ExtendedTrustManager createTrustManager() {
         try {
-            final List<Certificate> certificates = loadCertificates();
-            KeyStore store = KeyStoreUtil.buildTrustStore(certificates);
+            final List<Certificate> certificates = readCertificates(this.certificateAuthorities);
+            final KeyStore store = KeyStoreUtil.buildTrustStore(certificates);
             return KeyStoreUtil.createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException("cannot create trust using PEM certificates [" + caPathsAsString() + "]", e);
+            throw new SslConfigException("cannot create trust using PEM certificates [" + pathsToString(certificateAuthorities) + "]", e);
         }
     }
 
-    private List<Certificate> loadCertificates() throws CertificateException {
+    private List<Certificate> readCertificates(List<Path> paths) {
         try {
-            return PemUtils.readCertificates(this.certificateAuthorities);
+            return PemUtils.readCertificates(paths);
         } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("cannot configure trust using PEM certificates [" + caPathsAsString()
-                + "] because one or more files do not exist", e);
+            if (paths.size() == 1) {
+                throw new SslConfigException("cannot read configured PEM certificate authority [" + pathsToString(paths)
+                    + "] because the file does not exist", e);
+            } else {
+                throw new SslConfigException("cannot read configured PEM certificate authorities [" + pathsToString(paths)
+                    + "] because one of more files do not exist", e);
+            }
         } catch (IOException e) {
-            throw new SslConfigException("cannot configure trust using PEM certificates [" + caPathsAsString()
-                + "] because one or more files cannot be read", e);
+            if (paths.size() == 1) {
+                throw new SslConfigException("cannot read configured PEM certificate authority [" + pathsToString(paths)
+                    + "] because the file cannot be read", e);
+            } else {
+                throw new SslConfigException("cannot read configured PEM certificate authorities [" + pathsToString(paths)
+                    + "] because one of more files cannot be read", e);
+            }
+        } catch (CertificateException e) {
+            throw new SslConfigException("cannot read configured PEM certificate authorities [" + pathsToString(paths) + "]", e);
         }
     }
 
     @Override
     public String toString() {
-        return "PEM-trust{" + caPathsAsString() + "}";
+        return "PEM-trust{" + pathsToString(certificateAuthorities) + "}";
     }
 
     @Override
@@ -101,8 +128,8 @@ public final class PemTrustConfig implements SslTrustConfig {
         return Objects.hash(certificateAuthorities);
     }
 
-    private String caPathsAsString() {
-        return certificateAuthorities.stream()
+    private String pathsToString(List<Path> paths) {
+        return paths.stream()
             .map(Path::toAbsolutePath)
             .map(Object::toString)
             .collect(Collectors.joining(","));

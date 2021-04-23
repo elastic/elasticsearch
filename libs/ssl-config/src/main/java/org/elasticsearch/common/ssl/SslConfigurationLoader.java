@@ -281,8 +281,8 @@ public abstract class SslConfigurationLoader {
         final SslVerificationMode verificationMode = resolveSetting(VERIFICATION_MODE, SslVerificationMode::parse, defaultVerificationMode);
         final SslClientAuthenticationMode clientAuth = resolveSetting(CLIENT_AUTH, SslClientAuthenticationMode::parse, defaultClientAuth);
 
-        final SslTrustConfig trustConfig = buildTrustConfig(basePath, verificationMode);
         final SslKeyConfig keyConfig = buildKeyConfig(basePath);
+        final SslTrustConfig trustConfig = buildTrustConfig(basePath, verificationMode, keyConfig);
 
         if (protocols == null || protocols.isEmpty()) {
             throw new SslConfigException("no protocols configured in [" + settingPrefix + PROTOCOLS + "]");
@@ -293,7 +293,7 @@ public abstract class SslConfigurationLoader {
         return new SslConfiguration(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
     }
 
-    private SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode) {
+    private SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
         final List<Path> certificateAuthorities = resolveListSetting(CERTIFICATE_AUTHORITIES, basePath::resolve, null);
         final Path trustStorePath = resolveSetting(TRUSTSTORE_PATH, basePath::resolve, null);
 
@@ -311,9 +311,18 @@ public abstract class SslConfigurationLoader {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
             final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath));
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
-            return new StoreTrustConfig(trustStorePath, password, storeType, algorithm);
+            return new StoreTrustConfig(trustStorePath, password, storeType, algorithm, true);
         }
-        return defaultTrustConfig;
+        return buildDefaultTrustConfig(defaultTrustConfig, keyConfig);
+    }
+
+    protected SslTrustConfig buildDefaultTrustConfig(SslTrustConfig defaultTrustConfig, SslKeyConfig keyConfig) {
+        final SslTrustConfig trust = keyConfig.asTrustConfig();
+        if (trust == null) {
+            return defaultTrustConfig;
+        } else {
+            return new CompositeTrustConfig(List.of(defaultTrustConfig, trust));
+        }
     }
 
     private SslKeyConfig buildKeyConfig(Path basePath) {

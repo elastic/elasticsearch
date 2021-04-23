@@ -14,7 +14,7 @@ import java.net.Socket;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 
 /**
  * A {@link SslTrustConfig} that trusts all certificates. Used when {@link SslVerificationMode#isCertificateVerificationEnabled()} is
@@ -66,7 +66,12 @@ final class TrustEverythingConfig implements SslTrustConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Collections.emptyList();
+        return List.of();
+    }
+
+    @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        return List.of();
     }
 
     @Override

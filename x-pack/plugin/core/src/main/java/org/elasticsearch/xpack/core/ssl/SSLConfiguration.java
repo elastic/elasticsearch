@@ -53,8 +53,8 @@ public final class SSLConfiguration {
         this.trustConfig = createTrustConfig(settings, keyConfig);
         this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, XPackSettings.DEFAULT_CIPHERS);
         this.supportedProtocols = getListOrDefault(SETTINGS_PARSER.supportedProtocols, settings, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
-        this.sslClientAuth = SETTINGS_PARSER.clientAuth.get(settings).orElse(XPackSettings.CLIENT_AUTH_DEFAULT);
-        this.verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
+        this.sslClientAuth = SETTINGS_PARSER.clientAuth.get(settings).orElse(SSLClientAuth.REQUIRED);
+        this.verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(VerificationMode.FULL);
         this.explicitlyConfigured = settings.isEmpty() == false;
     }
 
@@ -175,7 +175,7 @@ public final class SSLConfiguration {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
         }
 
-        VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
+        VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(VerificationMode.FULL);
         if (verificationMode.isCertificateVerificationEnabled() == false) {
             return TrustAllConfig.INSTANCE;
         } else if (caPaths != null) {

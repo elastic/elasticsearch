@@ -18,7 +18,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.function.BiFunction;
 
 /**
@@ -90,7 +90,12 @@ final class DefaultJdkTrustConfig implements SslTrustConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Collections.emptyList();
+        return List.of();
+    }
+
+    @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        return List.of();
     }
 
     @Override

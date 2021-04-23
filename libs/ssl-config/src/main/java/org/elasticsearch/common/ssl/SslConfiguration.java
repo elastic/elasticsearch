@@ -14,6 +14,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -112,6 +113,18 @@ public class SslConfiguration {
         Set<Path> paths = new HashSet<>(keyConfig.getDependentFiles());
         paths.addAll(trustConfig.getDependentFiles());
         return paths;
+    }
+
+    /**
+     * @return A collection of {@link StoredCertificate certificates} that are used by this SSL configuration.
+     * This includes certificates used for identity (with a private key) and those used for trust, but excludes
+     * certificates that are provided by the JRE.
+     */
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        List<StoredCertificate> certificates = new ArrayList<>();
+        certificates.addAll(keyConfig.getConfiguredCertificates());
+        certificates.addAll(trustConfig.getConfiguredCertificates());
+        return certificates;
     }
 
     /**

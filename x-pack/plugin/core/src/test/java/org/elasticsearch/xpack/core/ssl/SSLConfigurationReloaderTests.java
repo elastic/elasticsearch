@@ -28,6 +28,7 @@ import org.apache.http.ssl.SSLContextBuilder;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -335,10 +336,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+        final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
             } catch (Exception e) {
@@ -348,7 +349,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -387,10 +388,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+        final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
             } catch (Exception e) {
@@ -400,7 +401,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -431,10 +432,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
+        final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl.");
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+        final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
             } catch (Exception e) {
@@ -444,7 +445,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -473,10 +474,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         final SSLService sslService = new SSLService(env);
-        final SSLConfiguration config = sslService.sslConfiguration(settings.getByPrefix("xpack.security.transport.ssl."));
+        final SslConfiguration config = sslService.sslConfiguration(settings.getByPrefix("xpack.security.transport.ssl."));
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+        final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
             } catch (Exception e) {
@@ -486,7 +487,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 latch.countDown();
             }
         };
-        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
 
         final SSLContext context = sslService.sslContextHolder(config).sslContext();
 
@@ -524,15 +525,15 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                                                     Runnable modificationFunction, Consumer<SSLContext> postChecks) throws Exception {
         final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(env);
-        final SSLConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        final Consumer<SSLConfiguration> reloadConsumer = sslConfiguration -> {
+        final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
+        final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
             } finally {
                 reloadLatch.countDown();
             }
         };
-        new SSLConfigurationReloader(env, reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env.settings()).values());
+        new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 

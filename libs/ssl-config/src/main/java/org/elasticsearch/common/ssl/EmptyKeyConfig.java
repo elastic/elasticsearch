@@ -11,7 +11,7 @@ package org.elasticsearch.common.ssl;
 import javax.net.ssl.X509ExtendedKeyManager;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 
 /**
  * A {@link SslKeyConfig} that does nothing (provides a null key manager)
@@ -26,7 +26,17 @@ final class EmptyKeyConfig implements SslKeyConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return Collections.emptyList();
+        return List.of();
+    }
+
+    @Override
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        return List.of();
+    }
+
+    @Override
+    public boolean hasKeyMaterial() {
+        return false;
     }
 
     @Override

@@ -297,9 +297,14 @@ public class SSLConfigurationSettings {
     }
 
     public List<Setting<SecureString>> getSecureSettingsInUse(Settings settings) {
-        return Stream.of(this.truststorePassword, this.x509KeyPair.keystorePassword,
-            this.x509KeyPair.keystoreKeyPassword, this.x509KeyPair.keyPassword)
+        return getSecureSettings()
+            .stream()
             .filter(s -> s.exists(settings))
             .collect(Collectors.toList());
+    }
+
+    List<Setting<SecureString>> getSecureSettings() {
+        return List.of(this.truststorePassword, this.x509KeyPair.keystorePassword,
+            this.x509KeyPair.keystoreKeyPassword, this.x509KeyPair.keyPassword);
     }
 }

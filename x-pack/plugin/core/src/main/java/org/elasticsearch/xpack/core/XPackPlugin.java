@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -79,7 +80,6 @@ import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -244,12 +244,12 @@ public class XPackPlugin extends XPackClientPlugin
             clusterState.custom(TokenMetadata.TYPE) != null ||
             metadata.custom(TransformMetadata.TYPE) != null;
     }
-    
+
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
-    
+
 
     @Override
     public Settings additionalSettings() {
@@ -405,9 +405,9 @@ public class XPackPlugin extends XPackClientPlugin
      * of SSLContexts when configuration files change on disk.
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
-        final Map<String, SSLConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment.settings());
+        final Map<String, SslConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment);
         final SSLConfigurationReloader reloader =
-            new SSLConfigurationReloader(environment, resourceWatcherService, sslConfigurations.values());
+            new SSLConfigurationReloader(resourceWatcherService, sslConfigurations.values());
         final SSLService sslService = new SSLService(environment, sslConfigurations);
         reloader.setSSLService(sslService);
         setSslService(sslService);

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,7 +21,7 @@ import java.time.ZonedDateTime;
 import java.util.Objects;
 
 /**
- * Simple model of an X.509 certificate that is known to X-Pack
+ * Simple model of an X.509 certificate that is known to Elasticsearch
  */
 public class CertificateInfo implements ToXContentObject, Writeable {
     private final String path;
@@ -102,6 +103,11 @@ public class CertificateInfo implements ToXContentObject, Writeable {
                 .field("has_private_key", hasPrivateKey)
                 .timeField("expiry", expiry)
                 .endObject();
+    }
+
+    @Override
+    public String toString() {
+        return "Certificate" + Strings.toString(this);
     }
 
     @Override

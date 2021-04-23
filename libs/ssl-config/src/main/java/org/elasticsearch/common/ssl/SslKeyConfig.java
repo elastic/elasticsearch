@@ -10,6 +10,7 @@ package org.elasticsearch.common.ssl;
 
 import javax.net.ssl.X509ExtendedKeyManager;
 import java.nio.file.Path;
+import java.security.cert.X509Certificate;
 import java.util.Collection;
 
 /**
@@ -31,5 +32,15 @@ public interface SslKeyConfig {
      */
     X509ExtendedKeyManager createKeyManager();
 
+    /**
+     * @return A collection of {@link X509Certificate certificates} used by this config.
+     */
+    Collection<? extends StoredCertificate> getConfiguredCertificates();
+
+    boolean hasKeyMaterial();
+
+    default SslTrustConfig asTrustConfig() {
+        return null;
+    }
 }
 

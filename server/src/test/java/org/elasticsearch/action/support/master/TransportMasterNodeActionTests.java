@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
@@ -59,6 +60,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -171,11 +174,17 @@ public class TransportMasterNodeActionTests extends ESTestCase {
     class Action extends TransportMasterNodeAction<Request, Response> {
         Action(String actionName, TransportService transportService, ClusterService clusterService,
                ThreadPool threadPool) {
+            this(actionName, transportService, clusterService, threadPool, ThreadPool.Names.SAME);
+        }
+
+        Action(String actionName, TransportService transportService, ClusterService clusterService,
+               ThreadPool threadPool, String executor) {
             super(actionName, transportService, clusterService, threadPool,
                 new ActionFilters(new HashSet<>()), Request::new,
                 TestIndexNameExpressionResolver.newInstance(), Response::new,
-                ThreadPool.Names.SAME);
+                executor);
         }
+
 
         @Override
         protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
@@ -507,6 +516,11 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             }
         }, task, request, listener);
 
+        final int genericThreads = threadPool.info(ThreadPool.Names.GENERIC).getMax();
+        final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.GENERIC);
+        final CyclicBarrier barrier = new CyclicBarrier(genericThreads + 1);
+        final CountDownLatch latch = new CountDownLatch(1);
+
         if (cancelBeforeStart == false) {
             assertThat(listener.isDone(), equalTo(false));
 
@@ -526,5 +540,50 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             setState(clusterService, newStateBuilder.build());
         }
         expectThrows(CancellationException.class, listener::actionGet);
+    }
+
+    public void testTaskCancellationOnceActionItIsDispatchedToMaster() throws Exception {
+        TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
+
+        Request request = new Request();
+        final CancellableTask task = (CancellableTask) taskManager.register("type", "internal:testAction", request);
+
+        // Block all the threads of the executor in which the master operation will be dispatched to
+        // ensure that the master operation won't be executed until the threads are released
+        final String executorName = ThreadPool.Names.GENERIC;
+        final Runnable releaseBlockedThreads = blockAllThreads(executorName);
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool, executorName),
+            task,
+            request,
+            listener
+        );
+
+        taskManager.cancel(task, "", () -> {});
+        assertThat(task.isCancelled(), equalTo(true));
+
+        releaseBlockedThreads.run();
+
+        expectThrows(CancellationException.class, listener::actionGet);
+    }
+
+    private Runnable blockAllThreads(String executorName) throws Exception {
+        final int numberOfThreads = threadPool.info(executorName).getMax();
+        final EsThreadPoolExecutor executor = (EsThreadPoolExecutor) threadPool.executor(executorName);
+        final CyclicBarrier barrier = new CyclicBarrier(numberOfThreads + 1);
+        final CountDownLatch latch = new CountDownLatch(1);
+        for (int i = 0; i < numberOfThreads; i++) {
+            executor.submit(() -> {
+                try {
+                    barrier.await();
+                    latch.await();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
+        }
+        barrier.await();
+        return latch::countDown;
     }
 }

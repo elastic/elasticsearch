@@ -133,6 +133,6 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
     }
 
     private SyncConfig getSyncConfig() {
-        return new TimeSyncConfig("timestamp", SYNC_DELAY);
+        return TimeSyncConfig.builder().setField("timestamp").setDelay(SYNC_DELAY).build();
     }
 }

@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -58,6 +58,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -225,8 +227,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.nestedScope = new NestedScope();
     }
 
+    /**
+     * The similarity to use in searches, which takes into account per-field configuration.
+     */
     public Similarity getSearchSimilarity() {
         return similarityService != null ? similarityService.similarity(this::fieldType) : null;
+    }
+
+    /**
+     * The default similarity configured in the index settings.
+     */
+    public Similarity getDefaultSimilarity() {
+        return similarityService != null ? similarityService.getDefaultSimilarity() : null;
     }
 
     public List<String> defaultFields() {
@@ -321,6 +333,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
+    }
+
+    /**
+     * Returns the registered mapped field types.
+     */
+    public Collection<MappedFieldType> getFieldTypes() {
+        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
+        fields.addAll(runtimeMappings.values());
+        return fields;
     }
 
     /**
@@ -598,10 +619,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+        if (runtimeMappings.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
+            mapperService.parserContext(), false);
         Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        if (runtimeMappings.isEmpty() == false) {
-            RuntimeFieldType.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(),
-                runtimeFieldType -> runtimeFieldTypes.put(runtimeFieldType.name(), runtimeFieldType));
+        for (RuntimeField runtimeField : runtimeFields.values()) {
+            MappedFieldType fieldType = runtimeField.asMappedFieldType();
+            runtimeFieldTypes.put(fieldType.name(), fieldType);
         }
         return Collections.unmodifiableMap(runtimeFieldTypes);
     }

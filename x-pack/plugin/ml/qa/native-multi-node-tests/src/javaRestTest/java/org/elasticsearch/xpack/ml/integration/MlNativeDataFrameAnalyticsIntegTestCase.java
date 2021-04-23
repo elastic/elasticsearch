@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -16,7 +15,6 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -28,9 +26,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
+import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
@@ -55,7 +53,6 @@ import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -83,44 +80,7 @@ import static org.hamcrest.Matchers.nullValue;
  */
 abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTestCase {
 
-    private final List<DataFrameAnalyticsConfig> analytics = new ArrayList<>();
-
-    @Override
-    protected void cleanUpResources() {
-        cleanUpAnalytics();
-    }
-
-    private void cleanUpAnalytics() {
-        stopAnalyticsAndForceStopOnError();
-
-        for (DataFrameAnalyticsConfig config : analytics) {
-            try {
-                assertThat(deleteAnalytics(config.getId()).isAcknowledged(), is(true));
-            } catch (Exception e) {
-                // just log and ignore
-                logger.error(new ParameterizedMessage("[{}] Could not clean up analytics job config", config.getId()), e);
-            }
-        }
-    }
-
-    private void stopAnalyticsAndForceStopOnError() {
-        try {
-            assertThat(stopAnalytics("*").isStopped(), is(true));
-        } catch (Exception e) {
-            logger.error("Failed to stop data frame analytics jobs; trying force", e);
-            try {
-                assertThat(forceStopAnalytics("*").isStopped(), is(true));
-            } catch (Exception e2) {
-                logger.error("Force-stopping data frame analytics jobs failed", e2);
-            }
-            throw new RuntimeException("Had to resort to force-stopping jobs, something went wrong?", e);
-        }
-    }
-
     protected PutDataFrameAnalyticsAction.Response putAnalytics(DataFrameAnalyticsConfig config) {
-        if (analytics.add(config) == false) {
-            throw new IllegalArgumentException("analytics config [" + config.getId() + "] is already registered");
-        }
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
         return client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
@@ -128,11 +88,6 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     protected PutDataFrameAnalyticsAction.Response updateAnalytics(DataFrameAnalyticsConfigUpdate update) {
         UpdateDataFrameAnalyticsAction.Request request = new UpdateDataFrameAnalyticsAction.Request(update);
         return client().execute(UpdateDataFrameAnalyticsAction.INSTANCE, request).actionGet();
-    }
-
-    protected AcknowledgedResponse deleteAnalytics(String id) {
-        DeleteDataFrameAnalyticsAction.Request request = new DeleteDataFrameAnalyticsAction.Request(id);
-        return client().execute(DeleteDataFrameAnalyticsAction.INSTANCE, request).actionGet();
     }
 
     protected NodeAcknowledgedResponse startAnalytics(String id) {
@@ -190,8 +145,17 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         return client().execute(EvaluateDataFrameAction.INSTANCE, request).actionGet();
     }
 
-    protected static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
-                                                             @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
+    protected PreviewDataFrameAnalyticsAction.Response previewDataFrame(String id) {
+        List<DataFrameAnalyticsConfig> analytics = getAnalytics(id);
+        assertThat(analytics, hasSize(1));
+        return client().execute(
+            PreviewDataFrameAnalyticsAction.INSTANCE,
+            new PreviewDataFrameAnalyticsAction.Request(analytics.get(0))
+        ).actionGet();
+    }
+
+    static DataFrameAnalyticsConfig buildAnalytics(String id, String sourceIndex, String destIndex,
+                                                   @Nullable String resultsField, DataFrameAnalysis analysis) throws Exception {
         return buildAnalytics(id, sourceIndex, destIndex, resultsField, analysis, QueryBuilders.matchAllQuery());
     }
 
@@ -200,7 +164,8 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
                                                              QueryBuilder queryBuilder) throws Exception {
         return new DataFrameAnalyticsConfig.Builder()
             .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null))
+            .setSource(new DataFrameAnalyticsSource(
+                new String[] { sourceIndex }, QueryProvider.fromParsedQuery(queryBuilder), null, Collections.emptyMap()))
             .setDest(new DataFrameAnalyticsDest(destIndex, resultsField))
             .setAnalysis(analysis)
             .build();

@@ -31,7 +31,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -90,6 +90,16 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseSearchableSn
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return List.of(new SystemIndexDescriptor(INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
+        }
+
+        @Override
+        public String getFeatureName() {
+            return SearchableSnapshotsSystemIndicesIntegTests.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
     }
 }

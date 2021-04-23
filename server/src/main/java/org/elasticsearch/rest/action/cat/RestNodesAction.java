@@ -80,6 +80,7 @@ public class RestNodesAction extends AbstractCatAction {
         clusterStateRequest.clear().nodes(true);
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
         final boolean fullId = request.paramAsBoolean("full_id", false);
+        final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
@@ -100,6 +101,7 @@ public class RestNodesAction extends AbstractCatAction {
                             NodesStatsRequest.Metric.PROCESS.metricName(),
                             NodesStatsRequest.Metric.SCRIPT.metricName()
                         );
+                        nodesStatsRequest.indices().includeUnloadedSegments(includeUnloadedSegments);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -325,11 +327,11 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(osStats == null ? null : Short.toString(osStats.getCpu().getPercent()));
             boolean hasLoadAverage = osStats != null && osStats.getCpu().getLoadAverage() != null;
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[0] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[0] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[0]));
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[1] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[1] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[1]));
-            table.addCell(!hasLoadAverage || osStats.getCpu().getLoadAverage()[2] == -1 ? null :
+            table.addCell(hasLoadAverage == false || osStats.getCpu().getLoadAverage()[2] == -1 ? null :
                 String.format(Locale.ROOT, "%.2f", osStats.getCpu().getLoadAverage()[2]));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
 

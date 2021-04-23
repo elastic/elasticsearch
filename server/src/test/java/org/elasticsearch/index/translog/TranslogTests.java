@@ -1263,7 +1263,7 @@ public class TranslogTests extends ESTestCase {
             long seqNo;
             do {
                 seqNo = opsHaveValidSequenceNumbers ? randomNonNegativeLong() : SequenceNumbers.UNASSIGNED_SEQ_NO;
-                opsHaveValidSequenceNumbers = opsHaveValidSequenceNumbers || !rarely();
+                opsHaveValidSequenceNumbers = opsHaveValidSequenceNumbers || rarely() == false;
             } while (seenSeqNos.contains(seqNo));
             if (seqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                 seenSeqNos.add(seqNo);

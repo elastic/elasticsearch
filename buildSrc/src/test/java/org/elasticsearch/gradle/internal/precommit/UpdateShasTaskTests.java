@@ -9,7 +9,6 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
-import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
@@ -62,21 +61,27 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
     @Test
     public void whenDependencyExistsButShaNotThenShouldCreateNewShaFile() throws IOException, NoSuchAlgorithmException {
-        project.getDependencies().add("compile", dependency);
+        project.getDependencies().add("implementation", dependency);
 
         getLicensesDir(project).mkdir();
         task.updateShas();
-
-        Path groovySha = Files.list(getLicensesDir(project).toPath()).findFirst().get();
-
-        assertTrue(groovySha.toFile().getName().startsWith("groovy-all"));
+        Path groovySha = Files.list(getLicensesDir(project).toPath())
+            .filter(p -> p.toFile().getName().matches("groovy-\\d\\.\\d\\.\\d\\.jar.sha1"))
+            .findFirst()
+            .get();
+        assertTrue(groovySha.toFile().getName().startsWith("groovy"));
     }
 
     @Test
     public void whenDependencyAndWrongShaExistsThenShouldNotOverwriteShaFile() throws IOException, NoSuchAlgorithmException {
-        project.getDependencies().add("compile", dependency);
-
-        File groovyJar = task.getParentTask().getDependencies().getFiles().iterator().next();
+        project.getDependencies().add("implementation", dependency);
+        File groovyJar = task.getParentTask()
+            .getDependencies()
+            .getFiles()
+            .stream()
+            .filter(f -> f.getName().matches("groovy-\\d\\.\\d\\.\\d\\.jar"))
+            .findFirst()
+            .get();
         String groovyShaName = groovyJar.getName() + ".sha1";
 
         File groovySha = createFileIn(getLicensesDir(project), groovyShaName, "content");
@@ -127,18 +132,15 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
     }
 
     private TaskProvider<DependencyLicensesTask> createDependencyLicensesTask(Project project) {
-        TaskProvider<DependencyLicensesTask> task = project.getTasks()
-            .register("dependencyLicenses", DependencyLicensesTask.class, new Action<DependencyLicensesTask>() {
-                @Override
-                public void execute(DependencyLicensesTask dependencyLicensesTask) {
-                    dependencyLicensesTask.setDependencies(getDependencies(project));
-                }
-            });
-
-        return task;
+        return project.getTasks()
+            .register(
+                "dependencyLicenses",
+                DependencyLicensesTask.class,
+                dependencyLicensesTask -> dependencyLicensesTask.setDependencies(getDependencies(project))
+            );
     }
 
     private FileCollection getDependencies(Project project) {
-        return project.getConfigurations().getByName("compile");
+        return project.getConfigurations().getByName("compileClasspath");
     }
 }

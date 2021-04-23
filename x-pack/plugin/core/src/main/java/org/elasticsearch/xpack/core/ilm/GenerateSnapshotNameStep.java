@@ -37,7 +37,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
     public static final String NAME = "generate-snapshot-name";
 
-    private static final Logger logger = LogManager.getLogger(CreateSnapshotStep.class);
+    private static final Logger logger = LogManager.getLogger(GenerateSnapshotNameStep.class);
 
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
@@ -88,6 +88,11 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), snapshotRepository);
     }
@@ -134,7 +139,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, false);
+            super(null, null, startTime, false, false, false, false, name -> false);
         }
 
         @Override

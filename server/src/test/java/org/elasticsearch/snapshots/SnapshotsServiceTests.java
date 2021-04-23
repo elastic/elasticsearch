@@ -22,10 +22,12 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -379,8 +381,8 @@ public class SnapshotsServiceTests extends ESTestCase {
 
     private static SnapshotsInProgress.Entry snapshotEntry(Snapshot snapshot, List<IndexId> indexIds,
                                                            ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
-        return SnapshotsInProgress.startedEntry(snapshot, randomBoolean(), randomBoolean(), indexIds, Collections.emptyList(),
-                1L, randomNonNegativeLong(), shards, Collections.emptyMap(), Version.CURRENT);
+        return SnapshotsInProgress.startedEntry(snapshot, randomBoolean(), randomBoolean(), indexIds, Collections.emptyList(), 1L,
+            randomNonNegativeLong(), shards, Collections.emptyMap(), Version.CURRENT, Collections.emptyList());
     }
 
     private static SnapshotsInProgress.Entry cloneEntry(
@@ -395,7 +397,7 @@ public class SnapshotsServiceTests extends ESTestCase {
     }
 
     private static SnapshotsInProgress.ShardSnapshotStatus successfulShardStatus(String nodeId) {
-        return new SnapshotsInProgress.ShardSnapshotStatus(nodeId, SnapshotsInProgress.ShardState.SUCCESS, uuid());
+        return SnapshotsInProgress.ShardSnapshotStatus.success(nodeId, new ShardSnapshotResult(uuid(), new ByteSizeValue(1L), 1));
     }
 
     private static Snapshot snapshot(String repoName, String name) {

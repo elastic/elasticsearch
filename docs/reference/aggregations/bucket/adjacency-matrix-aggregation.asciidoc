@@ -20,20 +20,21 @@ h|B |    |B   |B&C
 h|C |    |    |C  
 |=======================
 
-The intersecting buckets e.g `A&C` are labelled using a combination of the two filter names separated by
-the ampersand character. Note that the response does not also include a "C&A" bucket as this would be the
-same set of documents as "A&C". The matrix is said to be _symmetric_ so we only return half of it. To do this we sort 
-the filter name strings and always use the lowest of a pair as the value to the left of the "&" separator. 
-
-An alternative `separator` parameter can be passed in the request if clients wish to use a separator string 
-other than the default of the ampersand.
+The intersecting buckets e.g `A&C` are labelled using a combination of the two filter names with a default separator
+of `&`. Note that the response does not also include a `C&A` bucket as this would be the
+same set of documents as `A&C`. The matrix is said to be _symmetric_ so we only return half of it. To do this we sort 
+the filter name strings and always use the lowest of a pair as the value to the left of the separator. 
 
 
-Example:
+[[adjacency-matrix-agg-ex]]
+==== Example
+
+The following `interactions` aggregation uses `adjacency_matrix` to determine
+which groups of individuals exchanged emails.
 
 [source,console,id=adjacency-matrix-aggregation-example]
 --------------------------------------------------
-PUT /emails/_bulk?refresh
+PUT emails/_bulk?refresh
 { "index" : { "_id" : 1 } }
 { "accounts" : ["hillary", "sidney"]}
 { "index" : { "_id" : 2 } }
@@ -58,12 +59,9 @@ GET emails/_search
 }
 --------------------------------------------------
 
-In the above example, we analyse email messages to see which groups of individuals 
-have exchanged messages.
-We will get counts for each group individually and also a count of messages for pairs
-of groups that have recorded interactions.
-
-Response:
+The response contains buckets with document counts for each filter and
+combination of filters. Buckets with no matching documents are excluded from the
+response.
 
 [source,console-result]
 --------------------------------------------------
@@ -104,13 +102,51 @@ Response:
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
+[role="child_attributes"]
+[[adjacency-matrix-agg-params]]
+==== Parameters
+
+`filters`::
+(Required, object)
+Filters used to create buckets.
++
+.Properties of `filters`
+[%collapsible%open]
+====
+`<filter>`::
+(Required, <<query-dsl,Query DSL object>>)
+Query used to filter documents. The key is the filter name.
++
+At least one filter is required. The total number of filters cannot exceed the
+<<indices-query-bool-max-clause-count,`indices.query.bool.max_clause_count`>>
+setting. See <<adjacency-matrix-agg-filter-limits>>.
+====
+
+`separator`::
+(Optional, string)
+Separator used to concatenate filter names. Defaults to `&`.
+
+[[adjacency-matrix-agg-response]]
+==== Response body
+
+`key`::
+(string)
+Filters for the bucket. If the bucket uses multiple filters, filter names are
+concatenated using a `separator`.
+
+`document_count`::
+(integer)
+Number of documents matching the bucket's filters.
+
+[[adjacency-matrix-agg-usage]]
 ==== Usage
 On its own this aggregation can provide all of the data required to create an undirected weighted graph.
 However, when used with child aggregations such as a `date_histogram` the results can provide the
 additional levels of data required to perform {wikipedia}/Dynamic_network_analysis[dynamic network analysis]
 where examining interactions _over time_ becomes important.
 
-==== Limitations
+[[adjacency-matrix-agg-filter-limits]]
+==== Filter limits
 For N filters the matrix of buckets produced can be N²/2 which can be costly.
 The circuit breaker settings prevent results producing too many buckets and to avoid excessive disk seeks
 the `indices.query.bool.max_clause_count` setting is used to limit the number of filters.

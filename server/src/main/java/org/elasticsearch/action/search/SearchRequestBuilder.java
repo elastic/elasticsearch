@@ -31,6 +31,7 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A search action request builder.
@@ -59,8 +60,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
-     * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
-     * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
+     * one of "dfs_query_then_fetch" or "query_then_fetch".
      */
     public SearchRequestBuilder setSearchType(String searchType) {
         request.searchType(searchType);
@@ -590,6 +590,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setPreFilterShardSize(int preFilterShardSize) {
         this.request.setPreFilterShardSize(preFilterShardSize);
+        return this;
+    }
+
+    /**
+     * Set runtime mappings to create runtime fields that exist only as part of this particular search.
+     */
+    public SearchRequestBuilder setRuntimeMappings(Map<String, Object> runtimeMappings) {
+        sourceBuilder().runtimeMappings(runtimeMappings);
         return this;
     }
 }

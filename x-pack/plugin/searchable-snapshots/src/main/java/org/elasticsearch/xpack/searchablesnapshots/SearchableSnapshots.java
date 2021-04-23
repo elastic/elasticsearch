@@ -6,11 +6,15 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
+import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.DedicatedFrozenNodeAllocationDecider;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -38,13 +42,15 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.FrozenEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
-import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsNodeCachesStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
+import org.elasticsearch.xpack.searchablesnapshots.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -54,6 +60,8 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
@@ -70,17 +78,30 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsInfoTransportAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsUsageTransportAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSnapshotsStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoAction;
+import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoNodeAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
-import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.FailShardsOnInvalidLicenseClusterListener;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.SearchableSnapshotAllocator;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.SearchableSnapshotIndexEventListener;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.SearchableSnapshotIndexFoldersDeletionListener;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.HasFrozenCacheAllocationDecider;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotAllocationDecider;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotEnableAllocationDecider;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
+import org.elasticsearch.xpack.searchablesnapshots.upgrade.SearchableSnapshotIndexMetadataUpgrader;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -88,6 +109,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -174,22 +196,39 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Setting.Property.NodeScope,
         Setting.Property.NotCopyableOnResize
     );
-    public static final Setting<Boolean> SNAPSHOT_PARTIAL_SETTING = Setting.boolSetting(
-        "index.store.snapshot.partial",
-        false,
+    public static final String SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH = "index.store.snapshot.blob_cache.metadata_files.max_length";
+    public static final Setting<ByteSizeValue> SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING = new Setting<>(
+        new Setting.SimpleKey(SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH),
+        s -> new ByteSizeValue(64L, ByteSizeUnit.KB).getStringRep(),
+        s -> Setting.parseByteSize(
+            s,
+            new ByteSizeValue(1L, ByteSizeUnit.KB),
+            new ByteSizeValue(Long.MAX_VALUE),
+            SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH
+        ),
+        value -> {
+            if (value.getBytes() % BufferedIndexInput.BUFFER_SIZE != 0L) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "failed to parse value [%s] for setting [%s], must be a multiple of [%s] bytes",
+                    value.getStringRep(),
+                    SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH,
+                    BufferedIndexInput.BUFFER_SIZE
+                );
+                throw new IllegalArgumentException(message);
+            }
+        },
         Setting.Property.IndexScope,
-        Setting.Property.PrivateIndex,
         Setting.Property.NotCopyableOnResize
     );
 
     /**
-     * Prefer to allocate to the cold tier, then the frozen tier, then the warm tier, then the hot tier
+     * Prefer to allocate to the cold tier, then the warm tier, then the hot tier
      * This affects the system searchable snapshot cache index (not the searchable snapshot index itself)
      */
     public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(
         ",",
         DataTier.DATA_COLD,
-        DataTier.DATA_FROZEN,
         DataTier.DATA_WARM,
         DataTier.DATA_HOT
     );
@@ -197,14 +236,14 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     /**
      * Returns the preference for new searchable snapshot indices. When
      * performing a full mount the preference is cold - warm - hot. When
-     * performing a partial mount the preference is frozen - cold - warm - hot.
+     * performing a partial mount the preference is only frozen
      */
     public static String getDataTiersPreference(MountSearchableSnapshotRequest.Storage type) {
         switch (type) {
             case FULL_COPY:
                 return String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
             case SHARED_CACHE:
-                return String.join(",", DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
+                return DataTier.DATA_FROZEN;
             default:
                 throw new IllegalArgumentException("unknown searchable snapshot type [" + type + "]");
         }
@@ -218,6 +257,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
     private final SetOnce<SearchableSnapshotAllocator> allocator = new SetOnce<>();
     private final Settings settings;
+    private final FrozenCacheInfoService frozenCacheInfoService = new FrozenCacheInfoService();
 
     public SearchableSnapshots(final Settings settings) {
         this.settings = settings;
@@ -227,6 +267,16 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
             throw LicenseUtils.newComplianceException("searchable-snapshots");
         }
+    }
+
+    public static BlobStoreRepository getSearchableRepository(Repository repository) {
+        if (repository instanceof SourceOnlySnapshotRepository) {
+            repository = ((SourceOnlySnapshotRepository) repository).getDelegate();
+        }
+        if (repository instanceof BlobStoreRepository == false) {
+            throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
+        }
+        return (BlobStoreRepository) repository;
     }
 
     @Override
@@ -242,8 +292,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING,
             SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING,
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
-            SNAPSHOT_PARTIAL_SETTING,
-            CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
+            SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING,
+            SNAPSHOT_BLOB_CACHE_METADATA_FILES_MAX_LENGTH_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
@@ -251,8 +301,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
             FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING,
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
-            FrozenCacheService.FROZEN_CACHE_RANGE_SIZE_SETTING,
+            FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING,
             FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
             FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
@@ -278,20 +329,27 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;
         this.threadPool.set(threadPool);
         this.failShardsListener.set(new FailShardsOnInvalidLicenseClusterListener(getLicenseState(), clusterService.getRerouteService()));
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final FrozenCacheService frozenCacheService = new FrozenCacheService(environment, threadPool);
+            final FrozenCacheService frozenCacheService = new FrozenCacheService(nodeEnvironment, settings, threadPool);
             this.frozenCacheService.set(frozenCacheService);
             components.add(cacheService);
-            final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(threadPool, client, SNAPSHOT_BLOB_CACHE_INDEX);
+            final BlobStoreCacheService blobStoreCacheService = new BlobStoreCacheService(
+                clusterService,
+                client,
+                SNAPSHOT_BLOB_CACHE_INDEX,
+                threadPool::absoluteTimeInMillis
+            );
             this.blobStoreCacheService.set(blobStoreCacheService);
             components.add(blobStoreCacheService);
         } else {
             PersistentCache.cleanUp(settings, nodeEnvironment);
         }
-        this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService()));
+        this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
+        components.add(new FrozenCacheServiceSupplier(frozenCacheService.get()));
         components.add(new CacheServiceSupplier(cacheService.get()));
+        new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
         return Collections.unmodifiableList(components);
     }
 
@@ -313,7 +371,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
-        if (DiscoveryNode.isDataNode(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             return List.of(new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get, frozenCacheService::get));
         }
         return List.of();
@@ -332,6 +390,16 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
                 .setVersionMetaKey("version")
                 .build()
         );
+    }
+
+    @Override
+    public String getFeatureName() {
+        return "searchable_snapshots";
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return "Manages caches and configuration for searchable snapshots";
     }
 
     @Override
@@ -360,20 +428,40 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
-            && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
-            return Optional.of(
-                engineConfig -> new ReadOnlyEngine(
-                    engineConfig,
-                    null,
-                    new TranslogStats(),
-                    false,
-                    indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
-                        ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
-                        : Function.identity(),
-                    false
-                )
-            );
+        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
+            final Boolean frozen = indexSettings.getSettings().getAsBoolean("index.frozen", null);
+            final boolean useFrozenEngine = SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings())
+                && (frozen == null || frozen.equals(Boolean.TRUE));
+
+            if (useFrozenEngine) {
+                return Optional.of(
+                    engineConfig -> new FrozenEngine(
+                        engineConfig,
+                        null,
+                        new TranslogStats(),
+                        false,
+                        indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                            ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                            : Function.identity(),
+                        false,
+                        true
+                    )
+                );
+            } else {
+                return Optional.of(
+                    engineConfig -> new ReadOnlyEngine(
+                        engineConfig,
+                        null,
+                        new TranslogStats(),
+                        false,
+                        indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                            ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                            : Function.identity(),
+                        false,
+                        true
+                    )
+                );
+            }
         }
         return Optional.empty();
     }
@@ -395,7 +483,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.SEARCHABLE_SNAPSHOTS, SearchableSnapshotsInfoTransportAction.class),
-            new ActionHandler<>(TransportSearchableSnapshotCacheStoresAction.TYPE, TransportSearchableSnapshotCacheStoresAction.class)
+            new ActionHandler<>(TransportSearchableSnapshotCacheStoresAction.TYPE, TransportSearchableSnapshotCacheStoresAction.class),
+            new ActionHandler<>(FrozenCacheInfoAction.INSTANCE, FrozenCacheInfoAction.TransportAction.class),
+            new ActionHandler<>(FrozenCacheInfoNodeAction.INSTANCE, FrozenCacheInfoNodeAction.TransportAction.class),
+            new ActionHandler<>(
+                TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
+                TransportSearchableSnapshotsNodeCachesStatsAction.class
+            )
         );
     }
 
@@ -411,7 +505,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         return List.of(
             new RestSearchableSnapshotsStatsAction(),
             new RestClearSearchableSnapshotsCacheAction(),
-            new RestMountSearchableSnapshotAction()
+            new RestMountSearchableSnapshotAction(),
+            new RestSearchableSnapshotsNodeCachesStatsAction()
         );
     }
 
@@ -429,12 +524,14 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return List.of(
             new SearchableSnapshotAllocationDecider(() -> getLicenseState().isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS)),
-            new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings)
+            new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings),
+            new HasFrozenCacheAllocationDecider(frozenCacheInfoService),
+            new DedicatedFrozenNodeAllocationDecider()
         );
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return List.of(executorBuilders());
+        return List.of(executorBuilders(settings));
     }
 
     @Override
@@ -442,12 +539,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         return Map.of(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY, SearchableSnapshotRecoveryState::new);
     }
 
-    public static ScalingExecutorBuilder[] executorBuilders() {
+    public static ScalingExecutorBuilder[] executorBuilders(Settings settings) {
+        final int processors = EsExecutors.allocatedProcessors(settings);
         return new ScalingExecutorBuilder[] {
             new ScalingExecutorBuilder(
                 CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
                 0,
-                28,
+                Math.min(processors * 3, 50),
                 TimeValue.timeValueSeconds(30L),
                 CACHE_FETCH_ASYNC_THREAD_POOL_SETTING
             ),
@@ -569,6 +667,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         Releasables.close(frozenCacheService.get());
     }
 
+    /**
+     * Allows to inject the {@link CacheService} instance to transport actions
+     */
     public static final class CacheServiceSupplier implements Supplier<CacheService> {
 
         @Nullable
@@ -581,6 +682,24 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         @Override
         public CacheService get() {
             return cacheService;
+        }
+    }
+
+    /**
+     * Allows to inject the {@link FrozenCacheService} instance to transport actions
+     */
+    public static final class FrozenCacheServiceSupplier implements Supplier<FrozenCacheService> {
+
+        @Nullable
+        private final FrozenCacheService frozenCacheService;
+
+        FrozenCacheServiceSupplier(@Nullable FrozenCacheService frozenCacheService) {
+            this.frozenCacheService = frozenCacheService;
+        }
+
+        @Override
+        public FrozenCacheService get() {
+            return frozenCacheService;
         }
     }
 }

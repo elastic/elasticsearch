@@ -31,8 +31,4 @@ public class HourOfDay extends TimeFunction {
         return new HourOfDay(source(), newChild, zoneId());
     }
 
-    @Override
-    public String dateTimeFormat() {
-        return "hour";
-    }
 }

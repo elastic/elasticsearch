@@ -27,6 +27,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   pluginPaths.each { pluginPath ->
     plugin pluginPath
   }
+  setting 'xpack.security.enabled', 'false'
 }
 
 ext.expansions = [

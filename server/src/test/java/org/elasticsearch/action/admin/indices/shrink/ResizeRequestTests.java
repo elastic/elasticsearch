@@ -64,9 +64,9 @@ public class ResizeRequestTests extends ESTestCase {
         }
         {
             ResizeRequest request = new ResizeRequest("target", "source");
-            request.setMaxSinglePrimarySize(new ByteSizeValue(100, ByteSizeUnit.MB));
+            request.setMaxPrimaryShardSize(new ByteSizeValue(100, ByteSizeUnit.MB));
             String actualRequestBody = Strings.toString(request);
-            assertEquals("{\"settings\":{},\"aliases\":{},\"max_single_primary_size\":\"100mb\"}", actualRequestBody);
+            assertEquals("{\"settings\":{},\"aliases\":{},\"max_primary_shard_size\":\"100mb\"}", actualRequestBody);
         }
         {
             ResizeRequest request = new ResizeRequest();
@@ -105,7 +105,7 @@ public class ResizeRequestTests extends ESTestCase {
         CreateIndexRequestTests.assertAliasesEqual(resizeRequest.getTargetIndexRequest().aliases(),
                 parsedResizeRequest.getTargetIndexRequest().aliases());
         assertEquals(resizeRequest.getTargetIndexRequest().settings(), parsedResizeRequest.getTargetIndexRequest().settings());
-        assertEquals(resizeRequest.getMaxSinglePrimarySize(), parsedResizeRequest.getMaxSinglePrimarySize());
+        assertEquals(resizeRequest.getMaxPrimaryShardSize(), parsedResizeRequest.getMaxPrimaryShardSize());
 
         BytesReference finalBytes = toShuffledXContent(parsedResizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
         ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
@@ -121,7 +121,7 @@ public class ResizeRequestTests extends ESTestCase {
         copy.setSourceIndex(request.getSourceIndex());
         copy.setResizeType(request.getResizeType());
         copy.setCopySettings(request.getCopySettings());
-        copy.setMaxSinglePrimarySize(request.getMaxSinglePrimarySize());
+        copy.setMaxPrimaryShardSize(request.getMaxPrimaryShardSize());
         assertEquals(request, copy);
         assertEquals(copy, request);
         assertEquals(request.hashCode(), copy.hashCode());
@@ -150,11 +150,11 @@ public class ResizeRequestTests extends ESTestCase {
         assertNotEquals(request, copy);
         assertNotEquals(request.hashCode(), copy.hashCode());
 
-        // Changing maxSinglePrimarySize makes requests not equal
-        if (request.getMaxSinglePrimarySize() != null) {
-            copy.setMaxSinglePrimarySize(null);
+        // Changing maxPrimaryShardSize makes requests not equal
+        if (request.getMaxPrimaryShardSize() != null) {
+            copy.setMaxPrimaryShardSize(null);
         } else {
-            copy.setMaxSinglePrimarySize(new ByteSizeValue(randomIntBetween(1, 100)));
+            copy.setMaxPrimaryShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
         }
         assertNotEquals(request, copy);
         assertNotEquals(request.hashCode(), copy.hashCode());
@@ -175,7 +175,7 @@ public class ResizeRequestTests extends ESTestCase {
         assertEquals(request.getTargetIndexRequest().aliases(), deserializedReq.getTargetIndexRequest().aliases());
         assertEquals(request.getCopySettings(), deserializedReq.getCopySettings());
         assertEquals(request.getResizeType(), deserializedReq.getResizeType());
-        assertEquals(request.getMaxSinglePrimarySize(), deserializedReq.getMaxSinglePrimarySize());
+        assertEquals(request.getMaxPrimaryShardSize(), deserializedReq.getMaxPrimaryShardSize());
     }
 
     private static ResizeRequest createTestItem() {
@@ -190,7 +190,7 @@ public class ResizeRequestTests extends ESTestCase {
             }
             resizeRequest.setTargetIndex(createIndexRequest);
             if (randomBoolean()) {
-                resizeRequest.setMaxSinglePrimarySize(new ByteSizeValue(randomIntBetween(1, 100)));
+                resizeRequest.setMaxPrimaryShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
             }
         }
         return resizeRequest;

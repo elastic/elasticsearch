@@ -177,7 +177,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({"unchecked"})
     public void testAddDocMappingIfMissing() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -185,7 +185,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(
             invocationOnMock -> {
-                ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
                 listener.onResponse(AcknowledgedResponse.TRUE);
                 return null;
             })

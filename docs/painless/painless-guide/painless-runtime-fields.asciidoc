@@ -1,6 +1,5 @@
 [[painless-runtime-fields]]
 === Use Painless scripts in runtime fields
-beta::[]
 A runtime field is a field that is evaluated at query time. When you define a
 runtime field, you can immediately use it in search requests, aggregations,
 filtering, and sorting.
@@ -26,7 +25,7 @@ Add a `runtime` section under the {ref}/runtime-mapping-fields.html[mapping defi
 
 The script in the following request extracts the day of the week from the
 `@timestamp` field, which is defined as a `date` type. The script calculates
-the day of the week based on the value of `timestamp`, and uses `emit` to
+the day of the week based on the value of `@timestamp`, and uses `emit` to
 return the calculated value.
 
 [source,console]
@@ -45,7 +44,7 @@ PUT my-index/
       }
     },
     "properties": {
-      "timestamp": {"type": "date"}
+      "@timestamp": {"type": "date"}
     }
   }
 }

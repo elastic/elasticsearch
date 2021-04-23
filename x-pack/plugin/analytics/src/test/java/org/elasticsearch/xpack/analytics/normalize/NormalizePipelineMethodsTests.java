@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.function.DoubleUnaryOperator;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
 public class NormalizePipelineMethodsTests extends ESTestCase {
@@ -80,7 +81,7 @@ public class NormalizePipelineMethodsTests extends ESTestCase {
             if (Double.isNaN(DATA[i])) {
                 assertTrue(Double.isNaN(normalizedData[i]));
             } else {
-                assertThat(op.applyAsDouble(DATA[i]), equalTo(normalizedData[i]));
+                assertThat(op.applyAsDouble(DATA[i]), closeTo(normalizedData[i], 0.00000000001));
             }
         }
     }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -17,6 +18,8 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
+import static org.elasticsearch.xpack.ql.TestUtils.of;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
@@ -59,6 +62,64 @@ public class AttributeMapTests extends ESTestCase {
         assertTrue(newAttributeMap.get(param1.toAttribute()) == param1.child());
         assertTrue(newAttributeMap.containsKey(param2.toAttribute()));
         assertTrue(newAttributeMap.get(param2.toAttribute()) == param2.child());
+    }
+
+    public void testResolve() {
+        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        Attribute one = a("one");
+        Attribute two = fieldAttribute("two", DataTypes.INTEGER);
+        Attribute three = fieldAttribute("three", DataTypes.INTEGER);
+        Alias threeAlias = new Alias(Source.EMPTY, "three_alias", three);
+        Alias threeAliasAlias = new Alias(Source.EMPTY, "three_alias_alias", threeAlias);
+        builder.put(one, of("one"));
+        builder.put(two, "two");
+        builder.put(three, of("three"));
+        builder.put(threeAlias.toAttribute(), threeAlias.child());
+        builder.put(threeAliasAlias.toAttribute(), threeAliasAlias.child());
+        AttributeMap<Object> map = builder.build();
+        
+        assertEquals(of("one"), map.resolve(one));
+        assertEquals("two", map.resolve(two));
+        assertEquals(of("three"), map.resolve(three));
+        assertEquals(of("three"), map.resolve(threeAlias));
+        assertEquals(of("three"), map.resolve(threeAliasAlias));
+        assertEquals(of("three"), map.resolve(threeAliasAlias, threeAlias));
+        Attribute four = a("four");
+        assertEquals("not found", map.resolve(four, "not found"));
+        assertNull(map.resolve(four));
+        assertEquals(four, map.resolve(four, four));
+    }
+
+    public void testResolveOneHopCycle() {
+        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        Attribute a = fieldAttribute("a", DataTypes.INTEGER);
+        Attribute b = fieldAttribute("b", DataTypes.INTEGER);
+        builder.put(a, a);
+        builder.put(b, a);
+        AttributeMap<Object> map = builder.build();
+
+        assertEquals(a, map.resolve(a, "default"));
+        assertEquals(a, map.resolve(b, "default"));
+        assertEquals("default", map.resolve("non-existing-key", "default"));
+    }
+
+    public void testResolveMultiHopCycle() {
+        AttributeMap.Builder<Object> builder = AttributeMap.builder();
+        Attribute a = fieldAttribute("a", DataTypes.INTEGER);
+        Attribute b = fieldAttribute("b", DataTypes.INTEGER);
+        Attribute c = fieldAttribute("c", DataTypes.INTEGER);
+        Attribute d = fieldAttribute("d", DataTypes.INTEGER);
+        builder.put(a, b);
+        builder.put(b, c);
+        builder.put(c, d);
+        builder.put(d, a);
+        AttributeMap<Object> map = builder.build();
+
+        // note: multi hop cycles should not happen, unless we have a 
+        // bug in the code that populates the AttributeMaps
+        expectThrows(QlIllegalArgumentException.class, () -> {
+            assertEquals(a, map.resolve(a, c));
+        });
     }
 
     private Alias createIntParameterAlias(int index, int value) {

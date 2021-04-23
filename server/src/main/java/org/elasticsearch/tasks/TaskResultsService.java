@@ -45,6 +45,8 @@ public class TaskResultsService {
 
     private static final Logger logger = LogManager.getLogger(TaskResultsService.class);
 
+    public static final String TASKS_FEATURE_NAME = "tasks";
+
     public static final String TASK_INDEX = ".tasks";
     public static final String TASK_RESULT_MAPPING_VERSION_META_FIELD = "version";
 

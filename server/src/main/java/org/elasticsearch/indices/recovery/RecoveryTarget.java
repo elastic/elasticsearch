@@ -336,7 +336,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private boolean hasUncommittedOperations() throws IOException {
         long localCheckpointOfCommit = Long.parseLong(indexShard.commitStats().getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         try (Translog.Snapshot snapshot =
-                 indexShard.newChangesSnapshot("peer-recovery", localCheckpointOfCommit + 1, Long.MAX_VALUE, false)) {
+                 indexShard.newChangesSnapshot("peer-recovery", localCheckpointOfCommit + 1, Long.MAX_VALUE, false, false)) {
             return snapshot.totalOperations() > 0;
         }
     }
@@ -452,7 +452,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                     assert indexShard.assertRetentionLeasesPersisted();
                 }
                 indexShard.maybeCheckIndex();
-                state().setStage(RecoveryState.Stage.TRANSLOG);
+                state().setRemoteTranslogStage();
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are

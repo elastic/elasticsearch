@@ -276,11 +276,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
         return sparseFixedBitSet;
     }
 
-    private static class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
+    public static class DocumentSubsetDirectoryReader extends FilterDirectoryReader {
         private final BitsetFilterCache bitsetFilterCache;
         private final Query roleQuery;
 
-        DocumentSubsetDirectoryReader(DirectoryReader in, BitsetFilterCache bitsetFilterCache, Query roleQuery) throws IOException {
+        public DocumentSubsetDirectoryReader(DirectoryReader in, BitsetFilterCache bitsetFilterCache, Query roleQuery) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {

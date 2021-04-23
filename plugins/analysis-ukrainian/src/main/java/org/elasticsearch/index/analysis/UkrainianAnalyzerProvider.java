@@ -10,17 +10,18 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.uk.UkrainianMorfologikAnalyzer;
+import org.apache.lucene.analysis.uk.XUkrainianMorfologikAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<UkrainianMorfologikAnalyzer> {
+public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<XUkrainianMorfologikAnalyzer> {
 
-    private final UkrainianMorfologikAnalyzer analyzer;
+    private final XUkrainianMorfologikAnalyzer analyzer;
 
     public UkrainianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new UkrainianMorfologikAnalyzer(
+        analyzer = new XUkrainianMorfologikAnalyzer(
             Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
@@ -28,9 +29,8 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
     }
 
     @Override
-    public UkrainianMorfologikAnalyzer get() {
+    public XUkrainianMorfologikAnalyzer get() {
         return this.analyzer;
     }
-
 
 }

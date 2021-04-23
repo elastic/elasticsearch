@@ -52,8 +52,6 @@ A number of analysis plugins have been contributed by our community:
 * https://github.com/medcl/elasticsearch-analysis-ik[IK Analysis Plugin] (by Medcl)
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
-* https://github.com/ofir123/elasticsearch-network-analysis[Network Addresses Analysis Plugin] (by Ofir123)
-* https://github.com/ZarHenry96/elasticsearch-dandelion-plugin[Dandelion Analysis Plugin] (by ZarHenry96)
 * https://github.com/medcl/elasticsearch-analysis-stconvert[STConvert Analysis Plugin] (by Medcl)
 
 include::analysis-icu.asciidoc[]

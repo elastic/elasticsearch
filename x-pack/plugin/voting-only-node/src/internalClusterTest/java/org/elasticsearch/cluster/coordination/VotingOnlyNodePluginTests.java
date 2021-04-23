@@ -44,6 +44,7 @@ import java.util.Set;
 import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -61,20 +62,20 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
     public void testRequireVotingOnlyNodeToBeMasterEligible() {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> internalCluster().startNode(Settings.builder()
-            .put(onlyRole(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE))
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNode(Settings.builder()
+            .put(onlyRole(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE))
             .build()));
-        assertThat(ise.getMessage(), containsString("voting-only node must be master-eligible"));
+        assertThat(e.getMessage(), containsString("voting-only node must be master-eligible"));
     }
 
     public void testVotingOnlyNodeStats() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(2);
-        internalCluster().startNode(addRoles(Set.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
+        internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
         assertBusy(() -> assertThat(client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds(),
             hasSize(3)));
         assertThat(client().admin().cluster().prepareClusterStats().get().getNodesStats().getCounts().getRoles().get(
-            VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE.roleName()).intValue(), equalTo(1));
+            DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE.roleName()).intValue(), equalTo(1));
         assertThat(client().admin().cluster().prepareNodesStats("voting_only:true").get().getNodes(), hasSize(1));
         assertThat(client().admin().cluster().prepareNodesStats("master:true", "voting_only:false").get().getNodes(), hasSize(2));
     }
@@ -82,7 +83,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
     public void testPreferFullMasterOverVotingOnlyNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNodes(2);
-        internalCluster().startNode(addRoles(Set.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
+        internalCluster().startNode(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
         internalCluster().startDataOnlyNodes(randomInt(2));
         assertBusy(() -> assertThat(
             client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
@@ -99,7 +100,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
     public void testBootstrapOnlyVotingOnlyNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNodes(addRoles(Set.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)),
+        internalCluster().startNodes(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)),
             Settings.EMPTY, Settings.EMPTY);
         assertBusy(() -> assertThat(
             client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
@@ -111,7 +112,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
 
     public void testBootstrapOnlySingleVotingOnlyNode() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
-        internalCluster().startNode(Settings.builder().put(addRoles(Set.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)))
+        internalCluster().startNode(Settings.builder().put(addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)))
             .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build());
         internalCluster().startNode();
         assertBusy(() -> assertThat(client().admin().cluster().prepareState().get().getState().getNodes().getSize(), equalTo(2)));
@@ -123,7 +124,7 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
     public void testVotingOnlyNodesCannotBeMasterWithoutFullMasterNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startNode();
-        internalCluster().startNodes(2, addRoles(Set.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
+        internalCluster().startNodes(2, addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
         internalCluster().startDataOnlyNodes(randomInt(2));
         assertBusy(() -> assertThat(
             client().admin().cluster().prepareState().get().getState().getLastCommittedConfiguration().getNodeIds().size(),
@@ -148,10 +149,13 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
         internalCluster().startNodes(2);
         // dedicated voting-only master node
         final String dedicatedVotingOnlyNode = internalCluster().startNode(
-            onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
+            onlyRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)));
         // voting-only master node that also has data
-        final String nonDedicatedVotingOnlyNode = internalCluster().startNode(
-            addRoles(Set.of(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)));
+        Settings dataContainingVotingOnlyNodeSettings = addRoles(Set.of(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE));
+        if (randomBoolean()) {
+            dataContainingVotingOnlyNodeSettings = removeRoles(dataContainingVotingOnlyNodeSettings, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        }
+        final String nonDedicatedVotingOnlyNode = internalCluster().startNode(dataContainingVotingOnlyNodeSettings);
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
             .setType("verifyaccess-fs").setSettings(Settings.builder().put("location", randomRepoPath())
@@ -218,8 +222,8 @@ public class VotingOnlyNodePluginTests extends ESIntegTestCase {
             @Override
             protected BlobStore createBlobStore() throws Exception {
                 final DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
-                if (localNode.getRoles().contains(VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE)) {
-                    assertTrue(localNode.isDataNode());
+                if (localNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE)) {
+                    assertTrue(localNode.canContainData());
                 }
                 return super.createBlobStore();
             }

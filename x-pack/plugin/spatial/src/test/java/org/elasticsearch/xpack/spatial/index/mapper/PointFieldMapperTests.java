@@ -10,6 +10,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -211,4 +212,19 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         }
     }
 
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [point] mappers has no effect and will be forbidden in future");
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
 }

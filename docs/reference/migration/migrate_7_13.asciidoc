@@ -118,3 +118,24 @@ source of user complaints due to confusing or unintuitive behavior.
 Additionally, the implementation is complex, and not well-tested nor
 maintained, with practically no benefit over simply using RAID. This option
 is now deprecated.
+
+[discrete]
+[[breaking_713_default_value_action_destructive_requires_name]]
+=== Default value of `action.destructive_requires_name` will change in 8.0
+
+The default value of the `action.destructive_requires_name` setting will
+change in the next major release of {es}, from `false` to `true`. If you
+currently perform descructive actions, such as deleting indices, using a
+wildcard (`*` or `_all`) instead of specifying the indices' names, then you
+should explicitly set `action.destructive_requires_name` to `false` in
+order to avoid a change in behavior in future.
+
+[discrete]
+[[breaking_713_aggregations_on_booleans]]
+=== Changes to permitted aggregations on boolean fields
+
+It is currently possible to run a date range, date histogram, or auto date
+histogram over a boolean field, however this is unlikely to be intentional
+since a histogram over the values [0, 1] is not terribly useful. This
+behaviour is now deprecated, and running such an aggregation will cause a
+warning to be logged.

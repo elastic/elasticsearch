@@ -332,9 +332,9 @@ POST my-index/_forcemerge
 ----
 // TEST[s/^/PUT my-index\n/]
 
-* If you no longer write to an index, you can use the
-<<indices-shrink-index,shrink index API>> or {ilm-init}'s <<ilm-shrink,shrink
-action>> to reduce its shard count and free up space.
+* If an index is read-only, use the <<indices-shrink-index,shrink index API>> or
+{ilm-init}'s <<ilm-shrink,shrink action>> to reduce its primary shard count and
+free up space.
 +
 [source,console]
 ----

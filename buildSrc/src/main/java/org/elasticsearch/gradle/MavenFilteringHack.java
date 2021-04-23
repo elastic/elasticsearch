@@ -1,4 +1,4 @@
- /*
+/*
      * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
      * or more contributor license agreements. Licensed under the Elastic License
      * 2.0 and the Server Side Public License, v 1; you may not use this file except
@@ -26,18 +26,18 @@ import org.gradle.api.file.CopySpec;
 public class MavenFilteringHack {
     /**
      * Adds a filter to the given copy spec that will substitute maven variables.
-     * 
+     *
      */
     static void filter(CopySpec copySpec, Map<Object, Object> substitutions) {
         Map<String, String> mavenSubstitutions = new LinkedHashMap<>();
         Map<String, Object> argMap = new LinkedHashMap<>();
 
-        substitutions.forEach((k,v) -> mavenSubstitutions.put("{" + k.toString(), v.toString()));
+        substitutions.forEach((k, v) -> mavenSubstitutions.put("{" + k.toString(), v.toString()));
 
-        argMap.put("tokens",mavenSubstitutions);
+        argMap.put("tokens", mavenSubstitutions);
         argMap.put("beginToken", "$");
-        argMap.put("endToken","}");
+        argMap.put("endToken", "}");
 
-        copySpec.filter(argMap,ReplaceTokens.class);
+        copySpec.filter(argMap, ReplaceTokens.class);
     }
 }

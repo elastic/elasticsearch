@@ -126,7 +126,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
         protected void doStart(ClusterState clusterState) {
             if (isTaskCancelled()) {
-                listener.onFailure(new CancellationException(""));
+                listener.onFailure(new CancellationException("Task cancelled"));
                 return;
             }
             try {

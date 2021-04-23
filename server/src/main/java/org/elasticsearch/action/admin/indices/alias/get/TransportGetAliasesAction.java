@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -68,7 +70,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,
-            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices)));
+            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices), postProcess(request, state)));
     }
 
     /**
@@ -91,6 +93,32 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             checkSystemIndexAccess(request, systemIndices, state, finalResponse, systemIndexAccessLevel, threadContext);
         }
         return finalResponse;
+    }
+
+    List<DataStreamAlias> postProcess(GetAliasesRequest request, ClusterState state) {
+        List<DataStreamAlias> result = new ArrayList<>();
+        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
+        List<String> requestedDataStreams =
+            indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), request.indices());
+        for (var alias : state.metadata().dataStreamAliases().values()) {
+            if (noAliasesSpecified == false && Regex.simpleMatch(request.aliases(), alias.getName()) == false) {
+                continue;
+            }
+
+            boolean dataStreamNameMatch = false;
+            for (String requestedDataStream : requestedDataStreams) {
+                if (Regex.simpleMatch(alias.getDataStreams(), requestedDataStream)) {
+                    dataStreamNameMatch = true;
+                    break;
+                }
+            }
+            if (dataStreamNameMatch == false) {
+                continue;
+            }
+
+            result.add(alias);
+        }
+        return result;
     }
 
     private static void checkSystemIndexAccess(GetAliasesRequest request, SystemIndices systemIndices, ClusterState state,

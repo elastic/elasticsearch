@@ -221,6 +221,15 @@ public class MetadataCreateDataStreamService {
         logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
             writeIndex.getIndex().getName(),
             Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()));
+
+        if (template.getDataStreamTemplate().getAliases() != null) {
+            for (var alias : template.getDataStreamTemplate().getAliases().values()) {
+                // TODO: If the write alias has already been set then
+                // it should point to the current data stream
+                builder.put(alias.getAlias(), dataStreamName, alias.getWriteAlias());
+            }
+        }
+
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 

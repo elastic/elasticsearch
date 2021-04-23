@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -257,28 +259,53 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
         private static final ParseField HIDDEN = new ParseField("hidden");
+        private static final ParseField ALIASES = new ParseField("aliases");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0]));
+            args -> {
+                boolean hidden = args[0] != null && (boolean) args[0];
+                @SuppressWarnings("unchecked")
+                Map<String, DataStreamAliasTemplate> aliases = (Map<String, DataStreamAliasTemplate>) args[1];
+                return new DataStreamTemplate(hidden, aliases);
+            });
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+                Map<String, DataStreamAliasTemplate> aliasMap = new HashMap<>();
+                while ((p.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    XContentParser.Token token = p.currentToken();
+                    if (token != XContentParser.Token.FIELD_NAME) {
+                        throw new ParsingException(p.getTokenLocation(), "unexpected token");
+                    }
+                    String name = p.currentName();
+                    DataStreamAliasTemplate alias = DataStreamAliasTemplate.PARSER.parse(p, name);
+                    aliasMap.put(alias.getAlias(), alias);
+                }
+                return aliasMap;
+            }, ALIASES);
         }
 
         private final boolean hidden;
 
+        @Nullable
+        private final Map<String, DataStreamAliasTemplate> aliases;
+
         public DataStreamTemplate() {
-            this(false);
+            this(false, null);
         }
 
-        public DataStreamTemplate(boolean hidden) {
+        public DataStreamTemplate(boolean hidden, Map<String, DataStreamAliasTemplate> aliases) {
             this.hidden = hidden;
+            this.aliases = aliases;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
+            aliases = in.getVersion().onOrAfter(DataStreamMetadata.DATA_STREAM_ALIAS_VERSION) ?
+                in.readBoolean() ? in.readMap(StreamInput::readString, DataStreamAliasTemplate::new) : null : null;
         }
 
         public String getTimestampField() {
@@ -297,15 +324,34 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             return hidden;
         }
 
+        public Map<String, DataStreamAliasTemplate> getAliases() {
+            return aliases;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
+            if (out.getVersion().onOrAfter(DataStreamMetadata.DATA_STREAM_ALIAS_VERSION)) {
+                if (aliases != null) {
+                    out.writeBoolean(true);
+                    out.writeMap(aliases, StreamOutput::writeString, (innerOut, alias) -> alias.writeTo(innerOut));
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hidden", hidden);
+            if (aliases != null) {
+                builder.startObject("aliases");
+                for (var alias : aliases.values()) {
+                    alias.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
             builder.endObject();
             return builder;
         }
@@ -315,12 +361,77 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden;
+            return hidden == that.hidden &&
+                Objects.equals(aliases, that.aliases);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden);
+            return Objects.hash(hidden, aliases);
+        }
+    }
+
+    public static class DataStreamAliasTemplate implements Writeable, ToXContentObject {
+
+        private static final ParseField WRITE_ALIAS = new ParseField("write_alias");
+
+        public static final ConstructingObjectParser<DataStreamAliasTemplate, String> PARSER = new ConstructingObjectParser<>(
+            "data_stream_alias_template",
+            false,
+            (args, name)-> new DataStreamAliasTemplate(name, (Boolean) args[0]));
+
+        static {
+            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), WRITE_ALIAS);
+        }
+
+        private final String alias;
+        private final Boolean writeAlias;
+
+        public DataStreamAliasTemplate(String alias, @Nullable Boolean writeAlias) {
+            this.alias = alias;
+            this.writeAlias = writeAlias;
+        }
+
+        public DataStreamAliasTemplate(StreamInput in) throws IOException {
+            this(in.readString(), in.readOptionalBoolean());
+        }
+
+        public String getAlias() {
+            return alias;
+        }
+
+        @Nullable
+        public Boolean getWriteAlias() {
+            return writeAlias;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(alias);
+            if (writeAlias != null) {
+                builder.field(WRITE_ALIAS.getPreferredName(), writeAlias);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(alias);
+            out.writeOptionalBoolean(writeAlias);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DataStreamAliasTemplate that = (DataStreamAliasTemplate) o;
+            return alias.equals(that.alias) && Objects.equals(writeAlias, that.writeAlias);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(alias, writeAlias);
         }
     }
 

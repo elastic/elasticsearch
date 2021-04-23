@@ -33,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -103,6 +104,7 @@ public class MetadataIndexAliasesService {
                 currentState = deleteIndexService.deleteIndices(currentState, indicesToDelete);
             }
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
             for (AliasAction action : actions) {
@@ -110,41 +112,51 @@ public class MetadataIndexAliasesService {
                     // Handled above
                     continue;
                 }
-                IndexMetadata index = metadata.get(action.getIndex());
-                if (index == null) {
-                    throw new IndexNotFoundException(action.getIndex());
-                }
-                validateAliasTargetIsNotDSBackingIndex(currentState, action);
-                NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
-                    /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
-                     * index and replace it with an alias. */
-                    Function<String, IndexMetadata> indexLookup = name -> metadata.get(name);
-                    aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, indexLookup);
-                    if (Strings.hasLength(filter)) {
-                        IndexService indexService = indices.get(index.getIndex().getName());
-                        if (indexService == null) {
-                            indexService = indicesService.indexService(index.getIndex());
-                            if (indexService == null) {
-                                // temporarily create the index and add mappings so we can parse the filter
-                                try {
-                                    indexService = indicesService.createIndex(index, emptyList(), false);
-                                    indicesToClose.add(index.getIndex());
-                                } catch (IOException e) {
-                                    throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
-                                }
-                                indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY);
-                            }
-                            indices.put(action.getIndex(), indexService);
-                        }
-                        // the context is only used for validation so it's fine to pass fake values for the shard id,
-                        // but the current timestamp should be set to real value as we may use `now` in a filtered alias
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newSearchExecutionContext(0, 0,
-                                null, () -> System.currentTimeMillis(), null, emptyMap()), xContentRegistry);
+                if (action.isDataStreamOperation()) {
+                    SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
+                    NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
+                        aliasValidator.validateAlias(alias, action.getIndex(), lookup::get);
+                    };
+                    if (action.apply(newAliasValidator, metadata, null)) {
+                        changed = true;
                     }
-                };
-                if (action.apply(newAliasValidator, metadata, index)) {
-                    changed = true;
-                    maybeModifiedIndices.add(index.getIndex().getName());
+                } else {
+                    final IndexMetadata index = metadata.get(action.getIndex());
+                    if (index == null) {
+                        throw new IndexNotFoundException(action.getIndex());
+                    }
+                    validateAliasTargetIsNotDSBackingIndex(currentState, action);
+                    NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
+                        /* It is important that we look up the index using the metadata builder we are modifying so we can remove an
+                         * index and replace it with an alias. */
+                        Function<String, IndexMetadata> indexLookup = metadata::get;
+                        aliasValidator.validateAlias(alias, action.getIndex(), indexRouting, indexLookup);
+                        if (Strings.hasLength(filter)) {
+                            IndexService indexService = indices.get(index.getIndex().getName());
+                            if (indexService == null) {
+                                indexService = indicesService.indexService(index.getIndex());
+                                if (indexService == null) {
+                                    // temporarily create the index and add mappings so we can parse the filter
+                                    try {
+                                        indexService = indicesService.createIndex(index, emptyList(), false);
+                                        indicesToClose.add(index.getIndex());
+                                    } catch (IOException e) {
+                                        throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
+                                    }
+                                    indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY);
+                                }
+                                indices.put(action.getIndex(), indexService);
+                            }
+                            // the context is only used for validation so it's fine to pass fake values for the shard id,
+                            // but the current timestamp should be set to real value as we may use `now` in a filtered alias
+                            aliasValidator.validateAliasFilter(alias, filter, indexService.newSearchExecutionContext(0, 0,
+                                null, System::currentTimeMillis, null, emptyMap()), xContentRegistry);
+                        }
+                    };
+                    if (action.apply(newAliasValidator, metadata, index)) {
+                        changed = true;
+                        maybeModifiedIndices.add(index.getIndex().getName());
+                    }
                 }
             }
 

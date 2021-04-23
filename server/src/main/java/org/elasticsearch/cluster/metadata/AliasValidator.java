@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -82,6 +83,23 @@ public class AliasValidator {
         IndexMetadata indexNamedSameAsAlias = indexLookup.apply(alias);
         if (indexNamedSameAsAlias != null) {
             throw new InvalidAliasNameException(indexNamedSameAsAlias.getIndex(), alias, "an index exists with the same name as the alias");
+        }
+    }
+
+    public void validateAlias(String alias, String dataStream, Function<String, IndexAbstraction> indexLookup) {
+        if (Strings.hasText(alias) == false) {
+            throw new IllegalArgumentException("alias name is required");
+        }
+        MetadataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);
+
+        if (Strings.hasText(dataStream) == false) {
+            throw new IllegalArgumentException("data stream name is required");
+        }
+
+        IndexAbstraction other = indexLookup.apply(alias);
+        if (other != null) {
+            String message = "a resource of type [" + other.getType() + "] already exists using the name [" + alias + "]";
+            throw new ResourceAlreadyExistsException(message);
         }
     }
 

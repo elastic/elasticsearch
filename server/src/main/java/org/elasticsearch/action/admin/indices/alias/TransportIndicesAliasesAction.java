@@ -89,45 +89,65 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
-            final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), false,
-                action.indices());
-            for (Index concreteIndex : concreteIndices) {
-                IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(concreteIndex.getName());
-                assert indexAbstraction != null : "invalid cluster metadata. index [" + concreteIndex.getName() + "] was not found";
-                if (indexAbstraction.getParentDataStream() != null) {
-                    throw new IllegalArgumentException("The provided expressions [" + String.join(",", action.indices())
-                        + "] match a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
-                        + "]. Data streams and their backing indices don't support aliases.");
-                }
-            }
-            final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
-            if (maybeException.isPresent()) {
-                listener.onFailure(maybeException.get());
-                return;
-            }
-
-            Collections.addAll(aliases, action.getOriginalAliases());
-            long now = System.currentTimeMillis();
-            for (final Index index : concreteIndices) {
+            List<String> concreteDataStreams =
+                indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), action.indices());
+            if (concreteDataStreams.size() != 0) {
                 switch (action.actionType()) {
-                case ADD:
-                    for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                        String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpression(alias, now);
-                        finalActions.add(new AliasAction.Add(index.getName(), resolvedName,
-                            action.filter(), action.indexRouting(),
-                            action.searchRouting(), action.writeIndex(), action.isHidden()));
+                    case ADD:
+                        for (String dataStreamName : concreteDataStreams) {
+                            finalActions.add(new AliasAction.AddDataStreamAlias(action.aliases()[0], dataStreamName, action.writeIndex()));
+                        }
+                        break;
+                    case REMOVE:
+                        for (String dataStreamName : concreteDataStreams) {
+                            finalActions.add(
+                                new AliasAction.RemoveDataStreamAlias(action.aliases()[0], dataStreamName, action.mustExist()));
+                        }
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
+                }
+            } else {
+                final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), false,
+                    action.indices());
+                for (Index concreteIndex : concreteIndices) {
+                    IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(concreteIndex.getName());
+                    assert indexAbstraction != null : "invalid cluster metadata. index [" + concreteIndex.getName() + "] was not found";
+                    if (indexAbstraction.getParentDataStream() != null) {
+                        throw new IllegalArgumentException("The provided expressions [" + String.join(",", action.indices())
+                            + "] match a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
+                            + "]. Data streams and their backing indices don't support aliases.");
                     }
-                    break;
-                case REMOVE:
-                    for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                        finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
+                }
+                final Optional<Exception> maybeException = requestValidators.validateRequest(request, state, concreteIndices);
+                if (maybeException.isPresent()) {
+                    listener.onFailure(maybeException.get());
+                    return;
+                }
+
+                Collections.addAll(aliases, action.getOriginalAliases());
+                long now = System.currentTimeMillis();
+                for (final Index index : concreteIndices) {
+                    switch (action.actionType()) {
+                        case ADD:
+                            for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                                String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpression(alias, now);
+                                finalActions.add(new AliasAction.Add(index.getName(), resolvedName,
+                                    action.filter(), action.indexRouting(),
+                                    action.searchRouting(), action.writeIndex(), action.isHidden()));
+                            }
+                            break;
+                        case REMOVE:
+                            for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
+                                finalActions.add(new AliasAction.Remove(index.getName(), alias, action.mustExist()));
+                            }
+                            break;
+                        case REMOVE_INDEX:
+                            finalActions.add(new AliasAction.RemoveIndex(index.getName()));
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                     }
-                    break;
-                case REMOVE_INDEX:
-                    finalActions.add(new AliasAction.RemoveIndex(index.getName()));
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
                 }
             }
         }

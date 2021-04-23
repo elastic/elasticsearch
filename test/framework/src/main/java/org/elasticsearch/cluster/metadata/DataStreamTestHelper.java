@@ -28,6 +28,7 @@ import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX
 import static org.elasticsearch.cluster.metadata.DataStream.DATE_FORMATTER;
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
@@ -135,6 +136,14 @@ public final class DataStreamTestHelper {
         }
         return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata,
             randomBoolean(), randomBoolean(), false, timeProvider);
+    }
+
+    public static DataStreamAlias randomAliasInstance() {
+        return new DataStreamAlias(
+            randomAlphaOfLength(5),
+            List.of(generateRandomStringArray(5, 5, false)),
+            randomBoolean() ? randomAlphaOfLength(5) : null
+        );
     }
 
     /**

@@ -258,6 +258,8 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             for (String repository : repositories) {
                 client.admin().cluster()
                     .prepareGetSnapshots(repository)
+                    // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
+                    .setMasterNodeTimeout(TimeValue.MAX_VALUE)
                     .setIgnoreUnavailable(true)
                     .execute(ActionListener.wrap(resp -> {
                             final Set<SnapshotState> retainableStates =
@@ -393,7 +395,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     void deleteSnapshot(String slmPolicy, String repo, SnapshotId snapshot, SnapshotLifecycleStats slmStats,
                         ActionListener<AcknowledgedResponse> listener) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot);
-        client.admin().cluster().prepareDeleteSnapshot(repo, snapshot.getName()).execute(ActionListener.wrap(acknowledgedResponse -> {
+        // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
+        client.admin().cluster().prepareDeleteSnapshot(repo, snapshot.getName()).setMasterNodeTimeout(TimeValue.MAX_VALUE).execute(
+            ActionListener.wrap(acknowledgedResponse -> {
                     slmStats.snapshotDeleted(slmPolicy);
                     listener.onResponse(acknowledgedResponse);
                 },

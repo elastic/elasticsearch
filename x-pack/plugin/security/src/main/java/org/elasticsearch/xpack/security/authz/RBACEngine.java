@@ -243,7 +243,6 @@ public class RBACEngine implements AuthorizationEngine {
                                      ActionListener<IndexAuthorizationResult> listener) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
-        final Authentication authentication = requestInfo.getAuthentication();
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on

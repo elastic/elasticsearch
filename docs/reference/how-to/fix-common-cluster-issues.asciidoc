@@ -25,13 +25,15 @@ If a request triggers a circuit breaker, {es} returns an error.
 
 [source,js]
 ----
-"error": {
-  "root_cause": [
-    {
-      "type": "circuit_breaking_exception",
-      "reason": "[parent] Data too large, data for [<transport_request>] would be [num/numGB], which is larger than the limit of [num/numGB], usages [request=0/0b, fielddata=num/numKB, in_flight_requests=num/numGB, accounting=num/numGB]"
-    }
-  ]
+{
+  'error': {
+    'type': 'circuit_breaking_exception',
+    'reason': '[parent] Data too large, data for [<http_request>] would be [123848638/118.1mb], which is larger than the limit of [123273216/117.5mb], real usage: [120182112/114.6mb], new bytes reserved: [3666526/3.4mb]',
+    'bytes_wanted': 123848638,
+    'bytes_limit': 123273216,
+    'durability': 'TRANSIENT'
+  },
+  'status': 429
 }
 ----
 // NOTCONSOLE
@@ -42,7 +44,7 @@ breaker.
 
 [source,txt]
 ----
-Caused by: org.elasticsearch.common.breaker.CircuitBreakingException: [parent] Data too large, data for [<transport_request>] would be [num/numGB], which is larger than the limit of [num/numGB], usages [request=0/0b, fielddata=num/numKB, in_flight_requests=num/numGB, accounting=num/numGB]
+Caused by: org.elasticsearch.common.breaker.CircuitBreakingException: [parent] Data too large, data for [<http_request>] would be [123848638/118.1mb], which is larger than the limit of [123273216/117.5mb], real usage: [120182112/114.6mb], new bytes reserved: [3666526/3.4mb]
 ----
 
 **Check JVM memory usage**

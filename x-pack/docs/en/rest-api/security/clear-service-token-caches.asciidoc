@@ -18,8 +18,8 @@ Evicts a subset of all entries from the service account token caches.
 [[security-api-clear-service-token-caches-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_security` cluster
-privilege.
+* To use this API, you must have at least the `manage_service_account`
+<<privileges-list-cluster,cluster privilege>>.
 
 [[security-api-clear-service-token-caches-desc]]
 ==== {api-description-title}

@@ -18,7 +18,8 @@ Deletes service account tokens for a `service` in a specified `namespace`.
 [[security-api-delete-service-token-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_service_account` cluster privilege.
+* To use this API, you must have at least the `manage_service_account`
+<<privileges-list-cluster,cluster privilege>>.
 
 [[security-api-delete-service-token-desc]]
 ==== {api-description-title}

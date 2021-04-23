@@ -87,7 +87,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     private void executeMasterOperation(Task task, Request request, ClusterState state,
                                         ActionListener<Response> listener) throws Exception {
         if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
-            throw new CancellationException("Cancelled task");
+            throw new CancellationException("Task was cancelled");
         }
 
         masterOperation(task, request, state, listener);
@@ -126,7 +126,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
 
         protected void doStart(ClusterState clusterState) {
             if (isTaskCancelled()) {
-                listener.onFailure(new CancellationException("Task cancelled"));
+                listener.onFailure(new CancellationException("Task was cancelled"));
                 return;
             }
             try {

@@ -20,11 +20,12 @@ Instantiates a {dfanalytics-job}.
 == {api-prereq-title}
 
 
-You must have the `manage_ml` cluster privilege, the `read` and 
-`view_index_metadata` privileges on the source indices, and the `read`, 
-`create_index`, `manage`, `index` privileges on the destination index to use 
-this API. The required cluster privilege is included in the 
-`machine_learning_admin` built-in role.
+It is required to have the following privileges to use this API:
+
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`
+* destination index: `read`, `create_index`, `manage` and `index`
 
 NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
 the time of creation. When you start the job, it performs the analysis using

@@ -21,8 +21,8 @@ A trained model alias is a logical name used to reference a single trained model
 [[ml-put-trained-models-aliases-prereq]]
 == {api-prereq-title}
 
-You must have the `manage_ml` cluster privilege to use this API. This privilege 
-is included in the `machine_learning_admin` built-in role.
+It is required to have the `manage_ml` cluster privilege to use this API. This 
+privilege is included in the `machine_learning_admin` built-in role.
 
 
 [[ml-put-trained-models-aliases-desc]]

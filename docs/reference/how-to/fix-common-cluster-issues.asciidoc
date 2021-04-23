@@ -76,7 +76,7 @@ GET _nodes/stats/breaker
 
 **Reduce JVM memory pressure**
 
-High JVM memory pressure often triggers circuit breaker errors. See
+High JVM memory pressure often causes circuit breaker errors. See
 <<high-jvm-memory-pressure>>.
 
 **Avoid using fielddata on `text` fields**

@@ -30,7 +30,8 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
         this(client, action, "", emptyList(), null, emptyMap(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
             Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY,
-            Protocol.INDEX_INCLUDE_FROZEN, null, false, null);
+            Protocol.INDEX_INCLUDE_FROZEN, Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT, Protocol.DEFAULT_KEEP_ON_COMPLETION,
+            Protocol.DEFAULT_KEEP_ALIVE);
     }
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,

@@ -254,8 +254,13 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             final ShardGenerations shardGenerations = builder.build();
             final Map<IndexId, String> indexLookup =
                 shardGenerations.indices().stream().collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
-            repoData = repoData.addSnapshot(snapshotId,
-                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), Version.CURRENT, shardGenerations,
+            final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
+                    randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
+                    Version.CURRENT);
+            repoData = repoData.addSnapshot(
+                snapshotId,
+                details,
+                shardGenerations,
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));
         }

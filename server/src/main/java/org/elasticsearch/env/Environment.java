@@ -10,6 +10,7 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -294,6 +295,15 @@ public class Environment {
         if (Files.isDirectory(tmpFile) == false) {
             throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
         }
+    }
+
+    /** Returns true if the data path is a list, false otherwise */
+    public static boolean dataPathUsesList(Settings settings) {
+        if (settings.hasValue(PATH_DATA_SETTING.getKey()) == false) {
+            return false;
+        }
+        String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
+        return rawDataPath.startsWith("[");
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {

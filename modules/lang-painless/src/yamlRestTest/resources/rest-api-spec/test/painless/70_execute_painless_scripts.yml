@@ -145,7 +145,7 @@ setup:
               date0: "2015-01-01T12:10:30Z"
               date1: "2010-11-30T13:14:35Z"
             index: "my-index"
-  - match: { result: [ "2010-11-30T13:14:35.000Z", "2015-01-01T12:10:30.000Z" ] }
+  - match: { result: [ "2015-01-01T12:10:30.000Z", "2010-11-30T13:14:35.000Z" ] }
 
 ---
 "Execute with double field context (single-value)":
@@ -177,10 +177,12 @@ setup:
             document:
               rank: 4
             index: "my-index"
-  - match: { result: [ 20.0, 55.0, 400.0 ] }
+  - match: { result: [ 20.0, 400.0, 55.0 ] }
 
 ---
 "Execute with geo point field context (single-value)":
+  - skip:
+      features: close_to
   - do:
       scripts_painless_execute:
         body:
@@ -191,9 +193,13 @@ setup:
             document:
               point: "30.0,40.0"
             index: "my-index"
+  - close_to: { result.0.lat: { value: 31.0, error: 0.00001 } }
+  - close_to: { result.0.lon: { value: 39.0, error: 0.00001 } }
 
 ---
 "Execute with geo point field context (multi-value)":
+  - skip:
+      features: close_to
   - do:
       scripts_painless_execute:
         body:
@@ -205,6 +211,10 @@ setup:
               p0: "30.0,40.0"
               p1: "40.0,30.0"
             index: "my-index"
+  - close_to: { result.0.lat: { value: 31.0, error: 0.00001 } }
+  - close_to: { result.0.lon: { value: 39.0, error: 0.00001 } }
+  - close_to: { result.1.lat: { value: 41.0, error: 0.00001 } }
+  - close_to: { result.1.lon: { value: 29.0, error: 0.00001 } }
 
 ---
 "Execute with ip field context (single-value)":
@@ -232,7 +242,7 @@ setup:
             document:
               ip: "192.168.1.254"
             index: "my-index"
-  - match: { result: [ "192.168.1.254", "2001:db8::8a2e:370:7333", "2001:db8::8a2e:370:7334" ] }
+  - match: { result: [ "2001:db8::8a2e:370:7333", "192.168.1.254", "2001:db8::8a2e:370:7334" ] }
 
 ---
 "Execute with long field context (single-value)":
@@ -264,7 +274,7 @@ setup:
             document:
               rank: 4
             index: "my-index"
-  - match: { result: [ -90, 0, 20, 20, 35 ] }
+  - match: { result: [ 20, 35, 0, -90, 20 ] }
 
 ---
 "Execute with keyword field context (single-value)":

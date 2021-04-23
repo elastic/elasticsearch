@@ -8,7 +8,6 @@
 package org.elasticsearch.painless.action;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
@@ -42,6 +41,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -77,20 +77,16 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -554,7 +550,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                             factory.newFactory(BooleanFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Boolean> booleans = new ArrayList<>();
-                    booleanFieldScript.runForDoc(0, b -> booleans.add(b));
+                    booleanFieldScript.runForDoc(0, booleans::add);
                     return new Response(booleans);
                 }, indexService);
             } else if (scriptContext == DateFieldScript.CONTEXT) {
@@ -574,7 +570,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                             factory.newFactory(DoubleFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Double> doubles = new ArrayList<>();
-                    doubleFieldScript.runForDoc(0, d -> doubles.add(d));
+                    doubleFieldScript.runForDoc(0, doubles::add);
                     return new Response(doubles);
                 }, indexService);
             } else if (scriptContext == GeoPointFieldScript.CONTEXT) {
@@ -593,8 +589,14 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     IpFieldScript.LeafFactory leafFactory =
                             factory.newFactory(IpFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
-                    List<InetAddress> ips = new ArrayList<>();
-                    ipFieldScript.runForDoc(0, ip -> ips.add(ip));
+                    List<String> ips = new ArrayList<>();
+                    ipFieldScript.runForDoc(0, ip -> {
+                        if (ip == null) {
+                            ips.add(null);
+                        } else {
+                            ips.add(NetworkAddress.format(ip));
+                        }
+                    });
                     return new Response(ips);
                 }, indexService);
             } else if (scriptContext == LongFieldScript.CONTEXT) {
@@ -603,8 +605,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     LongFieldScript.LeafFactory leafFactory =
                             factory.newFactory(LongFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     LongFieldScript longFieldScript = leafFactory.newInstance(leafReaderContext);
-                    longFieldScript.runForDoc(0);
-                    return new Response(longFieldScript.asDocValues());
+                    List<Long> longs = new ArrayList<>();
+                    longFieldScript.runForDoc(0, longs::add);
+                    return new Response(longs);
                 }, indexService);
             } else if (scriptContext == StringFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
@@ -612,8 +615,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     StringFieldScript.LeafFactory leafFactory =
                             factory.newFactory(StringFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
                     StringFieldScript stringFieldScript = leafFactory.newInstance(leafReaderContext);
-                    stringFieldScript.resultsForDoc(0);
-                    return new Response(stringFieldScript.asDocValues());
+                    List<String> keywords = new ArrayList<>();
+                    stringFieldScript.runForDoc(0, keywords::add);
+                    return new Response(keywords);
                 }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");

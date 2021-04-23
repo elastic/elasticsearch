@@ -268,8 +268,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * complete a full cycle.
      */
     protected void runSearchImmediately() {
-        if (scheduledNextSearch != null) {
-            scheduledNextSearch.reschedule(TimeValue.ZERO);
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
+            runnable.reschedule(TimeValue.ZERO);
         }
     }
 
@@ -576,7 +577,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
                 // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
                 if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {
-                    scheduledNextSearch.reschedule(TimeValue.ZERO);
+                    runSearchImmediately();
                 }
                 return;
             }
@@ -631,7 +632,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private synchronized void reQueueThrottledSearch() {
         currentMaxDocsPerSecond = getMaxDocsPerSecond();
 
-        if (scheduledNextSearch != null) {
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
             TimeValue executionDelay = calculateThrottlingDelay(
                 currentMaxDocsPerSecond,
                 lastDocCount,
@@ -644,7 +646,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 getJobId(),
                 executionDelay
             );
-            scheduledNextSearch.reschedule(executionDelay);
+            runnable.reschedule(executionDelay);
         }
     }
 

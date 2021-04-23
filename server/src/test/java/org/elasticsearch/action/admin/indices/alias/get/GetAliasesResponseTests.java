@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
@@ -35,7 +36,8 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
 
     @Override
     protected GetAliasesResponse mutateInstance(GetAliasesResponse response) {
-        return new GetAliasesResponse(mutateAliases(response.getAliases()), randomList(5, DataStreamTestHelper::randomAliasInstance));
+        return new GetAliasesResponse(mutateAliases(response.getAliases()),
+            randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance))));
     }
 
     private static ImmutableOpenMap<String, List<AliasMetadata>> mutateAliases(ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
@@ -76,7 +78,8 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
     }
 
     private static GetAliasesResponse createTestItem() {
-        return new GetAliasesResponse(createIndicesAliasesMap(0, 5).build(), randomList(5, DataStreamTestHelper::randomAliasInstance));
+        return new GetAliasesResponse(mutateAliases(createIndicesAliasesMap(0, 5).build()
+        ), randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance))));
     }
 
     private static ImmutableOpenMap.Builder<String, List<AliasMetadata>> createIndicesAliasesMap(int min, int max) {

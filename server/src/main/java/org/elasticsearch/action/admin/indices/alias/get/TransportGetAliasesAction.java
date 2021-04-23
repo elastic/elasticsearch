@@ -33,8 +33,10 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -95,28 +97,17 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         return finalResponse;
     }
 
-    List<DataStreamAlias> postProcess(GetAliasesRequest request, ClusterState state) {
-        List<DataStreamAlias> result = new ArrayList<>();
+    Map<String, List<DataStreamAlias>> postProcess(GetAliasesRequest request, ClusterState state) {
+        Map<String, List<DataStreamAlias>> result = new HashMap<>();
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         List<String> requestedDataStreams =
             indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), request.indices());
-        for (var alias : state.metadata().dataStreamAliases().values()) {
-            if (noAliasesSpecified == false && Regex.simpleMatch(request.aliases(), alias.getName()) == false) {
-                continue;
-            }
-
-            boolean dataStreamNameMatch = false;
-            for (String requestedDataStream : requestedDataStreams) {
-                if (Regex.simpleMatch(alias.getDataStreams(), requestedDataStream)) {
-                    dataStreamNameMatch = true;
-                    break;
-                }
-            }
-            if (dataStreamNameMatch == false) {
-                continue;
-            }
-
-            result.add(alias);
+        for (String requestedDataStream : requestedDataStreams) {
+            List<DataStreamAlias> aliases = state.metadata().dataStreamAliases().values().stream()
+                .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
+                .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
+                .collect(Collectors.toList());
+            result.put(requestedDataStream, aliases);
         }
         return result;
     }

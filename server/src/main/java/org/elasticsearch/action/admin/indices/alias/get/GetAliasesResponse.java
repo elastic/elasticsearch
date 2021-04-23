@@ -18,14 +18,15 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetAliasesResponse extends ActionResponse {
 
     private final ImmutableOpenMap<String, List<AliasMetadata>> aliases;
-    private final List<DataStreamAlias> dataStreamAliases;
+    private final Map<String, List<DataStreamAlias>> dataStreamAliases;
 
-    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetadata>> aliases, List<DataStreamAlias> dataStreamAliases) {
+    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetadata>> aliases, Map<String, List<DataStreamAlias>> dataStreamAliases) {
         this.aliases = aliases;
         this.dataStreamAliases = dataStreamAliases;
     }
@@ -34,14 +35,14 @@ public class GetAliasesResponse extends ActionResponse {
         super(in);
         aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
         dataStreamAliases = in.getVersion().onOrAfter(DataStreamMetadata.DATA_STREAM_ALIAS_VERSION) ?
-            in.readList(DataStreamAlias::new) : List.of();
+            in.readMap(StreamInput::readString, in1 -> in1.readList(DataStreamAlias::new)) : Map.of();
     }
 
     public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
         return aliases;
     }
 
-    public List<DataStreamAlias> getDataStreamAliases() {
+    public Map<String, List<DataStreamAlias>> getDataStreamAliases() {
         return dataStreamAliases;
     }
 
@@ -49,7 +50,7 @@ public class GetAliasesResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
         if (out.getVersion().onOrAfter(DataStreamMetadata.DATA_STREAM_ALIAS_VERSION)) {
-            out.writeList(dataStreamAliases);
+            out.writeMap(dataStreamAliases, StreamOutput::writeString, StreamOutput::writeList);
         }
     }
 

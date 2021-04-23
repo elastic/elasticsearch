@@ -92,7 +92,6 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
-import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -694,7 +693,10 @@ public class DataStreamIT extends ESIntegTestCase {
         aliasesAddRequest.addAliasAction(addAction);
         assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
-        assertThat(response.getDataStreamAliases(), hasItems(equalTo(new DataStreamAlias("foo", List.of("metrics-foo"), null))));
+        assertThat(
+            response.getDataStreamAliases(),
+            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo"), null))))
+        );
     }
 
     public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {

@@ -72,39 +72,6 @@
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 2  }
 
-  - do:
-      indices.update_aliases:
-        body:
-          actions:
-            - remove:
-                index: events-app2
-                alias: events
-
-  - do:
-      indices.get_alias: {}
-
-  - match: {events-app1.aliases.events: {}}
-  - is_false:  events-app2.aliases.events
-
-  - do:
-      search:
-        index: events
-        body: { query: { match_all: {} } }
-  - length:   { hits.hits: 1  }
-
-  - do:
-      indices.update_aliases:
-        body:
-          actions:
-            - remove:
-                index: events-app1
-                alias: events
-
-  - do:
-      indices.get_alias: {}
-  - is_false:  events-app1.aliases.events
-  - is_false:  events-app2.aliases.events
-
 ---
 "Create data stream alias from composable index template":
   - skip:
@@ -159,14 +126,3 @@
         index: events
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 2  }
-
-  - do:
-      indices.update_aliases:
-        body:
-          actions:
-            - remove:
-                index: events-app1
-                alias: events
-            - remove:
-                index: events-app2
-                alias: events

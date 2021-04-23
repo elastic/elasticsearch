@@ -29,8 +29,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -67,7 +65,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
                                           ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
-                                          List<DataStreamAlias> dataStreamAliases, XContentBuilder builder) throws Exception {
+                                          Map<String, List<DataStreamAlias>> dataStreamAliases, XContentBuilder builder) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
         for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
@@ -134,7 +132,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : responseAliasMap) {
+            for (final var entry : responseAliasMap) {
                 if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
                     builder.startObject(entry.key);
                     {
@@ -149,23 +147,15 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     builder.endObject();
                 }
             }
-            // Convert from alias -> data stream to data stream -> alias:
-            Map<String, List<DataStreamAlias>> dataStreamToAliases = new HashMap<>();
-            for (var alias : dataStreamAliases) {
-                for (String dataStream : alias.getDataStreams()) {
-                    List<DataStreamAlias> dataStreams = dataStreamToAliases.computeIfAbsent(dataStream, key -> new ArrayList<>());
-                    dataStreams.add(alias);
-                }
-            }
-            for (var entry : dataStreamToAliases.entrySet()) {
+            for (var entry : dataStreamAliases.entrySet()) {
                 builder.startObject(entry.getKey());
                 {
                     builder.startObject("aliases");
                     {
                         for (DataStreamAlias alias : entry.getValue()) {
                             builder.startObject(alias.getName());
-                            if (alias.getWriteDataStream() != null) {
-                                builder.field("is_write_data_stream", entry.getKey().equals(alias.getWriteDataStream()));
+                            if (entry.getKey().equals(alias.getWriteDataStream())) {
+                                builder.field("is_write_data_stream", true);
                             }
                             builder.endObject();
                         }

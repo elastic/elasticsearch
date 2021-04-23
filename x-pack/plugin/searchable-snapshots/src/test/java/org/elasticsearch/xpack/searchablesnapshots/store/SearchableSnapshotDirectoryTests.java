@@ -68,6 +68,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -75,6 +76,7 @@ import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.ChecksumBlobContainerIndexInput;
@@ -607,16 +609,18 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 threadPool.generic().submit(() -> {
                     IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
                     repository.snapshotShard(
-                        store,
-                        null,
-                        snapshotId,
-                        indexId,
-                        indexCommit,
-                        null,
-                        snapshotStatus,
-                        Version.CURRENT,
-                        emptyMap(),
-                        future
+                        new SnapshotShardContext(
+                            store,
+                            null,
+                            snapshotId,
+                            indexId,
+                            new Engine.IndexCommitRef(indexCommit, () -> {}),
+                            null,
+                            snapshotStatus,
+                            Version.CURRENT,
+                            emptyMap(),
+                            future
+                        )
                     );
                     future.actionGet();
                 });

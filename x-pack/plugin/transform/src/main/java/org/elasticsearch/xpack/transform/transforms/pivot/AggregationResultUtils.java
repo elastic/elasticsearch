@@ -274,12 +274,10 @@ public final class AggregationResultUtils {
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValueAggregation aggregation = (MultiValueAggregation) agg;
             Map<String, Object> extracted = new HashMap<>();
-
-            // String fieldLookupPrefix = (lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()) + ".";
             for (String valueName : aggregation.valueNames()) {
                 List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
 
-                // todo: support size > 1
+                // todo: size > 1 is not supported, requires a refactoring so that `size()` is exposed in the agg builder
                 if (valueAsStrings.size() > 0) {
                     extracted.put(valueName, valueAsStrings.get(0));
                 }

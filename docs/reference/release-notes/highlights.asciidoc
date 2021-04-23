@@ -43,5 +43,24 @@ tag::notable-highlights[]
 [discrete]
 === Frozen tier is now GA
 
-Description.
+The frozen tier and partially mounted indices (partial searchable
+snapshots) that were introduced as a technical preview feature in 7.12 are
+now generally available.
+
+See the
+{ref}/release-highlights.html#frozen-tier-shared-snapshot-cache[original
+announcement for 7.12] for more information.
+
+[discete]
+=== Allow fields calculated by scripting at index time
+
+Runtime fields allow you to create a synthetic field derived from the
+values of other document properties at query time, which prioritises
+flexibility (you can change these fields at any time) over speed. In
+{minor-version} you can now generate these synthetic fields at index time,
+trading off some of that flexibility for better query performance.
+
+Scripted mappings are supported on the following field types by defining
+the `script` field in the mappings: `long`, `double`, `keyword`,
+`geo_point`, `ip`, `date`, and `boolean`.
 end::notable-highlights[]

@@ -319,7 +319,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         return persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState);
     }
 
-    private static boolean isNodeShuttingDown(final ClusterState state, final DiscoveryNode node) {
+    static boolean isNodeShuttingDown(final ClusterState state, final DiscoveryNode node) {
         // Right now we make no distinction between the type of shutdown, but maybe in the future?
         return NodesShutdownMetadata.getShutdowns(state)
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)

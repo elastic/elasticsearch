@@ -151,7 +151,8 @@ created:
 //////////////////////////
 
 
-The template can be retrieved by calling
+To retrieve the template, use the <<get-stored-script-api,get stored script
+API>>.
 
 [source,console]
 ------------------------------------------
@@ -159,7 +160,7 @@ GET _scripts/<templateid>
 ------------------------------------------
 // TEST[continued]
 
-The API returns the following result:
+The API returns:
 
 [source,console-result]
 ------------------------------------------
@@ -176,15 +177,14 @@ The API returns the following result:
 }
 ------------------------------------------
 
-
-This template can be deleted by calling
+To delete the template, use the <<delete-stored-script-api,delete stored script
+API>>.
 
 [source,console]
 ------------------------------------------
 DELETE _scripts/<templateid>
 ------------------------------------------
 // TEST[continued]
-
 
 [[use-registered-templates]]
 ===== Using a stored search template

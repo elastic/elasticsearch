@@ -30,7 +30,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;

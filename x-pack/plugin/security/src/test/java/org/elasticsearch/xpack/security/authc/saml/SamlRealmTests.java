@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -296,7 +298,8 @@ public class SamlRealmTests extends SamlTestCase {
 
     private void initializeRealms(Realm... realms) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
 
         final List<Realm> realmList = Arrays.asList(realms);
         for (Realm realm : realms) {
@@ -307,7 +310,7 @@ public class SamlRealmTests extends SamlTestCase {
     public SamlRealm buildRealm(RealmConfig config, UserRoleMapper roleMapper, SamlAuthenticator authenticator,
                                 SamlLogoutRequestHandler logoutHandler, EntityDescriptor idp, SpConfiguration sp) throws Exception {
         try {
-            return new SamlRealm(config, roleMapper, authenticator, logoutHandler, () -> idp, sp);
+            return new SamlRealm(config, roleMapper, authenticator, logoutHandler, mock(SamlLogoutResponseHandler.class), () -> idp, sp);
         } catch (SettingsException e) {
             logger.info(new ParameterizedMessage("Settings are invalid:\n{}", config.settings().toDelimitedString('\n')), e);
             throw e;
@@ -431,6 +434,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateEncryptionCredentialFromKeyStore() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder()
                 .put(REALM_SETTINGS_PREFIX + ".type", "saml")
@@ -479,6 +483,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateSigningCredentialFromKeyStoreSuccessScenarios() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
@@ -518,6 +523,7 @@ public class SamlRealmTests extends SamlTestCase {
     }
 
     public void testCreateSigningCredentialFromKeyStoreFailureScenarios() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PKCS12 keystores are not usable", inFipsJvm());
         final Path dir = createTempDir();
         final Settings.Builder builder = Settings.builder().put(REALM_SETTINGS_PREFIX + ".type", "saml").put("path.home", dir);
         final Path ksFile = dir.resolve("cred.p12");
@@ -691,14 +697,14 @@ public class SamlRealmTests extends SamlTestCase {
         return descriptor;
     }
 
-    private Tuple<RealmConfig, SSLService> buildConfig(String idpMetaDataPath) throws Exception {
-        Settings globalSettings = buildSettings(idpMetaDataPath).build();
+    private Tuple<RealmConfig, SSLService> buildConfig(String idpMetadataPath) throws Exception {
+        Settings globalSettings = buildSettings(idpMetadataPath).build();
         final RealmConfig config = realmConfigFromGlobalSettings(globalSettings);
         final SSLService sslService = new SSLService(config.env());
         return new Tuple<>(config, sslService);
     }
 
-    private Settings.Builder buildSettings(String idpMetaDataPath) {
+    private Settings.Builder buildSettings(String idpMetadataPath) {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(REALM_SETTINGS_PREFIX + ".ssl.secure_key_passphrase", "testnode");
         return Settings.builder()
@@ -709,7 +715,7 @@ public class SamlRealmTests extends SamlTestCase {
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
             .put(REALM_SETTINGS_PREFIX + ".ssl.certificate_authorities",
                 getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), idpMetaDataPath)
+            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), idpMetadataPath)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), TEST_IDP_ENTITY_ID)
             .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_HTTP_REFRESH), METADATA_REFRESH + "ms")
             .put("path.home", createTempDir())

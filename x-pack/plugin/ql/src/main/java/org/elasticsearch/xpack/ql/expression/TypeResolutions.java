@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -18,6 +19,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 public final class TypeResolutions {
@@ -38,6 +40,10 @@ public final class TypeResolutions {
 
     public static TypeResolution isString(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, DataTypes::isString, operationName, paramOrd, "string");
+    }
+
+    public static TypeResolution isIP(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, dt -> dt == IP, operationName, paramOrd, "ip");
     }
 
     public static TypeResolution isExact(Expression e, String message) {
@@ -73,8 +79,17 @@ public final class TypeResolutions {
         return isExact(e, operationName, paramOrd);
     }
 
+    public static TypeResolution isIPAndExact(Expression e, String operationName, ParamOrdinal paramOrd) {
+        TypeResolution resolution = isIP(e, operationName, paramOrd);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return isExact(e, operationName, paramOrd);
+    }
+
     public static TypeResolution isFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
-        if (!e.foldable()) {
+        if (e.foldable() == false) {
             return new TypeResolution(format(null, "{}argument of [{}] must be a constant, received [{}]",
                 paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
                 operationName,

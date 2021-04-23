@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
@@ -74,7 +75,7 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             AggregatorFactories.Builder aggs =
                 XContentObjectTransformer.aggregatorTransformer(new NamedXContentRegistry(searchModule.getNamedXContents()))
                     .fromMap(agg);
-            return new AggProvider(agg, aggs, null);
+            return new AggProvider(agg, aggs, null, false);
         } catch (IOException ex) {
             fail(ex.getMessage());
         }
@@ -182,6 +183,6 @@ public class AggProviderTests extends AbstractSerializingTestCase<AggProvider> {
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new AggProvider(instance.getAggs(), parsedAggs, parsingException);
+        return new AggProvider(instance.getAggs(), parsedAggs, parsingException, false);
     }
 }

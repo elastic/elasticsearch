@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -33,7 +35,7 @@ import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
 
     public static Iif randomIif() {
-        return new Iif(randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral()),
+        return new Iif(randomSource(), new Equals(randomSource(), randomStringLiteral(), randomStringLiteral(), randomZone()),
             randomIntLiteral(), randomIntLiteral());
     }
 
@@ -61,7 +63,7 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
 
         Source newSource = randomValueOtherThan(iif.source(), SourceTests::randomSource);
         assertEquals(new Iif(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
-            iif.transformPropertiesOnly(p -> Objects.equals(p, iif.source()) ? newSource: p, Object.class));
+            iif.transformPropertiesOnly(Object.class, p -> Objects.equals(p, iif.source()) ? newSource: p));
     }
 
     @Override
@@ -86,7 +88,8 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
         Equals eq = (Equals) iif.conditions().get(0).condition();
         expressions.add(new Equals(randomSource(),
             randomValueOtherThan(eq.left(), FunctionTestUtils::randomStringLiteral),
-            randomValueOtherThan(eq.right(), FunctionTestUtils::randomStringLiteral)));
+            randomValueOtherThan(eq.right(), FunctionTestUtils::randomStringLiteral),
+            randomValueOtherThan(eq.zoneId(), ESTestCase::randomZone)));
         expressions.add(randomValueOtherThan(iif.conditions().get(0).result(), FunctionTestUtils::randomIntLiteral));
         expressions.add(randomValueOtherThan(iif.elseResult(), FunctionTestUtils::randomIntLiteral));
         return expressions;

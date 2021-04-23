@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +37,7 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerActivateDoesNotExist() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
+            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(
                     singletonMap("remote_cluster", randomAutoFollowPattern()),
                     singletonMap("remote_cluster", randomSubsetOf(randomIntBetween(1, 3), "uuid0", "uuid1", "uuid2")),
@@ -48,7 +51,7 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
     public void testInnerActivateToggle() {
         final AutoFollowMetadata.AutoFollowPattern autoFollowPattern = randomAutoFollowPattern();
         final ClusterState clusterState = ClusterState.builder(new ClusterName("cluster"))
-            .metaData(MetaData.builder().putCustom(AutoFollowMetadata.TYPE,
+            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
                 new AutoFollowMetadata(
                     singletonMap("remote_cluster", autoFollowPattern),
                     singletonMap("remote_cluster", randomSubsetOf(randomIntBetween(1, 3), "uuid0", "uuid1", "uuid2")),
@@ -64,10 +67,10 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
             ClusterState updatedState = TransportActivateAutoFollowPatternAction.innerActivate(pauseRequest, clusterState);
             assertThat(updatedState, not(sameInstance(clusterState)));
 
-            AutoFollowMetadata updatedAutoFollowMetadata = updatedState.getMetaData().custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata updatedAutoFollowMetadata = updatedState.getMetadata().custom(AutoFollowMetadata.TYPE);
             assertNotEquals(updatedAutoFollowMetadata, notNullValue());
 
-            AutoFollowMetadata autoFollowMetadata = clusterState.getMetaData().custom(AutoFollowMetadata.TYPE);
+            AutoFollowMetadata autoFollowMetadata = clusterState.getMetadata().custom(AutoFollowMetadata.TYPE);
             assertNotEquals(updatedAutoFollowMetadata, autoFollowMetadata);
             assertThat(updatedAutoFollowMetadata.getPatterns().size(), equalTo(autoFollowMetadata.getPatterns().size()));
             assertThat(updatedAutoFollowMetadata.getPatterns().get("remote_cluster").isActive(), not(autoFollowPattern.isActive()));
@@ -81,6 +84,7 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
         return new AutoFollowMetadata.AutoFollowPattern(randomAlphaOfLength(5),
             randomSubsetOf(Arrays.asList("test-*", "user-*", "logs-*", "failures-*")),
             randomFrom("{{leader_index}}", "{{leader_index}}-follower", "test"),
+            Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build(),
             randomBoolean(),
             randomIntBetween(1, 100),
             randomIntBetween(1, 100),

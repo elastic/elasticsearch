@@ -8,9 +8,9 @@ Clones an existing index.
 
 [source,console]
 --------------------------------------------------
-POST /twitter/_clone/cloned-twitter-index
+POST /my-index-000001/_clone/cloned-my-index-000001
 --------------------------------------------------
-// TEST[s/^/PUT twitter\n{"settings":{"index.number_of_shards" : 5,"blocks.write":true}}\n/]
+// TEST[s/^/PUT my-index-000001\n{"settings":{"index.number_of_shards" : 5,"blocks.write":true}}\n/]
 
 
 [[clone-index-api-request]]
@@ -20,13 +20,14 @@ POST /twitter/_clone/cloned-twitter-index
 
 `PUT /<index>/_clone/<target-index>`
 
-
 [[clone-index-api-prereqs]]
 ==== {api-prereq-title}
 
-To clone an index,
-the index must be marked as read-only
-and have a <<cluster-health,cluster health>> status of `green`.
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index you want to clone.
+
+* To clone an index, the index must be marked as read-only and have a
+<<cluster-health,cluster health>> status of `green`.
 
 For example,
 the following request prevents write operations on `my_source_index`
@@ -44,6 +45,10 @@ PUT /my_source_index/_settings
 --------------------------------------------------
 // TEST[s/^/PUT my_source_index\n/]
 
+The current write index on a data stream cannot be cloned. In order to clone
+the current write index, the data stream must first be
+<<data-streams-rollover,rolled over>> so that a new write index is created
+and then the previous write index can be cloned.
 
 [[clone-index-api-desc]]
 ==== {api-description-title}
@@ -137,7 +142,7 @@ can be allocated on that node.
 
 Once the primary shard is allocated, it moves to state `initializing`, and the
 clone process begins. When the clone operation completes, the shard will
-become `active`. At that  point, {es} will try to allocate any
+become `active`. At that point, {es} will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
 [[clone-wait-active-shards]]
@@ -155,20 +160,20 @@ on index creation applies to the clone index action as well.
 (Required, string)
 Name of the source index to clone.
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index]
 
 
 [[clone-index-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[clone-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

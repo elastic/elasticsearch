@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngine;
@@ -34,7 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.ldap.LdapSessionFactorySettin
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapUserSearchSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.PoolingSessionFactorySettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.SearchGroupsResolverSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetaDataResolverSettings;
+import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapMetadataResolverSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.core.security.authc.support.CachingUsernamePasswordRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
@@ -101,12 +103,13 @@ public class LdapRealmTests extends LdapTestCase {
         defaultGlobalSettings = Settings.builder().put("path.home", createTempDir()).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(defaultGlobalSettings));
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
     @After
     public void shutdown() throws InterruptedException {
-        resourceWatcherService.stop();
+        resourceWatcherService.close();
         terminate(threadPool);
     }
 
@@ -424,7 +427,7 @@ public class LdapRealmTests extends LdapTestCase {
     /**
      * This tests template role mappings (see
      * {@link TemplateRoleName}) with an LDAP realm, using a additional
-     * metadata field (see {@link LdapMetaDataResolverSettings#ADDITIONAL_META_DATA_SETTING}).
+     * metadata field (see {@link LdapMetadataResolverSettings#ADDITIONAL_METADATA_SETTING}).
      */
     public void testLdapRealmWithTemplatedRoleMapping() throws Exception {
         String groupSearchBase = "o=sevenSeas";
@@ -433,14 +436,13 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(defaultGlobalSettings)
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put(getFullSettingKey(REALM_IDENTIFIER.getName(),
-                        LdapMetaDataResolverSettings.ADDITIONAL_META_DATA_SETTING.apply(LdapRealmSettings.LDAP_TYPE)), "uid")
+                        LdapMetadataResolverSettings.ADDITIONAL_METADATA_SETTING.apply(LdapRealmSettings.LDAP_TYPE)), "uid")
                 .build();
         RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
 
         SecurityIndexManager mockSecurityIndex = mock(SecurityIndexManager.class);
         when(mockSecurityIndex.isAvailable()).thenReturn(true);
         when(mockSecurityIndex.isIndexUpToDate()).thenReturn(true);
-        when(mockSecurityIndex.isMappingUpToDate()).thenReturn(true);
 
         Client mockClient = mock(Client.class);
         when(mockClient.threadPool()).thenReturn(threadPool);

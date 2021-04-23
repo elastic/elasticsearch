@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
@@ -22,6 +23,8 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -35,9 +38,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -52,18 +53,18 @@ import static org.mockito.Mockito.spy;
 
 public class RollupIndexerStateTests extends ESTestCase {
     private static class EmptyRollupIndexer extends RollupIndexer {
-        EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+        EmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                 Map<String, Object> initialPosition, RollupIndexerJobStats stats) {
-            super(executor, job, initialState, initialPosition, stats);
+            super(threadPool, job, initialState, initialPosition, stats);
         }
 
-        EmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+        EmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                            Map<String, Object> initialPosition) {
-            super(executor, job, initialState, initialPosition);
+            super(threadPool, job, initialState, initialPosition);
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             // TODO Should use InternalComposite constructor but it is package protected in core.
             Aggregations aggs = new Aggregations(Collections.singletonList(new CompositeAggregation() {
                 @Override
@@ -87,7 +88,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, Object> getMetaData() {
+                public Map<String, Object> getMetadata() {
                     return null;
                 }
 
@@ -134,14 +135,14 @@ public class RollupIndexerStateTests extends ESTestCase {
     private static class DelayedEmptyRollupIndexer extends EmptyRollupIndexer {
         protected CountDownLatch latch;
 
-        DelayedEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+        DelayedEmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                                   Map<String, Object> initialPosition) {
-            super(executor, job, initialState, initialPosition);
+            super(threadPool, job, initialState, initialPosition);
         }
 
-        DelayedEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+        DelayedEmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                 Map<String, Object> initialPosition, RollupIndexerJobStats stats) {
-            super(executor, job, initialState, initialPosition, stats);
+            super(threadPool, job, initialState, initialPosition, stats);
         }
 
         private CountDownLatch newLatch() {
@@ -149,14 +150,14 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             assert latch != null;
             try {
                 latch.await();
             } catch (InterruptedException e) {
                 throw new IllegalStateException(e);
             }
-            super.doNextSearch(request, nextPhase);
+            super.doNextSearch(waitTimeInNanos, nextPhase);
         }
     }
 
@@ -167,17 +168,17 @@ public class RollupIndexerStateTests extends ESTestCase {
         final BiConsumer<IndexerState, Map<String, Object>> saveStateCheck;
         private CountDownLatch latch;
 
-        NonEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+        NonEmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                               Map<String, Object> initialPosition, Function<SearchRequest, SearchResponse> searchFunction,
                               Function<BulkRequest, BulkResponse> bulkFunction, Consumer<Exception> failureConsumer) {
-            this(executor, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
+            this(threadPool, job, initialState, initialPosition, searchFunction, bulkFunction, failureConsumer, (i, m) -> {});
         }
 
-        NonEmptyRollupIndexer(Executor executor, RollupJob job, AtomicReference<IndexerState> initialState,
+        NonEmptyRollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                               Map<String, Object> initialPosition, Function<SearchRequest, SearchResponse> searchFunction,
                               Function<BulkRequest, BulkResponse> bulkFunction, Consumer<Exception> failureConsumer,
                               BiConsumer<IndexerState, Map<String, Object>> saveStateCheck) {
-            super(executor, job, initialState, initialPosition);
+            super(threadPool, job, initialState, initialPosition);
             this.searchFunction = searchFunction;
             this.bulkFunction = bulkFunction;
             this.failureConsumer = failureConsumer;
@@ -189,7 +190,7 @@ public class RollupIndexerStateTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             assert latch != null;
             try {
                 latch.await();
@@ -198,7 +199,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(request);
+                SearchResponse response = searchFunction.apply(buildSearchRequest());
                 nextPhase.onResponse(response);
             } catch (Exception e) {
                 nextPhase.onFailure(e);
@@ -242,9 +243,9 @@ public class RollupIndexerStateTests extends ESTestCase {
     public void testStarted() throws Exception {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            RollupIndexer indexer = new EmptyRollupIndexer(executor, job, state, null);
+            RollupIndexer indexer = new EmptyRollupIndexer(threadPool, job, state, null);
             indexer.start();
             assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
             assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
@@ -257,17 +258,17 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getIndexTotal(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testIndexing() throws Exception {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             AtomicBoolean isFinished = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     super.onFinish(ActionListener.wrap(r -> {
@@ -300,7 +301,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getSearchTotal(), equalTo(1L));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -322,10 +323,11 @@ public class RollupIndexerStateTests extends ESTestCase {
         doAnswer(forwardAndChangeState).when(spyStats).incrementNumInvocations(1L);
         RollupJob job = new RollupJob(config, Collections.emptyMap());
 
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             AtomicBoolean isFinished = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null, spyStats) {
+            DelayedEmptyRollupIndexer indexer =
+                new DelayedEmptyRollupIndexer(threadPool, job, state, null, spyStats) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     super.onFinish(ActionListener.wrap(r -> {
@@ -345,7 +347,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -353,24 +355,24 @@ public class RollupIndexerStateTests extends ESTestCase {
         final AtomicBoolean aborted = new AtomicBoolean(false);
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         final CountDownLatch latch = new CountDownLatch(1);
         try {
-            EmptyRollupIndexer indexer = new EmptyRollupIndexer(executor, job, state, null) {
+            EmptyRollupIndexer indexer = new EmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
                 protected void onFinish(ActionListener<Void> listener) {
                     fail("Should not have called onFinish");
                 }
 
                 @Override
-                protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+                protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
                     try {
                         latch.await();
                     } catch (InterruptedException e) {
                         throw new IllegalStateException(e);
                     }
                     state.set(IndexerState.ABORTING);   // <-- Set to aborting right before we return the (empty) search response
-                    super.doNextSearch(request, nextPhase);
+                    super.doNextSearch(waitTimeInNanos, nextPhase);
                 }
 
                 @Override
@@ -390,7 +392,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
             assertThat(indexer.getStats().getSearchFailures(), equalTo(0L));
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -398,20 +400,20 @@ public class RollupIndexerStateTests extends ESTestCase {
         final AtomicBoolean aborted = new AtomicBoolean(false);
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
 
         // Don't use the indexer's latch because we completely change doNextSearch()
         final CountDownLatch doNextSearchLatch = new CountDownLatch(1);
 
         try {
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
                     aborted.set(true);
                 }
 
                 @Override
-                protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+                protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
                     try {
                         doNextSearchLatch.await();
                     } catch (InterruptedException e) {
@@ -443,7 +445,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                         }
 
                         @Override
-                        public Map<String, Object> getMetaData() {
+                        public Map<String, Object> getMetadata() {
                             return null;
                         }
 
@@ -477,16 +479,16 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumInvocations(), equalTo(1L));
             assertThat(indexer.getStats().getNumPages(), equalTo(1L));
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testStopIndexing() throws Exception {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null);
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null);
             final CountDownLatch latch = indexer.newLatch();
             assertFalse(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
             assertThat(indexer.getState(), equalTo(IndexerState.STOPPED));
@@ -499,17 +501,17 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testAbortIndexing() throws Exception {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
                     isAborted.set(true);
@@ -526,17 +528,17 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertBusy(() -> assertTrue(isAborted.get()));
             assertFalse(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testAbortStarted() {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
                     isAborted.set(true);
@@ -552,17 +554,17 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getNumPages(), equalTo(0L));
             assertFalse(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
     public void testMultipleJobTriggering() throws Exception {
         RollupJob job = new RollupJob(ConfigTestHelpers.randomRollupJobConfig(random()), Collections.emptyMap());
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(executor, job, state, null) {
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
                 @Override
                 protected void onAbort() {
                     isAborted.set(true);
@@ -589,7 +591,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -621,7 +623,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                         @Override
                         public Aggregations getAggregations() {
-                            return new InternalAggregations(Collections.emptyList());
+                            return InternalAggregations.EMPTY;
                         }
 
                         @Override
@@ -649,7 +651,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, Object> getMetaData() {
+                public Map<String, Object> getMetadata() {
                     return null;
                 }
 
@@ -676,10 +678,10 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
         };
 
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
-            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(executor, job, state, null,
+            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(threadPool, job, state, null,
                 searchFunction, bulkFunction, failureConsumer, stateCheck);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
@@ -701,7 +703,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -734,7 +736,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                         @Override
                         public Aggregations getAggregations() {
-                            return new InternalAggregations(Collections.emptyList());
+                            return InternalAggregations.EMPTY;
                         }
 
                         @Override
@@ -762,7 +764,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, Object> getMetaData() {
+                public Map<String, Object> getMetadata() {
                     return null;
                 }
 
@@ -788,10 +790,10 @@ public class RollupIndexerStateTests extends ESTestCase {
             isFinished.set(true);
         };
 
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
-            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(executor, job, state, null,
+            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(threadPool, job, state, null,
                 searchFunction, bulkFunction, failureConsumer, doSaveStateCheck);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
@@ -812,7 +814,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -836,10 +838,10 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
         };
 
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
-            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(executor, job, state, null,
+            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(threadPool, job, state, null,
                 searchFunction, bulkFunction, failureConsumer, stateCheck);
             final CountDownLatch latch = indexer.newLatch(1);
             indexer.start();
@@ -861,7 +863,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -891,7 +893,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                         @Override
                         public Aggregations getAggregations() {
-                            return new InternalAggregations(Collections.emptyList());
+                            return InternalAggregations.EMPTY;
                         }
 
                         @Override
@@ -919,7 +921,7 @@ public class RollupIndexerStateTests extends ESTestCase {
                 }
 
                 @Override
-                public Map<String, Object> getMetaData() {
+                public Map<String, Object> getMetadata() {
                     return null;
                 }
 
@@ -949,10 +951,10 @@ public class RollupIndexerStateTests extends ESTestCase {
             }
         };
 
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
 
-            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(executor, job, state, null,
+            NonEmptyRollupIndexer indexer = new NonEmptyRollupIndexer(threadPool, job, state, null,
                 searchFunction, bulkFunction, failureConsumer, stateCheck) {
                 @Override
                 protected void doNextBulk(BulkRequest request, ActionListener<BulkResponse> nextPhase) {
@@ -979,7 +981,7 @@ public class RollupIndexerStateTests extends ESTestCase {
             assertThat(indexer.getStats().getOutputDocuments(), equalTo(0L));
             assertTrue(indexer.abort());
         } finally {
-            executor.shutdownNow();
+            ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }
     }
 }

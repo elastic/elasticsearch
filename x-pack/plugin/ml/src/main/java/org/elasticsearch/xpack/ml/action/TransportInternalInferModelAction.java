@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -16,11 +17,12 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Request;
 import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction.Response;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.ml.inference.loadingservice.Model;
+import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
@@ -52,7 +54,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
 
         Response.Builder responseBuilder = Response.builder();
 
-        ActionListener<Model> getModelListener = ActionListener.wrap(
+        ActionListener<LocalModel> getModelListener = ActionListener.wrap(
             model -> {
                 TypedChainTaskExecutor<InferenceResults> typedChainTaskExecutor =
                     new TypedChainTaskExecutor<>(client.threadPool().executor(ThreadPool.Names.SAME),
@@ -62,26 +64,33 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
                     ex -> true);
                 request.getObjectsToInfer().forEach(stringObjectMap ->
                     typedChainTaskExecutor.add(chainedTask ->
-                        model.infer(stringObjectMap, request.getConfig(), chainedTask)));
+                        model.infer(stringObjectMap, request.getUpdate(), chainedTask)));
 
                 typedChainTaskExecutor.execute(ActionListener.wrap(
-                    inferenceResultsInterfaces ->
-                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces).build()),
-                    listener::onFailure
+                    inferenceResultsInterfaces -> {
+                        model.release();
+                        listener.onResponse(responseBuilder.setInferenceResults(inferenceResultsInterfaces)
+                            .setModelId(model.getModelId())
+                            .build());
+                    },
+                    e -> {
+                        model.release();
+                        listener.onFailure(e);
+                    }
                 ));
             },
             listener::onFailure
         );
 
-        if (licenseState.isMachineLearningAllowed()) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             responseBuilder.setLicensed(true);
-            this.modelLoadingService.getModel(request.getModelId(), getModelListener);
+            this.modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
         } else {
-            trainedModelProvider.getTrainedModel(request.getModelId(), false, ActionListener.wrap(
+            trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), ActionListener.wrap(
                 trainedModelConfig -> {
                     responseBuilder.setLicensed(licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()));
                     if (licenseState.isAllowedByLicense(trainedModelConfig.getLicenseLevel()) || request.isPreviouslyLicensed()) {
-                        this.modelLoadingService.getModel(request.getModelId(), getModelListener);
+                        this.modelLoadingService.getModelForPipeline(request.getModelId(), getModelListener);
                     } else {
                         listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
                     }

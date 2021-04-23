@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
@@ -10,6 +11,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -17,15 +20,18 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
+import static org.elasticsearch.test.hamcrest.TupleMatchers.isTuple;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockFilters;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockSingleValue;
 import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MockAggregations.mockTerms;
-import static org.elasticsearch.test.hamcrest.TupleMatchers.isTuple;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
+
+    private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
+    private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
 
     @Override
     protected Precision doParseInstance(XContentParser parser) throws IOException {
@@ -62,7 +68,7 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
         Precision precision = new Precision();
         precision.process(aggs);
 
-        assertThat(precision.aggs("act", "pred"), isTuple(empty(), empty()));
+        assertThat(precision.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS), isTuple(empty(), empty()));
         assertThat(precision.getResult().get(), equalTo(new Precision.Result(List.of(), 0.8123)));
     }
 
@@ -112,7 +118,7 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
         Aggregations aggs =
             new Aggregations(Collections.singletonList(mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME, Collections.emptyList(), 1)));
         Precision precision = new Precision();
-        precision.aggs("foo", "bar");
+        precision.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> precision.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }

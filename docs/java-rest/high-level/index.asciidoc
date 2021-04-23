@@ -5,7 +5,6 @@
 
 [partintro]
 --
-added[6.0.0-beta1]
 
 The Java High Level REST Client works on top of the Java Low Level REST client.
 Its main goal is to expose API specific methods, that accept request objects as
@@ -24,8 +23,8 @@ the same response objects.
 
 --
 
-:doc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
-:hlrc-tests: {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client
+:doc-tests: {elasticsearch-root}/client/rest-high-level/src/test/java/org/elasticsearch/client/documentation
+:hlrc-tests: {elasticsearch-root}/client/rest-high-level/src/test/java/org/elasticsearch/client
 
 include::getting-started.asciidoc[]
 include::supported-apis.asciidoc[]

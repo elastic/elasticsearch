@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -24,8 +13,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -50,10 +39,10 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        MetaData metaData = MetaData.builder().put(IndexMetaData.builder(INDEX_NAME)
+        Metadata metadata = Metadata.builder().put(IndexMetadata.builder(INDEX_NAME)
             .settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1)).build();
-        RoutingTable routingTable = RoutingTable.builder().addAsNew(metaData.index(INDEX_NAME)).build();
-        clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable)
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(metadata.index(INDEX_NAME)).build();
+        clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         strategy = createAllocationService(Settings.EMPTY);
     }

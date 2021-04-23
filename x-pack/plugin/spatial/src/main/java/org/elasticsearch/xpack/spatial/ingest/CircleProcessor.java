@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.ingest;
 
@@ -45,9 +46,9 @@ public final class CircleProcessor extends AbstractProcessor {
     private final double errorDistance;
     private final CircleShapeFieldType circleShapeFieldType;
 
-    CircleProcessor(String tag, String field, String targetField, boolean ignoreMissing, double errorDistance,
+    CircleProcessor(String tag, String description, String field, String targetField, boolean ignoreMissing, double errorDistance,
                     CircleShapeFieldType circleShapeFieldType) {
-        super(tag);
+        super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
@@ -80,7 +81,7 @@ public final class CircleProcessor extends AbstractProcessor {
             parser.nextToken(); // START_OBJECT
             parser.nextToken(); // "shape" field key
             parser.nextToken(); // shape value
-            GeometryFormat geometryFormat = PARSER.geometryFormat(parser);
+            GeometryFormat<Geometry> geometryFormat = PARSER.geometryFormat(parser);
             Geometry geometry = geometryFormat.fromXContent(parser);
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;
@@ -141,14 +142,15 @@ public final class CircleProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        public CircleProcessor create(Map<String, Processor.Factory> registry, String processorTag, Map<String, Object> config) {
+        public CircleProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
+                                      Map<String, Object> config) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             double radiusDistance = Math.abs(ConfigurationUtils.readDoubleProperty(TYPE, processorTag, config, "error_distance"));
             CircleShapeFieldType circleFieldType = CircleShapeFieldType.parse(
                 ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "shape_type"));
-            return new CircleProcessor(processorTag, field, targetField, ignoreMissing, radiusDistance, circleFieldType);
+            return new CircleProcessor(processorTag, description, field, targetField, ignoreMissing, radiusDistance, circleFieldType);
         }
     }
 

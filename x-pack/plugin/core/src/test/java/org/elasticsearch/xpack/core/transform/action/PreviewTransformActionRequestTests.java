@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
@@ -11,10 +12,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction.Request;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
-import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 
 import java.io.IOException;
@@ -41,32 +43,44 @@ public class PreviewTransformActionRequestTests extends AbstractSerializingTrans
     @Override
     protected Request createTestInstance() {
         TransformConfig config = new TransformConfig(
-                "transform-preview",
-                randomSourceConfig(),
-                new DestConfig("unused-transform-preview-index", null),
-                null,
-                randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
-                null,
-                PivotConfigTests.randomPivotConfig(),
-                null);
+            "transform-preview",
+            randomSourceConfig(),
+            new DestConfig("unused-transform-preview-index", null),
+            null,
+            randomBoolean() ? TransformConfigTests.randomSyncConfig() : null,
+            null,
+            PivotConfigTests.randomPivotConfig(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
         return new Request(config);
     }
 
     public void testParsingOverwritesIdAndDestFields() throws IOException {
         // id & dest fields will be set by the parser
         BytesArray json = new BytesArray(
-                "{ " +
-                    "\"source\":{" +
-                    "   \"index\":\"foo\", " +
-                    "   \"query\": {\"match_all\": {}}}," +
-                    "\"pivot\": {" +
-                        "\"group_by\": {\"destination-field2\": {\"terms\": {\"field\": \"term-field\"}}}," +
-                        "\"aggs\": {\"avg_response\": {\"avg\": {\"field\": \"responsetime\"}}}" +
-                    "}" +
-                "}");
+            "{ "
+                + "\"source\":{"
+                + "   \"index\":\"foo\", "
+                + "   \"query\": {\"match_all\": {}}},"
+                + "\"pivot\": {"
+                + "\"group_by\": {\"destination-field2\": {\"terms\": {\"field\": \"term-field\"}}},"
+                + "\"aggs\": {\"avg_response\": {\"avg\": {\"field\": \"responsetime\"}}}"
+                + "}"
+                + "}"
+        );
 
-        try (XContentParser parser = JsonXContent.jsonXContent
-                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput())) {
+        try (
+            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                xContentRegistry(),
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                json.streamInput()
+            )
+        ) {
 
             Request request = Request.fromXContent(parser);
             assertEquals("transform-preview", request.getConfig().getId());

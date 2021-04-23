@@ -1,0 +1,127 @@
+[role="xpack"]
+[testenv="basic"]
+
+[[unsigned-long]]
+=== Unsigned long field type
+++++
+<titleabbrev>Unsigned long</titleabbrev>
+++++
+Unsigned long is a numeric field type that represents an unsigned 64-bit
+integer with a minimum value of 0 and a maximum value of +2^64^-1+
+(from 0 to 18446744073709551615 inclusive).
+
+[source,console]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "properties": {
+      "my_counter": {
+        "type": "unsigned_long"
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+Unsigned long can be indexed in a numeric or string form,
+representing integer values in the range [0, 18446744073709551615].
+They can't have a decimal part.
+
+[source,console]
+--------------------------------
+POST /my_index/_bulk?refresh
+{"index":{"_id":1}}
+{"my_counter": 0}
+{"index":{"_id":2}}
+{"my_counter": 9223372036854775808}
+{"index":{"_id":3}}
+{"my_counter": 18446744073709551614}
+{"index":{"_id":4}}
+{"my_counter": 18446744073709551615}
+--------------------------------
+//TEST[continued]
+
+Term queries accept any numbers in a numeric or string form.
+
+[source,console]
+--------------------------------
+GET /my_index/_search
+{
+    "query": {
+        "term" : {
+            "my_counter" : 18446744073709551615
+        }
+    }
+}
+--------------------------------
+//TEST[continued]
+
+Range query terms can contain values with decimal parts.
+In this case {es} converts them to integer values:
+`gte` and `gt` terms are converted to the nearest integer up inclusive,
+and `lt` and `lte` ranges are converted to the nearest integer down inclusive.
+
+It is recommended to pass ranges as strings to ensure they are parsed
+without any loss of precision.
+
+[source,console]
+--------------------------------
+GET /my_index/_search
+{
+    "query": {
+        "range" : {
+            "my_counter" : {
+                "gte" : "9223372036854775808.5",
+                "lte" : "18446744073709551615"
+            }
+        }
+    }
+}
+--------------------------------
+//TEST[continued]
+
+
+For queries with sort on an `unsigned_long` field,
+for a particular document {es} returns a sort value of the type `long`
+if the value of this document is within the range of long values,
+or of the type `BigInteger` if the value exceeds this range.
+
+NOTE: REST clients need to be able to handle big integer values
+in JSON to support this field type correctly.
+
+[source,console]
+--------------------------------
+GET /my_index/_search
+{
+    "query": {
+        "match_all" : {}
+    },
+    "sort" : {"my_counter" : "desc"}
+}
+--------------------------------
+//TEST[continued]
+
+
+==== Unsigned long in scripts
+Currently unsigned_long is not supported in scripts.
+
+==== Stored fields
+A stored field of `unsigned_long` is stored and returned as `String`.
+
+==== Aggregations
+For `terms` aggregations, similarly to sort values, `Long` or
+`BigInteger` values are used. For other aggregations,
+values are converted to the `double` type.
+
+==== Queries with mixed numeric types
+
+Searches with mixed numeric types one of which is `unsigned_long` are
+supported, except queries with sort. Thus, a sort query across two indexes
+where the same field name has an `unsigned_long` type in one index,
+and `long` type in another, doesn't produce correct results and must
+be avoided. If there is a need for such kind of sorting, script based sorting
+can be used instead.
+
+Aggregations across several numeric types one of which is `unsigned_long` are
+supported. In this case, values are converted to the `double` type.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.health;
@@ -23,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -77,7 +66,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
     }
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards) {
-        final IndexMetaData indexMetaData = IndexMetaData
+        final IndexMetadata indexMetadata = IndexMetadata
             .builder(index)
             .settings(settings(Version.CURRENT))
             .numberOfShards(between(1, 10))
@@ -91,7 +80,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         Randomness.shuffle(shardRoutingStates);
 
         final ShardId shardId = new ShardId(new Index("index", "uuid"), 0);
-        final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetaData.getIndex());
+        final IndexRoutingTable.Builder routingTable = new IndexRoutingTable.Builder(indexMetadata.getIndex());
 
         // Primary
         {
@@ -110,7 +99,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         }
 
         return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metaData(MetaData.builder().put(indexMetaData, true))
+            .metadata(Metadata.builder().put(indexMetadata, true))
             .routingTable(RoutingTable.builder().add(routingTable.build()).build())
             .build();
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.disruption;
@@ -145,7 +134,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
 
     @Override
     public synchronized void stopDisrupting() {
-        if (!activeDisruption) {
+        if (activeDisruption == false) {
             return;
         }
         logger.info("stop disrupting (disruption scheme: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);
@@ -405,7 +394,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
          * @param targetTransportService target transport service to which requests are sent
          */
         public void removeDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
-            sourceTransportService.clearRule(targetTransportService);
+            sourceTransportService.clearOutboundRules(targetTransportService);
         }
 
         /**
@@ -420,7 +409,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     /**
      * Simulates a network disconnect. Sending a request from source to target node throws a {@link ConnectTransportException}.
      */
-    public static class NetworkDisconnect extends NetworkLinkDisruptionType {
+    public static final NetworkLinkDisruptionType DISCONNECT = new NetworkLinkDisruptionType() {
 
         @Override
         public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
@@ -431,13 +420,12 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public String toString() {
             return "network disconnects";
         }
-    }
+    };
 
     /**
      * Simulates an unresponsive target node by dropping requests sent from source to target node.
      */
-    public static class NetworkUnresponsive extends NetworkLinkDisruptionType {
-
+    public static final NetworkLinkDisruptionType UNRESPONSIVE = new NetworkLinkDisruptionType() {
         @Override
         public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
             sourceTransportService.addUnresponsiveRule(targetTransportService);
@@ -447,7 +435,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         public String toString() {
             return "network unresponsive";
         }
-    }
+    };
 
     /**
      * Simulates slow or congested network. Delivery of requests that are sent from source to target node are delayed by a configurable

@@ -1,0 +1,49 @@
+{
+  "indices.get_index_template":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+      "description":"Returns an index template."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_index_template",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_index_template/{name}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "name":{
+              "type":"list",
+              "description":"The comma separated names of the index templates"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "flat_settings":{
+        "type":"boolean",
+        "description":"Return settings in flat format (default: false)"
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to master node"
+      },
+      "local":{
+        "type":"boolean",
+        "description":"Return local information, do not retrieve the state from master node (default: false)"
+      }
+    }
+  }
+}

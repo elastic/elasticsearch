@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
@@ -141,14 +142,14 @@ public class EmailService extends NotificationService<Account> {
 
     @Override
     protected Account createAccount(String name, Settings accountSettings) {
-        Account.Config config = new Account.Config(name, accountSettings, getSmtpSslSocketFactory());
+        Account.Config config = new Account.Config(name, accountSettings, getSmtpSslSocketFactory(), logger);
         return new Account(config, cryptoService, logger);
     }
 
     @Nullable
     private SSLSocketFactory getSmtpSslSocketFactory() {
         final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(EMAIL_NOTIFICATION_SSL_PREFIX);
-        if (sslConfiguration == null) {
+        if (sslConfiguration == null || sslConfiguration.isExplicitlyConfigured() == false) {
             return null;
         }
         return sslService.sslSocketFactory(sslConfiguration);

@@ -1,0 +1,11 @@
+{
+  "phases": {
+    "hot": {
+      "actions": {
+        "rollover": {
+          "max_primary_shard_size": "50gb"
+        }
+      }
+    }
+  }
+}

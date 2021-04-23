@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Update datafeed API
+=== Update datafeeds API
 
 Updates a {ml} datafeed in the cluster. The API accepts a +{request}+ object
 as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Update datafeed request
+==== Update datafeeds request
 
 A +{request}+ requires the following argument:
 
@@ -22,7 +22,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> The updated configuration of the {ml} datafeed
 
 [id="{upid}-{api}-config"]
-==== Updated datafeed arguments
+==== Updated datafeeds arguments
 
 A `DatafeedUpdate` requires an existing non-null `datafeedId` and
 allows updating various settings.
@@ -43,6 +43,7 @@ datafeed runs in real time.
 <7> Optional, the time interval behind real time that data is queried.
 <8> Optional, allows the use of script fields.
 <9> Optional, the `size` parameter used in the searches.
+<10> Optional, the runtime fields used in the datafeed.
 
 include::../execution.asciidoc[]
 

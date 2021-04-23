@@ -23,14 +23,14 @@ The `_score` can be changed with the `boost` parameter:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match_all": { "boost" : 1.2 }
-    }
+  "query": {
+    "match_all": { "boost" : 1.2 }
+  }
 }
 --------------------------------------------------
 
 [[query-dsl-match-none-query]]
-[float]
+[discrete]
 == Match None Query
 
 This is the inverse of the `match_all` query, which matches no documents.
@@ -39,8 +39,8 @@ This is the inverse of the `match_all` query, which matches no documents.
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match_none": {} 
-    }
+  "query": {
+    "match_none": {} 
+  }
 }
 --------------------------------------------------

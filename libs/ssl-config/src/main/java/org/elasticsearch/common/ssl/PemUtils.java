@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
@@ -62,7 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-final class PemUtils {
+public final class PemUtils {
 
     private static final String PKCS1_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS1_FOOTER = "-----END RSA PRIVATE KEY-----";
@@ -350,7 +339,6 @@ final class PemUtils {
         EncryptedPrivateKeyInfo encryptedPrivateKeyInfo = new EncryptedPrivateKeyInfo(keyBytes);
         SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance(encryptedPrivateKeyInfo.getAlgName());
         SecretKey secretKey = secretKeyFactory.generateSecret(new PBEKeySpec(keyPassword));
-        Arrays.fill(keyPassword, '\u0000');
         Cipher cipher = Cipher.getInstance(encryptedPrivateKeyInfo.getAlgName());
         cipher.init(Cipher.DECRYPT_MODE, secretKey, encryptedPrivateKeyInfo.getAlgParameters());
         PKCS8EncodedKeySpec keySpec = encryptedPrivateKeyInfo.getKeySpec(cipher);
@@ -509,9 +497,12 @@ final class PemUtils {
         parser.readAsn1Object().getInteger(); // version
         String keyHex = parser.readAsn1Object().getString();
         BigInteger privateKeyInt = new BigInteger(keyHex, 16);
+        DerParser.Asn1Object choice = parser.readAsn1Object();
+        parser = choice.getParser();
+        String namedCurve = getEcCurveNameFromOid(parser.readAsn1Object().getOid());
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("EC");
-        AlgorithmParameterSpec prime256v1ParamSpec = new ECGenParameterSpec("secp256r1");
-        keyPairGenerator.initialize(prime256v1ParamSpec);
+        AlgorithmParameterSpec algorithmParameterSpec = new ECGenParameterSpec(namedCurve);
+        keyPairGenerator.initialize(algorithmParameterSpec);
         ECParameterSpec parameterSpec = ((ECKey) keyPairGenerator.generateKeyPair().getPrivate()).getParams();
         return new ECPrivateKeySpec(privateKeyInt, parameterSpec);
     }
@@ -587,7 +578,7 @@ final class PemUtils {
             "] is not żsupported");
     }
 
-    static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
+    public static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         for (Path path : certPaths) {
@@ -600,6 +591,44 @@ final class PemUtils {
             }
         }
         return certificates;
+    }
+
+    private static String getEcCurveNameFromOid(String oidString) throws GeneralSecurityException {
+        switch (oidString) {
+            // see https://tools.ietf.org/html/rfc5480#section-2.1.1.1
+            case "1.2.840.10045.3.1":
+                return "secp192r1";
+            case "1.3.132.0.1":
+                return "sect163k1";
+            case "1.3.132.0.15":
+                return "sect163r2";
+            case "1.3.132.0.33":
+                return "secp224r1";
+            case "1.3.132.0.26":
+                return "sect233k1";
+            case "1.3.132.0.27":
+                return "sect233r1";
+            case "1.2.840.10045.3.1.7":
+                return "secp256r1";
+            case "1.3.132.0.16":
+                return "sect283k1";
+            case "1.3.132.0.17":
+                return "sect283r1";
+            case "1.3.132.0.34":
+                return "secp384r1";
+            case "1.3.132.0.36":
+                return "sect409k1";
+            case "1.3.132.0.37":
+                return "sect409r1";
+            case "1.3.132.0.35":
+                return "secp521r1";
+            case "1.3.132.0.38":
+                return "sect571k1";
+            case "1.3.132.0.39":
+                return "sect571r1";
+        }
+        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString
+            + " is not supported");
     }
 
 }

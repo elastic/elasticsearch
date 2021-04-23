@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -24,8 +27,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -34,15 +39,15 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
+import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
@@ -53,6 +58,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -69,9 +75,6 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -82,6 +85,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
 import static org.elasticsearch.mock.orig.Mockito.doReturn;
 import static org.elasticsearch.mock.orig.Mockito.doThrow;
@@ -110,7 +116,6 @@ import static org.mockito.Mockito.spy;
  */
 public class AutodetectProcessManagerTests extends ESTestCase {
 
-    private Environment environment;
     private Client client;
     private ThreadPool threadPool;
     private AnalysisRegistry analysisRegistry;
@@ -118,6 +123,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private JobResultsProvider jobResultsProvider;
     private JobResultsPersister jobResultsPersister;
     private JobDataCountsPersister jobDataCountsPersister;
+    private AnnotationPersister annotationPersister;
     private AutodetectCommunicator autodetectCommunicator;
     private AutodetectProcessFactory autodetectFactory;
     private NormalizerFactory normalizerFactory;
@@ -130,24 +136,28 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private ModelSizeStats modelSizeStats = new ModelSizeStats.Builder("foo").build();
     private ModelSnapshot modelSnapshot = new ModelSnapshot.Builder("foo").build();
     private Quantiles quantiles = new Quantiles("foo", new Date(), "state");
-    private Set<MlFilter> filters = new HashSet<>();
 
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        environment = TestEnvironment.newEnvironment(settings);
         client = mock(Client.class);
 
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.newDirectExecutorService());
 
-        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(TestEnvironment.newEnvironment(settings));
         jobManager = mock(JobManager.class);
         jobResultsProvider = mock(JobResultsProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
-        when(jobResultsPersister.bulkPersisterBuilder(any(), any())).thenReturn(mock(JobResultsPersister.Builder.class));
+        JobResultsPersister.Builder bulkPersisterBuilder = mock(JobResultsPersister.Builder.class);
+        when(bulkPersisterBuilder.shouldRetry(any())).thenReturn(bulkPersisterBuilder);
+        when(jobResultsPersister.bulkPersisterBuilder(any())).thenReturn(bulkPersisterBuilder);
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
+        annotationPersister = mock(AnnotationPersister.class);
+        AnnotationPersister.Builder bulkAnnotationsBuilder = mock(AnnotationPersister.Builder.class);
+        when(bulkAnnotationsBuilder.shouldRetry(any())).thenReturn(bulkAnnotationsBuilder);
+        when(annotationPersister.bulkPersisterBuilder(any())).thenReturn(bulkAnnotationsBuilder);
         autodetectCommunicator = mock(AutodetectCommunicator.class);
         autodetectFactory = mock(AutodetectProcessFactory.class);
         normalizerFactory = mock(NormalizerFactory.class);
@@ -158,13 +168,36 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 new HashSet<>(Arrays.asList(MachineLearning.MAX_OPEN_JOBS_PER_NODE,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        MetaData metaData = mock(MetaData.class);
-        SortedMap<String, AliasOrIndex> aliasOrIndexSortedMap = new TreeMap<>();
-        aliasOrIndexSortedMap.put(AnomalyDetectorsIndex.jobStateIndexWriteAlias(), mock(AliasOrIndex.Alias.class));
-        when(metaData.getAliasAndIndexLookup()).thenReturn(aliasOrIndexSortedMap);
+        Metadata metadata = Metadata.builder()
+            .indices(ImmutableOpenMap.<String, IndexMetadata>builder()
+                .fPut(
+                    AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001",
+                    IndexMetadata.builder(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX + "-000001")
+                        .settings(
+                            Settings.builder()
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .build())
+                        .putAlias(AliasMetadata.builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).build())
+                        .build())
+                .fPut(
+                    AnnotationIndex.INDEX_NAME,
+                    IndexMetadata.builder(AnnotationIndex.INDEX_NAME)
+                        .settings(
+                            Settings.builder()
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                                .build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.READ_ALIAS_NAME).build())
+                        .putAlias(AliasMetadata.builder(AnnotationIndex.WRITE_ALIAS_NAME).build())
+                        .build())
+                .build())
+            .build();
         clusterState = mock(ClusterState.class);
-        when(clusterState.getMetaData()).thenReturn(metaData);
-        when(clusterState.metaData()).thenReturn(metaData);
+        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
         nativeStorageProvider = mock(NativeStorageProvider.class);
 
         doAnswer(invocationOnMock -> {
@@ -241,7 +274,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
 
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = createSpyManager(settings.build());
@@ -282,7 +315,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         jobTask = mock(JobTask.class);
         when(jobTask.getAllocationId()).thenReturn(2L);
         when(jobTask.getJobId()).thenReturn("baz");
-        manager.closeJob(jobTask, false, null);
+        manager.closeJob(jobTask, null);
         assertEquals(2, manager.numberOfOpenJobs());
         manager.openJob(jobTask, clusterState, (e1, b) -> {});
         assertEquals(3, manager.numberOfOpenJobs());
@@ -335,7 +368,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
-        manager.closeJob(jobTask, false, null);
+        manager.closeJob(jobTask, null);
         assertEquals(0, manager.numberOfOpenJobs());
     }
 
@@ -347,7 +380,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
             // the middle of the AutodetectProcessManager.close() method
             Thread.yield();
             return null;
-        }).when(autodetectCommunicator).close(anyBoolean(), anyString());
+        }).when(autodetectCommunicator).close();
         AutodetectProcessManager manager = createSpyManager();
         assertEquals(0, manager.numberOfOpenJobs());
 
@@ -360,12 +393,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         assertEquals(1, manager.numberOfOpenJobs());
 
         // Close the job in a separate thread
-        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, false, "in separate thread"));
+        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, "in separate thread"));
         closeThread.start();
         Thread.yield();
 
         // Also close the job in the current thread, so that we have two simultaneous close requests
-        manager.closeJob(jobTask, false, "in main test thread");
+        manager.closeJob(jobTask, "in main test thread");
 
         // The 10 second timeout here is usually far in excess of what is required.  In the vast
         // majority of cases the other thread will exit within a few milliseconds.  However, it
@@ -390,7 +423,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 closeInterruptedLatch.countDown();
             }
             return null;
-        }).when(autodetectCommunicator).close(anyBoolean(), anyString());
+        }).when(autodetectCommunicator).close();
         doAnswer(invocationOnMock -> {
             killLatch.countDown();
             return null;
@@ -405,7 +438,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 mock(DataLoadParams.class), (dataCounts1, e) -> {});
 
         // Close the job in a separate thread so that it can simulate taking a long time to close
-        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, false, null));
+        Thread closeThread = new Thread(() -> manager.closeJob(jobTask, null));
         closeThread.start();
         assertTrue(closeStartedLatch.await(3, TimeUnit.SECONDS));
 
@@ -472,7 +505,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         // let the communicator throw, simulating a problem with the underlying
         // autodetect, e.g. a crash
-        doThrow(Exception.class).when(autodetectCommunicator).close(anyBoolean(), anyString());
+        doThrow(Exception.class).when(autodetectCommunicator).close();
 
         // create a jobtask
         JobTask jobTask = mock(JobTask.class);
@@ -484,7 +517,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         verify(manager).setJobState(any(), eq(JobState.OPENED));
         // job is created
         assertEquals(1, manager.numberOfOpenJobs());
-        expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, false, null));
+        expectThrows(ElasticsearchException.class, () -> manager.closeJob(jobTask, null));
         assertEquals(0, manager.numberOfOpenJobs());
 
         verify(manager).setJobState(any(), eq(JobState.FAILED), any());
@@ -588,7 +621,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobManager).getJob(eq("my_id"), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = createSpyManager();
         doCallRealMethod().when(manager).create(any(), any(), any(), any());
 
@@ -662,7 +695,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobManager).getJob(eq(jobId), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         return createManager(Settings.EMPTY);
     }
 
@@ -672,7 +705,6 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 .setModelSizeStats(modelSizeStats)
                 .setModelSnapshot(modelSnapshot)
                 .setQuantiles(quantiles)
-                .setFilters(filters)
                 .build();
     }
 
@@ -688,10 +720,10 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     }
 
     private AutodetectProcessManager createManager(Settings settings) {
-        return new AutodetectProcessManager(environment, settings,
+        return new AutodetectProcessManager(settings,
             client, threadPool, new NamedXContentRegistry(Collections.emptyList()), auditor, clusterService, jobManager, jobResultsProvider,
-            jobResultsPersister, jobDataCountsPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
-            new IndexNameExpressionResolver());
+            jobResultsPersister, jobDataCountsPersister, annotationPersister, autodetectFactory, normalizerFactory, nativeStorageProvider,
+            TestIndexNameExpressionResolver.newInstance());
     }
     private AutodetectProcessManager createSpyManagerAndCallProcessData(String jobId) {
         AutodetectProcessManager manager = createSpyManager();

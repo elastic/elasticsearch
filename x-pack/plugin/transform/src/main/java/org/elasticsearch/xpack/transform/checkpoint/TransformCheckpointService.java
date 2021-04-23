@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.checkpoint;
@@ -32,25 +33,22 @@ public class TransformCheckpointService {
 
     private static final Logger logger = LogManager.getLogger(TransformCheckpointService.class);
 
-    private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final TransformAuditor transformAuditor;
     private final RemoteClusterResolver remoteClusterResolver;
 
     public TransformCheckpointService(
-        final Client client,
         final Settings settings,
         final ClusterService clusterService,
         final TransformConfigManager transformConfigManager,
         TransformAuditor transformAuditor
     ) {
-        this.client = client;
         this.transformConfigManager = transformConfigManager;
         this.transformAuditor = transformAuditor;
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
     }
 
-    public CheckpointProvider getCheckpointProvider(final TransformConfig transformConfig) {
+    public CheckpointProvider getCheckpointProvider(final Client client, final TransformConfig transformConfig) {
         if (transformConfig.getSyncConfig() instanceof TimeSyncConfig) {
             return new TimeBasedCheckpointProvider(
                 client,
@@ -74,6 +72,7 @@ public class TransformCheckpointService {
      * @param listener listener to retrieve the result
      */
     public void getCheckpointingInfo(
+        final Client client,
         final String transformId,
         final long lastCheckpointNumber,
         final TransformIndexerPosition nextCheckpointPosition,
@@ -83,7 +82,7 @@ public class TransformCheckpointService {
 
         // we need to retrieve the config first before we can defer the rest to the corresponding provider
         transformConfigManager.getTransformConfiguration(transformId, ActionListener.wrap(transformConfig -> {
-            getCheckpointProvider(transformConfig).getCheckpointingInfo(
+            getCheckpointProvider(client, transformConfig).getCheckpointingInfo(
                 lastCheckpointNumber,
                 nextCheckpointPosition,
                 nextCheckpointProgress,

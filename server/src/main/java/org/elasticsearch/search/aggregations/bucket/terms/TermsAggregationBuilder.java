@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -25,33 +14,33 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, TermsAggregationBuilder>
-        implements MultiBucketAggregationBuilder {
+public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
+    public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        TermsAggregatorSupplier.class
+    );
 
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
     public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
@@ -65,9 +54,9 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
     public static final ObjectParser<TermsAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, name -> new TermsAggregationBuilder(name, null));
+            ObjectParser.fromBuilder(NAME, TermsAggregationBuilder::new);
     static {
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceAggregationBuilder.declareFields(PARSER, true, true, false);
 
         PARSER.declareBoolean(TermsAggregationBuilder::showTermDocCountError,
                 TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR);
@@ -96,6 +85,10 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
 
+    public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        TermsAggregatorFactory.registerAggregators(builder);
+    }
+
     private BucketOrder order = BucketOrder.compound(BucketOrder.count(false)); // automatically adds tie-breaker key asc order
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
@@ -104,12 +97,14 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
             DEFAULT_BUCKET_COUNT_THRESHOLDS);
     private boolean showTermDocCountError = false;
 
-    public TermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, CoreValuesSourceType.ANY, valueType);
+    public TermsAggregationBuilder(String name) {
+        super(name);
     }
 
-    protected TermsAggregationBuilder(TermsAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metaData) {
-        super(clone, factoriesBuilder, metaData);
+    protected TermsAggregationBuilder(TermsAggregationBuilder clone,
+                                      AggregatorFactories.Builder factoriesBuilder,
+                                      Map<String, Object> metadata) {
+        super(clone, factoriesBuilder, metadata);
         this.order = clone.order;
         this.executionHint = clone.executionHint;
         this.includeExclude = clone.includeExclude;
@@ -119,15 +114,20 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-        return new TermsAggregationBuilder(this, factoriesBuilder, metaData);
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.KEYWORD;
+    }
+
+    @Override
+    protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
+        return new TermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
     /**
      * Read from a stream.
      */
     public TermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CoreValuesSourceType.ANY);
+        super(in);
         bucketCountThresholds = new BucketCountThresholds(in);
         collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
         executionHint = in.readOptionalString();
@@ -330,12 +330,20 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                        ValuesSourceConfig<ValuesSource> config,
-                                                                        AggregatorFactory parent,
-                                                                        Builder subFactoriesBuilder) throws IOException {
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.MANY;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
+                                                       ValuesSourceConfig config,
+                                                       AggregatorFactory parent,
+                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+        TermsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new TermsAggregatorFactory(name, config, order, includeExclude, executionHint, collectMode,
-                bucketCountThresholds, showTermDocCountError, queryShardContext, parent, subFactoriesBuilder, metaData);
+                bucketCountThresholds, showTermDocCountError, context, parent, subFactoriesBuilder, metadata,
+                aggregatorSupplier);
     }
 
     @Override
@@ -382,7 +390,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     @Override
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        return super.doRewrite(queryShardContext);
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
     }
 }

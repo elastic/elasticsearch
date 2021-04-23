@@ -1,28 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -51,7 +39,7 @@ import java.util.Set;
  */
 public final class UnassignedInfo implements ToXContentFragment, Writeable {
 
-    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("dateOptionalTime").withZone(ZoneOffset.UTC);
+    public static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("date_optional_time").withZone(ZoneOffset.UTC);
 
     public static final Setting<TimeValue> INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("index.unassigned.node_left.delayed_timeout", TimeValue.timeValueMinutes(1), Property.Dynamic,
@@ -256,8 +244,8 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failedNodeIds = Collections.unmodifiableSet(failedNodeIds);
         assert (failedAllocations > 0) == (reason == Reason.ALLOCATION_FAILED) :
             "failedAllocations: " + failedAllocations + " for reason " + reason;
-        assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
-        assert !(delayed && reason != Reason.NODE_LEFT) : "shard can only be delayed if it is unassigned due to a node leaving";
+        assert (message == null && failure != null) == false : "provide a message if a failure exception is provided";
+        assert (delayed && reason != Reason.NODE_LEFT) == false : "shard can only be delayed if it is unassigned due to a node leaving";
     }
 
     public UnassignedInfo(StreamInput in) throws IOException {
@@ -271,11 +259,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         this.failure = in.readException();
         this.failedAllocations = in.readVInt();
         this.lastAllocationStatus = AllocationStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
-        } else {
-            this.failedNodeIds = Collections.emptySet();
-        }
+        this.failedNodeIds = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -287,9 +271,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
         out.writeException(failure);
         out.writeVInt(failedAllocations);
         lastAllocationStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeCollection(failedNodeIds, StreamOutput::writeString);
-        }
+        out.writeCollection(failedNodeIds, StreamOutput::writeString);
     }
 
     /**
@@ -409,13 +391,13 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * Returns -1 if no delayed shard is found.
      */
     public static long findNextDelayedAllocation(long currentNanoTime, ClusterState state) {
-        MetaData metaData = state.metaData();
+        Metadata metadata = state.metadata();
         RoutingTable routingTable = state.routingTable();
         long nextDelayNanos = Long.MAX_VALUE;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.UNASSIGNED)) {
             UnassignedInfo unassignedInfo = shard.unassignedInfo();
             if (unassignedInfo.isDelayed()) {
-                Settings indexSettings = metaData.index(shard.index()).getSettings();
+                Settings indexSettings = metadata.index(shard.index()).getSettings();
                 // calculate next time to schedule
                 final long newComputedLeftDelayNanos = unassignedInfo.getRemainingDelay(currentNanoTime, indexSettings);
                 if (newComputedLeftDelayNanos < nextDelayNanos) {

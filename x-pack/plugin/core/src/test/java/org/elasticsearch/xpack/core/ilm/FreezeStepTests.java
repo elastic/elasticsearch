@@ -1,22 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
+import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeStep> {
 
@@ -53,8 +55,8 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
     }
 
     @Override
-    protected IndexMetaData getIndexMetaData() {
-        return IndexMetaData.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+    protected IndexMetadata getIndexMetadata() {
+        return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }
 
@@ -63,7 +65,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
     }
 
     public void testFreeze() {
-        IndexMetaData indexMetaData = getIndexMetaData();
+        IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
             assertSame(invocation.getArguments()[0], FreezeIndexAction.INSTANCE);
@@ -72,27 +74,13 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             assertNotNull(request);
             assertEquals(1, request.indices().length);
-            assertEquals(indexMetaData.getIndex().getName(), request.indices()[0]);
-            listener.onResponse(null);
+            assertEquals(indexMetadata.getIndex().getName(), request.indices()[0]);
+            listener.onResponse(new FreezeResponse(true, true));
             return null;
         }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
         FreezeStep step = createRandomInstance();
-        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-
-        assertThat(actionCompleted.get(), equalTo(true));
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -100,7 +88,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
     }
 
     public void testExceptionThrown() {
-        IndexMetaData indexMetaData = getIndexMetaData();
+        IndexMetadata indexMetadata = getIndexMetadata();
         Exception exception = new RuntimeException();
 
         Mockito.doAnswer(invocation -> {
@@ -110,21 +98,24 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
             return null;
         }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         FreezeStep step = createRandomInstance();
-        step.performAction(indexMetaData, emptyClusterState(), null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+            f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
+    }
 
-            @Override
-            public void onFailure(Exception e) {
-                assertEquals(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
+    public void testNotAcknowledged() {
+        IndexMetadata indexMetadata = getIndexMetadata();
 
-        assertThat(exceptionThrown.get(), equalTo(true));
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
+            listener.onResponse(new FreezeResponse(false, false));
+            return null;
+        }).when(indicesClient).execute(Mockito.any(), Mockito.any(), Mockito.any());
+
+        FreezeStep step = createRandomInstance();
+        Exception e = expectThrows(Exception.class,
+            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        assertThat(e.getMessage(), is("freeze index request failed to be acknowledged"));
     }
 }

@@ -69,15 +69,15 @@ CJK width token filter to configure a new
 --------------------------------------------------
 PUT /cjk_width_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "standard_cjk_width" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["cjk_width"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_cjk_width": {
+          "tokenizer": "standard",
+          "filter": [ "cjk_width" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------

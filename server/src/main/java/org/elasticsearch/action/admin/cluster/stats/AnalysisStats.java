@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +41,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     /**
      * Create {@link AnalysisStats} from the given cluster state.
      */
-    public static AnalysisStats of(ClusterState state) {
+    public static AnalysisStats of(Metadata metadata, Runnable ensureNotCancelled) {
         final Map<String, IndexFeatureStats> usedCharFilterTypes = new HashMap<>();
         final Map<String, IndexFeatureStats> usedTokenizerTypes = new HashMap<>();
         final Map<String, IndexFeatureStats> usedTokenFilterTypes = new HashMap<>();
@@ -62,11 +51,17 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInTokenFilters = new HashMap<>();
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
 
-        for (IndexMetaData indexMetaData : state.metaData()) {
+        for (IndexMetadata indexMetadata : metadata) {
+            ensureNotCancelled.run();
+            if (indexMetadata.isSystem()) {
+                // Don't include system indices in statistics about analysis,
+                // we care about the user's indices.
+                continue;
+            }
             Set<String> indexAnalyzers = new HashSet<>();
-            MappingMetaData mappingMetaData = indexMetaData.mapping();
-            if (mappingMetaData != null) {
-                MappingVisitor.visitMapping(mappingMetaData.getSourceAsMap(), fieldMapping -> {
+            MappingMetadata mappingMetadata = indexMetadata.mapping();
+            if (mappingMetadata != null) {
+                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), (field, fieldMapping) -> {
                     for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
                         Object analyzerO = fieldMapping.get(key);
                         if (analyzerO != null) {
@@ -90,7 +85,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
             Set<String> indexTokenizerTypes = new HashSet<>();
             Set<String> indexTokenFilterTypes = new HashSet<>();
 
-            Settings indexSettings = indexMetaData.getSettings();
+            Settings indexSettings = indexMetadata.getSettings();
             Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
             usedBuiltInAnalyzers.keySet().removeAll(analyzerSettings.keySet());
             for (Settings analyzerSetting : analyzerSettings.values()) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -54,7 +55,7 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
         String action = randomAlphaOfLength(5);
         String description = randomAlphaOfLength(5);
         long startTime = randomLong();
-        long runningTimeNanos = randomLong();
+        long runningTimeNanos = randomNonNegativeLong();
         boolean cancellable = randomBoolean();
         TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
         Map<String, String> headers = randomBoolean()

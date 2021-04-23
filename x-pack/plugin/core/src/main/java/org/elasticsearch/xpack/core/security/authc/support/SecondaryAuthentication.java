@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authc.support;
@@ -10,6 +11,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,7 +26,7 @@ import java.util.function.Function;
  */
 public class SecondaryAuthentication {
 
-    private static final String THREAD_CTX_KEY = "_xpack_security_secondary_authc";
+    public static final String THREAD_CTX_KEY = "_xpack_security_secondary_authc";
 
     private final SecurityContext securityContext;
     private final Authentication authentication;
@@ -53,6 +55,10 @@ public class SecondaryAuthentication {
 
     public Authentication getAuthentication() {
         return authentication;
+    }
+
+    public User getUser() {
+        return authentication.getUser();
     }
 
     public <T> T execute(Function<ThreadContext.StoredContext, T> body) {

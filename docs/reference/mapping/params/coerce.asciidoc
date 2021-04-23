@@ -1,13 +1,13 @@
 [[coerce]]
 === `coerce`
 
-Data is not always clean.  Depending on how it is produced a number might be
+Data is not always clean. Depending on how it is produced a number might be
 rendered in the JSON body as a true JSON number, e.g. `5`, but it might also
-be rendered as a string, e.g. `"5"`.  Alternatively, a number that should be
+be rendered as a string, e.g. `"5"`. Alternatively, a number that should be
 an integer might instead be rendered as a floating point, e.g. `5.0`, or even
 `"5.0"`.
 
-Coercion attempts to clean up dirty values to fit the datatype of a field.
+Coercion attempts to clean up dirty values to fit the data type of a field.
 For instance:
 
 * Strings will be coerced to numbers.
@@ -17,7 +17,7 @@ For instance:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -32,12 +32,12 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "number_one": "10" <1>
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "number_two": "10" <2>
 }
@@ -48,7 +48,7 @@ PUT my_index/_doc/2
 <2> This document will be rejected because coercion is disabled.
 
 TIP: The `coerce` setting value can be updated on existing fields
-using the <<indices-put-mapping,PUT mapping API>>.
+using the <<indices-put-mapping,update mapping API>>.
 
 [[coerce-setting]]
 ==== Index-level default
@@ -58,7 +58,7 @@ coercion globally across all mapping types:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.mapping.coerce": false
@@ -76,10 +76,10 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 { "number_one": "10" } <1>
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 { "number_two": "10" } <2>
 --------------------------------------------------
 // TEST[catch:bad_request]

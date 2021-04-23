@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -16,13 +17,12 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
+import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -38,10 +38,9 @@ public class ClientTransformIndexerTests extends ESTestCase {
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
         ClientTransformIndexer indexer = new ClientTransformIndexer(
-            mock(Executor.class),
+            mock(ThreadPool.class),
             mock(IndexBasedTransformConfigManager.class),
             mock(CheckpointProvider.class),
-            new TransformProgressGatherer(mock(Client.class)),
             new AtomicReference<>(IndexerState.STOPPED),
             null,
             mock(Client.class),

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.upgrades;
 
@@ -24,8 +13,8 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -53,8 +42,8 @@ import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocat
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isIn;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -70,8 +59,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String index = "index_history_uuid";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -138,8 +127,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 Settings.Builder settings = Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     // if the node with the replica is the first to be restarted, while a replica is still recovering
                     // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -217,13 +206,14 @@ public class RecoveryIT extends AbstractRollingTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 Settings.Builder settings = Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     // if the node with the replica is the first to be restarted, while a replica is still recovering
                     // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                     // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
                     // before timing out
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+                    .put("index.routing.allocation.include._tier_preference", "")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
                 createIndex(index, settings.build());
                 indexDocs(index, 0, 10);
@@ -237,9 +227,10 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 final String oldNode = getNodeId(v -> v.before(Version.CURRENT));
                 // remove the replica and guaranteed the primary is placed on the old node
                 updateIndexSettings(index, Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                     .put(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), (String)null)
                     .put("index.routing.allocation.include._id", oldNode)
+                    .putNull("index.routing.allocation.include._tier_preference")
                 );
                 ensureGreen(index); // wait for the primary to be assigned
                 ensureNoInitializingShards(); // wait for all other shard activity to finish
@@ -252,7 +243,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                     String xpath = "routing_table.indices." + index + ".shards.0.node";
                     @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
                     assertNotNull(state.toString(), assignedNodes);
-                    assertThat(state.toString(), newNode, isIn(assignedNodes));
+                    assertThat(state.toString(), newNode, in(assignedNodes));
                 }, 60, TimeUnit.SECONDS);
                 ensureGreen(index);
                 client().performRequest(new Request("POST", index + "/_refresh"));
@@ -260,8 +251,9 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 break;
             case UPGRADED:
                 updateIndexSettings(index, Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2)
                     .put("index.routing.allocation.include._id", (String)null)
+                    .putNull("index.routing.allocation.include._tier_preference")
                 );
                 asyncIndexDocs(index, 60, 45).get();
                 ensureGreen(index);
@@ -278,14 +270,17 @@ public class RecoveryIT extends AbstractRollingTestCase {
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
+        if (randomBoolean()) {
+            syncedFlush(index);
+        }
     }
 
     public void testRecovery() throws Exception {
         final String index = "test_recovery";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -323,8 +318,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String index = "recover_and_create_leases_in_promotion";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(1, 2)) // triggers nontrivial promotion
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
@@ -346,8 +341,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         switch (CLUSTER_TYPE) {
             case OLD:
                 Settings.Builder settings = Settings.builder()
-                    .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
-                    .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), between(1, 5))
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), between(0, 1))
                     .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                     .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
                 if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
@@ -402,8 +397,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String indexName = "closed_index_created_on_old";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex(indexName, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 // if the node with the replica is the first to be restarted, while a replica is still recovering
                 // then delayed allocation will kick in. When the node comes back, the master will search for a copy
                 // but the recovering copy will be seen as invalid and the cluster health won't return to GREEN
@@ -438,8 +433,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         if (indexExists(indexName) == false) {
             createIndex(indexName, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                 .build());
             ensureGreen(indexName);
             closeIndex(indexName);
@@ -462,8 +457,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String indexName = "closed_index_replica_allocation";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex(indexName, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "120s")
                 .put("index.routing.allocation.include._name", CLUSTER_NAME + "-0")
@@ -527,7 +522,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         final Map<String, ?> blocks = (Map<String, Object>) XContentMapValues.extractValue("blocks.indices." + index, state);
         assertThat(blocks, notNullValue());
-        assertThat(blocks.containsKey(String.valueOf(MetaDataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
+        assertThat(blocks.containsKey(String.valueOf(MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID)), is(true));
 
         final Map<String, ?> settings = (Map<String, Object>) XContentMapValues.extractValue("settings", metadata);
         assertThat(settings, notNullValue());
@@ -563,8 +558,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String index = "test_update_doc";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
             createIndex(index, settings.build());
             indexDocs(index, 0, 100);
         }
@@ -635,8 +630,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String index = "test_operation_based_recovery";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             final Settings.Builder settings = Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 2);
             if (minimumNodeVersion().before(Version.V_8_0_0) && randomBoolean()) {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), randomBoolean());
             }
@@ -666,8 +661,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
         final String index = "turn_off_translog_retention";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex(index, Settings.builder()
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 2))
+                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 2))
                 .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
             ensureGreen(index);
             indexDocs(index, 0, randomIntBetween(100, 200));
@@ -692,19 +687,19 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
             createIndex(indexName, Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                .put(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
                 .build());
             ensureGreen(indexName);
             updateIndexSettings(indexName,
-                Settings.builder().put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2))));
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", nodes.get(randomInt(2))));
         }
 
         ensureGreen(indexName);
 
         final int numberOfReplicas = Integer.parseInt(
-            getIndexSettingsAsMap(indexName).get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS).toString());
+            getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString());
         if (minimumNodeVersion.onOrAfter(Version.V_7_6_0)) {
             assertEquals(nodes.size() - 2, numberOfReplicas);
         } else {
@@ -730,11 +725,5 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
         ensureGreen(indexName);
         indexDocs(indexName, randomInt(100), randomInt(100));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
-        Map<String, Object> indexSettings = getIndexSettings(index);
-        return (Map<String, Object>)((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
 }

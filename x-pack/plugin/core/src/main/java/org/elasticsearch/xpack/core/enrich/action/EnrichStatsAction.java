@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
@@ -24,7 +25,7 @@ import java.util.Objects;
 public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
     public static final EnrichStatsAction INSTANCE = new EnrichStatsAction();
-    public static final String NAME = "cluster:admin/xpack/enrich/stats";
+    public static final String NAME = "cluster:monitor/xpack/enrich/stats";
 
     private EnrichStatsAction() {
         super(NAME, Response::new);

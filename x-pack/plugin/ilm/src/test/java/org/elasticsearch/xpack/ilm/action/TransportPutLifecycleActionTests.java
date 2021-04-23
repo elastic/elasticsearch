@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -9,8 +10,8 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.AllocationRoutedStep;
+import org.elasticsearch.xpack.core.ilm.CheckNotDataStreamWriteIndexStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
@@ -63,7 +65,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
     }
 
     public void testEligibleForRefresh() {
-        IndexMetaData meta = mkMeta().build();
+        IndexMetadata meta = mkMeta().build();
         assertFalse(TransportPutLifecycleAction.eligibleToCheckForRefresh(meta));
 
         LifecycleExecutionState state = LifecycleExecutionState.builder().build();
@@ -159,9 +161,14 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         logger.info("--> phaseDef: {}", phaseDef);
 
         assertThat(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, phaseDef, "phase"),
-            contains(new Step.StepKey("phase", "freeze", FreezeAction.NAME),
+            contains(
+                new Step.StepKey("phase", "freeze", FreezeAction.CONDITIONAL_SKIP_FREEZE_STEP),
+                new Step.StepKey("phase", "freeze", CheckNotDataStreamWriteIndexStep.NAME),
+                new Step.StepKey("phase", "freeze", FreezeAction.NAME),
                 new Step.StepKey("phase", "allocate", AllocateAction.NAME),
                 new Step.StepKey("phase", "allocate", AllocationRoutedStep.NAME),
+                new Step.StepKey("phase", "forcemerge", ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP),
+                new Step.StepKey("phase", "forcemerge", CheckNotDataStreamWriteIndexStep.NAME),
                 new Step.StepKey("phase", "forcemerge", ReadOnlyAction.NAME),
                 new Step.StepKey("phase", "forcemerge", ForceMergeAction.NAME),
                 new Step.StepKey("phase", "forcemerge", SegmentCountStep.NAME)));
@@ -194,12 +201,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                     "      }")
                 .build();
 
-            IndexMetaData meta = mkMeta()
+            IndexMetadata meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -232,7 +239,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                     "      }")
                 .build();
 
-            IndexMetaData meta = mkMeta()
+            IndexMetadata meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
@@ -269,12 +276,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                     "      }")
                 .build();
 
-            IndexMetaData meta = mkMeta()
+            IndexMetadata meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, TimeValue.timeValueSeconds(5), null));
+            actions.put("rollover", new RolloverAction(null, null, TimeValue.timeValueSeconds(5), null));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
@@ -303,12 +310,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                     "      }")
                 .build();
 
-            IndexMetaData meta = mkMeta()
+            IndexMetadata meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -326,12 +333,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 .setPhaseDefinition("potato")
                 .build();
 
-            IndexMetaData meta = mkMeta()
+            IndexMetadata meta = mkMeta()
                 .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
                 .build();
 
             Map<String, LifecycleAction> actions = new HashMap<>();
-            actions.put("rollover", new RolloverAction(null, null, 1L));
+            actions.put("rollover", new RolloverAction(null, null, null, 1L));
             actions.put("set_priority", new SetPriorityAction(100));
             Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -364,12 +371,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 "      }")
             .build();
 
-        IndexMetaData meta = mkMeta()
+        IndexMetadata meta = mkMeta()
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -377,14 +384,14 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(meta, false)
                 .build())
             .build();
 
         ClusterState changedState = TransportPutLifecycleAction.refreshPhaseDefinition(existingState, index, policyMetadata);
 
-        IndexMetaData newIdxMeta = changedState.metaData().index(index);
+        IndexMetadata newIdxMeta = changedState.metadata().index(index);
         LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
         Map<String, String> beforeState = new HashMap<>(exState.asMap());
         beforeState.remove("phase_definition");
@@ -408,21 +415,21 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 "{\"max_docs\":1},\"set_priority\":{\"priority\":100}}},\"version\":1,\"modified_date_in_millis\":1578521007076}")
             .build();
 
-        IndexMetaData meta = mkMeta()
+        IndexMetadata meta = mkMeta()
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
 
         assertTrue(TransportPutLifecycleAction.eligibleToCheckForRefresh(meta));
 
         Map<String, LifecycleAction> oldActions = new HashMap<>();
-        oldActions.put("rollover", new RolloverAction(null, null, 1L));
+        oldActions.put("rollover", new RolloverAction(null, null, null, 1L));
         oldActions.put("set_priority", new SetPriorityAction(100));
         Phase oldHotPhase = new Phase("hot", TimeValue.ZERO, oldActions);
         Map<String, Phase> oldPhases = Collections.singletonMap("hot", oldHotPhase);
         LifecyclePolicy oldPolicy = new LifecyclePolicy("my-policy", oldPhases);
 
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, 1L));
+        actions.put("rollover", new RolloverAction(null, null, null, 1L));
         actions.put("set_priority", new SetPriorityAction(100));
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
@@ -432,7 +439,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(meta, false)
                 .build())
             .build();
@@ -445,7 +452,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         assertThat(updatedState, equalTo(existingState));
 
         actions = new HashMap<>();
-        actions.put("rollover", new RolloverAction(null, null, 2L));
+        actions.put("rollover", new RolloverAction(null, null, null, 2L));
         actions.put("set_priority", new SetPriorityAction(150));
         hotPhase = new Phase("hot", TimeValue.ZERO, actions);
         phases = Collections.singletonMap("hot", hotPhase);
@@ -458,17 +465,17 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         // No change, because the index doesn't have a lifecycle.name setting for this policy
         assertThat(updatedState, equalTo(existingState));
 
-        meta = IndexMetaData.builder(index)
+        meta = IndexMetadata.builder(index)
             .settings(Settings.builder()
                 .put(LifecycleSettings.LIFECYCLE_NAME, "my-policy")
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
             .putCustom(ILM_CUSTOM_METADATA_KEY, exState.asMap())
             .build();
         existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metaData(MetaData.builder(MetaData.EMPTY_META_DATA)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
                 .put(meta, false)
                 .build())
             .build();
@@ -476,7 +483,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         logger.info("--> update with changed policy and this index has the policy");
         updatedState = TransportPutLifecycleAction.updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata);
 
-        IndexMetaData newIdxMeta = updatedState.metaData().index(index);
+        IndexMetadata newIdxMeta = updatedState.metadata().index(index);
         LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
         Map<String, String> beforeState = new HashMap<>(exState.asMap());
         beforeState.remove("phase_definition");
@@ -491,12 +498,12 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 "\"set_priority\":{\"priority\":150}}},\"version\":2,\"modified_date_in_millis\":2}"));
     }
 
-    private static IndexMetaData.Builder mkMeta() {
-        return IndexMetaData.builder(index)
+    private static IndexMetadata.Builder mkMeta() {
+        return IndexMetadata.builder(index)
             .settings(Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetaData.SETTING_INDEX_UUID, randomAlphaOfLength(5)));
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)));
     }
 }

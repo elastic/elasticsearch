@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -28,14 +30,14 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.string.Conc
  * parameter or the concatenation of the two strings if none of them is null.
  */
 public class Concat extends BinaryScalarFunction {
-    
+
     public Concat(Source source, Expression source1, Expression source2) {
         super(source, source1, source2);
     }
 
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
@@ -51,7 +53,7 @@ public class Concat extends BinaryScalarFunction {
     protected Pipe makePipe() {
         return new ConcatFunctionPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()));
     }
-    
+
     @Override
     public Nullability nullable() {
         return Nullability.FALSE;
@@ -66,7 +68,7 @@ public class Concat extends BinaryScalarFunction {
     public Object fold() {
         return process(left().fold(), right().fold());
     }
-    
+
     @Override
     protected Concat replaceChildren(Expression newLeft, Expression newRight) {
         return new Concat(source(), newLeft, newRight);
@@ -79,7 +81,7 @@ public class Concat extends BinaryScalarFunction {
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
+        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
                 paramsBuilder().variable(field.exactAttribute().name()).build(),
                 dataType());
     }

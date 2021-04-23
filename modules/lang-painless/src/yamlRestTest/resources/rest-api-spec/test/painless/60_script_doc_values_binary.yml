@@ -1,0 +1,39 @@
+---
+"binary":
+    - skip:
+        features: ["headers"]
+    - do:
+        indices.create:
+            index: test
+            body:
+                mappings:
+                    properties:
+                        binary:
+                            type: binary
+                            doc_values: true
+
+    - do:
+        #set the header so we won't randomize it
+        headers:
+            Content-Type: application/json
+        index:
+            index: test
+            id: 1
+            body:
+                binary: U29tZSBiaW5hcnkgYmxvYg==
+
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field1:
+                        script:
+                            source: "doc['binary'].get(0).utf8ToString()"
+                    field2:
+                        script:
+                            source: "doc['binary'].value.utf8ToString()"
+    - match: { hits.hits.0.fields.field1.0: "Some binary blob" }
+    - match: { hits.hits.0.fields.field2.0: "Some binary blob" }

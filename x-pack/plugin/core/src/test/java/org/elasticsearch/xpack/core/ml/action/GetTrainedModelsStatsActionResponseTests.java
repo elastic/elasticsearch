@@ -1,23 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.ingest.IngestStats;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTests;
 
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
 
-public class GetTrainedModelsStatsActionResponseTests extends AbstractWireSerializingTestCase<Response> {
+public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSerializationTestCase<Response> {
 
     @Override
     protected Response createTestInstance() {
@@ -26,10 +30,11 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractWireSerial
             .limit(listSize).map(id ->
                 new Response.TrainedModelStats(id,
                     randomBoolean() ? randomIngestStats() : null,
-                    randomIntBetween(0, 10))
+                    randomIntBetween(0, 10),
+                    randomBoolean() ? InferenceStatsTests.createTestInstance(id, null) : null)
             )
             .collect(Collectors.toList());
-        return new Response(new QueryPage<>(trainedModelStats, randomLongBetween(listSize, 1000), Response.RESULTS_FIELD));
+        return new Response(new QueryPage<>(trainedModelStats, randomLongBetween(listSize, 1000), RESULTS_FIELD));
     }
 
     private IngestStats randomIngestStats() {
@@ -57,4 +62,18 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractWireSerial
     protected Writeable.Reader<Response> instanceReader() {
         return Response::new;
     }
+
+    @Override
+    protected Response mutateInstanceForVersion(Response instance, Version version) {
+        if (version.before(Version.V_7_8_0)) {
+            List<Response.TrainedModelStats> stats = instance.getResources()
+                .results()
+                .stream()
+                .map(s -> new Response.TrainedModelStats(s.getModelId(), s.getIngestStats(), s.getPipelineCount(), null))
+                .collect(Collectors.toList());
+            return new Response(new QueryPage<>(stats, instance.getResources().count(), RESULTS_FIELD));
+        }
+        return instance;
+    }
+
 }

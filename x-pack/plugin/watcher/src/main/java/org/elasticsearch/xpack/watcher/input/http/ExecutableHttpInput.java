@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
@@ -64,7 +65,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             payloadMap.put("_headers", headers);
         }
 
-        if (!response.hasContent()) {
+        if (response.hasContent() == false) {
             return new HttpInput.Result(request, response.status(), new Payload.Simple(payloadMap));
         }
 
@@ -99,7 +100,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
                 }
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(),
-                        response.body().utf8ToString(), contentType.shortName());
+                        response.body().utf8ToString(), contentType.queryParameter());
             }
         } else {
             payloadMap.put("_value", response.body().utf8ToString());

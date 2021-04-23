@@ -1,39 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 
 public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles implements PercentileRanks {
     public static final String NAME = "hdr_percentile_ranks";
 
-    InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, cdfValues, state, keyed, formatter, pipelineAggregators, metaData);
+    public InternalHDRPercentileRanks(String name, double[] cdfValues, DoubleHistogram state, boolean keyed, DocValueFormat formatter,
+                                      Map<String, Object> metadata) {
+        super(name, cdfValues, state, keyed, formatter, metadata);
     }
 
     /**
@@ -70,11 +57,11 @@ public class InternalHDRPercentileRanks extends AbstractInternalHDRPercentiles i
 
     @Override
     protected AbstractInternalHDRPercentiles createReduced(String name, double[] keys, DoubleHistogram merged, boolean keyed,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, pipelineAggregators, metaData);
+            Map<String, Object> metadata) {
+        return new InternalHDRPercentileRanks(name, keys, merged, keyed, format, metadata);
     }
 
-    static double percentileRank(DoubleHistogram state, double value) {
+    public static double percentileRank(DoubleHistogram state, double value) {
         if (state.getTotalCount() == 0) {
             return Double.NaN;
         }

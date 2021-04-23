@@ -1,0 +1,208 @@
+setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: {}
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [simple-data-stream2]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: {}
+
+---
+"No data streams":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 0 }
+  - match: { backing_indices: 0 }
+  - length: { data_streams: 0 }
+
+---
+"Empty data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream1"
+
+  - do:
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 1 }
+  - match: { backing_indices: 2 }
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.data_stream: 'simple-data-stream1' }
+  - match: { data_streams.0.backing_indices: 2 }
+  - match: { data_streams.0.maximum_timestamp: 0 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Single data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: simple-data-stream1
+        op_type: "create"
+        body:  { "@timestamp": 1593639273740 }
+        refresh: true
+
+  - do:
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 1 }
+  - match: { backing_indices: 1 }
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.data_stream: 'simple-data-stream1' }
+  - match: { data_streams.0.backing_indices: 1 }
+  - match: { data_streams.0.maximum_timestamp: 1593639273740 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Rolled over data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: simple-data-stream1
+        op_type: "create"
+        body:  { "@timestamp": 1593639330113 }
+        refresh: true
+
+  - do:
+      indices.rollover:
+        alias: simple-data-stream1
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      index:
+        index: simple-data-stream1
+        op_type: "create"
+        body:  { "@timestamp": 1593639345064 }
+        refresh: true
+
+  - do:
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 1 }
+  - match: { backing_indices: 2 }
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.data_stream: 'simple-data-stream1' }
+  - match: { data_streams.0.backing_indices: 2 }
+  - match: { data_streams.0.maximum_timestamp: 1593639345064 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Multiple data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index: simple-data-stream1
+        op_type: "create"
+        body:  { "@timestamp": 1593639434853 }
+        refresh: true
+
+  - do:
+      index:
+        index: simple-data-stream2
+        op_type: "create"
+        body:  { "@timestamp": 1593639450943 }
+        refresh: true
+
+  - do:
+      indices.rollover:
+        alias: simple-data-stream1
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      index:
+        index: simple-data-stream1
+        op_type: "create"
+        body:  { "@timestamp": 1593639468350 }
+        refresh: true
+
+  - do:
+      indices.data_streams_stats: {}
+  - match: { data_stream_count: 2 }
+  - match: { backing_indices: 3 }
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.data_stream: 'simple-data-stream1' }
+  - match: { data_streams.0.backing_indices: 2 }
+  - match: { data_streams.0.maximum_timestamp: 1593639468350 }
+  - match: { data_streams.1.data_stream: 'simple-data-stream2' }
+  - match: { data_streams.1.backing_indices: 1 }
+  - match: { data_streams.1.maximum_timestamp: 1593639450943 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged

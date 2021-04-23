@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
@@ -127,60 +116,6 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
         return this;
     }
 
-
-    /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSettings(Settings settings) {
-        request.settings(settings);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings.
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param settings repository-specific snapshot settings
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSettings(Settings.Builder settings) {
-        request.settings(settings);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @param xContentType the content type of the source
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSettings(String source, XContentType xContentType) {
-        request.settings(source, xContentType);
-        return this;
-    }
-
-    /**
-     * Sets repository-specific restore settings
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
-     * @return this builder
-     */
-    public RestoreSnapshotRequestBuilder setSettings(Map<String, Object> source) {
-        request.settings(source);
-        return this;
-    }
-
     /**
      * If this parameter is set to true the operation will wait for completion of restore process before returning.
      *
@@ -286,6 +221,14 @@ public class RestoreSnapshotRequestBuilder extends MasterNodeOperationRequestBui
      */
     public RestoreSnapshotRequestBuilder setIgnoreIndexSettings(List<String> ignoreIndexSettings) {
         request.ignoreIndexSettings(ignoreIndexSettings);
+        return this;
+    }
+
+    /**
+     * Sets the list of features whose states should be restored as part of this snapshot
+     */
+    public RestoreSnapshotRequestBuilder setFeatureStates(String... featureStates) {
+        request.featureStates(featureStates);
         return this;
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml;
@@ -48,7 +49,7 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
     @Override
     public void licenseStateChanged() {
         assert licenseStateListenerRegistered;
-        if (licenseState.isMachineLearningAllowed() == false) {
+        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
             // if the license has expired, close jobs and datafeeds
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override

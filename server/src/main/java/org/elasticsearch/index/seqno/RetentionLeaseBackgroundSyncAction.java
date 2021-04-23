@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
@@ -37,7 +26,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.WriteStateException;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
@@ -101,44 +91,47 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     final void backgroundSync(ShardId shardId, String primaryAllocationId, long primaryTerm, RetentionLeases retentionLeases) {
-        final Request request = new Request(shardId, retentionLeases);
-        final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_background_sync", request);
-        transportService.sendChildRequest(clusterService.localNode(), transportPrimaryAction,
-            new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
-            task,
-            transportOptions,
-            new TransportResponseHandler<ReplicationResponse>() {
-                @Override
-                public ReplicationResponse read(StreamInput in) throws IOException {
-                    return newResponseInstance(in);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
-                public void handleResponse(ReplicationResponse response) {
-                    task.setPhase("finished");
-                    taskManager.unregister(task);
-                }
-
-                @Override
-                public void handleException(TransportException e) {
-                    task.setPhase("finished");
-                    taskManager.unregister(task);
-                    if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
-                        // node shutting down
-                        return;
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            // we have to execute under the system context so that if security is enabled the sync is authorized
+            threadContext.markAsSystemContext();
+            final Request request = new Request(shardId, retentionLeases);
+            final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_background_sync", request);
+            transportService.sendChildRequest(clusterService.localNode(), transportPrimaryAction,
+                new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
+                task,
+                transportOptions,
+                new TransportResponseHandler<ReplicationResponse>() {
+                    @Override
+                    public ReplicationResponse read(StreamInput in) throws IOException {
+                        return newResponseInstance(in);
                     }
-                    if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class, IndexShardClosedException.class) != null) {
-                        // the shard is closed
-                        return;
+
+                    @Override
+                    public void handleResponse(ReplicationResponse response) {
+                        task.setPhase("finished");
+                        taskManager.unregister(task);
                     }
-                    getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
-                }
-            });
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        task.setPhase("finished");
+                        taskManager.unregister(task);
+                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
+                            // node shutting down
+                            return;
+                        }
+                        if (ExceptionsHelper.unwrap(e,
+                                                    IndexNotFoundException.class,
+                                                    AlreadyClosedException.class,
+                                                    IndexShardClosedException.class) != null) {
+                            // the index was deleted or the shard is closed
+                            return;
+                        }
+                        getLogger().warn(new ParameterizedMessage("{} retention lease background sync failed", shardId), e);
+                    }
+                });
+        }
     }
 
     @Override
@@ -155,17 +148,19 @@ public class RetentionLeaseBackgroundSyncAction extends TransportReplicationActi
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(final Request request, final IndexShard replica) throws WriteStateException {
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(replica);
-        replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
-        replica.persistRetentionLeases();
-        return new ReplicaResult();
+    protected void shardOperationOnReplica(Request request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(replica);
+            replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
+            replica.persistRetentionLeases();
+            return new ReplicaResult();
+        });
     }
 
     public static final class Request extends ReplicationRequest<Request> {
 
-        private RetentionLeases retentionLeases;
+        private final RetentionLeases retentionLeases;
 
         public RetentionLeases getRetentionLeases() {
             return retentionLeases;

@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +36,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_0_0;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         boolean hasPolicyStats = policyStats != null;
@@ -43,12 +50,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    public IndexLifecycleFeatureSetUsage(boolean available, boolean enabled) {
-        this(available, enabled, null);
+    public IndexLifecycleFeatureSetUsage() {
+        this((List<PolicyStats>)null);
     }
 
-    public IndexLifecycleFeatureSetUsage(boolean available, boolean enabled, List<PolicyStats> policyStats) {
-        super(XPackField.INDEX_LIFECYCLE, available, enabled);
+    public IndexLifecycleFeatureSetUsage(List<PolicyStats> policyStats) {
+        super(XPackField.INDEX_LIFECYCLE, true, true);
         this.policyStats = policyStats;
     }
 

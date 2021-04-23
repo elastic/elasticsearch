@@ -1,33 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Map;
-
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.env.Environment;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -49,7 +42,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         for (int i = 0; i < length; ++i) {
             bytes[i] = randomByte();
         }
-        Path file = env.configFile().resolve("randomfile");
+        Path file = env.configFile().resolve(randomAlphaOfLength(16));
         Files.write(file, bytes);
         return file;
     }
@@ -60,6 +53,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingCreateWithEmptyPasswordWhenPrompted() throws Exception {
+        assumeFalse("Cannot create unprotected keystore on FIPS JVM", inFipsJvm());
         String password = "";
         Path file1 = createRandomFile();
         terminal.addTextInput("y");
@@ -68,6 +62,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingCreateWithEmptyPasswordWithoutPromptIfForced() throws Exception {
+        assumeFalse("Cannot create unprotected keystore on FIPS JVM", inFipsJvm());
         String password = "";
         Path file1 = createRandomFile();
         execute("-f", "foo", file1.toString());
@@ -164,7 +159,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        assertThat(e.getMessage(), containsString("Missing file name"));
+        assertThat(e.getMessage(), containsString("settings and filenames must come in pairs"));
     }
 
     public void testFileDNE() throws Exception {
@@ -183,7 +178,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString(), "bar"));
         assertEquals(e.getMessage(), ExitCodes.USAGE, e.exitCode);
-        assertThat(e.getMessage(), containsString("Unrecognized extra arguments [bar]"));
+        assertThat(e.getMessage(), containsString("settings and filenames must come in pairs"));
     }
 
     public void testIncorrectPassword() throws Exception {
@@ -207,6 +202,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {
+        assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         String password = "";
         Path file = createRandomFile();
         KeyStoreWrapper keystore = createKeystore(password);
@@ -216,4 +212,20 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute("foo", "path/dne");
         assertSecureFile("foo", file, password);
     }
+
+    public void testAddMultipleFiles() throws Exception {
+        final String password = "keystorepassword";
+        createKeystore(password);
+        final int n = randomIntBetween(1, 8);
+        final List<Tuple<String, Path>> settingFilePairs = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            settingFilePairs.add(Tuple.tuple("foo" + i, createRandomFile()));
+        }
+        terminal.addSecretInput(password);
+        execute(settingFilePairs.stream().flatMap(t -> Stream.of(t.v1(), t.v2().toString())).toArray(String[]::new));
+        for (int i = 0; i < n; i++) {
+            assertSecureFile(settingFilePairs.get(i).v1(), settingFilePairs.get(i).v2(), password);
+        }
+    }
+
 }

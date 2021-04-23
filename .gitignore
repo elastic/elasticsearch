@@ -5,6 +5,14 @@
 *.ipr
 *.iws
 build-idea/
+# Eclipse and Intellij put there build files in "out"
+out/
+
+# include shared intellij config
+!.idea/scopes/x_pack.xml
+!.idea/inspectionProfiles/Project_Default.xml
+!.idea/runConfigurations/Debug_Elasticsearch.xml
+
 # These files are generated in the main tree by IntelliJ
 benchmarks/src/main/generated/*
 
@@ -12,6 +20,7 @@ benchmarks/src/main/generated/*
 .project
 .classpath
 .settings
+# We don't use this any more, but we'll keep it around in gitignore for a while so we don't accidentally commit it
 build-eclipse/
 
 # netbeans files
@@ -24,6 +33,9 @@ build/
 
 # vscode stuff
 .vscode/
+
+# vs stuff
+.vs/
 
 # testing stuff
 **/.local*
@@ -49,3 +61,6 @@ testfixtures_shared/
 
 # These are generated from .ci/jobs.t
 .ci/jobs/
+
+# Generated
+checkstyle_ide.xml

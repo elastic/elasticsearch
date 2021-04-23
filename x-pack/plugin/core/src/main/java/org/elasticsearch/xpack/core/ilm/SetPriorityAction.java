@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -85,8 +86,8 @@ public class SetPriorityAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey key = new StepKey(phase, NAME, NAME);
         Settings indexPriority = recoveryPriority == null ?
-            Settings.builder().putNull(IndexMetaData.INDEX_PRIORITY_SETTING.getKey()).build()
-            : Settings.builder().put(IndexMetaData.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
+            Settings.builder().putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey()).build()
+            : Settings.builder().put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
         return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
     }
 

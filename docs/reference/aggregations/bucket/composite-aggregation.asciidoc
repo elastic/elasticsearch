@@ -1,12 +1,16 @@
 [[search-aggregations-bucket-composite-aggregation]]
 === Composite aggregation
+++++
+<titleabbrev>Composite</titleabbrev>
+++++
 
 A multi-bucket aggregation that creates composite buckets from different sources.
 
-Unlike the other `multi-bucket` aggregation the `composite` aggregation can be used
-to paginate **all** buckets from a multi-level aggregation efficiently. This aggregation
-provides a way to stream **all** buckets of a specific aggregation similarly to what
-<<request-body-search-scroll, scroll>> does for documents.
+Unlike the other `multi-bucket` aggregations, you can use the `composite`
+aggregation to paginate **all** buckets from a multi-level aggregation
+efficiently. This aggregation provides a way to stream **all** buckets of a
+specific aggregation, similar to what
+<<scroll-search-results, scroll>> does for documents.
 
 The composite buckets are built from the combinations of the
 values extracted/created for each document and each combination is considered as
@@ -14,7 +18,7 @@ a composite bucket.
 
 //////////////////////////
 
-[source,js]
+[source,console]
 --------------------------------------------------
 PUT /sales
 {
@@ -31,6 +35,9 @@ PUT /sales
       },
       "shop": {
           "type": "keyword"
+      },
+      "location": {
+          "type": "geo_point"
       },
       "nested": {
           "type": "nested",
@@ -65,24 +72,23 @@ POST /sales/_bulk?refresh
 {"index":{"_id":4}}
 {"product": "apocalypse now", "price": "10", "timestamp": "2017-05-11T08:35"}
 -------------------------------------------------
-// NOTCONSOLE
 // TESTSETUP
 
 //////////////////////////
 
-For instance the following document:
+For example, consider the following document:
 
 [source,js]
 --------------------------------------------------
 {
-    "keyword": ["foo", "bar"],
-    "number": [23, 65, 76]
+  "keyword": ["foo", "bar"],
+  "number": [23, 65, 76]
 }
 --------------------------------------------------
 // NOTCONSOLE
 
-\... creates the following composite buckets when `keyword` and `number` are used as values source
-for the aggregation:
+Using `keyword` and `number` as source fields for the aggregation results in
+the following composite buckets:
 
 [source,js]
 --------------------------------------------------
@@ -95,21 +101,26 @@ for the aggregation:
 --------------------------------------------------
 // NOTCONSOLE
 
-==== Values source
+==== Value sources
 
-The `sources` parameter controls the sources that should be used to build the composite buckets.
-The order that the `sources` are defined is important because it also controls the order
-the keys are returned.
+The `sources` parameter defines the source fields to use when building
+composite buckets. The order that the `sources` are defined controls the order
+that the keys are returned.
 
-The name given to each sources must be unique.
+NOTE: You must use a unique name when defining `sources`.
 
-There are three different types of values source:
+The `sources` parameter can be any of the following types:
+
+* <<_terms,Terms>>
+* <<_histogram,Histogram>>
+* <<_date_histogram,Date histogram>>
+* <<_geotile_grid,GeoTile grid>>
 
 [[_terms]]
 ===== Terms
 
 The `terms` value source is equivalent to a simple `terms` aggregation.
-The values are extracted from a field or a script exactly like the `terms` aggregation.
+The values are extracted from a field exactly like the `terms` aggregation.
 
 Example:
 
@@ -117,46 +128,79 @@ Example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "product": { "terms" : { "field": "product" } } }
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "product": { "terms": { "field": "product" } } }
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
-Like the `terms` aggregation it is also possible to use a script to create the values for the composite buckets:
+Like the `terms` aggregation, it's possible to use a
+<<runtime,runtime field>> to create values for the composite buckets:
 
-[source,console,id=composite-aggregation-terms-script-example]
---------------------------------------------------
+[source,console,id=composite-aggregation-terms-runtime-field-example]
+----
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    {
-                        "product": {
-                            "terms" : {
-                                "script" : {
-                                    "source": "doc['product'].value",
-                                    "lang": "painless"
-                                }
-                            }
-                        }
-                    }
-                ]
-            }
-        }
+  "runtime_mappings": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": """
+        emit(doc['timestamp'].value.dayOfWeekEnum
+          .getDisplayName(TextStyle.FULL, Locale.ROOT))
+      """
     }
+  },
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          {
+            "dow": {
+              "terms": { "field": "day_of_week" }
+            }
+          }
+        ]
+      }
+    }
+  }
 }
---------------------------------------------------
+----
+
+////
+[source,console-result]
+----
+{
+  "timed_out": false,
+  "took": "$body.took",
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "hits": "$body.hits",
+  "aggregations": {
+    "my_buckets": {
+      "after_key": { "dow": "Wednesday" },
+      "buckets": [
+        { "key": { "dow": "Monday"    }, "doc_count": 1 },
+        { "key": { "dow": "Thursday"  }, "doc_count": 1 },
+        { "key": { "dow": "Tuesday"   }, "doc_count": 2 },
+        { "key": { "dow": "Wednesday" }, "doc_count": 1 }
+      ]
+    }
+  }
+}
+----
+////
 
 [[_histogram]]
 ===== Histogram
@@ -172,47 +216,84 @@ Example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "histo": { "histogram" : { "field": "price", "interval": 5 } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "histo": { "histogram": { "field": "price", "interval": 5 } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
-The values are built from a numeric field or a script that return numerical values:
+Like the `histogram` aggregation it's possible to use a
+<<runtime,runtime field>> to create values for the composite buckets:
 
-[source,console,id=composite-aggregation-histogram-script-example]
---------------------------------------------------
+[source,console,id=composite-aggregation-histogram-runtime-field-example]
+----
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    {
-                        "histo": {
-                            "histogram" : {
-                                "interval": 5,
-                                "script" : {
-                                    "source": "doc['price'].value",
-                                    "lang": "painless"
-                                }
-                            }
-                        }
-                    }
-                ]
-            }
+  "runtime_mappings": {
+    "price.discounted": {
+      "type": "double",
+      "script": """
+        double price = doc['price'].value;
+        if (doc['product'].value == 'mad max') {
+          price *= 0.8;
         }
+        emit(price);
+      """
     }
+  },
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          {
+            "price": {
+              "histogram": {
+                "interval": 5,
+                "field": "price.discounted"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
 }
---------------------------------------------------
+----
+
+////
+[source,console-result]
+----
+{
+  "timed_out": false,
+  "took": "$body.took",
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "hits": "$body.hits",
+  "aggregations": {
+    "my_buckets": {
+      "after_key": { "price": 20.0 },
+      "buckets": [
+        { "key": { "price": 10.0 }, "doc_count": 2 },
+        { "key": { "price": 15.0 }, "doc_count": 1 },
+        { "key": { "price": 20.0 }, "doc_count": 2 }
+      ]
+    }
+  }
+}
+----
+////
 
 [[_date_histogram]]
 ===== Date histogram
@@ -224,16 +305,16 @@ is specified by date/time expression:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "date": { "date_histogram" : { "field": "timestamp", "calendar_interval": "1d" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -254,24 +335,24 @@ the format specified with the format parameter:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    {
-                        "date": {
-                            "date_histogram" : {
-                                "field": "timestamp",
-                                "calendar_interval": "1d",
-                                "format": "yyyy-MM-dd" <1>
-                            }
-                        }
-                    }
-                ]
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          {
+            "date": {
+              "date_histogram": {
+                "field": "timestamp",
+                "calendar_interval": "1d",
+                "format": "yyyy-MM-dd"         <1>
+              }
             }
-        }
+          }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -279,7 +360,7 @@ GET /_search
 
 *Time Zone*
 
-Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+Date-times are stored in Elasticsearch in UTC. By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate
 that bucketing should use a different time zone.
 
@@ -293,17 +374,17 @@ include::datehistogram-aggregation.asciidoc[tag=offset-explanation]
 
 [source,console,id=composite-aggregation-datehistogram-offset-example]
 ----
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "date": "2015-10-01T05:30:00Z"
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "date": "2015-10-01T06:30:00Z"
 }
 
-GET my_index/_search?size=0
+GET my-index-000001/_search?size=0
 {
   "aggs": {
     "my_buckets": {
@@ -353,31 +434,102 @@ include::datehistogram-aggregation.asciidoc[tag=offset-result-intro]
 
 include::datehistogram-aggregation.asciidoc[tag=offset-note]
 
-===== Mixing different values source
+[[_geotile_grid]]
+===== GeoTile grid
 
-The `sources` parameter accepts an array of values source.
-It is possible to mix different values source to create composite buckets.
+The `geotile_grid` value source works on `geo_point` fields and groups points into buckets that represent
+cells in a grid. The resulting grid can be sparse and only contains cells
+that have matching data. Each cell corresponds to a
+{wikipedia}/Tiled_web_map[map tile] as used by many online map
+sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
+to the user-specified precision.
+
+[source,console,id=composite-aggregation-geotilegrid-example]
+--------------------------------------------------
+GET /_search
+{
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "tile": { "geotile_grid": { "field": "location", "precision": 8 } } }
+        ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+*Precision*
+
+The highest-precision geotile of length 29 produces cells that cover
+less than 10cm by 10cm of land. This precision is uniquely suited for composite aggregations as each
+tile does not have to be generated and loaded in memory.
+
+See https://wiki.openstreetmap.org/wiki/Zoom_levels[Zoom level documentation]
+on how precision (zoom) correlates to size on the ground. Precision for this
+aggregation can be between 0 and 29, inclusive.
+
+*Bounding box filtering*
+
+The geotile source can optionally be constrained to a specific geo bounding box, which reduces
+the range of tiles used. These bounds are useful when only a specific part of a geographical area needs high
+precision tiling.
+
+[source,console,id=composite-aggregation-geotilegrid-boundingbox-example]
+--------------------------------------------------
+GET /_search
+{
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          {
+            "tile": {
+              "geotile_grid": {
+                "field": "location",
+                "precision": 22,
+                "bounds": {
+                  "top_left": "52.4, 4.9",
+                  "bottom_right": "52.3, 5.0"
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+===== Mixing different value sources
+
+The `sources` parameter accepts an array of value sources.
+It is possible to mix different value sources to create composite buckets.
 For example:
 
 [source,console,id=composite-aggregation-mixing-sources-example]
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
-                    { "product": { "terms": {"field": "product" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
+          { "product": { "terms": { "field": "product" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
-This will create composite buckets from the values created by two values source, a `date_histogram` and a `terms`.
+This will create composite buckets from the values created by two value sources, a `date_histogram` and a `terms`.
 Each bucket is composed of two values, one for each value source defined in the aggregation.
 Any type of combinations is allowed and the order in the array is preserved
 in the composite buckets.
@@ -386,18 +538,18 @@ in the composite buckets.
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "shop": { "terms": {"field": "shop" } } },
-                    { "product": { "terms": { "field": "product" } } },
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "shop": { "terms": { "field": "shop" } } },
+          { "product": { "terms": { "field": "product" } } },
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -416,17 +568,17 @@ For example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
-                    { "product": { "terms": {"field": "product", "order": "asc" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
+          { "product": { "terms": { "field": "product", "order": "asc" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -443,16 +595,16 @@ It is possible to include them in the response by setting `missing_bucket` to
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "product_name": { "terms" : { "field": "product", "missing_bucket": true } } }
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "product_name": { "terms": { "field": "product", "missing_bucket": true } } }
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -464,10 +616,10 @@ first (ascending order, `asc`) or last (descending order, `desc`).
 ==== Size
 
 The `size` parameter can be set to define how many composite buckets should be returned.
-Each composite bucket is considered as a single bucket so setting a size of 10 will return the
-first 10 composite buckets created from the values source.
+Each composite bucket is considered as a single bucket, so setting a size of 10 will return the
+first 10 composite buckets created from the value sources.
 The response contains the values for each composite bucket in an array containing the values extracted
-from each value source.
+from each value source. Defaults to `10`.
 
 ==== Pagination
 
@@ -483,18 +635,18 @@ For example:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "size": 2,
-                "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
-                    { "product": { "terms": {"field": "product" } } }
-                ]
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "size": 2,
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d" } } },
+          { "product": { "terms": { "field": "product" } } }
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -504,31 +656,31 @@ GET /_search
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "my_buckets": {
-            "after_key": {
-                "date": 1494288000000,
-                "product": "mad max"
-            },
-            "buckets": [
-                {
-                    "key": {
-                        "date": 1494201600000,
-                        "product": "rocky"
-                    },
-                    "doc_count": 1
-                },
-                {
-                    "key": {
-                        "date": 1494288000000,
-                        "product": "mad max"
-                    },
-                    "doc_count": 2
-                }
-            ]
+  ...
+  "aggregations": {
+    "my_buckets": {
+      "after_key": {
+        "date": 1494288000000,
+        "product": "mad max"
+      },
+      "buckets": [
+        {
+          "key": {
+            "date": 1494201600000,
+            "product": "rocky"
+          },
+          "doc_count": 1
+        },
+        {
+          "key": {
+            "date": 1494288000000,
+            "product": "mad max"
+          },
+          "doc_count": 2
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
@@ -541,19 +693,19 @@ For example, this request uses the `after_key` value provided in the previous re
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "size": 2,
-                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
-                    { "product": { "terms": {"field": "product", "order": "asc" } } }
-                ],
-                "after": { "date": 1494288000000, "product": "mad max" } <1>
-            }
-        }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "size": 2,
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
+          { "product": { "terms": { "field": "product", "order": "asc" } } }
+        ],
+        "after": { "date": 1494288000000, "product": "mad max" } <1>
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -571,25 +723,25 @@ For instance the following index sort:
 
 [source,console]
 --------------------------------------------------
-PUT twitter
+PUT my-index-000001
 {
-    "settings" : {
-        "index" : {
-            "sort.field" : ["username", "timestamp"],   <1>
-            "sort.order" : ["asc", "desc"]              <2>
-        }
-    },
-    "mappings": {
-        "properties": {
-            "username": {
-                "type": "keyword",
-                "doc_values": true
-            },
-            "timestamp": {
-                "type": "date"
-            }
-        }
+  "settings": {
+    "index": {
+      "sort.field": [ "username", "timestamp" ],   <1>
+      "sort.order": [ "asc", "desc" ]              <2>
     }
+  },
+  "mappings": {
+    "properties": {
+      "username": {
+        "type": "keyword",
+        "doc_values": true
+      },
+      "timestamp": {
+        "type": "date"
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -602,16 +754,16 @@ PUT twitter
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } }     <1>
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "user_name": { "terms": { "field": "user_name" } } }     <1>
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -621,17 +773,17 @@ GET /_search
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } }, <1>
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } } <2>
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "user_name": { "terms": { "field": "user_name" } } }, <1>
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } } <2>
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -646,18 +798,18 @@ and it would be costly to compute this number on every page:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "track_total_hits": false,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                "sources" : [
-                    { "user_name": { "terms" : { "field": "user_name" } } },
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } }
-                ]
-            }
-        }
-     }
+  "size": 0,
+  "track_total_hits": false,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "user_name": { "terms": { "field": "user_name" } } },
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } }
+        ]
+      }
+    }
+  }
 }
 --------------------------------------------------
 
@@ -685,22 +837,22 @@ per composite bucket:
 --------------------------------------------------
 GET /_search
 {
-    "size": 0,
-    "aggs" : {
-        "my_buckets": {
-            "composite" : {
-                 "sources" : [
-                    { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
-                    { "product": { "terms": {"field": "product" } } }
-                ]
-            },
-            "aggregations": {
-                "the_avg": {
-                    "avg": { "field": "price" }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_buckets": {
+      "composite": {
+        "sources": [
+          { "date": { "date_histogram": { "field": "timestamp", "calendar_interval": "1d", "order": "desc" } } },
+          { "product": { "terms": { "field": "product" } } }
+        ]
+      },
+      "aggregations": {
+        "the_avg": {
+          "avg": { "field": "price" }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
@@ -710,66 +862,67 @@ GET /_search
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "my_buckets": {
-            "after_key": {
-                "date": 1494201600000,
-                "product": "rocky"
-            },
-            "buckets": [
-                {
-                    "key": {
-                        "date": 1494460800000,
-                        "product": "apocalypse now"
-                    },
-                    "doc_count": 1,
-                    "the_avg": {
-                        "value": 10.0
-                    }
-                },
-                {
-                    "key": {
-                        "date": 1494374400000,
-                        "product": "mad max"
-                    },
-                    "doc_count": 1,
-                    "the_avg": {
-                        "value": 27.0
-                    }
-                },
-                {
-                    "key": {
-                        "date": 1494288000000,
-                        "product" : "mad max"
-                    },
-                    "doc_count": 2,
-                    "the_avg": {
-                        "value": 22.5
-                    }
-                },
-                {
-                    "key": {
-                        "date": 1494201600000,
-                        "product": "rocky"
-                    },
-                    "doc_count": 1,
-                    "the_avg": {
-                        "value": 10.0
-                    }
-                }
-            ]
+  ...
+  "aggregations": {
+    "my_buckets": {
+      "after_key": {
+        "date": 1494201600000,
+        "product": "rocky"
+      },
+      "buckets": [
+        {
+          "key": {
+            "date": 1494460800000,
+            "product": "apocalypse now"
+          },
+          "doc_count": 1,
+          "the_avg": {
+            "value": 10.0
+          }
+        },
+        {
+          "key": {
+            "date": 1494374400000,
+            "product": "mad max"
+          },
+          "doc_count": 1,
+          "the_avg": {
+            "value": 27.0
+          }
+        },
+        {
+          "key": {
+            "date": 1494288000000,
+            "product": "mad max"
+          },
+          "doc_count": 2,
+          "the_avg": {
+            "value": 22.5
+          }
+        },
+        {
+          "key": {
+            "date": 1494201600000,
+            "product": "rocky"
+          },
+          "doc_count": 1,
+          "the_avg": {
+            "value": 10.0
+          }
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 
+[[search-aggregations-bucket-composite-aggregation-pipeline-aggregations]]
 ==== Pipeline aggregations
 
 The composite agg is not currently compatible with pipeline aggregations, nor does it make sense in most cases.
 E.g. due to the paging nature of composite aggs, a single logical partition (one day for example) might be spread
-over multiple pages.  Since pipeline aggregations are purely post-processing on the final list of buckets,
+over multiple pages. Since pipeline aggregations are purely post-processing on the final list of buckets,
 running something like a derivative on a composite page could lead to inaccurate results as it is only taking into
 account a "partial" result on that page.
 

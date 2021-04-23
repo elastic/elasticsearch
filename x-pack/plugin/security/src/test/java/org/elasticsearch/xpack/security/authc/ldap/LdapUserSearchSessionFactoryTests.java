@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -42,8 +43,8 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.isEmptyString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
@@ -523,7 +524,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
         try (LdapUserSearchSessionFactory searchSessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
             assertThat(searchSessionFactory.bindCredentials, notNullValue());
-            assertThat(searchSessionFactory.bindCredentials.getBindDN(), isEmptyString());
+            assertThat(searchSessionFactory.bindCredentials.getBindDN(), is(emptyString()));
         }
         assertDeprecationWarnings(config.identifier(), false, useLegacyBindPassword);
     }

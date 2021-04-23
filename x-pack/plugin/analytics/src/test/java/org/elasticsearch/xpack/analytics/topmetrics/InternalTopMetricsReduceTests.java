@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.topmetrics;
@@ -14,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Arrays;
 import java.util.List;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -74,7 +74,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         InternalTopMetrics longMetrics = buildFilled(1, top(SortValue.from(7), randomDouble()));
         InternalTopMetrics reduced = reduce(doubleMetrics, longMetrics);
         // Doubles sort first.
-        InternalTopMetrics winner = doubleMetrics.getSortOrder() == SortOrder.ASC ? doubleMetrics : longMetrics; 
+        InternalTopMetrics winner = doubleMetrics.getSortOrder() == SortOrder.ASC ? doubleMetrics : longMetrics;
         assertThat(reduced.getName(), equalTo("test"));
         assertThat(reduced.getMetricNames(), equalTo(singletonList("test")));
         assertThat(reduced.getSortOrder(), equalTo(doubleMetrics.getSortOrder()));
@@ -83,7 +83,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
     }
 
     private InternalTopMetrics buildEmpty() {
-        return InternalTopMetrics.buildEmptyAggregation("test", singletonList("test"), emptyList(), null);
+        return InternalTopMetrics.buildEmptyAggregation("test", singletonList("test"), null);
     }
 
     private InternalTopMetrics buildFilled(int size, InternalTopMetrics.TopMetric... metrics) {
@@ -91,12 +91,14 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
     }
 
     private InternalTopMetrics buildFilled(SortOrder sortOrder, int size, InternalTopMetrics.TopMetric... metrics) {
-        return new InternalTopMetrics("test", sortOrder, singletonList("test"), size, Arrays.asList(metrics), emptyList(), null);
+        return new InternalTopMetrics("test", sortOrder, singletonList("test"), size, Arrays.asList(metrics), null);
     }
 
     private InternalTopMetrics.TopMetric top(SortValue sortValue, double metricValue) {
         DocValueFormat sortFormat = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN, DocValueFormat.IP);
-        return new InternalTopMetrics.TopMetric(sortFormat, sortValue, new double[] {metricValue});
+        DocValueFormat metricFormat = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN, DocValueFormat.IP);
+        InternalTopMetrics.MetricValue realMetricValue = new InternalTopMetrics.MetricValue(metricFormat, SortValue.from(metricValue));
+        return new InternalTopMetrics.TopMetric(sortFormat, sortValue, singletonList(realMetricValue));
     }
 
     private InternalTopMetrics reduce(InternalTopMetrics... results) {

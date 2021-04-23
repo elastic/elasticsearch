@@ -90,7 +90,7 @@ orderBy
     ;
 
 querySpecification
-    : SELECT setQuantifier? selectItems
+    : SELECT topClause? setQuantifier? selectItems
       fromClause?
       (WHERE where=booleanExpression)?
       (GROUP BY groupBy)?
@@ -117,6 +117,10 @@ groupingExpressions
 namedQuery
     : name=identifier AS '(' queryNoWith ')'
     ;
+
+topClause
+   : TOP top=INTEGER_VALUE
+   ;
 
 setQuantifier
     : DISTINCT
@@ -376,7 +380,7 @@ nonReserved
     | QUERY 
     | RLIKE
     | SCHEMAS | SECOND | SHOW | SYS
-    | TABLES | TEXT | TYPE | TYPES
+    | TABLES | TEXT | TOP | TYPE | TYPES
     | VERIFY
     | YEAR
     ;
@@ -469,6 +473,7 @@ TEXT: 'TEXT';
 THEN: 'THEN';
 TRUE: 'TRUE';
 TO: 'TO';
+TOP: 'TOP';
 TYPE: 'TYPE';
 TYPES: 'TYPES';
 USING: 'USING';
@@ -507,7 +512,6 @@ ASTERISK: '*';
 SLASH: '/';
 PERCENT: '%';
 CAST_OP: '::';
-CONCAT: '||';
 DOT: '.';
 PARAM: '?';
 

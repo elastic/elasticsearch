@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action;
@@ -29,6 +18,7 @@ import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.http.HttpChannel;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -38,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
@@ -86,41 +75,29 @@ public class RestCancellableNodeClient extends FilterClient {
     @Override
     public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
         ActionType<Response> action, Request request, ActionListener<Response> listener) {
-        final AtomicBoolean created = new AtomicBoolean(false);
-        CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> {
-            created.set(true);
-            return new CloseListener();
-        });
+        CloseListener closeListener = httpChannels.computeIfAbsent(httpChannel, channel -> new CloseListener());
         TaskHolder taskHolder = new TaskHolder();
-        final Task task;
-        boolean success = false;
-        try {
-            task = client.executeLocally(action, request,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(Response response) {
-                        try {
-                            closeListener.unregisterTask(taskHolder);
-                        } finally {
-                            listener.onResponse(response);
-                        }
+        Task task = client.executeLocally(action, request,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        closeListener.unregisterTask(taskHolder);
+                    } finally {
+                        listener.onResponse(response);
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            closeListener.unregisterTask(taskHolder);
-                        } finally {
-                            listener.onFailure(e);
-                        }
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        closeListener.unregisterTask(taskHolder);
+                    } finally {
+                        listener.onFailure(e);
                     }
-                });
-            success = true;
-        } finally {
-            if (success == false && created.get()) {
-                httpChannels.remove(httpChannel);
-            }
-        }
+                }
+            });
+        assert task instanceof CancellableTask : action.name() + " is not cancellable";
         final TaskId taskId = new TaskId(client.getLocalNodeId(), task.getId());
         closeListener.registerTask(taskHolder, taskId);
         closeListener.maybeRegisterChannel(httpChannel);

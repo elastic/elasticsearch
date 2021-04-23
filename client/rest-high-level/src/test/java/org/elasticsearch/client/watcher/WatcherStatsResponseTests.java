@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.watcher;
@@ -52,7 +41,7 @@ public class WatcherStatsResponseTests extends ESTestCase {
     private void toXContent(WatcherStatsResponse response, XContentBuilder builder) throws IOException {
         builder.startObject();
         NodesResponseHeaderTestUtils.toXContent(response.getHeader(), response.getClusterName(), builder);
-        toXContent(response.getWatcherMetaData(), builder);
+        toXContent(response.getWatcherMetadata(), builder);
         builder.startArray("stats");
         for (WatcherStatsResponse.Node node : response.getNodes()) {
             toXContent(node, builder);
@@ -61,8 +50,8 @@ public class WatcherStatsResponseTests extends ESTestCase {
         builder.endObject();
     }
 
-    private void toXContent(WatcherMetaData metaData, XContentBuilder builder) throws IOException {
-        builder.field("manually_stopped", metaData.manuallyStopped());
+    private void toXContent(WatcherMetadata metadata, XContentBuilder builder) throws IOException {
+        builder.field("manually_stopped", metadata.manuallyStopped());
     }
 
     private void toXContent(WatcherStatsResponse.Node node, XContentBuilder builder) throws IOException {
@@ -182,7 +171,7 @@ public class WatcherStatsResponseTests extends ESTestCase {
         }
         NodesResponseHeader nodesResponseHeader = new NodesResponseHeader(randomInt(10), randomInt(10),
             randomInt(10), Collections.emptyList());
-        WatcherMetaData watcherMetaData = new WatcherMetaData(randomBoolean());
-        return new WatcherStatsResponse(nodesResponseHeader, randomAlphaOfLength(10), watcherMetaData, nodes);
+        WatcherMetadata watcherMetadata = new WatcherMetadata(randomBoolean());
+        return new WatcherStatsResponse(nodesResponseHeader, randomAlphaOfLength(10), watcherMetadata, nodes);
     }
 }

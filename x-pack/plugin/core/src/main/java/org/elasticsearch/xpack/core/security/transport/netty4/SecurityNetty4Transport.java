@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.transport.netty4;
 
@@ -22,6 +23,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -61,8 +63,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
             final PageCacheRecycler pageCacheRecycler,
             final NamedWriteableRegistry namedWriteableRegistry,
             final CircuitBreakerService circuitBreakerService,
-            final SSLService sslService) {
-        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService);
+            final SSLService sslService,
+            final SharedGroupFactory sharedGroupFactory) {
+        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
+            sharedGroupFactory);
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);

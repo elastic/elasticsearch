@@ -1,22 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
@@ -26,9 +18,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
-
 public class GeoTileGridParserTests extends ESTestCase {
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
@@ -37,7 +26,7 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+        assertNotNull(GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid"));
     }
 
     public void testParseValidFromStrings() throws Exception {
@@ -47,7 +36,7 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+        assertNotNull(GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid"));
     }
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
@@ -55,7 +44,7 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         XContentParseException e = expectThrows(XContentParseException.class,
-                () -> GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+                () -> GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid"));
         assertThat(ExceptionsHelper.stackTrace(e),
                 containsString("[geotile_grid] precision doesn't support values of type: VALUE_BOOLEAN"));
     }
@@ -65,7 +54,7 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
-            GeoTileGridAggregationBuilder.parse("geotile_grid", stParser);
+            GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid");
             fail();
         } catch (XContentParseException ex) {
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
@@ -85,6 +74,6 @@ public class GeoTileGridParserTests extends ESTestCase {
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
-        assertNotNull(GeoTileGridAggregationBuilder.parse("geotile_grid", stParser));
+        assertNotNull(GeoTileGridAggregationBuilder.PARSER.parse(stParser, "geotile_grid"));
     }
 }

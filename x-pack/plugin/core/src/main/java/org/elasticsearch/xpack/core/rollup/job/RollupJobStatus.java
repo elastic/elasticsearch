@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
@@ -45,17 +46,13 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     private static final ParseField CURRENT_POSITION = new ParseField("current_position");
     private static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id"); // This can be removed in 9.0
 
+    @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER =
             new ConstructingObjectParser<>(NAME,
                     args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1]));
 
     static {
-        PARSER.declareField(constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return IndexerState.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, STATE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(constructorArg(), IndexerState::fromString, STATE);
         PARSER.declareField(optionalConstructorArg(), p -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
                 return p.map();

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.vagrant;
@@ -23,11 +12,13 @@ import org.apache.commons.io.output.TeeOutputStream;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.LoggingOutputStream;
 import org.elasticsearch.gradle.ReaperService;
-import org.elasticsearch.gradle.Util;
+import org.elasticsearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
+import org.gradle.api.provider.Provider;
 import org.gradle.internal.logging.progress.ProgressLogger;
 import org.gradle.internal.logging.progress.ProgressLoggerFactory;
+import org.gradle.process.ExecOperations;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -45,21 +36,25 @@ import java.util.function.UnaryOperator;
  */
 public class VagrantMachine {
 
-    private final Project project;
     private final VagrantExtension extension;
-    private final ReaperService reaper;
+    private final Provider<ReaperService> reaperServiceProvider;
+    private ReaperService reaper;
     // pkg private so plugin can set this after construction
     long refs;
     private boolean isVMStarted = false;
 
-    public VagrantMachine(Project project, VagrantExtension extension, ReaperService reaper) {
-        this.project = project;
+    public VagrantMachine(VagrantExtension extension, Provider<ReaperService> reaperServiceProvider) {
         this.extension = extension;
-        this.reaper = reaper;
+        this.reaperServiceProvider = reaperServiceProvider;
     }
 
     @Inject
     protected ProgressLoggerFactory getProgressLoggerFactory() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected ExecOperations getExecOperations() {
         throw new UnsupportedOperationException();
     }
 
@@ -69,13 +64,12 @@ public class VagrantMachine {
 
         Objects.requireNonNull(vagrantSpec.command);
 
-        LoggedExec.exec(project, execSpec -> {
+        LoggedExec.exec(getExecOperations(), execSpec -> {
             execSpec.setExecutable("vagrant");
             File vagrantfile = extension.getVagrantfile();
             execSpec.setEnvironment(System.getenv()); // pass through env
             execSpec.environment("VAGRANT_CWD", vagrantfile.getParentFile().toString());
             execSpec.environment("VAGRANT_VAGRANTFILE", vagrantfile.getName());
-            execSpec.environment("VAGRANT_LOG", "debug");
             extension.getHostEnv().forEach(execSpec::environment);
 
             execSpec.args(vagrantSpec.command);
@@ -103,7 +97,6 @@ public class VagrantMachine {
         if (isVMStarted) {
             return;
         }
-
         execute(spec -> {
             spec.setCommand("box");
             spec.setSubcommand("update");
@@ -120,6 +113,7 @@ public class VagrantMachine {
         }
 
         // register box to be shutdown if gradle dies
+        reaper = reaperServiceProvider.get();
         reaper.registerCommand(extension.getBox(), "vagrant", "halt", "-f", extension.getBox());
 
         // We lock the provider to virtualbox because the Vagrantfile specifies lots of boxes that only work

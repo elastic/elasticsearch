@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
@@ -49,7 +50,7 @@ import java.util.Objects;
  *  2. Document id is extracted from this line.
  *  3. Document with this id is searched for in .ml-state* indices
  *  4. If the document is found, it is overwritten in place (i.e. in the same index) with the new content.
- *     Otherwise, it is written to the index pointed by the current write alias, i.e. .ml-state-writei
+ *     Otherwise, it is written to the index pointed by the current write alias, i.e. .ml-state-write
  */
 public class IndexingStateProcessor implements StateProcessor {
 
@@ -86,8 +87,8 @@ public class IndexingStateProcessor implements StateProcessor {
             if (findNextZeroByte(newBlock, 0, 0) == -1) {
                 searchFrom += bytesRead;
             } else {
-                BytesReference newBytes = new CompositeBytesReference(newBlocks.toArray(new BytesReference[0]));
-                bytesToDate = (bytesToDate == null) ? newBytes : new CompositeBytesReference(bytesToDate, newBytes);
+                BytesReference newBytes = CompositeBytesReference.of(newBlocks.toArray(new BytesReference[0]));
+                bytesToDate = (bytesToDate == null) ? newBytes : CompositeBytesReference.of(bytesToDate, newBytes);
                 bytesToDate = splitAndPersist(bytesToDate, searchFrom);
                 searchFrom = (bytesToDate == null) ? 0 : bytesToDate.length();
                 newBlocks.clear();
@@ -137,7 +138,9 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     void persist(String indexOrAlias, BytesReference bytes) throws IOException {
-        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkRequest bulkRequest = new BulkRequest()
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .requireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
         bulkRequest.add(bytes, indexOrAlias, XContentType.JSON);
         if (bulkRequest.numberOfActions() > 0) {
             LOGGER.trace("[{}] Persisting job state document: index [{}], length [{}]", jobId, indexOrAlias, bytes.length());
@@ -145,7 +148,7 @@ public class IndexingStateProcessor implements StateProcessor {
                 resultsPersisterService.bulkIndexWithRetry(bulkRequest,
                     jobId,
                     () -> true,
-                    (msg) -> auditor.warning(jobId, "Bulk indexing of state failed " + msg));
+                    retryMessage -> LOGGER.debug("[{}] Bulk indexing of state failed {}", jobId, retryMessage));
             } catch (Exception ex) {
                 String msg = "failed indexing updated state docs";
                 LOGGER.error(() -> new ParameterizedMessage("[{}] {}", jobId, msg), ex);
@@ -159,7 +162,7 @@ public class IndexingStateProcessor implements StateProcessor {
     }
 
     @SuppressWarnings("unchecked")
-    /**
+    /*
      * Extracts document id from the given {@code bytesRef}.
      * Only first non-blank line is parsed and document id is assumed to be a nested "index._id" field of type String.
      */
@@ -224,7 +227,7 @@ public class IndexingStateProcessor implements StateProcessor {
                 searchRequest,
                 jobId,
                 () -> true,
-                (msg) -> auditor.warning(jobId, documentId + " " + msg));
+                retryMessage -> LOGGER.debug("[{}] {} {}", jobId, documentId, retryMessage));
         return searchResponse.getHits().getHits().length > 0
             ? searchResponse.getHits().getHits()[0].getIndex()
             : AnomalyDetectorsIndex.jobStateIndexWriteAlias();

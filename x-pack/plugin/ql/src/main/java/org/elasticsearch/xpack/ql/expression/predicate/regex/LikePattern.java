@@ -1,10 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.Objects;
@@ -17,7 +23,7 @@ import java.util.Objects;
  *
  * To prevent conflicts with ES, the string and char must be validated to not contain '*'.
  */
-public class LikePattern {
+public class LikePattern extends AbstractStringPattern {
 
     private final String pattern;
     private final char escape;
@@ -43,9 +49,13 @@ public class LikePattern {
         return escape;
     }
 
-    /**
-     * Returns the pattern in (Java) regex format.
-     */
+    @Override
+    Automaton createAutomaton() {
+        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
+        return MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+    }
+
+    @Override
     public String asJavaRegex() {
         return regex;
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.termvectors;
@@ -441,7 +430,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Sets the settings for filtering out terms.
      */
     public TermVectorsRequest filterSettings(FilterSettings settings) {
-        this.filterSettings = settings != null ? settings : null;
+        this.filterSettings = settings;
         return this;
     }
 
@@ -464,11 +453,11 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     }
 
     private void setFlag(Flag flag, boolean set) {
-        if (set && !flagsEnum.contains(flag)) {
+        if (set && flagsEnum.contains(flag) == false) {
             flagsEnum.add(flag);
-        } else if (!set) {
+        } else if (set == false) {
             flagsEnum.remove(flag);
-            assert (!flagsEnum.contains(flag));
+            assert flagsEnum.contains(flag) == false;
         }
     }
 
@@ -493,7 +482,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         out.writeBoolean(doc != null);
         if (doc != null) {
             out.writeBytesReference(doc);
-            out.writeEnum(xContentType);
+            XContentHelper.writeTo(out, xContentType);
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
@@ -503,10 +492,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
         out.writeVLong(longFlags);
         if (selectedFields != null) {
-            out.writeVInt(selectedFields.size());
-            for (String selectedField : selectedFields) {
-                out.writeString(selectedField);
-            }
+            out.writeStringCollection(selectedFields);
         } else {
             out.writeVInt(0);
         }

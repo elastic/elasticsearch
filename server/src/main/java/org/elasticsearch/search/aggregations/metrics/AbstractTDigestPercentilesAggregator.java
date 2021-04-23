@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -25,19 +14,15 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.index.fielddata.HistogramValue;
-import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
@@ -53,10 +38,10 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
     protected final double compression;
     protected final boolean keyed;
 
-    AbstractTDigestPercentilesAggregator(String name, ValuesSource valuesSource, SearchContext context, Aggregator parent,
+    AbstractTDigestPercentilesAggregator(String name, ValuesSource valuesSource, AggregationContext context, Aggregator parent,
             double[] keys, double compression, boolean keyed, DocValueFormat formatter,
-            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+            Map<String, Object> metadata) throws IOException {
+        super(name, context, parent, metadata);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.formatter = formatter;
@@ -76,43 +61,15 @@ abstract class AbstractTDigestPercentilesAggregator extends NumericMetricsAggreg
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
-        if (valuesSource instanceof ValuesSource.Histogram) {
-            final HistogramValues values = ((ValuesSource.Histogram)valuesSource).getHistogramValues(ctx);
-            return collectHistogramValues(values, bigArrays, sub);
-        } else {
-            final SortedNumericDoubleValues values = ((ValuesSource.Numeric)valuesSource).doubleValues(ctx);
-            return collectNumeric(values, bigArrays, sub);
-        }
-
-    }
-
-    private LeafBucketCollector collectNumeric(final SortedNumericDoubleValues values,
-                                               final BigArrays bigArrays, final LeafBucketCollector sub) {
+        final SortedNumericDoubleValues values = ((ValuesSource.Numeric)valuesSource).doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                TDigestState state = getExistingOrNewHistogram(bigArrays, bucket);
+                TDigestState state = getExistingOrNewHistogram(bigArrays(), bucket);
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
                     for (int i = 0; i < valueCount; i++) {
                         state.add(values.nextValue());
-                    }
-                }
-            }
-        };
-    }
-
-    private LeafBucketCollector collectHistogramValues(final HistogramValues values,
-                                                       final BigArrays bigArrays, final LeafBucketCollector sub) {
-        return new LeafBucketCollectorBase(sub, values) {
-            @Override
-            public void collect(int doc, long bucket) throws IOException {
-                TDigestState state = getExistingOrNewHistogram(bigArrays, bucket);
-                if (values.advanceExact(doc)) {
-                    final HistogramValue sketch = values.histogram();
-                    while(sketch.next()) {
-                        state.add(sketch.value(), sketch.count());
                     }
                 }
             }

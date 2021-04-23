@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
@@ -58,7 +47,9 @@ import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
@@ -79,7 +70,6 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -89,17 +79,20 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.CoordinatorTests;
@@ -108,16 +101,17 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.InMemoryPersistedState;
 import org.elasticsearch.cluster.coordination.MockSinglePrioritizingExecutor;
 import org.elasticsearch.cluster.metadata.AliasValidator;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
-import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
-import org.elasticsearch.cluster.metadata.MetaDataMappingService;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -136,7 +130,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -145,20 +138,25 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
+import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -167,6 +165,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -175,10 +174,6 @@ import org.elasticsearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
@@ -198,24 +193,28 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.env.Environment.PATH_HOME_SETTING;
+import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
 public class SnapshotResiliencyTests extends ESTestCase {
@@ -252,11 +251,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
             // Create another snapshot and then clean up the repository to verify that the repository works correctly no matter the
             // failures seen during the previous test.
             client().admin().cluster().prepareCreateSnapshot("repo", "last-snapshot")
-                .setWaitForCompletion(true).execute(createSnapshotResponse);
+                .setWaitForCompletion(true).setPartial(true).execute(createSnapshotResponse);
             continueOrDie(createSnapshotResponse, r -> {
                 final SnapshotInfo snapshotInfo = r.getSnapshotInfo();
-                // Snapshot can fail because some tests leave indices in a red state because data nodes were stopped
-                assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.FAILED)));
+                // Snapshot can be partial because some tests leave indices in a red state because data nodes were stopped
+                assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.PARTIAL)));
                 assertThat(snapshotInfo.shardFailures(), iterableWithSize(snapshotInfo.failedShards()));
                 assertThat(snapshotInfo.successfulShards(), is(snapshotInfo.totalShards() - snapshotInfo.failedShards()));
                 client().admin().cluster().cleanupRepository(new CleanupRepositoryRequest("repo"), cleanupResponse);
@@ -362,6 +361,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
 
+        final boolean partial = randomBoolean();
         continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
             for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                 scheduleNow(this::disconnectRandomDataNode);
@@ -370,10 +370,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
             }
             testClusterNodes.randomMasterNodeSafe().client.admin().cluster()
-                .prepareCreateSnapshot(repoName, snapshotName).execute(createSnapshotResponseStepListener);
+                .prepareCreateSnapshot(repoName, snapshotName).setPartial(partial).execute(createSnapshotResponseStepListener);
         });
 
-        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
+        final AtomicBoolean snapshotNeverStarted = new AtomicBoolean(false);
+
+        createSnapshotResponseStepListener.whenComplete(createSnapshotResponse -> {
             for (int i = 0; i < randomIntBetween(0, dataNodes); ++i) {
                 scheduleNow(this::disconnectOrRestartDataNode);
             }
@@ -387,12 +389,67 @@ public class SnapshotResiliencyTests extends ESTestCase {
             } else if (randomBoolean()) {
                 scheduleNow(() -> testClusterNodes.clearNetworkDisruptions());
             }
+        }, e -> {
+            if (partial == false) {
+                final SnapshotException unwrapped = (SnapshotException) ExceptionsHelper.unwrap(e, SnapshotException.class);
+                assertNotNull(unwrapped);
+                assertThat(unwrapped.getMessage(), endsWith("Indices don't have primary shards [test]"));
+                snapshotNeverStarted.set(true);
+            } else {
+                throw new AssertionError(e);
+            }
         });
 
         runUntil(() -> testClusterNodes.randomMasterNode().map(master -> {
+            if (snapshotNeverStarted.get()) {
+                return true;
+            }
             final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);
             return snapshotsInProgress != null && snapshotsInProgress.entries().isEmpty();
         }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
+
+        clearDisruptionsAndAwaitSync();
+
+        final TestClusterNodes.TestClusterNode randomMaster = testClusterNodes.randomMasterNode()
+            .orElseThrow(() -> new AssertionError("expected to find at least one active master node"));
+        SnapshotsInProgress finalSnapshotsInProgress =
+            randomMaster.clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
+        assertThat(finalSnapshotsInProgress.entries(), empty());
+        final Repository repository = randomMaster.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
+        if (snapshotNeverStarted.get()) {
+            assertThat(snapshotIds, empty());
+        } else {
+            assertThat(snapshotIds, hasSize(1));
+        }
+    }
+
+    public void testSnapshotDeleteWithMasterFailover() {
+        final int dataNodes = randomIntBetween(2, 10);
+        final int masterNodes = randomFrom(3, 5);
+        setupTestCluster(masterNodes, dataNodes);
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 10);
+
+        final boolean waitForSnapshot = randomBoolean();
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+        continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse ->
+            testClusterNodes.randomMasterNodeSafe().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(waitForSnapshot).execute(createSnapshotResponseStepListener));
+
+        final AtomicBoolean snapshotDeleteResponded = new AtomicBoolean(false);
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
+            scheduleNow(this::disconnectOrRestartMasterNode);
+            testClusterNodes.randomDataNodeSafe().client.admin().cluster()
+                .prepareDeleteSnapshot(repoName, snapshotName).execute(ActionListener.wrap(() -> snapshotDeleteResponded.set(true)));
+        });
+
+        runUntil(() -> testClusterNodes.randomMasterNode().map(master -> snapshotDeleteResponded.get() &&
+            master.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                .getEntries().isEmpty()).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
 
@@ -402,7 +459,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(finalSnapshotsInProgress.entries(), empty());
         final Repository repository = randomMaster.repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
-        assertThat(snapshotIds, hasSize(1));
+        assertThat(snapshotIds, hasSize(0));
     }
 
     public void testConcurrentSnapshotCreateAndDelete() {
@@ -424,8 +481,15 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
 
-        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
-            new DeleteSnapshotRequest(repoName, snapshotName), deleteSnapshotStepListener));
+        masterNode.clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (event.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() == false) {
+                    client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(deleteSnapshotStepListener);
+                    masterNode.clusterService.removeListener(this);
+                }
+            }
+        });
 
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
 
@@ -436,6 +500,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         deterministicTaskQueue.runAllRunnableTasks();
 
+        assertNotNull(createSnapshotResponseStepListener.result());
         assertNotNull(createAnotherSnapshotResponseStepListener.result());
         SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
         assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
@@ -473,31 +538,19 @@ public class SnapshotResiliencyTests extends ESTestCase {
             createSnapshotResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-2")
                 .execute(createOtherSnapshotResponseStepListener));
 
-        final StepListener<Boolean> deleteSnapshotStepListener = new StepListener<>();
+        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
 
         continueOrDie(createOtherSnapshotResponseStepListener,
-            createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
-                new DeleteSnapshotRequest(repoName, snapshotName), ActionListener.wrap(
-                    resp -> deleteSnapshotStepListener.onResponse(true),
-                    e -> {
-                        final Throwable unwrapped =
-                            ExceptionsHelper.unwrap(e, ConcurrentSnapshotExecutionException.class);
-                        assertThat(unwrapped, instanceOf(ConcurrentSnapshotExecutionException.class));
-                        deleteSnapshotStepListener.onResponse(false);
-                    })));
+            createSnapshotResponse -> client().admin().cluster().prepareDeleteSnapshot(
+                repoName, snapshotName).execute(deleteSnapshotStepListener));
 
         final StepListener<CreateSnapshotResponse> createAnotherSnapshotResponseStepListener = new StepListener<>();
 
         continueOrDie(deleteSnapshotStepListener, deleted -> {
-            if (deleted) {
-                // The delete worked out, creating a third snapshot
-                client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
                     .execute(createAnotherSnapshotResponseStepListener);
-                continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
+            continueOrDie(createAnotherSnapshotResponseStepListener, createSnapshotResponse ->
                     assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS));
-            } else {
-                createAnotherSnapshotResponseStepListener.onResponse(null);
-            }
         });
 
         deterministicTaskQueue.runAllRunnableTasks();
@@ -516,6 +569,50 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertEquals(shards, snapshotInfo.successfulShards());
             assertEquals(0, snapshotInfo.failedShards());
         }
+    }
+
+    public void testBulkSnapshotDeleteWithAbort() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNodes.TestClusterNode masterNode =
+                testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createRepoAndIndex(repoName, index, shards),
+                createIndexResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                        .setWaitForCompletion(true).execute(createSnapshotResponseStepListener));
+
+        final int inProgressSnapshots = randomIntBetween(1, 5);
+        final StepListener<Collection<CreateSnapshotResponse>> createOtherSnapshotResponseStepListener = new StepListener<>();
+        final ActionListener<CreateSnapshotResponse> createSnapshotListener =
+                new GroupedActionListener<>(createOtherSnapshotResponseStepListener, inProgressSnapshots);
+
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
+            for (int i = 0; i < inProgressSnapshots; i++) {
+                client().admin().cluster().prepareCreateSnapshot(repoName, "other-" + i).execute(createSnapshotListener);
+            }
+        });
+
+        final StepListener<AcknowledgedResponse> deleteSnapshotStepListener = new StepListener<>();
+
+        continueOrDie(createOtherSnapshotResponseStepListener,
+                createSnapshotResponse -> client().admin().cluster().deleteSnapshot(
+                        new DeleteSnapshotRequest(repoName, "*"), deleteSnapshotStepListener));
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
+        // No snapshots should be left in the repository
+        assertThat(snapshotIds, empty());
     }
 
     public void testConcurrentSnapshotRestoreAndDeleteOther() {
@@ -619,7 +716,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final SetOnce<Index> firstIndex = new SetOnce<>();
         continueOrDie(createRepoAndIndex(repoName, index, 1), createIndexResponse -> {
-            firstIndex.set(masterNode.clusterService.state().metaData().index(index).getIndex());
+            firstIndex.set(masterNode.clusterService.state().metadata().index(index).getIndex());
             // create a few more indices to make it more likely that the subsequent index delete operation happens before snapshot
             // finalization
             final GroupedActionListener<CreateIndexResponse> listener = new GroupedActionListener<>(createIndicesListener, indices);
@@ -634,7 +731,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(createIndicesListener, createIndexResponses ->
             client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(false)
-                .setPartial(partialSnapshot).execute(createSnapshotResponseStepListener));
+                .setPartial(partialSnapshot).setIncludeGlobalState(randomBoolean()).execute(createSnapshotResponseStepListener));
 
         continueOrDie(createSnapshotResponseStepListener,
             createSnapshotResponse -> client().admin().indices().delete(new DeleteIndexRequest(index), new ActionListener<>() {
@@ -664,21 +761,79 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(1));
 
         final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
-        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         if (partialSnapshot) {
+            assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.PARTIAL)));
             // Single shard for each index so we either get all indices or all except for the deleted index
             assertThat(snapshotInfo.successfulShards(), either(is(indices + 1)).or(is(indices)));
             if (snapshotInfo.successfulShards() == indices + 1) {
-                final IndexMetaData indexMetaData =
-                    repository.getSnapshotIndexMetaData(snapshotInfo.snapshotId(), repositoryData.resolveIndexId(index));
+                final IndexMetadata indexMetadata =
+                    repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), repositoryData.resolveIndexId(index));
                 // Make sure we snapshotted the metadata of this index and not the recreated version
-                assertEquals(indexMetaData.getIndex(), firstIndex.get());
+                assertEquals(indexMetadata.getIndex(), firstIndex.get());
             }
         } else {
+            assertEquals(snapshotInfo.state(), SnapshotState.SUCCESS);
             // Index delete must be blocked for non-partial snapshots and we get a snapshot for every index
             assertEquals(snapshotInfo.successfulShards(), indices + 1);
         }
         assertEquals(0, snapshotInfo.failedShards());
+    }
+
+    public void testConcurrentDeletes() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        String repoName = "repo";
+        String snapshotName = "snapshot";
+        final String index = "test";
+        final int shards = randomIntBetween(1, 10);
+
+        TestClusterNodes.TestClusterNode masterNode =
+                testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<CreateSnapshotResponse> createSnapshotResponseStepListener = new StepListener<>();
+
+        continueOrDie(createRepoAndIndex(repoName, index, shards),
+                createIndexResponse -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                        .setWaitForCompletion(true).execute(createSnapshotResponseStepListener));
+
+        final Collection<StepListener<Boolean>> deleteSnapshotStepListeners = List.of(new StepListener<>(), new StepListener<>());
+
+        final AtomicInteger successfulDeletes = new AtomicInteger(0);
+
+        continueOrDie(createSnapshotResponseStepListener, createSnapshotResponse -> {
+            for (StepListener<Boolean> deleteListener : deleteSnapshotStepListeners) {
+                client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName).execute(
+                        ActionListener.wrap(
+                                resp -> deleteListener.onResponse(true),
+                                e -> {
+                                    final Throwable unwrapped = ExceptionsHelper.unwrap(
+                                            e, ConcurrentSnapshotExecutionException.class, SnapshotMissingException.class);
+                                    assertThat(unwrapped, notNullValue());
+                                    deleteListener.onResponse(false);
+                                }));
+            }
+        });
+
+        for (StepListener<Boolean> deleteListener : deleteSnapshotStepListeners) {
+            continueOrDie(deleteListener, deleted -> {
+                if (deleted) {
+                    successfulDeletes.incrementAndGet();
+                }
+            });
+        }
+
+        deterministicTaskQueue.runAllRunnableTasks();
+
+        SnapshotDeletionsInProgress deletionsInProgress = masterNode.clusterService.state().custom(SnapshotDeletionsInProgress.TYPE);
+        assertFalse(deletionsInProgress.hasDeletionsInProgress());
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repository);
+        Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
+        // We end up with no snapshots since at least one of the deletes worked out
+        assertThat(snapshotIds, empty());
+        assertThat(successfulDeletes.get(), either(is(1)).or(is(2)));
+        // We did one snapshot and one delete so we went two steps from the empty generation (-1) to 1
+        assertThat(repositoryData.getGenId(), is(1L));
     }
 
     /**
@@ -723,11 +878,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
                                 scheduleNow(() -> testClusterNodes.stopNode(masterNode));
                             }
                             testClusterNodes.randomDataNodeSafe().client.admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
-                                .execute(ActionListener.wrap(() -> {
-                                    createdSnapshot.set(true);
-                                    testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshot(
-                                        new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
-                                }));
+                                    .execute(ActionListener.wrap(() -> {
+                                        createdSnapshot.set(true);
+                                        testClusterNodes.randomDataNodeSafe().client.admin().cluster().deleteSnapshot(
+                                                new DeleteSnapshotRequest(repoName, snapshotName), noopListener());
+                                    }));
                             scheduleNow(
                                 () -> testClusterNodes.randomMasterNodeSafe().client.admin().cluster().reroute(
                                     new ClusterRerouteRequest().add(new AllocateEmptyPrimaryAllocationCommand(
@@ -744,16 +899,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (createdSnapshot.get() == false) {
                 return false;
             }
-            final SnapshotsInProgress snapshotsInProgress = master.clusterService.state().custom(SnapshotsInProgress.TYPE);
-            return snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty();
+            return master.clusterService.state().custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty();
         }).orElse(false), TimeUnit.MINUTES.toMillis(1L));
 
         clearDisruptionsAndAwaitSync();
 
         assertTrue(createdSnapshot.get());
-        final SnapshotsInProgress finalSnapshotsInProgress = testClusterNodes.randomDataNodeSafe()
-            .clusterService.state().custom(SnapshotsInProgress.TYPE);
-        assertThat(finalSnapshotsInProgress.entries(), empty());
+        assertThat(testClusterNodes.randomDataNodeSafe().clusterService.state()
+            .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries(), empty());
         final Repository repository = testClusterNodes.randomMasterNodeSafe().repositoriesService.repository(repoName);
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, either(hasSize(1)).or(hasSize(0)));
@@ -813,7 +966,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
             assertThat(
                 "Documents were restored but the restored index mapping was older than some documents and misses some of their fields",
                 (int) hitCount,
-                lessThanOrEqualTo(((Map<?, ?>) masterNode.clusterService.state().metaData().index(restoredIndex).mapping()
+                lessThanOrEqualTo(((Map<?, ?>) masterNode.clusterService.state().metadata().index(restoredIndex).mapping()
                     .sourceAsMap().get("properties")).size())
             );
             documentCountVerified.set(true);
@@ -834,6 +987,66 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
+    }
+
+    public void testRunConcurrentSnapshots() {
+        setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
+
+        final String repoName = "repo";
+        final List<String> snapshotNames = IntStream.range(1, randomIntBetween(2, 4))
+                .mapToObj(i -> "snapshot-" + i).collect(Collectors.toList());
+        final String index = "test";
+        final int shards = randomIntBetween(1, 10);
+        final int documents = randomIntBetween(1, 100);
+
+        final TestClusterNodes.TestClusterNode masterNode =
+                testClusterNodes.currentMaster(testClusterNodes.nodes.values().iterator().next().clusterService.state());
+
+        final StepListener<Collection<CreateSnapshotResponse>> allSnapshotsListener = new StepListener<>();
+        final ActionListener<CreateSnapshotResponse> snapshotListener =
+                new GroupedActionListener<>(allSnapshotsListener, snapshotNames.size());
+        final AtomicBoolean doneIndexing = new AtomicBoolean(false);
+        continueOrDie(createRepoAndIndex(repoName, index, shards), createIndexResponse -> {
+            for (String snapshotName : snapshotNames) {
+                scheduleNow(() -> client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName)
+                        .setWaitForCompletion(true).execute(snapshotListener));
+            }
+            final BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int i = 0; i < documents; ++i) {
+                bulkRequest.add(new IndexRequest(index).source(Collections.singletonMap("foo", "bar" + i)));
+            }
+            final StepListener<BulkResponse> bulkResponseStepListener = new StepListener<>();
+            client().bulk(bulkRequest, bulkResponseStepListener);
+            continueOrDie(bulkResponseStepListener, bulkResponse -> {
+                assertFalse("Failures in bulk response: " + bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
+                assertEquals(documents, bulkResponse.getItems().length);
+                doneIndexing.set(true);
+            });
+        });
+
+        final AtomicBoolean doneSnapshotting = new AtomicBoolean(false);
+        continueOrDie(allSnapshotsListener, createSnapshotResponses -> {
+            for (CreateSnapshotResponse createSnapshotResponse : createSnapshotResponses) {
+                final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+                assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+            }
+            doneSnapshotting.set(true);
+        });
+
+        runUntil(() -> doneIndexing.get() && doneSnapshotting.get(), TimeUnit.MINUTES.toMillis(5L));
+        SnapshotsInProgress finalSnapshotsInProgress = masterNode.clusterService.state().custom(SnapshotsInProgress.TYPE);
+        assertFalse(finalSnapshotsInProgress.entries().stream().anyMatch(entry -> entry.state().completed() == false));
+        final Repository repository = masterNode.repositoriesService.repository(repoName);
+        Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
+        assertThat(snapshotIds, hasSize(snapshotNames.size()));
+
+        for (SnapshotId snapshotId : snapshotIds) {
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+            assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
+            assertEquals(shards, snapshotInfo.successfulShards());
+            assertEquals(0, snapshotInfo.failedShards());
+        }
     }
 
     private RepositoryData getRepositoryData(Repository repository) {
@@ -906,6 +1119,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     private void stabilize() {
+        final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + AbstractCoordinatorTestCase.DEFAULT_STABILISATION_TIME;
+        while (deterministicTaskQueue.getCurrentTimeMillis() < endTime) {
+            deterministicTaskQueue.advanceTime();
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
         runUntil(
             () -> {
                 final Collection<ClusterState> clusterStates =
@@ -948,8 +1166,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
     private static Settings defaultIndexSettings(int shards) {
         // TODO: randomize replica count settings once recovery operations aren't blocking anymore
         return Settings.builder()
-            .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
-            .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0).build();
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), shards)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0).build();
     }
 
     private static <T> void continueOrDie(StepListener<T> listener, CheckedConsumer<T, Exception> onResponse) {
@@ -1067,7 +1285,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         public Optional<TestClusterNode> randomDataNode(String... excludedNames) {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
-            final List<TestClusterNode> dataNodes = testClusterNodes.nodes.values().stream().filter(n -> n.node.isDataNode())
+            final List<TestClusterNode> dataNodes = testClusterNodes.nodes.values().stream().filter(n -> n.node.canContainData())
                 .filter(n -> {
                     for (final String nodeName : excludedNames) {
                         if (n.node.getName().equals(nodeName)) {
@@ -1134,6 +1352,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final ClusterService clusterService;
 
+            private final RecoverySettings recoverySettings;
+
+            private final PeerRecoverySourceService peerRecoverySourceService;
+
+            private final NodeConnectionsService nodeConnectionsService;
+
             private final RepositoriesService repositoriesService;
 
             private final SnapshotsService snapshotsService;
@@ -1150,6 +1374,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final AllocationService allocationService;
 
+            private final RerouteService rerouteService;
+
             private final NodeClient client;
 
             private final NodeEnvironment nodeEnv;
@@ -1158,20 +1384,22 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             private final ThreadPool threadPool;
 
+            private final BigArrays bigArrays;
+
             private Coordinator coordinator;
 
             TestClusterNode(DiscoveryNode node) throws IOException {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
-                masterService = new FakeThreadPoolMasterService(node.getName(), "test", deterministicTaskQueue::scheduleNow);
+                threadPool = deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable));
+                masterService = new FakeThreadPoolMasterService(node.getName(), "test", threadPool, deterministicTaskQueue::scheduleNow);
                 final Settings settings = environment.settings();
                 final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-                threadPool = deterministicTaskQueue.getThreadPool();
                 clusterService = new ClusterService(settings, clusterSettings, masterService,
                     new ClusterApplierService(node.getName(), settings, clusterSettings, threadPool) {
                         @Override
                         protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-                            return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue);
+                            return new MockSinglePrioritizingExecutor(node.getName(), deterministicTaskQueue, threadPool);
                         }
 
                         @Override
@@ -1179,7 +1407,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             // don't do anything, and don't block
                         }
                     });
-                mockTransport = new DisruptableMockTransport(node, logger) {
+                recoverySettings = new RecoverySettings(settings, clusterSettings);
+                mockTransport = new DisruptableMockTransport(node, logger, deterministicTaskQueue) {
                     @Override
                     protected ConnectionStatus getConnectionStatus(DiscoveryNode destination) {
                         if (node.equals(destination)) {
@@ -1210,48 +1439,29 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         return namedWriteableRegistry;
                     }
                 };
-                transportService = mockTransport.createTransportService(
-                    settings, deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable)),
-                    new TransportInterceptor() {
-                        @Override
-                        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                            boolean forceExecution, TransportRequestHandler<T> actualHandler) {
-                            // TODO: Remove this hack once recoveries are async and can be used in these tests
-                            if (action.startsWith("internal:index/shard/recovery")) {
-                                return (request, channel, task) -> scheduleSoon(
-                                    new AbstractRunnable() {
-                                        @Override
-                                        protected void doRun() throws Exception {
-                                            channel.sendResponse(new TransportException(new IOException("failed to recover shard")));
-                                        }
-
-                                        @Override
-                                        public void onFailure(final Exception e) {
-                                            throw new AssertionError(e);
-                                        }
-                                    });
-                            } else {
-                                return actualHandler;
-                            }
-                        }
-                    },
-                    a -> node, null, emptySet()
-                );
-                final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+                transportService = mockTransport.createTransportService(settings, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+                        a -> node, null, emptySet());
+                final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
                 repositoriesService = new RepositoriesService(
                     settings, clusterService, transportService,
                     Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)), emptyMap(), threadPool
                 );
-                snapshotsService =
-                    new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService, threadPool);
+                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                snapshotsService = new SnapshotsService(settings, clusterService, indexNameExpressionResolver, repositoriesService,
+                        transportService, actionFilters, Collections.emptyMap());
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());
                 final ScriptService scriptService = new ScriptService(settings, emptyMap(), emptyMap());
                 client = new NodeClient(settings, threadPool);
-                allocationService = ESAllocationTestCase.createAllocationService(settings);
+                final SetOnce<RerouteService> rerouteServiceSetOnce = new SetOnce<>();
+                final SnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(settings, clusterService,
+                    () -> repositoriesService, rerouteServiceSetOnce::get);
+                allocationService = ESAllocationTestCase.createAllocationService(settings, snapshotsInfoService);
+                rerouteService = new BatchedRerouteService(clusterService, allocationService::reroute);
+                rerouteServiceSetOnce.set(rerouteService);
                 final IndexScopedSettings indexScopedSettings =
                     new IndexScopedSettings(settings, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-                final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
+                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 indicesService = new IndicesService(
                     settings,
@@ -1272,24 +1482,26 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     client,
                     new MetaStateService(nodeEnv, namedXContentRegistry),
                     Collections.emptyList(),
-                    emptyMap()
-                );
+                    emptyMap(),
+                    null,
+                    emptyMap(),
+                    List.of(),
+                    emptyMap());
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
-                snapshotShardsService = new SnapshotShardsService(
-                    settings, clusterService, repositoriesService, threadPool,
-                    transportService, indicesService, actionFilters, indexNameExpressionResolver);
-                final ShardStateAction shardStateAction = new ShardStateAction(
-                    clusterService, transportService, allocationService,
-                    new BatchedRerouteService(clusterService, allocationService::reroute),
-                    threadPool
-                );
+                snapshotShardsService =
+                        new SnapshotShardsService(settings, clusterService, repositoriesService, transportService, indicesService);
+                final ShardStateAction shardStateAction =
+                    new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
+                nodeConnectionsService =
+                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
                 @SuppressWarnings("rawtypes")
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 actions.put(GlobalCheckpointSyncAction.TYPE,
                     new GlobalCheckpointSyncAction(settings, transportService, clusterService, indicesService,
                         threadPool, shardStateAction, actionFilters));
-                final MetaDataMappingService metaDataMappingService = new MetaDataMappingService(clusterService, indicesService);
+                final MetadataMappingService metadataMappingService = new MetadataMappingService(clusterService, indicesService);
+                peerRecoverySourceService = new PeerRecoverySourceService(transportService, indicesService, recoverySettings);
+
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
@@ -1297,10 +1509,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
                     shardStateAction,
-                    new NodeMappingRefreshAction(transportService, metaDataMappingService),
                     repositoriesService,
                     mock(SearchService.class),
-                    new PeerRecoverySourceService(transportService, indicesService, recoverySettings),
+                    peerRecoverySourceService,
                     snapshotShardsService,
                     new PrimaryReplicaSyncer(
                         transportService,
@@ -1311,20 +1522,24 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             indicesService,
                             threadPool,
                             shardStateAction,
-                            actionFilters)),
+                            actionFilters,
+                            new IndexingPressure(settings),
+                            EmptySystemIndices.INSTANCE)),
                     RetentionLeaseSyncer.EMPTY,
                     client);
-                final MetaDataCreateIndexService metaDataCreateIndexService = new MetaDataCreateIndexService(settings, clusterService,
+                final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
+                final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(settings, clusterService,
                     indicesService,
-                    allocationService, new AliasValidator(), environment, indexScopedSettings,
-                    threadPool, namedXContentRegistry, Collections.emptyList(), false);
+                    allocationService, new AliasValidator(), shardLimitValidator, environment, indexScopedSettings,
+                    threadPool, namedXContentRegistry, EmptySystemIndices.INSTANCE, false);
                 actions.put(CreateIndexAction.INSTANCE,
                     new TransportCreateIndexAction(
                         transportService, clusterService, threadPool,
-                        metaDataCreateIndexService,
-                        actionFilters, indexNameExpressionResolver
+                        metadataCreateIndexService,
+                        actionFilters, indexNameExpressionResolver, EmptySystemIndices.INSTANCE
                     ));
                 final MappingUpdatedAction mappingUpdatedAction = new MappingUpdatedAction(settings, clusterSettings);
+                final IndexingPressure indexingMemoryLimits = new IndexingPressure(settings);
                 mappingUpdatedAction.setClient(client);
                 actions.put(BulkAction.INSTANCE,
                     new TransportBulkAction(threadPool, transportService, clusterService,
@@ -1333,40 +1548,49 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             Collections.emptyList(), client),
                         client, actionFilters, indexNameExpressionResolver,
-                        new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver)
+                        new IndexingPressure(settings),
+                        EmptySystemIndices.INSTANCE
                     ));
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                    actionFilters);
+                    actionFilters, indexingMemoryLimits, EmptySystemIndices.INSTANCE);
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
-                    metaDataCreateIndexService,
-                    new MetaDataIndexUpgradeService(
+                    metadataCreateIndexService,
+                    new MetadataDeleteIndexService(settings, clusterService, allocationService),
+                    new IndexMetadataVerifier(
                         settings, namedXContentRegistry,
                         mapperRegistry,
-                        indexScopedSettings),
-                    clusterSettings
-                );
+                        indexScopedSettings,
+                        ScriptCompiler.NONE),
+                    shardLimitValidator,
+                    EmptySystemIndices.INSTANCE);
                 actions.put(PutMappingAction.INSTANCE,
-                    new TransportPutMappingAction(transportService, clusterService, threadPool, metaDataMappingService,
-                        actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList())));
+                    new TransportPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
+                        actionFilters, indexNameExpressionResolver, new RequestValidators<>(Collections.emptyList()),
+                        EmptySystemIndices.INSTANCE));
+                actions.put(AutoPutMappingAction.INSTANCE,
+                    new TransportAutoPutMappingAction(transportService, clusterService, threadPool, metadataMappingService,
+                        actionFilters, indexNameExpressionResolver, EmptySystemIndices.INSTANCE));
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-                final SearchTransportService searchTransportService = new SearchTransportService(transportService,
+                final SearchTransportService searchTransportService = new SearchTransportService(transportService, client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
                 final SearchService searchService = new SearchService(clusterService, indicesService, threadPool, scriptService,
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService());
+                SearchPhaseController searchPhaseController = new SearchPhaseController(
+                    writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
-                    new TransportSearchAction(threadPool, transportService, searchService,
-                        searchTransportService, new SearchPhaseController(searchService::createReduceContext), clusterService,
-                        actionFilters, indexNameExpressionResolver));
+                    new TransportSearchAction(threadPool, new NoneCircuitBreakerService(), transportService, searchService,
+                        searchTransportService, searchPhaseController, clusterService,
+                        actionFilters, indexNameExpressionResolver, namedWriteableRegistry));
                 actions.put(RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,
                         indexNameExpressionResolver));
                 actions.put(DeleteIndexAction.INSTANCE,
                     new TransportDeleteIndexAction(
                         transportService, clusterService, threadPool,
-                        new MetaDataDeleteIndexService(settings, clusterService, allocationService), actionFilters,
+                        new MetadataDeleteIndexService(settings, clusterService, allocationService), actionFilters,
                         indexNameExpressionResolver, new DestructiveOperations(settings, clusterSettings)));
                 actions.put(PutRepositoryAction.INSTANCE,
                     new TransportPutRepositoryAction(
@@ -1398,21 +1622,26 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         snapshotsService, actionFilters, indexNameExpressionResolver
                     ));
                 client.initialize(actions, transportService.getTaskManager(),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService());
+                    () -> clusterService.localNode().getId(),
+                    transportService.getLocalNodeConnection(),
+                    transportService.getRemoteClusterService(),
+                    new NamedWriteableRegistry(List.of()));
             }
 
             private Repository.Factory getRepoFactory(Environment environment) {
                 // Run half the tests with the eventually consistent repository
                 if (blobStoreContext == null) {
-                    return metaData -> new FsRepository(metaData, environment, xContentRegistry(), clusterService) {
+                    return metadata -> new FsRepository(metadata, environment, xContentRegistry(), clusterService, bigArrays,
+                        recoverySettings) {
                         @Override
                         protected void assertSnapshotOrGenericThread() {
                             // eliminate thread name check as we create repo in the test thread
                         }
                     };
                 } else {
-                    return metaData ->
-                        new MockEventuallyConsistentRepository(metaData, xContentRegistry(), clusterService, blobStoreContext, random());
+                    return metadata ->
+                        new MockEventuallyConsistentRepository(metadata, xContentRegistry(), clusterService, recoverySettings,
+                            blobStoreContext, random());
                 }
             }
             public void restart() {
@@ -1437,7 +1666,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 testClusterNodes.disconnectNode(this);
                 indicesService.close();
                 clusterService.close();
+                nodeConnectionsService.stop();
                 indicesClusterStateService.close();
+                peerRecoverySourceService.stop();
                 if (coordinator != null) {
                     coordinator.close();
                 }
@@ -1458,16 +1689,17 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     hostsResolver -> nodes.values().stream().filter(n -> n.node.isMasterNode())
                         .map(n -> n.node.getAddress()).collect(Collectors.toList()),
                     clusterService.getClusterApplierService(), Collections.emptyList(), random(),
-                    new BatchedRerouteService(clusterService, allocationService::reroute), ElectionStrategy.DEFAULT_INSTANCE);
+                    rerouteService, ElectionStrategy.DEFAULT_INSTANCE,
+                    () -> new StatusInfo(HEALTHY, "healthy-info"));
                 masterService.setClusterStatePublisher(coordinator);
                 coordinator.start();
-                masterService.start();
-                clusterService.getClusterApplierService().setNodeConnectionsService(
-                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService));
-                clusterService.getClusterApplierService().start();
+                clusterService.getClusterApplierService().setNodeConnectionsService(nodeConnectionsService);
+                nodeConnectionsService.start();
+                clusterService.start();
                 indicesService.start();
                 indicesClusterStateService.start();
                 coordinator.startInitialJoin();
+                peerRecoverySourceService.start();
             }
         }
     }

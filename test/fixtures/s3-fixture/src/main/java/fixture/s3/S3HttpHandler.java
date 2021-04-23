@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package fixture.s3;
 
@@ -84,7 +73,14 @@ public class S3HttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
         try {
-            if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
+            if (Regex.simpleMatch("HEAD /" + path + "/*", request)) {
+                final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
+                if (blob == null) {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                }
+            } else if (Regex.simpleMatch("POST /" + path + "/*?uploads", request)) {
                 final String uploadId = UUIDs.randomBase64UUID();
                 byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                     "<InitiateMultipartUploadResult>\n" +
@@ -216,13 +212,13 @@ public class S3HttpHandler implements HttpHandler {
 
                         final int start = Integer.parseInt(matcher.group(1));
                         final int end = Integer.parseInt(matcher.group(2));
-                        final int length = end - start;
 
+                        final BytesReference rangeBlob = blob.slice(start, end + 1 - start);
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders().add("Content-Range",
-                            String.format(Locale.ROOT, "bytes=%d-%d/%d", start, end, blob.length()));
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
-                        exchange.getResponseBody().write(BytesReference.toBytes(blob), start, length);
+                        exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d",
+                            start, end, rangeBlob.length()));
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), rangeBlob.length());
+                        rangeBlob.writeTo(exchange.getResponseBody());
                     }
                 } else {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
@@ -247,7 +243,7 @@ public class S3HttpHandler implements HttpHandler {
                 deletes.append("<DeleteResult>");
                 for (Iterator<Map.Entry<String, BytesReference>> iterator = blobs.entrySet().iterator(); iterator.hasNext(); ) {
                     Map.Entry<String, BytesReference> blob = iterator.next();
-                    String key = blob.getKey().replace("/" + path + "/", "");
+                    String key = blob.getKey().replace("/" + bucket + "/", "");
                     if (requestBody.contains("<Key>" + key + "</Key>")) {
                         deletes.append("<Deleted><Key>").append(key).append("</Key></Deleted>");
                         iterator.remove();

@@ -1,26 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.env;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
@@ -114,23 +101,13 @@ public class Environment {
         pluginsFile = homeFile.resolve("plugins");
 
         List<String> dataPaths = PATH_DATA_SETTING.get(settings);
-        final ClusterName clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
-        if (DiscoveryNode.nodeRequiresLocalStorage(settings)) {
-            if (dataPaths.isEmpty() == false) {
-                dataFiles = new Path[dataPaths.size()];
-                for (int i = 0; i < dataPaths.size(); i++) {
-                    dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
-                }
-            } else {
-                dataFiles = new Path[]{homeFile.resolve("data")};
+        if (dataPaths.isEmpty() == false) {
+            dataFiles = new Path[dataPaths.size()];
+            for (int i = 0; i < dataPaths.size(); i++) {
+                dataFiles[i] = PathUtils.get(dataPaths.get(i)).toAbsolutePath().normalize();
             }
         } else {
-            if (dataPaths.isEmpty()) {
-                dataFiles = EMPTY_PATH_ARRAY;
-            } else {
-                final String paths = String.join(",", dataPaths);
-                throw new IllegalStateException("node does not require local storage yet path.data is set to [" + paths + "]");
-            }
+            dataFiles = new Path[]{homeFile.resolve("data")};
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
             sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
@@ -321,6 +298,16 @@ public class Environment {
 
     public static FileStore getFileStore(final Path path) throws IOException {
         return new ESFileStore(Files.getFileStore(path));
+    }
+
+    public static long getUsableSpace(Path path) throws IOException {
+        long freeSpaceInBytes = Environment.getFileStore(path).getUsableSpace();
+
+        /* See: https://bugs.openjdk.java.net/browse/JDK-8162520 */
+        if (freeSpaceInBytes < 0) {
+            freeSpaceInBytes = Long.MAX_VALUE;
+        }
+        return freeSpaceInBytes;
     }
 
     /**

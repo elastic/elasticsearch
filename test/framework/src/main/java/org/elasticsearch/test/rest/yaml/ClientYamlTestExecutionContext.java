@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml;
 
@@ -54,13 +43,18 @@ public class ClientYamlTestExecutionContext {
 
     private final Stash stash = new Stash();
     private final ClientYamlTestClient clientYamlTestClient;
+    private final ClientYamlTestCandidate clientYamlTestCandidate;
 
     private ClientYamlTestResponse response;
 
     private final boolean randomizeContentType;
 
-    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, boolean randomizeContentType) {
+    ClientYamlTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        boolean randomizeContentType) {
         this.clientYamlTestClient = clientYamlTestClient;
+        this.clientYamlTestCandidate = clientYamlTestCandidate;
         this.randomizeContentType = randomizeContentType;
     }
 
@@ -108,6 +102,9 @@ public class ClientYamlTestExecutionContext {
             Object responseBody = response != null ? response.getBody() : null;
             //we always stash the last response body
             stash.stashValue("body", responseBody);
+            if(requestHeaders.isEmpty() == false) {
+                stash.stashValue("request_headers", requestHeaders);
+            }
         }
     }
 
@@ -200,4 +197,11 @@ public class ClientYamlTestExecutionContext {
         return clientYamlTestClient.getMasterVersion();
     }
 
+    public String os() {
+        return clientYamlTestClient.getOs();
+    }
+
+    public ClientYamlTestCandidate getClientYamlTestCandidate() {
+        return clientYamlTestCandidate;
+    }
 }

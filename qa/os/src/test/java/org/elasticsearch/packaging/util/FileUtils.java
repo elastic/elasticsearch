@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
@@ -32,11 +21,13 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileOwnerAttributeView;
@@ -53,6 +44,7 @@ import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipException;
 
+import static org.elasticsearch.packaging.test.PackagingTestCase.getRootTempDir;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileDoesNotExist;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -66,6 +58,9 @@ public class FileUtils {
 
     public static List<Path> lsGlob(Path directory, String glob) {
         List<Path> paths = new ArrayList<>();
+        if (Files.exists(directory) == false) {
+            return List.of();
+        }
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory, glob)) {
 
             for (Path path : stream) {
@@ -297,13 +292,8 @@ public class FileUtils {
         return numericPathOwnership;
     }
 
-    // vagrant creates /tmp for us in windows so we use that to avoid long paths
-    public static Path getTempDir() {
-        return Paths.get("/tmp").toAbsolutePath();
-    }
-
     public static Path getDefaultArchiveInstallPath() {
-        return getTempDir().resolve("elasticsearch");
+        return getRootTempDir().resolve("elasticsearch");
     }
 
     private static final Pattern VERSION_REGEX = Pattern.compile("(\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?)");
@@ -363,5 +353,26 @@ public class FileUtils {
             return path.toString().replace('\\', '/');
         }
         return path.toString();
+    }
+
+    /**
+     * Recursively copy the the source directory to the target directory, preserving permissions.
+     */
+    public static void copyDirectory(Path source, Path target) throws IOException {
+        Files.walkFileTree(source, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                // this won't copy the directory contents, only the directory itself, but we use
+                // copy to allow copying attributes
+                Files.copy(dir, target.resolve(source.relativize(dir)), StandardCopyOption.COPY_ATTRIBUTES);
+                return FileVisitResult.CONTINUE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                Files.copy(file, target.resolve(source.relativize(file)), StandardCopyOption.COPY_ATTRIBUTES);
+                return FileVisitResult.CONTINUE;
+            }
+        });
     }
 }

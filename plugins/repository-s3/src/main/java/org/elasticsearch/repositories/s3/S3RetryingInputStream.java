@@ -1,32 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories.s3;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.GetObjectRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,29 +40,51 @@ class S3RetryingInputStream extends InputStream {
 
     private final S3BlobStore blobStore;
     private final String blobKey;
+    private final long start;
+    private final long end;
     private final int maxAttempts;
+    private final List<IOException> failures;
 
-    private InputStream currentStream;
+    private S3ObjectInputStream currentStream;
+    private long currentStreamLastOffset;
     private int attempt = 1;
-    private List<IOException> failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
     private long currentOffset;
     private boolean closed;
+    private boolean eof;
 
     S3RetryingInputStream(S3BlobStore blobStore, String blobKey) throws IOException {
+        this(blobStore, blobKey, 0, Long.MAX_VALUE - 1);
+    }
+
+    // both start and end are inclusive bounds, following the definition in GetObjectRequest.setRange
+    S3RetryingInputStream(S3BlobStore blobStore, String blobKey, long start, long end) throws IOException {
+        if (start < 0L) {
+            throw new IllegalArgumentException("start must be non-negative");
+        }
+        if (end < start || end == Long.MAX_VALUE) {
+            throw new IllegalArgumentException("end must be >= start and not Long.MAX_VALUE");
+        }
         this.blobStore = blobStore;
         this.blobKey = blobKey;
         this.maxAttempts = blobStore.getMaxRetries() + 1;
-        currentStream = openStream();
+        this.failures = new ArrayList<>(MAX_SUPPRESSED_EXCEPTIONS);
+        this.start = start;
+        this.end = end;
+        openStream();
     }
 
-    private InputStream openStream() throws IOException {
+    private void openStream() throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             final GetObjectRequest getObjectRequest = new GetObjectRequest(blobStore.bucket(), blobKey);
-            if (currentOffset > 0) {
-                getObjectRequest.setRange(currentOffset);
+            getObjectRequest.setRequestMetricCollector(blobStore.getMetricCollector);
+            if (currentOffset > 0 || start > 0 || end < Long.MAX_VALUE - 1) {
+                assert start + currentOffset <= end :
+                    "requesting beyond end, start = " + start + " offset=" + currentOffset + " end=" + end;
+                getObjectRequest.setRange(Math.addExact(start, currentOffset), end);
             }
             final S3Object s3Object = SocketAccess.doPrivileged(() -> clientReference.client().getObject(getObjectRequest));
-            return s3Object.getObjectContent();
+            this.currentStreamLastOffset = Math.addExact(Math.addExact(start, currentOffset), getStreamLength(s3Object));
+            this.currentStream = s3Object.getObjectContent();
         } catch (final AmazonClientException e) {
             if (e instanceof AmazonS3Exception) {
                 if (404 == ((AmazonS3Exception) e).getStatusCode()) {
@@ -82,12 +95,35 @@ class S3RetryingInputStream extends InputStream {
         }
     }
 
+    private long getStreamLength(final S3Object object) {
+        final ObjectMetadata metadata = object.getObjectMetadata();
+        try {
+            // Returns the content range of the object if response contains the Content-Range header.
+            final Long[] range = metadata.getContentRange();
+            if (range != null) {
+                assert range[1] >= range[0] : range[1] + " vs " + range[0];
+                assert range[0] == start + currentOffset :
+                    "Content-Range start value [" + range[0] + "] exceeds start [" + start + "] + current offset [" + currentOffset + ']';
+                assert range[1] == end : "Content-Range end value [" + range[1] + "] exceeds end [" + end + ']';
+                return range[1] - range[0] + 1L;
+            }
+            return metadata.getContentLength();
+        } catch (Exception e) {
+            assert false : e;
+            return Long.MAX_VALUE - 1L; // assume a large stream so that the underlying stream is aborted on closing, unless eof is reached
+        }
+    }
+
     @Override
     public int read() throws IOException {
         ensureOpen();
         while (true) {
             try {
                 final int result = currentStream.read();
+                if (result == -1) {
+                    eof = true;
+                    return -1;
+                }
                 currentOffset += 1;
                 return result;
             } catch (IOException e) {
@@ -103,6 +139,7 @@ class S3RetryingInputStream extends InputStream {
             try {
                 final int bytesRead = currentStream.read(b, off, len);
                 if (bytesRead == -1) {
+                    eof = true;
                     return -1;
                 }
                 currentOffset += bytesRead;
@@ -122,22 +159,46 @@ class S3RetryingInputStream extends InputStream {
 
     private void reopenStreamOrFail(IOException e) throws IOException {
         if (attempt >= maxAttempts) {
+            logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], giving up",
+                blobStore.bucket(), blobKey, start + currentOffset, attempt, maxAttempts), e);
             throw addSuppressedExceptions(e);
         }
         logger.debug(new ParameterizedMessage("failed reading [{}/{}] at offset [{}], attempt [{}] of [{}], retrying",
-            blobStore.bucket(), blobKey, currentOffset, attempt, maxAttempts), e);
+            blobStore.bucket(), blobKey, start + currentOffset, attempt, maxAttempts), e);
         attempt += 1;
         if (failures.size() < MAX_SUPPRESSED_EXCEPTIONS) {
             failures.add(e);
         }
+        maybeAbort(currentStream);
         IOUtils.closeWhileHandlingException(currentStream);
-        currentStream = openStream();
+        openStream();
     }
 
     @Override
     public void close() throws IOException {
-        currentStream.close();
-        closed = true;
+        maybeAbort(currentStream);
+        try {
+            currentStream.close();
+        } finally {
+            closed = true;
+        }
+    }
+
+    /**
+     * Abort the {@link S3ObjectInputStream} if it wasn't read completely at the time this method is called,
+     * suppressing all thrown exceptions.
+     */
+    private void maybeAbort(S3ObjectInputStream stream) {
+        if (isEof()) {
+            return;
+        }
+        try {
+            if (start + currentOffset < currentStreamLastOffset) {
+                stream.abort();
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to abort stream before closing", e);
+        }
     }
 
     @Override
@@ -155,5 +216,18 @@ class S3RetryingInputStream extends InputStream {
             e.addSuppressed(failure);
         }
         return e;
+    }
+
+    // package-private for tests
+    boolean isEof() {
+        return eof || start + currentOffset == currentStreamLastOffset;
+    }
+
+    // package-private for tests
+    boolean isAborted() {
+        if (currentStream == null || currentStream.getHttpRequest() == null) {
+            return false;
+        }
+        return currentStream.getHttpRequest().isAborted();
     }
 }

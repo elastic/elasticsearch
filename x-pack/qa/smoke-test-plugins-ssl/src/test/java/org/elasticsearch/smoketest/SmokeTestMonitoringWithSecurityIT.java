@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.smoketest;
 
@@ -26,6 +27,7 @@ import org.elasticsearch.client.xpack.XPackUsageResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -119,7 +121,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         } catch (URISyntaxException e) {
             throw new ElasticsearchException("exception while reading the store", e);
         }
-        if (!Files.exists(keyStore)) {
+        if (Files.exists(keyStore) == false) {
             throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
         }
     }
@@ -149,18 +151,20 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
 
     @Before
     public void enableExporter() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.monitoring.exporters._http.auth.secure_password", "x-pack-test-password");
         Settings exporterSettings = Settings.builder()
             .put("xpack.monitoring.collection.enabled", true)
             .put("xpack.monitoring.exporters._http.enabled", true)
             .put("xpack.monitoring.exporters._http.type", "http")
             .put("xpack.monitoring.exporters._http.host", "https://" + randomNodeHttpAddress())
             .put("xpack.monitoring.exporters._http.auth.username", "monitoring_agent")
-            .put("xpack.monitoring.exporters._http.auth.password", "x-pack-test-password")
             .put("xpack.monitoring.exporters._http.ssl.verification_mode", "full")
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
+            .setSecureSettings(secureSettings)
             .build();
         ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), getRequestOptions());
+            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
     }
 
@@ -172,20 +176,12 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .putNull("xpack.monitoring.exporters._http.type")
             .putNull("xpack.monitoring.exporters._http.host")
             .putNull("xpack.monitoring.exporters._http.auth.username")
-            .putNull("xpack.monitoring.exporters._http.auth.password")
             .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
             .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
             .build();
         ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), getRequestOptions());
+            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
-    }
-
-    private RequestOptions getRequestOptions() {
-        String deprecationWarning = "[xpack.monitoring.exporters._http.auth.password] setting was deprecated in Elasticsearch and will " +
-            "be removed in a future release! See the breaking changes documentation for the next major version.";
-        return RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> warnings.size() != 1 ||
-            warnings.get(0).equals(deprecationWarning) == false).build();
     }
 
     private boolean getMonitoringUsageExportersDefined() throws Exception {
@@ -257,6 +253,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         assertThat(settings, not(hasKey("ssl")));
     }
 
+    @SuppressWarnings("unchecked")
     private String randomNodeHttpAddress() throws IOException {
         Response response = client().performRequest(new Request("GET", "/_nodes"));
         assertOK(response);

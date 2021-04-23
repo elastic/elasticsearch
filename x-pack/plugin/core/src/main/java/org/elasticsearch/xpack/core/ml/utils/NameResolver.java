@@ -1,12 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 
@@ -53,7 +53,7 @@ public abstract class NameResolver {
      */
     public SortedSet<String> expand(String expression, boolean allowNoMatch) {
         SortedSet<String> result = new TreeSet<>();
-        if (MetaData.ALL.equals(expression) || Regex.isMatchAllPattern(expression)) {
+        if (Strings.isAllOrWildcard(expression)) {
             result.addAll(nameSet());
         } else {
             String[] tokens = Strings.tokenizeToStringArray(expression, ",");

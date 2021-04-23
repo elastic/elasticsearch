@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.engine;
 
@@ -41,6 +30,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -55,12 +45,12 @@ import java.util.function.Supplier;
  */
 public final class EngineConfig {
     private final ShardId shardId;
-    private final String allocationId;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
     private final String codecName;
+    private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
@@ -121,20 +111,31 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, String allocationId, ThreadPool threadPool,
-                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
-                        MergePolicy mergePolicy, Analyzer analyzer,
-                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter,
-                        List<ReferenceManager.RefreshListener> externalRefreshListener,
-                        List<ReferenceManager.RefreshListener> internalRefreshListener, Sort indexSort,
-                        CircuitBreakerService circuitBreakerService, LongSupplier globalCheckpointSupplier,
-                        Supplier<RetentionLeases> retentionLeasesSupplier,
-                        LongSupplier primaryTermSupplier,
-                        TombstoneDocSupplier tombstoneDocSupplier) {
+    public EngineConfig(
+            ShardId shardId,
+            ThreadPool threadPool,
+            IndexSettings indexSettings,
+            Engine.Warmer warmer,
+            Store store,
+            MergePolicy mergePolicy,
+            Analyzer analyzer,
+            Similarity similarity,
+            CodecService codecService,
+            Engine.EventListener eventListener,
+            QueryCache queryCache,
+            QueryCachingPolicy queryCachingPolicy,
+            TranslogConfig translogConfig,
+            TimeValue flushMergesAfter,
+            List<ReferenceManager.RefreshListener> externalRefreshListener,
+            List<ReferenceManager.RefreshListener> internalRefreshListener,
+            Sort indexSort,
+            CircuitBreakerService circuitBreakerService,
+            LongSupplier globalCheckpointSupplier,
+            Supplier<RetentionLeases> retentionLeasesSupplier,
+            LongSupplier primaryTermSupplier,
+            TombstoneDocSupplier tombstoneDocSupplier,
+            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
         this.shardId = shardId;
-        this.allocationId = allocationId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.warmer = warmer == null ? (a) -> {} : warmer;
@@ -171,6 +172,7 @@ public final class EngineConfig {
         this.retentionLeasesSupplier = Objects.requireNonNull(retentionLeasesSupplier);
         this.primaryTermSupplier = primaryTermSupplier;
         this.tombstoneDocSupplier = tombstoneDocSupplier;
+        this.snapshotCommitSupplier = snapshotCommitSupplier;
     }
 
     /**
@@ -277,15 +279,6 @@ public final class EngineConfig {
     public ShardId getShardId() { return shardId; }
 
     /**
-     * Returns the allocation ID for the shard.
-     *
-     * @return the allocation ID
-     */
-    public String getAllocationId() {
-        return allocationId;
-    }
-
-    /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
      */
     public Analyzer getAnalyzer() {
@@ -380,5 +373,9 @@ public final class EngineConfig {
 
     public TombstoneDocSupplier getTombstoneDocSupplier() {
         return tombstoneDocSupplier;
+    }
+
+    public IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier() {
+        return snapshotCommitSupplier;
     }
 }

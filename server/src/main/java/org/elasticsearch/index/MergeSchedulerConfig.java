@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
@@ -22,6 +11,7 @@ package org.elasticsearch.index;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 /**
@@ -36,7 +26,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
  * <li> <code>index.merge.scheduler.max_thread_count</code>:
  *
  *     The maximum number of threads that may be merging at once. Defaults to
- *     <code>Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors() / 2))</code>
+ *     <code>Math.max(1, Math.min(4, {@link EsExecutors#allocatedProcessors(Settings)} / 2))</code>
  *     which works well for a good solid-state-disk (SSD).  If your index is on
  *     spinning platter drives instead, decrease this to 1.
  *
@@ -54,7 +44,7 @@ public final class MergeSchedulerConfig {
 
     public static final Setting<Integer> MAX_THREAD_COUNT_SETTING =
         new Setting<>("index.merge.scheduler.max_thread_count",
-            (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.numberOfProcessors(s) / 2))),
+            (s) -> Integer.toString(Math.max(1, Math.min(4, EsExecutors.allocatedProcessors(s) / 2))),
             (s) -> Setting.parseInt(s, 1, "index.merge.scheduler.max_thread_count"), Property.Dynamic,
             Property.IndexScope);
     public static final Setting<Integer> MAX_MERGE_COUNT_SETTING =

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression;
@@ -16,13 +17,17 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 public final class SqlTypeResolutions {
 
     private SqlTypeResolutions() {}
-    
+
     public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, SqlDataTypes::isDateBased, operationName, paramOrd, "date", "datetime");
     }
 
     public static TypeResolution isDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, SqlDataTypes::isDateOrTimeBased, operationName, paramOrd, "date", "time", "datetime");
+    }
+
+    public static TypeResolution isDateOrInterval(Expression e, String operationName, ParamOrdinal paramOrd) {
+        return isType(e, SqlDataTypes::isDateOrIntervalBased, operationName, paramOrd, "date", "datetime", "an interval data type");
     }
 
     public static TypeResolution isNumericOrDate(Expression e, String operationName, ParamOrdinal paramOrd) {

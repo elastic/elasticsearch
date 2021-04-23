@@ -1,34 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.settings;
+
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.env.Environment;
 
 import java.io.ByteArrayInputStream;
 import java.io.CharArrayWriter;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-
-import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.env.Environment;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -73,6 +62,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingPromptCreateWithoutPasswordWhenPrompted() throws Exception {
+        assumeFalse("Cannot create unprotected keystore on FIPS JVM", inFipsJvm());
         terminal.addTextInput("y");
         terminal.addSecretInput("bar");
         execute("foo");
@@ -80,6 +70,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingPromptCreateWithoutPasswordWithoutPromptIfForced() throws Exception {
+        assumeFalse("Cannot create unprotected keystore on FIPS JVM", inFipsJvm());
         terminal.addSecretInput("bar");
         execute("-f", "foo");
         assertSecureString("foo", "bar", "");
@@ -155,6 +146,19 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "secret value", password);
     }
 
+    public void testPromptForMultipleValues() throws Exception {
+        final String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
+        terminal.addSecretInput("bar1");
+        terminal.addSecretInput("bar2");
+        terminal.addSecretInput("bar3");
+        execute("foo1", "foo2", "foo3");
+        assertSecureString("foo1", "bar1", password);
+        assertSecureString("foo2", "bar2", password);
+        assertSecureString("foo3", "bar3", password);
+    }
+
     public void testStdinShort() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
@@ -200,6 +204,17 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "Typedthisandhitenter", password);
     }
 
+    public void testStdinWithMultipleValues() throws Exception {
+        final String password = "keystorepassword";
+        KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
+        terminal.addSecretInput(password);
+        setInput("bar1\nbar2\nbar3");
+        execute(randomFrom("-x", "--stdin"), "foo1", "foo2", "foo3");
+        assertSecureString("foo1", "bar1", password);
+        assertSecureString("foo2", "bar2", password);
+        assertSecureString("foo3", "bar3", password);
+    }
+
     public void testAddUtf8String() throws Exception {
         String password = "keystorepassword";
         KeyStoreWrapper.create().save(env.configFile(), password.toCharArray());
@@ -223,11 +238,13 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addTextInput("");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        assertThat(e.getMessage(), containsString("The setting name can not be null"));
+        assertThat(e.getMessage(), containsString("the setting names can not be empty"));
     }
 
     public void testSpecialCharacterInName() throws Exception {
-        createKeystore("");
+        String password = randomAlphaOfLengthBetween(14, 24);
+        createKeystore(password);
+        terminal.addSecretInput(password);
         terminal.addSecretInput("value");
         final String key = randomAlphaOfLength(4) + '@' + randomAlphaOfLength(4);
         final UserException e = expectThrows(UserException.class, () -> execute(key));
@@ -236,6 +253,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {
+        assumeFalse("Cannot create unprotected keystores in FIPS mode", inFipsJvm());
         String password = "";
         createKeystore(password, "foo", "bar");
         terminal.addTextInput("");

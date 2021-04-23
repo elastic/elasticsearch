@@ -5,21 +5,21 @@
 ++++
 
 A token filter of type `multiplexer` will emit multiple tokens at the same position,
-each version of the token having been run through a different filter.  Identical
+each version of the token having been run through a different filter. Identical
 output tokens at the same position will be removed.
 
 WARNING: If the incoming token stream has duplicate tokens, then these will also be
 removed by the multiplexer
 
-[float]
+[discrete]
 === Options
 [horizontal]
-filters:: a list of token filters to apply to incoming tokens.  These can be any
-  token filters defined elsewhere in the index mappings.  Filters can be chained
+filters:: a list of token filters to apply to incoming tokens. These can be any
+  token filters defined elsewhere in the index mappings. Filters can be chained
   using a comma-delimited string, so for example `"lowercase, porter_stem"` would
   apply the `lowercase` filter and then the `porter_stem` filter to a single token.
 
-WARNING: Shingle or multi-word synonym token filters will not function normally
+WARNING: <<analysis-shingle-tokenfilter,Shingle>> or multi-word synonym token filters will not function normally
   when they are declared in the filters array because they read ahead internally
   which is unsupported by the multiplexer
 
@@ -27,7 +27,7 @@ preserve_original:: if `true` (the default) then emit the original token in
   addition to the filtered tokens
 
 
-[float]
+[discrete]
 === Settings example
 
 You can set it up like:
@@ -36,22 +36,22 @@ You can set it up like:
 --------------------------------------------------
 PUT /multiplexer_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "tokenizer" : "standard",
-                    "filter" : [ "my_multiplexer" ]
-                }
-            },
-            "filter" : {
-                "my_multiplexer" : {
-                    "type" : "multiplexer",
-                    "filters" : [ "lowercase", "lowercase, porter_stem" ]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer": "standard",
+          "filter": [ "my_multiplexer" ]
         }
+      },
+      "filter": {
+        "my_multiplexer": {
+          "type": "multiplexer",
+          "filters": [ "lowercase", "lowercase, porter_stem" ]
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 

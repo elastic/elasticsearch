@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -52,7 +41,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
+import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
@@ -62,21 +51,16 @@ import java.util.List;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
-public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper.QueryProcessor {
+public class LegacyGeoShapeQueryProcessor  {
 
-    private AbstractGeometryFieldMapper.AbstractGeometryFieldType ft;
+    private AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft;
 
-    public LegacyGeoShapeQueryProcessor(AbstractGeometryFieldMapper.AbstractGeometryFieldType ft) {
+    public LegacyGeoShapeQueryProcessor(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft) {
         this.ft = ft;
     }
 
-    @Override
-    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-        throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
-    }
-
-    @Override
-    public Query process(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation, QueryShardContext context) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy,
+                               ShapeRelation relation, SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when '"
                     + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
@@ -93,7 +77,7 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
             // before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
-            Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
+            Query exists = ExistsQueryBuilder.newFilter(context, fieldName,false);
             Query intersects = prefixTreeStrategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
@@ -118,7 +102,6 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
         }
     }
 
-
     /**
      * Builds JTS shape from a geometry
      * <p>
@@ -127,7 +110,6 @@ public class LegacyGeoShapeQueryProcessor implements AbstractGeometryFieldMapper
     private static Shape buildS4J(Geometry geometry) {
         return geometryToShapeBuilder(geometry).buildS4J();
     }
-
 
     public static ShapeBuilder<?, ?, ?> geometryToShapeBuilder(Geometry geometry) {
         ShapeBuilder<?, ?, ?> shapeBuilder = geometry.visit(new GeometryVisitor<>() {

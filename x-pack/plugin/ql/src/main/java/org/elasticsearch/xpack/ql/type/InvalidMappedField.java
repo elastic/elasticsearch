@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.type;
@@ -25,6 +26,11 @@ public class InvalidMappedField extends EsField {
         this.errorMessage = errorMessage;
     }
 
+    public InvalidMappedField(String name) {
+        super(name, DataTypes.UNSUPPORTED, emptyMap(), false);
+        this.errorMessage = StringUtils.EMPTY;
+    }
+
     public String errorMessage() {
         return errorMessage;
     }
@@ -40,7 +46,7 @@ public class InvalidMappedField extends EsField {
             InvalidMappedField other = (InvalidMappedField) obj;
             return Objects.equals(errorMessage, other.errorMessage);
         }
-        
+
         return false;
     }
 

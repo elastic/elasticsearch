@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference;
 
@@ -21,7 +22,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -34,9 +37,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.FOR_INTERNAL_STORAGE;
@@ -44,7 +49,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class TrainedModelConfigTests extends AbstractSerializingTestCase<TrainedModelConfig> {
+public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<TrainedModelConfig> {
 
     private boolean lenient;
 
@@ -64,6 +69,8 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
                 License.OperationMode.ENTERPRISE.description(),
                 License.OperationMode.GOLD.description(),
                 License.OperationMode.BASIC.description()))
+            .setInferenceConfig(randomFrom(ClassificationConfigTests.randomClassificationConfig(),
+                RegressionConfigTests.randomRegressionConfig()))
             .setTags(tags);
     }
 
@@ -84,7 +91,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return field -> !field.isEmpty();
+        return field -> field.isEmpty() == false;
     }
 
     @Override
@@ -137,7 +144,12 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelInputTests.createRandomInput(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            "platinum");
+            "platinum",
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10))
+                    .limit(randomIntBetween(1, 10))
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
+            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         assertThat(reference.utf8ToString(), containsString("\"compressed_definition\""));
@@ -156,7 +168,7 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
         assertThat(reference.utf8ToString(), containsString("\"definition\""));
         assertThat(reference.utf8ToString(), not(containsString("compressed_definition")));
     }
-
+    
     public void testParseWithBothDefinitionAndCompressedSupplied() throws IOException {
         TrainedModelConfig.LazyModelDefinition lazyModelDefinition = TrainedModelConfig.LazyModelDefinition
             .fromParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder().build());
@@ -172,7 +184,12 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             TrainedModelInputTests.createRandomInput(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            "platinum");
+            "platinum",
+            randomBoolean() ? null :
+                Stream.generate(() -> randomAlphaOfLength(10))
+                    .limit(randomIntBetween(1, 10))
+                    .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
+            randomFrom(ClassificationConfigTests.randomClassificationConfig(), RegressionConfigTests.randomRegressionConfig()));
 
         BytesReference reference = XContentHelper.toXContent(config, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
         Map<String, Object> objectMap = XContentHelper.convertToMap(reference, true, XContentType.JSON).v2();
@@ -300,5 +317,17 @@ public class TrainedModelConfigTests extends AbstractSerializingTestCase<Trained
             })
             .assertToXContentEquivalence(true)
             .test();
+    }
+
+    @Override
+    protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, Version version) {
+        TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
+        if (version.before(Version.V_7_7_0)) {
+            builder.setDefaultFieldMap(null);
+        }
+        if (version.before(Version.V_7_8_0)) {
+            builder.setInferenceConfig(null);
+        }
+        return builder.build();
     }
 }

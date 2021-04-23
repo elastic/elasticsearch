@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
@@ -112,7 +101,7 @@ public class PrecisionAtKTests extends ESTestCase {
         rated.add(createRatedDoc("test", "1", RELEVANT_RATING));
         // add an unlabeled search hit
         SearchHit[] searchHits = Arrays.copyOf(toSearchHits(rated, "test"), 3);
-        searchHits[2] = new SearchHit(2, "2", Collections.emptyMap());
+        searchHits[2] = new SearchHit(2, "2", Collections.emptyMap(), Collections.emptyMap());
         searchHits[2].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
 
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", searchHits, rated);
@@ -131,7 +120,7 @@ public class PrecisionAtKTests extends ESTestCase {
     public void testNoRatedDocs() throws Exception {
         SearchHit[] hits = new SearchHit[5];
         for (int i = 0; i < 5; i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
         }
         EvalQueryQuality evaluated = (new PrecisionAtK()).evaluate("id", hits, Collections.emptyList());
@@ -233,7 +222,7 @@ public class PrecisionAtKTests extends ESTestCase {
         PrecisionAtK pAtK;
         switch (randomIntBetween(0, 2)) {
         case 0:
-            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), !original.getIgnoreUnlabeled(),
+            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled() == false,
                     original.forcedSearchSize().getAsInt());
             break;
         case 1:
@@ -253,7 +242,7 @@ public class PrecisionAtKTests extends ESTestCase {
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap());
+            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
         }
         return hits;

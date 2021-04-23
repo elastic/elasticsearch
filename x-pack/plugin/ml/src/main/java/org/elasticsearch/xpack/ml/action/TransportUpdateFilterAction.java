@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -101,7 +102,7 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     private void indexUpdatedFilter(MlFilter filter, final long seqNo, final long primaryTerm,
                                     UpdateFilterAction.Request request,
                                     ActionListener<PutFilterAction.Response> listener) {
-        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.INDEX_NAME).id(filter.documentId());
+        IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
         indexRequest.setIfSeqNo(seqNo);
         indexRequest.setIfPrimaryTerm(primaryTerm);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -137,32 +138,24 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     }
 
     private void getFilterWithVersion(String filterId, ActionListener<FilterWithSeqNo> listener) {
-        GetRequest getRequest = new GetRequest(MlMetaIndex.INDEX_NAME, MlFilter.documentId(filterId));
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
-            @Override
-            public void onResponse(GetResponse getDocResponse) {
-                try {
-                    if (getDocResponse.isExists()) {
-                        BytesReference docSource = getDocResponse.getSourceAsBytesRef();
-                        try (InputStream stream = docSource.streamInput();
-                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                            MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
-                            listener.onResponse(new FilterWithSeqNo(filter, getDocResponse));
-                        }
-                    } else {
-                        this.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.FILTER_NOT_FOUND, filterId)));
+        GetRequest getRequest = new GetRequest(MlMetaIndex.indexName(), MlFilter.documentId(filterId));
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, listener.delegateFailure((l, getDocResponse) -> {
+            try {
+                if (getDocResponse.isExists()) {
+                    BytesReference docSource = getDocResponse.getSourceAsBytesRef();
+                    try (InputStream stream = docSource.streamInput();
+                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                        MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
+                        l.onResponse(new FilterWithSeqNo(filter, getDocResponse));
                     }
-                } catch (Exception e) {
-                    this.onFailure(e);
+                } else {
+                    l.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.FILTER_NOT_FOUND, filterId)));
                 }
+            } catch (Exception e) {
+                l.onFailure(e);
             }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }));
     }
 
     private static class FilterWithSeqNo {

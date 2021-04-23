@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.eql;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +18,7 @@ import java.io.IOException;
 import java.util.Map;
 
 public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
-    
+
     private final Map<String, Object> stats;
 
     public EqlFeatureSetUsage(StreamInput in) throws IOException {
@@ -24,8 +26,8 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
         stats = in.readMap();
     }
 
-    public EqlFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {
-        super(XPackField.EQL, available, enabled);
+    public EqlFeatureSetUsage(Map<String, Object> stats) {
+        super(XPackField.EQL, true, true);
         this.stats = stats;
     }
 
@@ -48,4 +50,10 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
         super.writeTo(out);
         out.writeMap(stats);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_9_0;
+    }
+
 }

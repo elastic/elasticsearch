@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.support;
@@ -13,7 +14,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,6 +47,9 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
+import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
@@ -57,6 +60,7 @@ import org.mockito.Mockito;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Base64;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +70,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -78,6 +84,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private SecurityContext securityContext;
     private TokenService tokenService;
     private Client client;
+    private OperatorPrivileges operatorPrivileges;
 
     @Before
     public void setupMocks() throws Exception {
@@ -97,7 +104,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(realms.asList()).thenReturn(List.of(realm));
         when(realms.getUnlicensedRealms()).thenReturn(List.of());
 
-        final AuditTrailService auditTrail = mock(AuditTrailService.class);
+        final AuditTrailService auditTrail = new AuditTrailService(Collections.emptyList(), null);
         final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Map.of());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 
@@ -108,7 +115,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(License.OperationMode.PLATINUM, true, null);
+        licenseState.update(License.OperationMode.PLATINUM, true, Long.MAX_VALUE, null);
 
         final Clock clock = Clock.systemUTC();
 
@@ -120,9 +127,17 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         tokenService = new TokenService(settings, clock, client, licenseState, securityContext, securityIndex, tokensIndex, clusterService);
         final ApiKeyService apiKeyService = new ApiKeyService(settings, clock, client, licenseState,
-            securityIndex, clusterService, threadPool);
+                                                              securityIndex, clusterService,
+                                                              mock(CacheInvalidatorRegistry.class),threadPool);
+        final ServiceAccountService serviceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(serviceAccountService).authenticateToken(any(), any(), any());
         authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
-            tokenService, apiKeyService);
+            tokenService, apiKeyService, serviceAccountService, OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
     }
 
@@ -273,9 +288,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             tokenSource.set(request.source());
         });
 
-        final PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(auth, auth, Map.of(), false, tokenFuture);
-        final String token = tokenFuture.actionGet().v1();
+        final String token = tokenFuture.actionGet().getAccessToken();
 
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Bearer " + token);
 

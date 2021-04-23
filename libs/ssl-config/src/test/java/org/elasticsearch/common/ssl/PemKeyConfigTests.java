@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.ssl;
@@ -45,7 +34,7 @@ public class PemKeyConfigTests extends ESTestCase {
     private static final int IP_NAME = 7;
     private static final int DNS_NAME = 2;
 
-    public void testBuildKeyConfigFromPemFilesWithoutPassword() throws Exception {
+    public void testBuildKeyConfigFromPkcs1PemFilesWithoutPassword() throws Exception {
         final Path cert = getDataPath("/certs/cert1/cert1.crt");
         final Path key = getDataPath("/certs/cert1/cert1.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0]);
@@ -53,9 +42,26 @@ public class PemKeyConfigTests extends ESTestCase {
         assertCertificateAndKey(keyConfig, "CN=cert1");
     }
 
-    public void testBuildKeyConfigFromPemFilesWithPassword() throws Exception {
+    public void testBuildKeyConfigFromPkcs1PemFilesWithPassword() throws Exception {
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
         final Path key = getDataPath("/certs/cert2/cert2.key");
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
+        assertCertificateAndKey(keyConfig, "CN=cert2");
+    }
+
+    public void testBuildKeyConfigFromPkcs8PemFilesWithoutPassword() throws Exception {
+        final Path cert = getDataPath("/certs/cert1/cert1.crt");
+        final Path key = getDataPath("/certs/cert1/cert1-pkcs8.key");
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0]);
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
+        assertCertificateAndKey(keyConfig, "CN=cert1");
+    }
+
+    public void testBuildKeyConfigFromPkcs8PemFilesWithPassword() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
+        final Path cert = getDataPath("/certs/cert2/cert2.crt");
+        final Path key = getDataPath("/certs/cert2/cert2-pkcs8.key");
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray());
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
         assertCertificateAndKey(keyConfig, "CN=cert2");

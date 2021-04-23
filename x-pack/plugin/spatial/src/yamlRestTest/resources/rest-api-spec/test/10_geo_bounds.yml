@@ -1,0 +1,34 @@
+---
+"Test geo_bounds aggregation on geo_shape field":
+  - do:
+      indices.create:
+        index: locations
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_shape
+
+  - do:
+      index:
+        index:  locations
+        id:     point_with_doc_values
+        body:   { location: "POINT(34.25 -21.76)" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: locations
+        size: 0
+        body:
+          aggs:
+            my_agg:
+              geo_bounds:
+                field: location
+                wrap_longitude: true
+  - match: {hits.total:      1    }
+  - match: { aggregations.my_agg.bounds.top_left.lat: -21.760000032372773 }
+  - match: { aggregations.my_agg.bounds.top_left.lon: 34.24999997019768 }

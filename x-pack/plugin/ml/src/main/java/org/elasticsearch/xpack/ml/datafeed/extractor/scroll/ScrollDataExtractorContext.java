@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
@@ -25,10 +26,11 @@ class ScrollDataExtractorContext {
     final long end;
     final Map<String, String> headers;
     final IndicesOptions indicesOptions;
+    final Map<String, Object> runtimeMappings;
 
     ScrollDataExtractorContext(String jobId, TimeBasedExtractedFields extractedFields, List<String> indices, QueryBuilder query,
                                List<SearchSourceBuilder.ScriptField> scriptFields, int scrollSize, long start, long end,
-                               Map<String, String> headers, IndicesOptions indicesOptions) {
+                               Map<String, String> headers, IndicesOptions indicesOptions, Map<String, Object> runtimeMappings) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);
@@ -39,5 +41,6 @@ class ScrollDataExtractorContext {
         this.end = end;
         this.headers = headers;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
     }
 }

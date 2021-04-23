@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
@@ -21,16 +22,19 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.IfConditiona
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.time.Duration;
 import java.time.Period;
 import java.time.temporal.TemporalAmount;
+import java.util.Collections;
 import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -218,11 +222,26 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("- ( ( (1.25) )    )", expr.sourceText());
         assertEquals(-1.25, expr.fold());
 
-        int numberOfParentheses = randomIntBetween(3, 10);
+        expr = parser.createExpression("- ( -( (-1.25) )    )");
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals("- ( -( (-1.25) )    )", expr.sourceText());
+        assertEquals(-1.25, expr.fold());
+
+        expr = parser.createExpression("- ( -( -(-10) )    )");
+        assertEquals(Literal.class, expr.getClass());
+        assertEquals("- ( -( -(-10) )    )", expr.sourceText());
+        assertEquals(10, expr.fold());
+
+        int numberOfParentheses = randomIntBetween(3, 20);
+        int numberOfMinuses = 1;
         double value = randomDouble();
         StringBuilder sb = new StringBuilder("-");
         for (int i = 0; i < numberOfParentheses; i++) {
             sb.append("(").append(SqlTestUtils.randomWhitespaces());
+            if (randomBoolean()) {
+                sb.append("-");
+                numberOfMinuses++;
+            }
         }
         sb.append(value);
         for (int i = 0; i < numberOfParentheses; i++) {
@@ -234,7 +253,7 @@ public class ExpressionTests extends ESTestCase {
         expr = parser.createExpression(sb.toString());
         assertEquals(Literal.class, expr.getClass());
         assertEquals(sb.toString(), expr.sourceText());
-        assertEquals(- value, expr.fold());
+        assertEquals(numberOfMinuses % 2  == 0 ? value : - value, expr.fold());
     }
 
     public void testComplexArithmetic() {
@@ -541,5 +560,12 @@ public class ExpressionTests extends ESTestCase {
         ifc = c.conditions().get(0);
         assertEquals("WHEN 1 THEN 'one'", ifc.sourceText());
         assertEquals("many", c.elseResult().toString());
+    }
+
+    public void testLikePatternWithNullParameterNotAllowed() {
+        ParsingException e = expectThrows(ParsingException.class,
+                () -> parser.createExpression("a LIKE ?",
+                    Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), null))));
+        assertEquals("line 1:9: Pattern must not be [null]", e.getMessage());
     }
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent.support;
@@ -28,8 +17,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -37,8 +28,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singleton;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -161,6 +156,57 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
     }
 
+    public void testExtractValueWithNullValue() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .field("field", "value")
+            .nullField("other_field")
+            .array("array", "value1", null, "value2")
+            .startObject("object1")
+                .startObject("object2").nullField("field").endObject()
+            .endObject()
+            .startArray("object_array")
+                .startObject().nullField("field").endObject()
+                .startObject().field("field", "value").endObject()
+            .endArray()
+        .endObject();
+
+        Map<String, Object> map;
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            map = parser.map();
+        }
+        assertEquals("value", XContentMapValues.extractValue("field", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("missing", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("field.missing", map, "NULL"));
+        assertNull(XContentMapValues.extractValue("object1.missing", map, "NULL"));
+
+        assertEquals("NULL", XContentMapValues.extractValue("other_field", map, "NULL"));
+        assertEquals(List.of("value1", "NULL", "value2"), XContentMapValues.extractValue("array", map, "NULL"));
+        assertEquals(List.of("NULL", "value"), XContentMapValues.extractValue("object_array.field", map, "NULL"));
+        assertEquals("NULL", XContentMapValues.extractValue("object1.object2.field", map, "NULL"));
+    }
+
+    public void testExtractValueMixedObjects() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .field("foo.bar", "baz")
+            .endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            Map<String, Object> map = parser.map();
+            assertThat(XContentMapValues.extractValue("foo.bar", map), equalTo("baz"));
+        }
+    }
+
+    public void testExtractValueMixedDottedObjectNotation() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .startObject("foo").field("cat", "meow").endObject()
+            .field("foo.cat", "miau")
+            .endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            Map<String, Object> map = parser.map();
+            assertThat((List<?>) XContentMapValues.extractValue("foo.cat", map), containsInAnyOrder("meow", "miau"));
+        }
+    }
+
     public void testExtractRawValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test", "value")
@@ -171,6 +217,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("test", map).get(0).toString(), equalTo("value"));
+        assertThat(XContentMapValues.extractRawValues("test.dummy", map), contains("value"));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .field("test.me", "value")
@@ -198,6 +245,63 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("path1.xxx.path2.yyy.test", map).get(0).toString(), equalTo("value"));
+
+        builder = XContentFactory.jsonBuilder().startObject()
+            .startObject("path1").startArray("path2")
+            .startArray()
+            .startObject().startObject("path3").field("field", "value1").endObject().endObject()
+            .startObject().startObject("path3").field("field", "value2").endObject().endObject()
+            .endArray()
+            .endArray()
+            .endObject().endObject();
+
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            map = parser.map();
+        }
+        assertThat(XContentMapValues.extractRawValues("path1.path2.path3.field", map), contains("value1", "value2"));
+
+        builder = XContentFactory.jsonBuilder().startObject()
+            .startObject("path1").array("path2", 9, true, "manglewurzle").endObject().endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            map = parser.map();
+        }
+        assertThat(XContentMapValues.extractRawValues("path1.path2", map), contains(9, true, "manglewurzle"));
+        assertThat(XContentMapValues.extractRawValues("path1.path2.path3", map), hasSize(0));
+    }
+
+    public void testExtractRawValueLeafOnly() throws IOException {
+        Map<String, Object> map;
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+            .startArray("path1").value(9).startObject().field("path2", "value").endObject().value(7).endArray()
+            .endObject();
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+            map = parser.map();
+        }
+        assertThat(XContentMapValues.extractRawValues("path1", map), contains(9, 7));
+        assertThat(XContentMapValues.extractRawValues("path1.path2", map), Matchers.contains("value"));
+    }
+
+    public void testExtractRawValueMixedObjects() throws IOException {
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("foo").field("cat", "meow").endObject()
+                .field("foo.bar", "baz")
+                .endObject();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                Map<String, Object> map = parser.map();
+                assertThat(XContentMapValues.extractRawValues("foo.bar", map), Matchers.contains("baz"));
+            }
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startObject("foo").field("bar", "meow").endObject()
+                .field("foo.bar", "baz")
+                .endObject();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
+                Map<String, Object> map = parser.map();
+                assertThat(XContentMapValues.extractRawValues("foo.bar", map), Matchers.containsInAnyOrder("meow", "baz"));
+            }
+        }
     }
 
     public void testPrefixedNamesFilteringTest() {
@@ -477,6 +581,79 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         assertEquals(Collections.singletonMap("foobar", 2), XContentMapValues.filter(map, new String[] {"foobar"}, new String[0]));
         assertEquals(Collections.singletonMap("foobaz", 3), XContentMapValues.filter(map, new String[0], new String[] {"foobar"}));
+    }
+
+    @Override
+    public void testSimpleArrayOfObjectsExclusive() throws Exception {
+        //Empty arrays are preserved by XContentMapValues, they get removed only if explicitly excluded.
+        //See following tests around this specific behaviour
+        testFilter(SIMPLE_ARRAY_OF_OBJECTS_EXCLUSIVE, SAMPLE, emptySet(), singleton("authors"));
+    }
+
+    public void testArraySubFieldExclusion() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        List<Map<String, String>> array = new ArrayList<>();
+        Map<String, String> object = new HashMap<>();
+        object.put("exclude", "bar");
+        array.add(object);
+        map.put("array", array);
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[0], new String[]{"array.exclude"});
+        assertTrue(filtered.containsKey("field"));
+        assertTrue(filtered.containsKey("array"));
+        List<?> filteredArray = (List<?>)filtered.get("array");
+        assertThat(filteredArray, hasSize(0));
+    }
+
+    public void testEmptyArraySubFieldsExclusion() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        List<Map<String, String>> array = new ArrayList<>();
+        map.put("array", array);
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[0], new String[]{"array.exclude"});
+        assertTrue(filtered.containsKey("field"));
+        assertTrue(filtered.containsKey("array"));
+        List<?> filteredArray = (List<?>)filtered.get("array");
+        assertEquals(0, filteredArray.size());
+    }
+
+    public void testEmptyArraySubFieldsInclusion() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        List<Map<String, String>> array = new ArrayList<>();
+        map.put("array", array);
+        {
+            Map<String, Object> filtered = XContentMapValues.filter(map, new String[]{"array.include"}, new String[0]);
+            assertFalse(filtered.containsKey("field"));
+            assertFalse(filtered.containsKey("array"));
+        }
+        {
+            Map<String, Object> filtered = XContentMapValues.filter(map, new String[]{"array", "array.include"},
+                new String[0]);
+            assertFalse(filtered.containsKey("field"));
+            assertTrue(filtered.containsKey("array"));
+            List<?> filteredArray = (List<?>)filtered.get("array");
+            assertEquals(0, filteredArray.size());
+        }
+    }
+
+    public void testEmptyObjectsSubFieldsInclusion() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", "value");
+        map.put("object", new HashMap<>());
+        {
+            Map<String, Object> filtered = XContentMapValues.filter(map, new String[]{"object.include"}, new String[0]);
+            assertFalse(filtered.containsKey("field"));
+            assertFalse(filtered.containsKey("object"));
+        }
+        {
+            Map<String, Object> filtered = XContentMapValues.filter(map, new String[]{"object", "object.include"},
+                new String[0]);
+            assertFalse(filtered.containsKey("field"));
+            assertTrue(filtered.containsKey("object"));
+            Map<?, ?> filteredMap = (Map<?, ?>)filtered.get("object");
+            assertEquals(0, filteredMap.size());
+        }
     }
 
     public void testPrefix() {

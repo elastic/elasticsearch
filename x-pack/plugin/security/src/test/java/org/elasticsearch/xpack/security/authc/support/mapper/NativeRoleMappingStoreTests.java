@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support.mapper;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -24,6 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
+import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -149,7 +151,8 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
 
     private SecurityIndexManager.State indexState(boolean isUpToDate, ClusterHealthStatus healthStatus) {
         return new SecurityIndexManager.State(
-            Instant.now(), isUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetaData.State.OPEN);
+            Instant.now(), isUpToDate, true, true, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, null, "my_uuid"
+        );
     }
 
     public void testCacheClearOnIndexHealthChange() {
@@ -208,6 +211,20 @@ public class NativeRoleMappingStoreTests extends ESTestCase {
         final SecurityIndexManager.State greenIndexState = dummyState(ClusterHealthStatus.GREEN);
         store.onSecurityIndexStateChange(noIndexState, greenIndexState);
         assertEquals(0, numInvalidation.get());
+    }
+
+    public void testPutRoleMappingWillValidateTemplateRoleNamesBeforeSave() {
+        final PutRoleMappingRequest putRoleMappingRequest = mock(PutRoleMappingRequest.class);
+        final TemplateRoleName templateRoleName = mock(TemplateRoleName.class);
+        final ScriptService scriptService = mock(ScriptService.class);
+        when(putRoleMappingRequest.getRoleTemplates()).thenReturn(Collections.singletonList(templateRoleName));
+        doAnswer(invocationOnMock -> {
+            throw new IllegalArgumentException();
+        }).when(templateRoleName).validate(scriptService);
+
+        final NativeRoleMappingStore nativeRoleMappingStore =
+            new NativeRoleMappingStore(Settings.EMPTY, mock(Client.class), mock(SecurityIndexManager.class), scriptService);
+        expectThrows(IllegalArgumentException.class, () -> nativeRoleMappingStore.putRoleMapping(putRoleMappingRequest, null));
     }
 
     private NativeRoleMappingStore buildRoleMappingStoreForInvalidationTesting(AtomicInteger invalidationCounter, boolean attachRealm) {

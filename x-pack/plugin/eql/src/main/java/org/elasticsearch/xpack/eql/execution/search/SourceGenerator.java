@@ -1,23 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
+import org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort;
+
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -27,7 +32,8 @@ public abstract class SourceGenerator {
 
     private SourceGenerator() {}
 
-    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, Integer size) {
+    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, List<FieldAndFormat> fetchFields,
+        Map<String, Object> runtimeMappings) {
         QueryBuilder finalQuery = null;
         // add the source
         if (container.query() != null) {
@@ -45,17 +51,41 @@ public abstract class SourceGenerator {
         final SearchSourceBuilder source = new SearchSourceBuilder();
 
         source.query(finalQuery);
+
+        // extract fields
+        QlSourceBuilder sourceBuilder = new QlSourceBuilder();
+        // Iterate through all the columns requested, collecting the fields that
+        // need to be retrieved from the result documents
+
+        // NB: the sortBuilder takes care of eliminating duplicates
+        container.fields().forEach(f -> f.v1().collectFields(sourceBuilder));
+        sourceBuilder.build(source);
+
         sorting(container, source);
-        source.fetchSource(FetchSourceContext.FETCH_SOURCE);
 
-        // set fetch size
-        if (size != null) {
-            int sz = size;
+        // disable the source, as we rely on "fields" API
+        source.fetchSource(false);
 
-            if (source.size() == -1) {
-                source.size(sz);
+        // add the "fields" to be fetched
+        if (fetchFields != null) {
+            fetchFields.forEach(source::fetchField);
+        }
+
+        // add the runtime fields
+        if (runtimeMappings != null) {
+            source.runtimeMappings(runtimeMappings);
+        }
+
+        if (container.limit() != null) {
+            // add size and from
+            source.size(container.limit().absLimit());
+            // this should be added only for event queries
+            if (container.limit().offset() > 0) {
+                source.from(container.limit().offset());
             }
         }
+
+        optimize(container, source);
 
         return source;
     }
@@ -75,7 +105,7 @@ public abstract class SourceGenerator {
                     sortBuilder = fieldSort(fa.name())
                             .missing(as.missing().position())
                             .unmappedType(fa.dataType().esType());
-                    
+
                     if (fa.isNested()) {
                         FieldSortBuilder fieldSort = fieldSort(fa.name())
                                 .missing(as.missing().position())
@@ -115,8 +145,6 @@ public abstract class SourceGenerator {
     }
 
     private static void optimize(QueryContainer query, SearchSourceBuilder builder) {
-        if (query.shouldTrackHits()) {
-            builder.trackTotalHits(true);
-        }
+        builder.trackTotalHits(query.shouldTrackHits());
     }
 }

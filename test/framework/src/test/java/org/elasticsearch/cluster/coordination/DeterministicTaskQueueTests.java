@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -28,7 +17,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,9 +27,9 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.core.Is.is;
 
 public class DeterministicTaskQueueTests extends ESTestCase {
@@ -57,7 +45,7 @@ public class DeterministicTaskQueueTests extends ESTestCase {
 
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();
-        assertThat(strings, contains(isOneOf("foo", "bar")));
+        assertThat(strings, contains(oneOf("foo", "bar")));
 
         assertTrue(taskQueue.hasRunnableTasks());
         taskQueue.runRandomTask();
@@ -245,25 +233,6 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         assertThat(strings, contains("foo", "bar"));
     }
 
-    public void testExecutorServiceEnqueuesTasks() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
-        final List<String> strings = new ArrayList<>(2);
-
-        final ExecutorService executorService = taskQueue.getExecutorService();
-        assertFalse(taskQueue.hasRunnableTasks());
-        executorService.execute(() -> strings.add("foo"));
-        assertTrue(taskQueue.hasRunnableTasks());
-        executorService.execute(() -> strings.add("bar"));
-
-        assertThat(strings, empty());
-
-        while (taskQueue.hasRunnableTasks()) {
-            taskQueue.runRandomTask();
-        }
-
-        assertThat(strings, containsInAnyOrder("foo", "bar"));
-    }
-
     public void testThreadPoolEnqueuesTasks() {
         final DeterministicTaskQueue taskQueue = newTaskQueue();
         final List<String> strings = new ArrayList<>(2);
@@ -292,20 +261,6 @@ public class DeterministicTaskQueueTests extends ESTestCase {
             runnable.run();
         });
         threadPool.generic().execute(() -> logger.info("runnable executed"));
-        assertFalse(called.get());
-        taskQueue.runAllRunnableTasks();
-        assertTrue(called.get());
-    }
-
-    public void testExecutorServiceWrapsRunnable() {
-        final DeterministicTaskQueue taskQueue = newTaskQueue();
-        final AtomicBoolean called = new AtomicBoolean();
-        final ExecutorService executorService = taskQueue.getExecutorService(runnable -> () -> {
-            assertFalse(called.get());
-            called.set(true);
-            runnable.run();
-        });
-        executorService.execute(() -> logger.info("runnable executed"));
         assertFalse(called.get());
         taskQueue.runAllRunnableTasks();
         assertTrue(called.get());
@@ -419,6 +374,20 @@ public class DeterministicTaskQueueTests extends ESTestCase {
         taskQueue.runAllRunnableTasks();
 
         assertThat(strings, contains("periodic-0", "periodic-1", "periodic-2"));
+    }
+
+    public void testSameExecutor() {
+        final DeterministicTaskQueue taskQueue = newTaskQueue();
+        final ThreadPool threadPool = taskQueue.getThreadPool();
+        final AtomicBoolean executed = new AtomicBoolean(false);
+        final AtomicBoolean executedNested = new AtomicBoolean(false);
+        threadPool.generic().execute(() -> {
+            threadPool.executor(ThreadPool.Names.SAME).execute(() -> executedNested.set(true));
+            assertThat(executedNested.get(), is(true));
+            executed.set(true);
+        });
+        taskQueue.runAllRunnableTasks();
+        assertThat(executed.get(), is(true));
     }
 
     static DeterministicTaskQueue newTaskQueue() {

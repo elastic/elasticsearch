@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.suggest.completion;
@@ -44,7 +33,8 @@ import static org.elasticsearch.geometry.utils.Geohash.addNeighborsAtLevel;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 
 public class GeoContextMappingTests extends ESSingleNodeTestCase {
 
@@ -275,7 +265,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("ezs42e");
         addNeighborsAtLevel("ezs42e", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.context, is(in(locations)));
             assertThat(internalQueryContext.boost, equalTo(1));
             assertThat(internalQueryContext.isPrefix, equalTo(false));
         }
@@ -294,7 +284,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("wh0n94");
         addNeighborsAtLevel("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.context, is(in(locations)));
             assertThat(internalQueryContext.boost, equalTo(1));
             assertThat(internalQueryContext.isPrefix, equalTo(false));
         }
@@ -322,7 +312,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         locations.add("wh0");
         addNeighborsAtLevel("wh0", 3, locations);
         for (ContextMapping.InternalQueryContext internalQueryContext : internalQueryContexts) {
-            assertThat(internalQueryContext.context, isIn(locations));
+            assertThat(internalQueryContext.context, is(in(locations)));
             assertThat(internalQueryContext.boost, equalTo(10));
             assertThat(internalQueryContext.isPrefix, equalTo(internalQueryContext.context.length() < GeoContextMapping.DEFAULT_PRECISION));
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.execution;
 
@@ -22,9 +23,9 @@ import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.planner.Planner;
 import org.elasticsearch.xpack.sql.planner.PlanningException;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
-import org.elasticsearch.xpack.sql.session.Configuration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.stats.QueryMetric;
@@ -44,7 +45,7 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
-    
+
     private final Metrics metrics;
 
     public PlanExecutor(Client client, IndexResolver indexResolver, NamedWriteableRegistry writeableRegistry) {
@@ -53,7 +54,7 @@ public class PlanExecutor {
 
         this.indexResolver = indexResolver;
         this.functionRegistry = new SqlFunctionRegistry();
-        
+
         this.metrics = new Metrics();
 
         this.preAnalyzer = new PreAnalyzer();
@@ -62,11 +63,12 @@ public class PlanExecutor {
         this.planner = new Planner();
     }
 
-    private SqlSession newSession(Configuration cfg) {
+    private SqlSession newSession(SqlConfiguration cfg) {
         return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner, this);
     }
 
-    public void searchSource(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<SearchSourceBuilder> listener) {
+    public void searchSource(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params,
+            ActionListener<SearchSourceBuilder> listener) {
         metrics.translate();
 
         newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
@@ -91,7 +93,7 @@ public class PlanExecutor {
         }, listener::onFailure));
     }
 
-    public void sql(Configuration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
+    public void sql(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
         QueryMetric metric = QueryMetric.from(cfg.mode(), cfg.clientId());
         metrics.total(metric);
 
@@ -101,7 +103,7 @@ public class PlanExecutor {
         }));
     }
 
-    public void nextPage(Configuration cfg, Cursor cursor, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Cursor cursor, ActionListener<Page> listener) {
         QueryMetric metric = QueryMetric.from(cfg.mode(), cfg.clientId());
         metrics.total(metric);
         metrics.paging(metric);
@@ -112,10 +114,10 @@ public class PlanExecutor {
         }));
     }
 
-    public void cleanCursor(Configuration cfg, Cursor cursor, ActionListener<Boolean> listener) {
+    public void cleanCursor(SqlConfiguration cfg, Cursor cursor, ActionListener<Boolean> listener) {
         cursor.clear(cfg, client, listener);
     }
-    
+
     public Metrics metrics() {
         return this.metrics;
     }

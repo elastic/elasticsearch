@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -110,7 +111,7 @@ final class ServerTransportFilter {
                 } else {
                     authzService.authorize(authentication, securityAction, request, listener);
                 }
-            } else if (licenseState.isAuthAllowed() == false) {
+            } else if (licenseState.isSecurityEnabled() == false) {
                 listener.onResponse(null);
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

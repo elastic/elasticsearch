@@ -144,7 +144,7 @@ Character used to separate tokens from payloads. Defaults to `|`.
 +
 --
 (Optional, string)
-Datatype for the stored payload. Valid values are:
+Data type for the stored payload. Valid values are:
 
 `float`:::
 (Default) Float

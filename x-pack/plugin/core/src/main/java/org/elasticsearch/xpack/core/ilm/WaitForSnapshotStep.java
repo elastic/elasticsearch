@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -40,18 +41,18 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
 
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
-        IndexMetaData indexMetaData = clusterState.metaData().index(index);
-        if (indexMetaData == null) {
+        IndexMetadata indexMetadata = clusterState.metadata().index(index);
+        if (indexMetadata == null) {
             throw error(NO_INDEX_METADATA_MESSAGE, index.getName());
         }
 
-        Long phaseTime = LifecycleExecutionState.fromIndexMetadata(indexMetaData).getPhaseTime();
+        Long phaseTime = LifecycleExecutionState.fromIndexMetadata(indexMetadata).getPhaseTime();
 
         if (phaseTime == null) {
             throw error(NO_PHASE_TIME_MESSAGE, index.getName());
         }
 
-        SnapshotLifecycleMetadata snapMeta = clusterState.metaData().custom(SnapshotLifecycleMetadata.TYPE);
+        SnapshotLifecycleMetadata snapMeta = clusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta == null || snapMeta.getSnapshotConfigurations().containsKey(policy) == false) {
             throw error(POLICY_NOT_FOUND_MESSAGE, policy);
         }
@@ -89,7 +90,7 @@ public class WaitForSnapshotStep extends ClusterStateWaitStep {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         WaitForSnapshotStep that = (WaitForSnapshotStep) o;
         return policy.equals(that.policy);
     }

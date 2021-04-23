@@ -1,27 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
@@ -32,10 +19,7 @@ import java.util.Map;
 public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTestCase<InternalMedianAbsoluteDeviation> {
 
     @Override
-    protected InternalMedianAbsoluteDeviation createTestInstance(String name,
-                                                                 List<PipelineAggregator> pipelineAggregators,
-                                                                 Map<String, Object> metaData) {
-
+    protected InternalMedianAbsoluteDeviation createTestInstance(String name, Map<String, Object> metadata) {
         final TDigestState valuesSketch = new TDigestState(randomDoubleBetween(20, 1000, true));
         final int numberOfValues = frequently()
             ? randomIntBetween(0, 1000)
@@ -44,7 +28,7 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
             valuesSketch.add(randomDouble());
         }
 
-        return new InternalMedianAbsoluteDeviation(name, pipelineAggregators, metaData, randomNumericDocValueFormat(), valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, metadata, randomNumericDocValueFormat(), valuesSketch);
     }
 
     @Override
@@ -73,15 +57,10 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
     }
 
     @Override
-    protected Writeable.Reader<InternalMedianAbsoluteDeviation> instanceReader() {
-        return InternalMedianAbsoluteDeviation::new;
-    }
-
-    @Override
     protected InternalMedianAbsoluteDeviation mutateInstance(InternalMedianAbsoluteDeviation instance) throws IOException {
         String name = instance.getName();
         TDigestState valuesSketch = instance.getValuesSketch();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
 
         switch (between(0, 2)) {
             case 0:
@@ -96,15 +75,15 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
                 valuesSketch = newValuesSketch;
                 break;
             case 2:
-                if (metaData == null) {
-                    metaData = new HashMap<>(1);
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
                 } else {
-                    metaData = new HashMap<>(metaData);
+                    metadata = new HashMap<>(metadata);
                 }
-                metaData.put(randomAlphaOfLengthBetween(2, 10), randomInt());
+                metadata.put(randomAlphaOfLengthBetween(2, 10), randomInt());
                 break;
         }
 
-        return new InternalMedianAbsoluteDeviation(name, instance.pipelineAggregators(), metaData, instance.format, valuesSketch);
+        return new InternalMedianAbsoluteDeviation(name, metadata, instance.format, valuesSketch);
     }
 }

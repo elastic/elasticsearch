@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -24,8 +13,8 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
@@ -73,16 +62,17 @@ public class RestGetAliasesAction extends BaseRestHandler {
     }
 
     static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
-            ImmutableOpenMap<String, List<AliasMetaData>> responseAliasMap, XContentBuilder builder) throws Exception {
+                                          ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+                                          XContentBuilder builder) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
-        for (final ObjectObjectCursor<String, List<AliasMetaData>> cursor : responseAliasMap) {
-            for (final AliasMetaData aliasMetaData : cursor.value) {
+        for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
+            for (final AliasMetadata aliasMetadata : cursor.value) {
                 if (aliasesExplicitlyRequested) {
                     // only display indices that have aliases
                     indicesToDisplay.add(cursor.key);
                 }
-                returnedAliasNames.add(aliasMetaData.alias());
+                returnedAliasNames.add(aliasMetadata.alias());
             }
         }
         // compute explicitly requested aliases that have are not returned in the result
@@ -97,7 +87,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
         }
         for (int i = 0; i < requestedAliases.length; i++) {
-            if (MetaData.ALL.equals(requestedAliases[i]) || Regex.isSimpleMatchPattern(requestedAliases[i])
+            if (Metadata.ALL.equals(requestedAliases[i]) || Regex.isSimpleMatchPattern(requestedAliases[i])
                     || (i > firstWildcardIndex && requestedAliases[i].charAt(0) == '-')) {
                 // only explicitly requested aliases will be called out as missing (404)
                 continue;
@@ -108,7 +98,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 if (requestedAliases[j].charAt(0) == '-') {
                     // this is an exclude pattern
                     if (Regex.simpleMatch(requestedAliases[j].substring(1), requestedAliases[i])
-                            || MetaData.ALL.equals(requestedAliases[j].substring(1))) {
+                            || Metadata.ALL.equals(requestedAliases[j].substring(1))) {
                         // aliases[i] is excluded by aliases[j]
                         break;
                     }
@@ -140,14 +130,14 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final ObjectObjectCursor<String, List<AliasMetaData>> entry : responseAliasMap) {
+            for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : responseAliasMap) {
                 if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");
                         {
-                            for (final AliasMetaData alias : entry.value) {
-                                AliasMetaData.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
+                            for (final AliasMetadata alias : entry.value) {
+                                AliasMetadata.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                             }
                         }
                         builder.endObject();

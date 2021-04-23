@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.http.HttpChannel;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
+import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isInsufficientBufferRemainingException;
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isNotSslRecordException;
 import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
 
@@ -29,7 +31,7 @@ public final class SecurityHttpExceptionHandler implements BiConsumer<HttpChanne
     }
 
     public void accept(HttpChannel channel, Exception e) {
-        if (!lifecycle.started()) {
+        if (lifecycle.started() == false) {
             return;
         }
 
@@ -38,6 +40,9 @@ public final class SecurityHttpExceptionHandler implements BiConsumer<HttpChanne
             CloseableChannel.closeChannel(channel);
         } else if (isCloseDuringHandshakeException(e)) {
             logger.debug("connection {} closed during ssl handshake", channel);
+            CloseableChannel.closeChannel(channel);
+        } else if (isInsufficientBufferRemainingException(e)) {
+            logger.debug("connection {} closed abruptly", channel);
             CloseableChannel.closeChannel(channel);
         } else if (isReceivedCertificateUnknownException(e)) {
             logger.warn("http client did not trust this server's certificate, closing connection {}", channel);

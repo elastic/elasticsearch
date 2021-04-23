@@ -1,5 +1,9 @@
 [[ingest-node-set-security-user-processor]]
-=== Set Security User Processor
+=== Set security user processor
+++++
+<titleabbrev>Set security user</titleabbrev>
+++++
+
 Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,
 `metadata`, `api_key`, `realm` and `authentication_type`) from the current
 authenticated user to the current document by pre-processing the ingest.

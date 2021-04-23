@@ -1,0 +1,47 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test String MessageDigest augmentation":
+  - do:
+      watcher.execute_watch:
+        body: >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple": {
+                  "hits": {
+                    "hits": [
+                      { "foo": "bar" }
+                    ]
+                  }
+                }
+              },
+              "condition": {
+                "script": {
+                  "source": "ctx.payload.hits.hits[0].keySet().iterator().next().sha1() == \"0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33\""
+                }
+              },
+              "transform" : {
+                "script": "return ctx.payload.hits.hits[0].entrySet().stream().collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().sha256()))"
+              },
+              "actions": {
+                "logging" : {
+                  "logging" : {
+                    "text" : "Transformed: '{{ctx.payload.foo}}'"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.result.actions.0.logging.logged_text: "Transformed: 'fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9'" }

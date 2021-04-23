@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
@@ -22,8 +11,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -36,6 +24,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.shard.IndexSettingProvider;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,7 +37,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 /**
@@ -86,12 +76,15 @@ public abstract class Plugin implements Closeable {
      * @param nodeEnvironment the node environment used coordinate access to the data paths
      * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
      * @param indexNameExpressionResolver A service that resolves expression to index and alias names
+     * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
+     *                                   is called, but will return the repositories service once the node is initialized.
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver) {
+                                               IndexNameExpressionResolver indexNameExpressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         return Collections.emptyList();
     }
 
@@ -116,6 +109,15 @@ public abstract class Plugin implements Closeable {
      * @see NamedWriteableRegistry
      */
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns parsers with compatible logic for named objects this plugin will parse from
+     * {@link XContentParser#namedObject(Class, String, Object)}.
+     * @see NamedWriteableRegistry
+     */
+    public List<NamedXContentRegistry.Entry> getNamedXContentForCompatibility() {
         return Collections.emptyList();
     }
 
@@ -152,11 +154,11 @@ public abstract class Plugin implements Closeable {
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
      * <p>
-     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetaData} map.
-     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetaData}
+     * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
+     * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded
      */
-    public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return UnaryOperator.identity();
     }
 
@@ -179,10 +181,6 @@ public abstract class Plugin implements Closeable {
      */
     public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
 
-    public Set<DiscoveryNodeRole> getRoles() {
-        return Set.of();
-    }
-
     /**
      * Close the resources opened by this plugin.
      *
@@ -191,5 +189,15 @@ public abstract class Plugin implements Closeable {
     @Override
     public void close() throws IOException {
 
+    }
+
+    /**
+     * An {@link IndexSettingProvider} allows hooking in to parts of an index
+     * lifecycle to provide explicit default settings for newly created indices. Rather than changing
+     * the default values for an index-level setting, these act as though the setting has been set
+     * explicitly, but still allow the setting to be overridden by a template or creation request body.
+     */
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.emptyList();
     }
 }

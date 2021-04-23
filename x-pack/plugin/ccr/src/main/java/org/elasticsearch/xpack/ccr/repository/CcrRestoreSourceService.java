@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.repository;
@@ -107,9 +108,9 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
                 HashSet<String> sessions = sessionsForShard.computeIfAbsent(indexShard, (s) -> new HashSet<>());
                 sessions.add(sessionUUID);
             }
-            Store.MetadataSnapshot metaData = restore.getMetaData();
+            Store.MetadataSnapshot metadata = restore.getMetadata();
             success = true;
-            return metaData;
+            return metadata;
         } finally {
             if (success == false) {
                 onGoingRestores.remove(sessionUUID);
@@ -198,7 +199,7 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
             this.timeoutTask = timeoutTask;
         }
 
-        private Store.MetadataSnapshot getMetaData() throws IOException {
+        private Store.MetadataSnapshot getMetadata() throws IOException {
             indexShard.store().incRef();
             try {
                 return indexShard.store().getMetadata(commitRef.getIndexCommit());

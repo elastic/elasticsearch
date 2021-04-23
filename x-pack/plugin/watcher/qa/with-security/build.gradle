@@ -1,31 +1,26 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
-  testCompile project(':x-pack:qa')
-  testCompile project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'testArtifacts')
-}
-
-
-// bring in watcher rest test suite from the rest project
-task copyWatcherRestTests(type: Copy) {
-  into project.sourceSets.test.output.resourcesDir
-  from project(xpackProject('plugin:watcher:qa:rest').path).sourceSets.test.resources.srcDirs
-  include 'rest-api-spec/test/watcher/**'
+  yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(':x-pack:qa')
+  yamlRestTestImplementation project(':x-pack:qa')
+  restXpackTestConfig project(path: ':x-pack:plugin:watcher:qa:rest', configuration: 'restXpackTests')
 }
 
 restResources {
   restApi {
-    includeXpack 'watcher', 'security', 'xpack'
+    include '_common', 'cluster', 'index', 'indices', 'get', 'nodes', 'search', 'watcher', 'security', 'xpack'
+  }
+  restTests {
+    includeXpack 'watcher'
   }
 }
 
-integTest.runner.dependsOn copyWatcherRestTests
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
-  setting 'xpack.ilm.enabled', 'false'
-  setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.security.enabled', 'true'
   // settings to test settings filtering on

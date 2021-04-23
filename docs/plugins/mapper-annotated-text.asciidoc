@@ -18,13 +18,13 @@ include::install_remove.asciidoc[]
 [[mapper-annotated-text-usage]]
 ==== Using the `annotated-text` field
 
-The `annotated-text` tokenizes text content as per the more common `text` field (see 
+The `annotated-text` tokenizes text content as per the more common {ref}/text.html[`text`] field (see 
 "limitations" below) but also injects any marked-up annotation tokens directly into
 the search index:
 
 [source,console]
 --------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -47,7 +47,7 @@ in the search index:
 
 [source,js]
 --------------------------
-GET my_index/_analyze
+GET my-index-000001/_analyze
 {
   "field": "my_field", 
   "text":"Investors in [Apple](Apple+Inc.) rejoiced."
@@ -112,18 +112,18 @@ in this example where a search for `Beck` will not match `Jeff Beck` :
 [source,console]
 --------------------------
 # Example documents
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_field": "[Beck](Beck) announced a new tour"<1>
 }
 
-PUT my_index/_doc/2
+PUT my-index-000001/_doc/2
 {
   "my_field": "[Jeff Beck](Jeff+Beck&Guitarist) plays a strat"<2>
 }
 
 # Example search
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "term": {
@@ -164,7 +164,7 @@ sense to include them in dedicated structured fields to support discovery via ag
 
 [source,console]
 --------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -189,13 +189,13 @@ Applications would then typically provide content and discover it as follows:
 [source,console]
 --------------------------
 # Example documents
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_unstructured_text_field": "[Shay](%40kimchy) created elasticsearch",
   "my_twitter_handles": ["@kimchy"] <1>
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "query_string": {
@@ -264,12 +264,12 @@ in a way which is respectful of the original markup:
 [source,console]
 --------------------------
 # Example documents
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "my_field": "The cat sat on the [mat](sku3578)"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "query_string": {
@@ -293,7 +293,7 @@ The annotated highlighter is based on the `unified` highlighter and supports the
 settings but does not use the `pre_tags` or `post_tags` parameters. Rather than using
 html-like markup such as `<em>cat</em>` the annotated highlighter uses the same 
 markdown-like syntax used for annotations and injects a key=value annotation where `_hit_term`
-is the  key and the matched search term is the value e.g. 
+is the key and the matched search term is the value e.g. 
 
     The [cat](_hit_term=cat) sat on the [mat](sku3578)
 

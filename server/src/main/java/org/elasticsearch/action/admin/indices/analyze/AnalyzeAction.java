@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -53,6 +41,18 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
     private AnalyzeAction() {
         super(NAME, AnalyzeAction.Response::new);
+    }
+
+    public static class Fields {
+        public static final ParseField ANALYZER = new ParseField("analyzer");
+        public static final ParseField TEXT = new ParseField("text");
+        public static final ParseField FIELD = new ParseField("field");
+        public static final ParseField TOKENIZER = new ParseField("tokenizer");
+        public static final ParseField TOKEN_FILTERS = new ParseField("filter");
+        public static final ParseField CHAR_FILTERS = new ParseField("char_filter");
+        public static final ParseField EXPLAIN = new ParseField("explain");
+        public static final ParseField ATTRIBUTES = new ParseField("attributes");
+        public static final ParseField NORMALIZER = new ParseField("normalizer");
     }
 
     /**
@@ -265,19 +265,20 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("analyze_request");
+
         static {
-            PARSER.declareStringArray(Request::text, new ParseField("text"));
-            PARSER.declareString(Request::analyzer, new ParseField("analyzer"));
+            PARSER.declareStringArray(Request::text, Fields.TEXT);
+            PARSER.declareString(Request::analyzer, Fields.ANALYZER);
             PARSER.declareField(Request::tokenizer, (p, c) -> NameOrDefinition.fromXContent(p),
-                new ParseField("tokenizer"), ObjectParser.ValueType.OBJECT_OR_STRING);
+                Fields.TOKENIZER, ObjectParser.ValueType.OBJECT_OR_STRING);
             PARSER.declareObjectArray(Request::setTokenFilters, (p, c) -> NameOrDefinition.fromXContent(p),
-                new ParseField("filter"));
+                Fields.TOKEN_FILTERS);
             PARSER.declareObjectArray(Request::setCharFilters, (p, c) -> NameOrDefinition.fromXContent(p),
-                new ParseField("char_filter"));
-            PARSER.declareString(Request::field, new ParseField("field"));
-            PARSER.declareBoolean(Request::explain, new ParseField("explain"));
-            PARSER.declareStringArray(Request::attributes, new ParseField("attributes"));
-            PARSER.declareString(Request::normalizer, new ParseField("normalizer"));
+                Fields.CHAR_FILTERS);
+            PARSER.declareString(Request::field, Fields.FIELD);
+            PARSER.declareBoolean(Request::explain, Fields.EXPLAIN);
+            PARSER.declareStringArray(Request::attributes, Fields.ATTRIBUTES);
+            PARSER.declareString(Request::normalizer, Fields.NORMALIZER);
         }
 
     }
@@ -296,20 +297,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
-                tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;
-            } else {
-                int size = in.readVInt();
-                if (size > 0) {
-                    tokens = new ArrayList<>(size);
-                    for (int i = 0; i < size; i++) {
-                        tokens.add(new AnalyzeToken(in));
-                    }
-                } else {
-                    tokens = null;
-                }
-            }
+            AnalyzeToken[] tokenArray = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
+            tokens = tokenArray != null ? Arrays.asList(tokenArray) : null;
             detail = in.readOptionalWriteable(DetailAnalyzeResponse::new);
         }
 
@@ -343,22 +332,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                AnalyzeToken[] tokenArray = null;
-                if (tokens != null) {
-                    tokenArray = tokens.toArray(new AnalyzeToken[0]);
-                }
-                out.writeOptionalArray(tokenArray);
-            } else {
-                if (tokens != null) {
-                    out.writeVInt(tokens.size());
-                    for (AnalyzeToken token : tokens) {
-                        token.writeTo(out);
-                    }
-                } else {
-                    out.writeVInt(0);
-                }
+            AnalyzeToken[] tokenArray = null;
+            if (tokens != null) {
+                tokenArray = tokens.toArray(new AnalyzeToken[0]);
             }
+            out.writeOptionalArray(tokenArray);
             out.writeOptionalWriteable(detail);
         }
 
@@ -496,7 +474,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (positionLength > 1) {
                 builder.field(POSITION_LENGTH, positionLength);
             }
-            if (attributes != null && !attributes.isEmpty()) {
+            if (attributes != null && attributes.isEmpty() == false) {
                 Map<String, Object> sortedAttributes = new TreeMap<>(attributes);
                 for (Map.Entry<String, Object> entity : sortedAttributes.entrySet()) {
                     builder.field(entity.getKey(), entity.getValue());
@@ -711,19 +689,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
 
         AnalyzeTokenList(StreamInput in) throws IOException {
             name = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                tokens = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
-            } else {
-                int size = in.readVInt();
-                if (size > 0) {
-                    tokens = new AnalyzeToken[size];
-                    for (int i = 0; i < size; i++) {
-                        tokens[i] = new AnalyzeToken(in);
-                    }
-                } else {
-                    tokens = null;
-                }
-            }
+            tokens = in.readOptionalArray(AnalyzeToken::new, AnalyzeToken[]::new);
         }
 
         public String getName() {
@@ -756,18 +722,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                out.writeOptionalArray(tokens);
-            } else {
-                if (tokens != null) {
-                    out.writeVInt(tokens.length);
-                    for (AnalyzeToken token : tokens) {
-                        token.writeTo(out);
-                    }
-                } else {
-                    out.writeVInt(0);
-                }
-            }
+            out.writeOptionalArray(tokens);
         }
     }
 

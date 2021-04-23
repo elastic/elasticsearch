@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -283,7 +272,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         refreshTask = indexService.getRefreshTask();
         assertBusy(() -> {
             // this one either becomes visible due to a concurrently running scheduled refresh OR due to the force refresh
-            // we are running on updateMetaData if the interval changes
+            // we are running on updateMetadata if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                 TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(1, search.totalHits.value);
@@ -296,7 +285,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "1ms")).get();
         assertTrue(refreshTask.isClosed());
         assertBusy(() -> {
-            // this one becomes visible due to the force refresh we are running on updateMetaData if the interval changes
+            // this one becomes visible due to the force refresh we are running on updateMetadata if the interval changes
             try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
                 TopDocs search = searcher.search(new MatchAllDocsQuery(), 10);
                 assertEquals(2, search.totalHits.value);
@@ -451,8 +440,8 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertNotNull(indexService.getFsyncTask());
         assertTrue(indexService.getFsyncTask().mustReschedule());
 
-        IndexMetaData indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
-        assertEquals("5s", indexMetaData.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
+        IndexMetadata indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
+        assertEquals("5s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
 
         client().admin().indices().prepareClose("test").get();
         client()
@@ -461,7 +450,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
             .prepareUpdateSettings("test")
             .setSettings(Settings.builder().put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), "20s"))
             .get();
-        indexMetaData = client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
-        assertEquals("20s", indexMetaData.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
+        indexMetadata = client().admin().cluster().prepareState().execute().actionGet().getState().metadata().index("test");
+        assertEquals("20s", indexMetadata.getSettings().get(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey()));
     }
 }

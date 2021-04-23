@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
@@ -26,6 +28,8 @@ import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -38,11 +42,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-
 
 public class TransportGetTrainedModelsStatsAction extends HandledTransportAction<GetTrainedModelsStatsAction.Request,
                                                                                  GetTrainedModelsStatsAction.Response> {
@@ -71,50 +76,79 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                              GetTrainedModelsStatsAction.Request request,
                              ActionListener<GetTrainedModelsStatsAction.Response> listener) {
 
+        final ModelAliasMetadata currentMetadata = ModelAliasMetadata.fromState(clusterService.state());
         GetTrainedModelsStatsAction.Response.Builder responseBuilder = new GetTrainedModelsStatsAction.Response.Builder();
+
+        ActionListener<List<InferenceStats>> inferenceStatsListener = ActionListener.wrap(
+            inferenceStats -> listener.onResponse(responseBuilder.setInferenceStatsByModelId(inferenceStats.stream()
+                    .collect(Collectors.toMap(InferenceStats::getModelId, Function.identity())))
+                    .build()),
+            listener::onFailure
+        );
 
         ActionListener<NodesStatsResponse> nodesStatsListener = ActionListener.wrap(
             nodesStatsResponse -> {
-                Map<String, IngestStats> modelIdIngestStats = inferenceIngestStatsByPipelineId(nodesStatsResponse,
-                    pipelineIdsByModelIds(clusterService.state(),
-                        ingestService,
-                        responseBuilder.getExpandedIds()));
-                listener.onResponse(responseBuilder.setIngestStatsByModelId(modelIdIngestStats).build());
+                Set<String> allPossiblePipelineReferences = responseBuilder.getExpandedIdsWithAliases()
+                    .entrySet()
+                    .stream()
+                    .flatMap(entry -> Stream.concat(entry.getValue().stream(), Stream.of(entry.getKey())))
+                    .collect(Collectors.toSet());
+                Map<String, Set<String>> pipelineIdsByModelIdsOrAliases = pipelineIdsByModelIdsOrAliases(clusterService.state(),
+                    ingestService,
+                    allPossiblePipelineReferences);
+                Map<String, IngestStats> modelIdIngestStats = inferenceIngestStatsByModelId(nodesStatsResponse,
+                    currentMetadata,
+                    pipelineIdsByModelIdsOrAliases
+                );
+                responseBuilder.setIngestStatsByModelId(modelIdIngestStats);
+                trainedModelProvider.getInferenceStats(
+                    responseBuilder.getExpandedIdsWithAliases().keySet().toArray(new String[0]),
+                    inferenceStatsListener
+                );
             },
             listener::onFailure
         );
 
-        ActionListener<Tuple<Long, Set<String>>> idsListener = ActionListener.wrap(
+        ActionListener<Tuple<Long, Map<String, Set<String>>>> idsListener = ActionListener.wrap(
             tuple -> {
-                responseBuilder.setExpandedIds(tuple.v2())
-                    .setTotalModelCount(tuple.v1());
+                responseBuilder.setExpandedIdsWithAliases(tuple.v2()).setTotalModelCount(tuple.v1());
                 String[] ingestNodes = ingestNodes(clusterService.state());
-                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear().ingest(true);
+                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(ingestNodes).clear()
+                    .addMetric(NodesStatsRequest.Metric.INGEST.metricName());
                 executeAsyncWithOrigin(client, ML_ORIGIN, NodesStatsAction.INSTANCE, nodesStatsRequest, nodesStatsListener);
             },
             listener::onFailure
         );
-
         trainedModelProvider.expandIds(request.getResourceId(),
             request.isAllowNoResources(),
             request.getPageParams(),
             Collections.emptySet(),
+            currentMetadata,
             idsListener);
     }
 
-    static Map<String, IngestStats> inferenceIngestStatsByPipelineId(NodesStatsResponse response,
-                                                                     Map<String, Set<String>> modelIdToPipelineId) {
+    static Map<String, IngestStats> inferenceIngestStatsByModelId(NodesStatsResponse response,
+                                                                  ModelAliasMetadata currentMetadata,
+                                                                  Map<String, Set<String>> modelIdToPipelineId) {
 
         Map<String, IngestStats> ingestStatsMap = new HashMap<>();
-
-        modelIdToPipelineId.forEach((modelId, pipelineIds) -> {
+        Map<String, Set<String>> trueModelIdToPipelines = modelIdToPipelineId.entrySet()
+            .stream()
+            .collect(Collectors.toMap(
+                entry -> {
+                    String maybeModelId = currentMetadata.getModelId(entry.getKey());
+                    return maybeModelId == null ? entry.getKey() : maybeModelId;
+                },
+                Map.Entry::getValue,
+                Sets::union
+            ));
+        trueModelIdToPipelines.forEach((modelId, pipelineIds) -> {
             List<IngestStats> collectedStats = response.getNodes()
                 .stream()
                 .map(nodeStats -> ingestStatsForPipelineIds(nodeStats, pipelineIds))
                 .collect(Collectors.toList());
             ingestStatsMap.put(modelId, mergeStats(collectedStats));
         });
-
         return ingestStatsMap;
     }
 
@@ -128,8 +162,8 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
         return ingestNodes;
     }
 
-    static Map<String, Set<String>> pipelineIdsByModelIds(ClusterState state, IngestService ingestService, Set<String> modelIds) {
-        IngestMetadata ingestMetadata = state.metaData().custom(IngestMetadata.TYPE);
+    static Map<String, Set<String>> pipelineIdsByModelIdsOrAliases(ClusterState state, IngestService ingestService, Set<String> modelIds) {
+        IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
         if (ingestMetadata == null) {
             return pipelineIdsByModelIds;

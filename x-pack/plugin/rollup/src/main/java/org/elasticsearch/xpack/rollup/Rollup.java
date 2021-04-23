@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup;
 
@@ -25,14 +26,15 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -41,9 +43,11 @@ import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupJobsAction;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupSearchAction;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.rollup.action.TransportDeleteRollupJobAction;
 import org.elasticsearch.xpack.rollup.action.TransportGetRollupCapsAction;
@@ -62,14 +66,16 @@ import org.elasticsearch.xpack.rollup.rest.RestPutRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestRollupSearchAction;
 import org.elasticsearch.xpack.rollup.rest.RestStartRollupJobAction;
 import org.elasticsearch.xpack.rollup.rest.RestStopRollupJobAction;
+import org.elasticsearch.xpack.rollup.v2.RestRollupAction;
+import org.elasticsearch.xpack.rollup.v2.TransportRollupAction;
+import org.elasticsearch.xpack.rollup.v2.TransportRollupIndexerAction;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -84,21 +90,14 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
-    public static final String SCHEDULE_THREAD_POOL_NAME = RollupField.NAME + "_scheduler";
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
-    // list of headers that will be stored when a job is created
-    public static final Set<String> HEADER_FILTERS =
-            new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
-
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;
-    private final boolean enabled;
 
     public Rollup(Settings settings) {
         this.settings = settings;
-        this.enabled = XPackSettings.ROLLUP_ENABLED.get(settings);
     }
 
     @Override
@@ -106,7 +105,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver) {
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         return emptyList();
     }
 
@@ -115,11 +115,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (!enabled) {
-            return emptyList();
-        }
-
-        return Arrays.asList(
+        List<RestHandler> handlers = new ArrayList<>(Arrays.asList(
             new RestRollupSearchAction(),
             new RestPutRollupJobAction(),
             new RestStartRollupJobAction(),
@@ -127,19 +123,18 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new RestDeleteRollupJobAction(),
             new RestGetRollupJobsAction(),
             new RestGetRollupCapsAction(),
-            new RestGetRollupIndexCapsAction()
-        );
+            new RestGetRollupIndexCapsAction()));
 
+        if (RollupV2.isEnabled()) {
+            handlers.add(new RestRollupAction());
+        }
+
+        return handlers;
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class);
-        if (enabled == false) {
-            return Arrays.asList(usageAction, infoAction);
-        }
-        return Arrays.asList(
+        List<ActionHandler<?, ?>> actions = new ArrayList<>(Arrays.asList(
             new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
             new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
             new ActionHandler<>(StartRollupJobAction.INSTANCE, TransportStartRollupAction.class),
@@ -148,18 +143,21 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             new ActionHandler<>(GetRollupJobsAction.INSTANCE, TransportGetRollupJobAction.class),
             new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
             new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
-            usageAction,
-            infoAction);
+            new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)));
+
+        if (RollupV2.isEnabled()) {
+            actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
+            actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
+        }
+
+        return actions;
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (false == enabled) {
-            return emptyList();
-        }
-
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, Rollup.TASK_THREAD_POOL_NAME,
-                4, 4, "xpack.rollup.task_thread_pool", false);
+            1, -1, "xpack.rollup.task_thread_pool", false);
 
         return Collections.singletonList(indexing);
     }
@@ -170,10 +168,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                                                                        Client client,
                                                                        SettingsModule settingsModule,
                                                                        IndexNameExpressionResolver expressionResolver) {
-        if (enabled == false) {
-            return emptyList();
-        }
-
         schedulerEngine.set(new SchedulerEngine(settings, getClock()));
         return Collections.singletonList(new RollupJobTask.RollupJobPersistentTasksExecutor(client, schedulerEngine.get(), threadPool));
     }

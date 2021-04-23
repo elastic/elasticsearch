@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.search.stats;
@@ -22,8 +11,10 @@ package org.elasticsearch.index.search.stats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.HashMap;
@@ -47,7 +38,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     public SearchStats stats(String... groups) {
         SearchStats.Stats total = totalStats.stats();
         Map<String, SearchStats.Stats> groupsSt = null;
-        if (groups != null && groups.length > 0) {
+        if (CollectionUtils.isEmpty(groups) == false) {
             groupsSt = new HashMap<>(groupsStats.size());
             if (groups.length == 1 && groups[0].equals("_all")) {
                 for (Map.Entry<String, StatsHolder> entry : groupsStats.entrySet()) {
@@ -80,10 +71,8 @@ public final class ShardSearchStats implements SearchOperationListener {
         computeStats(searchContext, statsHolder -> {
             if (searchContext.hasOnlySuggest()) {
                 statsHolder.suggestCurrent.dec();
-                assert statsHolder.suggestCurrent.count() >= 0;
             } else {
                 statsHolder.queryCurrent.dec();
-                assert statsHolder.queryCurrent.count() >= 0;
             }
         });
     }
@@ -94,11 +83,9 @@ public final class ShardSearchStats implements SearchOperationListener {
             if (searchContext.hasOnlySuggest()) {
                 statsHolder.suggestMetric.inc(tookInNanos);
                 statsHolder.suggestCurrent.dec();
-                assert statsHolder.suggestCurrent.count() >= 0;
             } else {
                 statsHolder.queryMetric.inc(tookInNanos);
                 statsHolder.queryCurrent.dec();
-                assert statsHolder.queryCurrent.count() >= 0;
             }
         });
     }
@@ -118,7 +105,6 @@ public final class ShardSearchStats implements SearchOperationListener {
         computeStats(searchContext, statsHolder -> {
             statsHolder.fetchMetric.inc(tookInNanos);
             statsHolder.fetchCurrent.dec();
-            assert statsHolder.fetchCurrent.count() >= 0;
         });
     }
 
@@ -146,25 +132,25 @@ public final class ShardSearchStats implements SearchOperationListener {
     }
 
     @Override
-    public void onNewContext(SearchContext context) {
+    public void onNewReaderContext(ReaderContext readerContext) {
         openContexts.inc();
     }
 
     @Override
-    public void onFreeContext(SearchContext context) {
+    public void onFreeReaderContext(ReaderContext readerContext) {
         openContexts.dec();
     }
 
     @Override
-    public void onNewScrollContext(SearchContext context) {
+    public void onNewScrollContext(ReaderContext readerContext) {
         totalStats.scrollCurrent.inc();
     }
 
     @Override
-    public void onFreeScrollContext(SearchContext context) {
+    public void onFreeScrollContext(ReaderContext readerContext) {
         totalStats.scrollCurrent.dec();
         assert totalStats.scrollCurrent.count() >= 0;
-        totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - context.getOriginNanoTime()));
+        totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
     }
 
     static final class StatsHolder {

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -20,16 +22,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.elasticsearch.test.NodeRoles.addRoles;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
 public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return nodeSettingsBuilder(nodeOrdinal).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return nodeSettingsBuilder(nodeOrdinal, otherSettings).build();
     }
 
     @Override
@@ -37,11 +41,10 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         return false; // enable http
     }
 
-    private Settings.Builder nodeSettingsBuilder(int nodeOrdinal) {
+    private Settings.Builder nodeSettingsBuilder(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("node.data", true)
-                .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
+            .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
+            .put("resource.reload.interval.high", "500ms"); // for license mode file watcher
     }
 
     @Override
@@ -118,26 +121,12 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertLicenseActive(true);
     }
 
-    public void testClusterRestartWhileGrace() throws Exception {
-        wipeAllLicenses();
-        internalCluster().startNode();
-        assertLicenseActive(true);
-        putLicense(TestUtils.generateSignedLicense(TimeValue.timeValueMillis(0)));
-        ensureGreen();
-        assertLicenseActive(true);
-        logger.info("--> restart node");
-        internalCluster().fullRestart();
-        ensureYellow();
-        logger.info("--> await node for grace_period");
-        assertLicenseActive(true);
-    }
-
     public void testClusterRestartWhileExpired() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
         assertLicenseActive(true);
-        putLicense(TestUtils.generateExpiredNonBasicLicense(System.currentTimeMillis() - LicenseService.GRACE_PERIOD_DURATION.getMillis()));
+        putLicense(TestUtils.generateExpiredNonBasicLicense(System.currentTimeMillis()));
         assertLicenseActive(false);
         logger.info("--> restart node");
         internalCluster().fullRestart();

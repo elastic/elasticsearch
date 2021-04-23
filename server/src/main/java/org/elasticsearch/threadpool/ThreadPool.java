@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.threadpool;
@@ -38,6 +27,7 @@ import org.elasticsearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.ReportingService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,14 +51,13 @@ import java.util.stream.Collectors;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Map.entry;
 
-public class ThreadPool implements Scheduler {
+public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
-        public static final String LISTENER = "listener";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
@@ -82,6 +71,8 @@ public class ThreadPool implements Scheduler {
         public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
+        public static final String SYSTEM_READ = "system_read";
+        public static final String SYSTEM_WRITE = "system_write";
     }
 
     public enum ThreadPoolType {
@@ -115,7 +106,6 @@ public class ThreadPool implements Scheduler {
     public static final Map<String, ThreadPoolType> THREAD_POOL_TYPES = Map.ofEntries(
         entry(Names.SAME, ThreadPoolType.DIRECT),
         entry(Names.GENERIC, ThreadPoolType.SCALING),
-        entry(Names.LISTENER, ThreadPoolType.FIXED),
         entry(Names.GET, ThreadPoolType.FIXED),
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
@@ -128,7 +118,9 @@ public class ThreadPool implements Scheduler {
         entry(Names.FORCE_MERGE, ThreadPoolType.FIXED),
         entry(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING),
         entry(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING),
-        entry(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED));
+        entry(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED),
+        entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
+        entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED));
 
     private final Map<String, ExecutorHolder> executors;
 
@@ -159,29 +151,30 @@ public class ThreadPool implements Scheduler {
         assert Node.NODE_NAME_SETTING.exists(settings);
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
-        final int availableProcessors = EsExecutors.numberOfProcessors(settings);
-        final int halfProcMaxAt5 = halfNumberOfProcessorsMaxFive(availableProcessors);
-        final int halfProcMaxAt10 = halfNumberOfProcessorsMaxTen(availableProcessors);
-        final int genericThreadPoolMax = boundedBy(4 * availableProcessors, 128, 512);
+        final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
+        final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
+        final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
+        final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
-        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, availableProcessors, 200, false));
-        builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, availableProcessors, 1000, false));
+        builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000, false));
+        builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000, false));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16, false));
-        builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(availableProcessors), 1000, true));
+        builders.put(Names.SEARCH, new FixedExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, true));
         builders.put(Names.SEARCH_THROTTLED, new FixedExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, true));
-        builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
-        // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
-        // the assumption here is that the listeners should be very lightweight on the listeners side
-        builders.put(Names.LISTENER, new FixedExecutorBuilder(settings, Names.LISTENER, halfProcMaxAt10, -1, false));
+        builders.put(Names.MANAGEMENT,
+                new ScalingExecutorBuilder(Names.MANAGEMENT, 1, boundedBy(allocatedProcessors, 1, 5), TimeValue.timeValueMinutes(5)));
         builders.put(Names.FLUSH, new ScalingExecutorBuilder(Names.FLUSH, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.REFRESH, new ScalingExecutorBuilder(Names.REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5)));
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FETCH_SHARD_STARTED,
-                new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
+                new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1, false));
         builders.put(Names.FETCH_SHARD_STORE,
-                new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * availableProcessors, TimeValue.timeValueMinutes(5)));
+                new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
+        builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
+
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
                 throw new IllegalArgumentException("builder with name [" + builder.name() + "] already exists");
@@ -214,7 +207,7 @@ public class ThreadPool implements Scheduler {
                         .map(holder -> holder.info)
                         .collect(Collectors.toList());
         this.threadPoolInfo = new ThreadPoolInfo(infos);
-        this.scheduler = Scheduler.initScheduler(settings);
+        this.scheduler = Scheduler.initScheduler(settings, "scheduler");
         TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
         this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
         this.cachedTimeThread.start();
@@ -251,6 +244,7 @@ public class ThreadPool implements Scheduler {
         return cachedTimeThread.absoluteTimeInMillis();
     }
 
+    @Override
     public ThreadPoolInfo info() {
         return threadPoolInfo;
     }
@@ -326,9 +320,7 @@ public class ThreadPool implements Scheduler {
     }
 
     /**
-     * Schedules a one-shot command to run after a given delay. The command is not run in the context of the calling thread. To preserve the
-     * context of the calling thread you may call <code>threadPool.getThreadContext().preserveContext</code> on the runnable before passing
-     * it to this method.
+     * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
      *
      * @param command the command to run
      * @param delay delay before the task executes
@@ -342,7 +334,8 @@ public class ThreadPool implements Scheduler {
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
-        if (!Names.SAME.equals(executor)) {
+        command = threadContext.preserveContext(command);
+        if (Names.SAME.equals(executor) == false) {
             command = new ThreadedRunnable(command, executor(executor));
         }
         return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
@@ -372,11 +365,6 @@ public class ThreadPool implements Scheduler {
                 },
                 (e) -> logger.warn(() -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]",
                         command, executor), e));
-    }
-
-    @Override
-    public Runnable preserveContext(Runnable command) {
-        return getThreadContext().preserveContext(command);
     }
 
     protected final void stopCachedTimeThread() {
@@ -433,23 +421,23 @@ public class ThreadPool implements Scheduler {
         return Math.min(max, Math.max(min, value));
     }
 
-    static int halfNumberOfProcessorsMaxFive(int numberOfProcessors) {
-        return boundedBy((numberOfProcessors + 1) / 2, 1, 5);
+    static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
+        return boundedBy((allocatedProcessors + 1) / 2, 1, 5);
     }
 
-    static int halfNumberOfProcessorsMaxTen(int numberOfProcessors) {
-        return boundedBy((numberOfProcessors + 1) / 2, 1, 10);
+    static int halfAllocatedProcessorsMaxTen(final int allocatedProcessors) {
+        return boundedBy((allocatedProcessors + 1) / 2, 1, 10);
     }
 
-    static int twiceNumberOfProcessors(int numberOfProcessors) {
-        return boundedBy(2 * numberOfProcessors, 2, Integer.MAX_VALUE);
+    static int twiceAllocatedProcessors(final int allocatedProcessors) {
+        return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
     }
 
-    public static int searchThreadPoolSize(int availableProcessors) {
-        return ((availableProcessors * 3) / 2) + 1;
+    public static int searchThreadPoolSize(final int allocatedProcessors) {
+        return ((allocatedProcessors * 3) / 2) + 1;
     }
 
-    class ThreadedRunnable implements Runnable {
+    static class ThreadedRunnable implements Runnable {
 
         private final Runnable runnable;
 

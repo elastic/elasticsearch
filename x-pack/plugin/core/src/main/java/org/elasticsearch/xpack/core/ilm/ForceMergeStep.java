@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 import java.util.Objects;
 
@@ -26,13 +27,19 @@ public class ForceMergeStep extends AsyncActionStep {
         this.maxNumSegments = maxNumSegments;
     }
 
+    @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
     public int getMaxNumSegments() {
         return maxNumSegments;
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
-        ForceMergeRequest request = new ForceMergeRequest(indexMetaData.getIndex().getName());
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+        ForceMergeRequest request = new ForceMergeRequest(indexMetadata.getIndex().getName());
         request.maxNumSegments(maxNumSegments);
         getClient().admin().indices()
             .forceMerge(request, ActionListener.wrap(response -> listener.onResponse(true),

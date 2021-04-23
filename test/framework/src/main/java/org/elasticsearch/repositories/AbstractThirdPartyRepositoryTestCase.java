@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories;
 
@@ -24,10 +13,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -156,7 +145,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         assertBlobsByPrefix(repo.basePath(), "fo", Collections.emptyMap());
         assertChildren(repo.basePath().add("foo"), List.of("nested", "nested2"));
         assertBlobsByPrefix(repo.basePath().add("foo"), "nest",
-            Collections.singletonMap("nested-blob", new PlainBlobMetaData("nested-blob", testBlobLen)));
+            Collections.singletonMap("nested-blob", new PlainBlobMetadata("nested-blob", testBlobLen)));
         assertChildren(repo.basePath().add("foo").add("nested"), Collections.emptyList());
         if (randomBoolean()) {
             deleteAndAssertEmpty(repo.basePath());
@@ -165,7 +154,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
-    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetaData> blobs) throws Exception {
+    protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetadata> blobs) throws Exception {
         BlobStoreTestUtil.assertBlobsByPrefix(getRepository(), path, prefix, blobs);
     }
 
@@ -251,9 +240,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         executor.execute(ActionRunnable.supply(future, () -> {
             final BlobStore blobStore = repo.blobStore();
             return blobStore.blobContainer(repo.basePath().add("indices")).children().containsKey("foo")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath().add("indices").add("foo")), "bar")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "meta-foo.dat")
-                && BlobStoreTestUtil.blobExists(blobStore.blobContainer(repo.basePath()), "snap-foo.dat");
+                && blobStore.blobContainer(repo.basePath().add("indices").add("foo")).blobExists("bar")
+                && blobStore.blobContainer(repo.basePath()).blobExists("meta-foo.dat")
+                && blobStore.blobContainer(repo.basePath()).blobExists("snap-foo.dat");
         }));
         return future.actionGet();
     }

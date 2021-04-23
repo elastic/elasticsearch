@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.stringstats;
@@ -54,6 +55,7 @@ public class StringStatsAggregationBuilderTests extends AbstractSerializingTestC
     @Override
     protected StringStatsAggregationBuilder createTestInstance() {
         StringStatsAggregationBuilder builder = new StringStatsAggregationBuilder(randomAlphaOfLength(5));
+        builder.field("foo");
         builder.showDistribution(randomBoolean());
         return builder;
     }
@@ -62,7 +64,7 @@ public class StringStatsAggregationBuilderTests extends AbstractSerializingTestC
     protected StringStatsAggregationBuilder mutateInstance(StringStatsAggregationBuilder instance) throws IOException {
         if (randomBoolean()) {
             StringStatsAggregationBuilder mutant = new StringStatsAggregationBuilder(instance.getName());
-            mutant.showDistribution(!instance.showDistribution());
+            mutant.showDistribution(instance.showDistribution() == false);
             return mutant;
         }
         StringStatsAggregationBuilder mutant = new StringStatsAggregationBuilder(randomAlphaOfLength(4));
@@ -92,6 +94,8 @@ public class StringStatsAggregationBuilderTests extends AbstractSerializingTestC
             StringStatsAggregationBuilder serverBuilder) {
         org.elasticsearch.client.analytics.StringStatsAggregationBuilder builder =
                 new org.elasticsearch.client.analytics.StringStatsAggregationBuilder(serverBuilder.getName());
-        return builder.showDistribution(serverBuilder.showDistribution());
+        return builder
+            .showDistribution(serverBuilder.showDistribution())
+            .field(serverBuilder.field());
     }
 }

@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -31,7 +34,7 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
         if (policy != null) {
             createSourceIndices(policy);
         }
-        IndexNameExpressionResolver resolver = new IndexNameExpressionResolver();
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
         EnrichStore.putPolicy(name, policy, clusterService, resolver, e -> {
@@ -66,7 +69,10 @@ public abstract class AbstractEnrichTestCase extends ESSingleNodeTestCase {
             try {
                 client.admin().indices().create(createIndexRequest).actionGet();
             } catch (ResourceAlreadyExistsException e) {
-                // and that is okay
+                // and that is okay, but update the mapping so that there is always a mapping for match field:
+                PutMappingRequest putMappingRequest = new PutMappingRequest(sourceIndex);
+                putMappingRequest.source(policy.getMatchField(), "type=keyword");
+                client.admin().indices().putMapping(putMappingRequest).actionGet();
             }
         }
     }

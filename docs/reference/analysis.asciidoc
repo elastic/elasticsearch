@@ -2,7 +2,8 @@
 = Text analysis
 
 :lucene-analysis-docs:  https://lucene.apache.org/core/{lucene_version_path}/analyzers-common/org/apache/lucene/analysis
-:lucene-stop-word-link: https://github.com/apache/lucene-solr/blob/master/lucene/analysis/common/src/resources/org/apache/lucene/analysis
+:lucene-gh-main-link:   https://github.com/apache/lucene/blob/main/lucene
+:lucene-stop-word-link: {lucene-gh-main-link}/analysis/common/src/resources/org/apache/lucene/analysis
 
 [partintro]
 --
@@ -11,7 +12,7 @@ _Text analysis_ is the process of converting unstructured text, like
 the body of an email or a product description, into a structured format that's
 optimized for search.
 
-[float]
+[discrete]
 [[when-to-configure-analysis]]
 === When to configure text analysis
 
@@ -29,7 +30,7 @@ analysis configuration if you're using {es} to:
 * Fine-tune search for a specific language
 * Perform lexicographic or linguistic research
 
-[float]
+[discrete]
 [[analysis-toc]]
 === In this section
 

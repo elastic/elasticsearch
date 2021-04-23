@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -46,14 +47,14 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<Ge
                              ActionListener<GetRollupIndexCapsAction.Response> listener) {
 
         String[] indices = resolver.concreteIndexNames(clusterService.state(),
-            request.indicesOptions(), request.indices());
+            request.indicesOptions(), request);
         Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(Arrays.asList(indices),
-            clusterService.state().getMetaData().indices());
+            clusterService.state().getMetadata().indices());
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));
     }
 
     static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames,
-                                                               ImmutableOpenMap<String, IndexMetaData> indices) {
+                                                               ImmutableOpenMap<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps> > allCaps = new TreeMap<>();
 
         StreamSupport.stream(indices.spliterator(), false)

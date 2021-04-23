@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.BinaryRange;
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -38,7 +28,7 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 
@@ -49,6 +39,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 final class QueryAnalyzer {
@@ -81,9 +72,8 @@ final class QueryAnalyzer {
      * this query in such a way that the PercolatorQuery always verifies if this query with the MemoryIndex.
      *
      * @param query         The query to analyze.
-     * @param indexVersion  The create version of the index containing the percolator queries.
      */
-    static Result analyze(Query query, Version indexVersion) {
+    static Result analyze(Query query) {
         ResultBuilder builder = new ResultBuilder(false);
         query.visit(builder);
         return builder.getResult();
@@ -201,6 +191,22 @@ final class QueryAnalyzer {
             Set<QueryExtraction> qe = Arrays.stream(terms).map(QueryExtraction::new).collect(Collectors.toUnmodifiableSet());
             if (qe.size() > 0) {
                 this.terms.add(new Result(verified, qe, conjunction ? qe.size() : 1));
+            }
+        }
+
+        @Override
+        public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
+            if (query instanceof TermInSetQuery) {
+                TermInSetQuery q = (TermInSetQuery) query;
+                PrefixCodedTerms.TermIterator ti = q.getTermData().iterator();
+                BytesRef term;
+                Set<QueryExtraction> qe = new HashSet<>();
+                while ((term = ti.next()) != null) {
+                    qe.add(new QueryExtraction(new Term(field, term)));
+                }
+                this.terms.add(new Result(true, qe, 1));
+            } else {
+                super.consumeTermsMatching(query, field, automaton);
             }
         }
 

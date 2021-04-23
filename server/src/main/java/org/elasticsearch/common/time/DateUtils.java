@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.joda.time.DateTimeZone;
 
@@ -52,7 +41,7 @@ public class DateUtils {
         return DateTimeZone.forID(zoneId.getId());
     }
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(DateFormatters.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DateUtils.class);
     // pkg private for tests
     static final Map<String, String> DEPRECATED_SHORT_TIMEZONES;
     public static final Set<String> DEPRECATED_SHORT_TZ_IDS;
@@ -198,14 +187,17 @@ public class DateUtils {
     public static ZoneId of(String zoneId) {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
-            deprecationLogger.deprecatedAndMaybeLog("timezone",
+            deprecationLogger.deprecate(DeprecationCategory.PARSING, "timezone",
                 "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead");
             return ZoneId.of(deprecatedId);
         }
         return ZoneId.of(zoneId).normalized();
     }
 
-    static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
+    /**
+     * The maximum nanosecond resolution date we can properly handle.
+     */
+    public static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
 
     static final long MAX_NANOSECOND_IN_MILLIS = MAX_NANOSECOND_INSTANT.toEpochMilli();
 
@@ -310,7 +302,7 @@ public class DateUtils {
      * Rounds the given utc milliseconds sicne the epoch down to the next unit millis
      *
      * Note: This does not check for correctness of the result, as this only works with units smaller or equal than a day
-     *       In order to ensure the performane of this methods, there are no guards or checks in it
+     *       In order to ensure the performance of this methods, there are no guards or checks in it
      *
      * @param utcMillis   the milliseconds since the epoch
      * @param unitMillis  the unit to round to

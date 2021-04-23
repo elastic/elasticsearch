@@ -24,6 +24,9 @@
       "anomaly_score" : {
         "type" : "double"
       },
+      "assignment_memory_basis" : {
+        "type" : "keyword"
+      },
       "average_bucket_processing_time_ms" : {
         "type" : "double"
       },
@@ -333,6 +336,9 @@
       "missing_field_count" : {
         "type" : "long"
       },
+      "mlcategory": {
+        "type": "keyword"
+      },
       "model_bytes" : {
         "type" : "long"
       },
@@ -347,6 +353,9 @@
       },
       "model_size_stats" : {
         "properties" : {
+          "assignment_memory_basis" : {
+            "type" : "keyword"
+          },
           "bucket_allocation_failures_count" : {
             "type" : "long"
           },
@@ -360,6 +369,9 @@
             "type" : "keyword"
           },
           "model_bytes" : {
+            "type" : "long"
+          },
+          "peak_model_bytes" : {
             "type" : "long"
           },
           "result_type" : {
@@ -385,6 +397,9 @@
       "multi_bucket_impact" : {
         "type" : "double"
       },
+      "num_matches": {
+        "type" : "long"
+      },
       "out_of_order_timestamp_count" : {
         "type" : "long"
       },
@@ -405,6 +420,9 @@
         "copy_to" : [
           "all_field_values"
         ]
+      },
+      "preferred_to_categories": {
+        "type": "long"
       },
       "probability" : {
         "type" : "double"

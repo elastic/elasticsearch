@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -12,7 +13,7 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 /**
  * Invokes a open step on a single index.
@@ -27,10 +28,10 @@ final class OpenIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
-        if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
-            OpenIndexRequest request = new OpenIndexRequest(indexMetaData.getIndex().getName());
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+        if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            OpenIndexRequest request = new OpenIndexRequest(indexMetadata.getIndex().getName());
             getClient().admin().indices()
                 .open(request,
                     ActionListener.wrap(openIndexResponse -> {

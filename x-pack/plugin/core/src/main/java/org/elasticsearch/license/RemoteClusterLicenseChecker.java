@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.license;
@@ -140,7 +141,7 @@ public final class RemoteClusterLicenseChecker {
 
     public static boolean isAllowedByLicense(final XPackInfoResponse.LicenseInfo licenseInfo) {
         final License.OperationMode mode = License.OperationMode.parse(licenseInfo.getMode());
-        return XPackLicenseState.isAllowedByOperationMode(mode, License.OperationMode.PLATINUM, true);
+        return XPackLicenseState.isAllowedByOperationMode(mode, License.OperationMode.PLATINUM);
     }
 
     /**

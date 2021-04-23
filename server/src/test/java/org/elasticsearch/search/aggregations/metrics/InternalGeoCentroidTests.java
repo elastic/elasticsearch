@@ -1,30 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
-import org.elasticsearch.search.aggregations.metrics.ParsedGeoCentroid;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -33,11 +18,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class InternalGeoCentroidTests extends InternalAggregationTestCase<InternalGeoCentroid> {
 
     @Override
-    protected InternalGeoCentroid createTestInstance(String name, List<PipelineAggregator> pipelineAggregators,
-                                                     Map<String, Object> metaData) {
+    protected InternalGeoCentroid createTestInstance(String name, Map<String, Object> metadata) {
         GeoPoint centroid = RandomGeoGenerator.randomPoint(random());
 
         // Re-encode lat/longs to avoid rounding issue when testing InternalGeoCentroid#hashCode() and
@@ -50,19 +36,14 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         if (count == 0) {
             centroid = null;
         }
-        return new InternalGeoCentroid(name, centroid, count, Collections.emptyList(), Collections.emptyMap());
-    }
-
-    @Override
-    protected Writeable.Reader<InternalGeoCentroid> instanceReader() {
-        return InternalGeoCentroid::new;
+        return new InternalGeoCentroid(name, centroid, count, Collections.emptyMap());
     }
 
     @Override
     protected void assertReduced(InternalGeoCentroid reduced, List<InternalGeoCentroid> inputs) {
         double lonSum = 0;
         double latSum = 0;
-        int totalCount = 0;
+        long totalCount = 0;
         for (InternalGeoCentroid input : inputs) {
             if (input.count() > 0) {
                 lonSum += (input.count() * input.centroid().getLon());
@@ -75,6 +56,14 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             assertEquals(lonSum/totalCount, reduced.centroid().getLon(), 1E-5D);
         }
         assertEquals(totalCount, reduced.count());
+    }
+
+    public void testReduceMaxCount() {
+        InternalGeoCentroid maxValueGeoCentroid = new InternalGeoCentroid("agg", new GeoPoint(10, 0),
+            Long.MAX_VALUE, Collections.emptyMap());
+        InternalGeoCentroid reducedGeoCentroid = maxValueGeoCentroid
+            .reduce(Collections.singletonList(maxValueGeoCentroid), null);
+        assertThat(reducedGeoCentroid.count(), equalTo(Long.MAX_VALUE));
     }
 
     @Override
@@ -91,8 +80,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         String name = instance.getName();
         GeoPoint centroid = instance.centroid();
         long count = instance.count();
-        List<PipelineAggregator> pipelineAggregators = instance.pipelineAggregators();
-        Map<String, Object> metaData = instance.getMetaData();
+        Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
         case 0:
             name += randomAlphaOfLength(5);
@@ -120,16 +108,16 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
             }
             break;
         case 3:
-            if (metaData == null) {
-                metaData = new HashMap<>(1);
+            if (metadata == null) {
+                metadata = new HashMap<>(1);
             } else {
-                metaData = new HashMap<>(instance.getMetaData());
+                metadata = new HashMap<>(instance.getMetadata());
             }
-            metaData.put(randomAlphaOfLength(15), randomInt());
+            metadata.put(randomAlphaOfLength(15), randomInt());
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoCentroid(name, centroid, count, pipelineAggregators, metaData);
+        return new InternalGeoCentroid(name, centroid, count, metadata);
     }
 }

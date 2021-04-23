@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.s3;
@@ -40,13 +29,19 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -82,8 +77,38 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public boolean blobExists(String blobName) {
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            return SocketAccess.doPrivileged(() -> clientReference.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
+        } catch (final Exception e) {
+            throw new BlobStoreException("Failed to check if blob [" + blobName +"] exists", e);
+        }
+    }
+
+    @Override
     public InputStream readBlob(String blobName) throws IOException {
         return new S3RetryingInputStream(blobStore, buildKey(blobName));
+    }
+
+    @Override
+    public InputStream readBlob(String blobName, long position, long length) throws IOException {
+        if (position < 0L) {
+            throw new IllegalArgumentException("position must be non-negative");
+        }
+        if (length < 0) {
+            throw new IllegalArgumentException("length must be non-negative");
+        }
+        if (length == 0) {
+            return new ByteArrayInputStream(new byte[0]);
+        } else {
+            return new S3RetryingInputStream(blobStore, buildKey(blobName), position, Math.addExact(position, length - 1));
+        }
+    }
+
+    @Override
+    public long readBlobPreferredLength() {
+        // This container returns streams that must be fully consumed, so we tell consumers to make bounded requests.
+        return new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
     }
 
     /**
@@ -108,8 +133,8 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        writeBlob(blobName, bytes, failIfAlreadyExists);
     }
 
     @Override
@@ -127,6 +152,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     final ListObjectsRequest listObjectsRequest = new ListObjectsRequest();
                     listObjectsRequest.setBucketName(blobStore.bucket());
                     listObjectsRequest.setPrefix(keyPath);
+                    listObjectsRequest.setRequestMetricCollector(blobStore.listMetricCollector);
                     list = SocketAccess.doPrivileged(() -> clientReference.client().listObjects(listObjectsRequest));
                 }
                 final List<String> blobsToDelete = new ArrayList<>();
@@ -139,9 +165,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     doDeleteBlobs(blobsToDelete, false);
                     prevListing = list;
                 } else {
-                    final List<String> lastBlobsToDelete = new ArrayList<>(blobsToDelete);
-                    lastBlobsToDelete.add(keyPath);
-                    doDeleteBlobs(lastBlobsToDelete, false);
+                    doDeleteBlobs(CollectionUtils.appendToCopy(blobsToDelete, keyPath), false);
                     break;
                 }
             }
@@ -172,7 +196,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             final List<String> partition = new ArrayList<>();
             for (String key : outstanding) {
                 partition.add(key);
-                if (partition.size() == MAX_BULK_DELETES ) {
+                if (partition.size() == MAX_BULK_DELETES) {
                     deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
                     partition.clear();
                 }
@@ -220,20 +244,20 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable String blobNamePrefix) throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             return executeListing(clientReference, listObjectsRequest(blobNamePrefix == null ? keyPath : buildKey(blobNamePrefix)))
                 .stream()
                 .flatMap(listing -> listing.getObjectSummaries().stream())
-                .map(summary -> new PlainBlobMetaData(summary.getKey().substring(keyPath.length()), summary.getSize()))
-                .collect(Collectors.toMap(PlainBlobMetaData::name, Function.identity()));
+                .map(summary -> new PlainBlobMetadata(summary.getKey().substring(keyPath.length()), summary.getSize()))
+                .collect(Collectors.toMap(PlainBlobMetadata::name, Function.identity()));
         } catch (final AmazonClientException e) {
             throw new IOException("Exception when listing blobs by prefix [" + blobNamePrefix + "]", e);
         }
     }
 
     @Override
-    public Map<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetadata> listBlobs() throws IOException {
         return listBlobsByPrefix(null);
     }
 
@@ -283,7 +307,8 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private ListObjectsRequest listObjectsRequest(String keyPath) {
-        return new ListObjectsRequest().withBucketName(blobStore.bucket()).withPrefix(keyPath).withDelimiter("/");
+        return new ListObjectsRequest().withBucketName(blobStore.bucket()).withPrefix(keyPath).withDelimiter("/")
+            .withRequestMetricCollector(blobStore.listMetricCollector);
     }
 
     private String buildKey(String blobName) {
@@ -314,6 +339,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
         putRequest.setStorageClass(blobStore.getStorageClass());
         putRequest.setCannedAcl(blobStore.getCannedACL());
+        putRequest.setRequestMetricCollector(blobStore.putMetricCollector);
 
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> {
@@ -351,6 +377,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(bucketName, blobName);
         initRequest.setStorageClass(blobStore.getStorageClass());
         initRequest.setCannedACL(blobStore.getCannedACL());
+        initRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
         if (blobStore.serverSideEncryption()) {
             final ObjectMetadata md = new ObjectMetadata();
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
@@ -373,6 +400,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 uploadRequest.setUploadId(uploadId.get());
                 uploadRequest.setPartNumber(i);
                 uploadRequest.setInputStream(input);
+                uploadRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
 
                 if (i < nbParts) {
                     uploadRequest.setPartSize(partSize);
@@ -394,6 +422,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             final CompleteMultipartUploadRequest complRequest = new CompleteMultipartUploadRequest(bucketName, blobName, uploadId.get(),
                     parts);
+            complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
             SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
             success = true;
 

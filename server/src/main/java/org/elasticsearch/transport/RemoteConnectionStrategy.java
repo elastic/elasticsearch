@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -32,6 +21,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
@@ -48,7 +38,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -105,10 +94,14 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             Setting.Property.NodeScope,
             Setting.Property.Dynamic));
 
+    // this setting is intentionally not registered, it is only used in tests
+    public static final Setting<Integer> REMOTE_MAX_PENDING_CONNECTION_LISTENERS =
+        Setting.intSetting("cluster.remote.max_pending_connection_listeners", 1000, Setting.Property.NodeScope);
 
-    private static final Logger logger = LogManager.getLogger(RemoteConnectionStrategy.class);
+    private final int maxPendingConnectionListeners;
 
-    private static final int MAX_LISTENERS = 100;
+    protected final Logger logger = LogManager.getLogger(getClass());
+
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
@@ -117,10 +110,12 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     protected final RemoteConnectionManager connectionManager;
     protected final String clusterAlias;
 
-    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager) {
+    RemoteConnectionStrategy(String clusterAlias, TransportService transportService, RemoteConnectionManager connectionManager,
+                             Settings settings) {
         this.clusterAlias = clusterAlias;
         this.transportService = transportService;
         this.connectionManager = connectionManager;
+        this.maxPendingConnectionListeners = REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
         connectionManager.addListener(this);
     }
 
@@ -132,9 +127,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
-                TransportRequestOptions.Type.RECOVERY)
-            // TODO: Evaluate if we actually need PING channels?
-            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG, TransportRequestOptions.Type.PING);
+                TransportRequestOptions.Type.RECOVERY, TransportRequestOptions.Type.PING)
+            .addConnections(mode.numberOfChannels, TransportRequestOptions.Type.REG);
         return builder.build();
     }
 
@@ -205,7 +199,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     static int parsePort(String remoteHost) {
         try {
-            int port = Integer.valueOf(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
+            int port = Integer.parseInt(remoteHost.substring(indexOfPortSeparator(remoteHost) + 1));
             if (port <= 0) {
                 throw new IllegalArgumentException("port number must be > 0 but was: [" + port + "]");
             }
@@ -237,9 +231,9 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             if (closed) {
                 assert listeners.isEmpty();
             } else {
-                if (listeners.size() >= MAX_LISTENERS) {
-                    assert listeners.size() == MAX_LISTENERS;
-                    listener.onFailure(new RejectedExecutionException("connect listener queue is full"));
+                if (listeners.size() >= maxPendingConnectionListeners) {
+                    assert listeners.size() == maxPendingConnectionListeners;
+                    listener.onFailure(new EsRejectedExecutionException("connect listener queue is full"));
                     return;
                 } else {
                     listeners.add(listener);
@@ -307,8 +301,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (shouldOpenMoreConnections()) {
             // try to reconnect and fill up the slot of the disconnected node
             connect(ActionListener.wrap(
-                ignore -> logger.trace("successfully connected after disconnect of {}", node),
-                e -> logger.trace(() -> new ParameterizedMessage("failed to connect after disconnect of {}", node), e)));
+                ignore -> logger.trace("[{}] successfully connected after disconnect of {}", clusterAlias, node),
+                e -> logger.debug(() -> new ParameterizedMessage("[{}] failed to connect after disconnect of {}", clusterAlias, node), e)));
         }
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -28,9 +29,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.CategorizerStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -89,23 +92,25 @@ public class JobResultsPersister {
         this.auditor = auditor;
     }
 
-    public Builder bulkPersisterBuilder(String jobId, Supplier<Boolean> shouldRetry) {
-        return new Builder(jobId, resultsPersisterService, shouldRetry);
+    public Builder bulkPersisterBuilder(String jobId) {
+        return new Builder(jobId);
     }
 
     public class Builder {
         private BulkRequest bulkRequest;
         private final String jobId;
         private final String indexName;
-        private final Supplier<Boolean> shouldRetry;
-        private final ResultsPersisterService resultsPersisterService;
+        private Supplier<Boolean> shouldRetry = () -> true;
 
-        private Builder(String jobId, ResultsPersisterService resultsPersisterService, Supplier<Boolean> shouldRetry) {
+        private Builder(String jobId) {
+            this.bulkRequest = new BulkRequest();
             this.jobId = Objects.requireNonNull(jobId);
-            indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
-            bulkRequest = new BulkRequest();
-            this.shouldRetry = shouldRetry;
-            this.resultsPersisterService = resultsPersisterService;
+            this.indexName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
+        }
+
+        public Builder shouldRetry(Supplier<Boolean> shouldRetry) {
+            this.shouldRetry = Objects.requireNonNull(shouldRetry);
+            return this;
         }
 
         /**
@@ -119,7 +124,7 @@ public class JobResultsPersister {
             // If the supplied bucket has records then create a copy with records
             // removed, because we never persist nested records in buckets
             Bucket bucketWithoutRecords = bucket;
-            if (!bucketWithoutRecords.getRecords().isEmpty()) {
+            if (bucketWithoutRecords.getRecords().isEmpty() == false) {
                 bucketWithoutRecords = new Bucket(bucket);
                 bucketWithoutRecords.setRecords(Collections.emptyList());
             }
@@ -194,6 +199,13 @@ public class JobResultsPersister {
             return this;
         }
 
+        public Builder persistCategorizerStats(CategorizerStats categorizerStats) {
+            logger.trace("[{}] ES BULK ACTION: index categorizer stats to index [{}] with ID [{}]",
+                jobId, indexName, categorizerStats.getId());
+            indexResult(categorizerStats.getId(), categorizerStats, "categorizer stats");
+            return this;
+        }
+
         public Builder persistForecast(Forecast forecast) {
             logger.trace("[{}] ES BULK ACTION: index forecast to index [{}] with ID [{}]", jobId, indexName, forecast.getId());
             indexResult(forecast.getId(), forecast, Forecast.RESULT_TYPE_VALUE);
@@ -231,9 +243,13 @@ public class JobResultsPersister {
                 return;
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
-            resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry, (msg) -> {
-                auditor.warning(jobId, "Bulk indexing of results failed " + msg);
-            });
+            resultsPersisterService.bulkIndexWithRetry(bulkRequest, jobId, shouldRetry,
+                retryMessage -> logger.debug("[{}] Bulk indexing of results failed {}", jobId, retryMessage)
+            );
+            bulkRequest = new BulkRequest();
+        }
+
+        public void clearBulkRequest() {
             bulkRequest = new BulkRequest();
         }
 
@@ -251,7 +267,7 @@ public class JobResultsPersister {
     public void persistCategoryDefinition(CategoryDefinition category, Supplier<Boolean> shouldRetry) {
         Persistable persistable =
             new Persistable(AnomalyDetectorsIndex.resultsWriteAlias(category.getJobId()), category.getJobId(), category, category.getId());
-        persistable.persist(shouldRetry);
+        persistable.persist(shouldRetry, true);
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
@@ -268,14 +284,14 @@ public class JobResultsPersister {
                 searchRequest,
                 jobId,
                 shouldRetry,
-                (msg) -> auditor.warning(jobId, quantilesDocId + " " + msg));
+                retryMessage -> logger.debug("[{}] {} {}", jobId, quantilesDocId, retryMessage));
         String indexOrAlias =
             searchResponse.getHits().getHits().length > 0
                 ? searchResponse.getHits().getHits()[0].getIndex()
                 : AnomalyDetectorsIndex.jobStateIndexWriteAlias();
 
         Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
-        persistable.persist(shouldRetry);
+        persistable.persist(shouldRetry, AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
     }
 
     /**
@@ -296,7 +312,7 @@ public class JobResultsPersister {
 
                 Persistable persistable = new Persistable(indexOrAlias, quantiles.getJobId(), quantiles, quantilesDocId);
                 persistable.setRefreshPolicy(refreshPolicy);
-                persistable.persist(listener);
+                persistable.persist(listener, AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias));
             },
             listener::onFailure
         );
@@ -330,7 +346,7 @@ public class JobResultsPersister {
                 modelSnapshot,
                 ModelSnapshot.documentId(modelSnapshot));
         persistable.setRefreshPolicy(refreshPolicy);
-        return persistable.persist(shouldRetry);
+        return persistable.persist(shouldRetry, true);
     }
 
     /**
@@ -341,7 +357,7 @@ public class JobResultsPersister {
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable =
             new Persistable(AnomalyDetectorsIndex.resultsWriteAlias(jobId), jobId, modelSizeStats, modelSizeStats.getId());
-        persistable.persist(shouldRetry);
+        persistable.persist(shouldRetry, true);
     }
 
     /**
@@ -354,7 +370,7 @@ public class JobResultsPersister {
         Persistable persistable =
             new Persistable(AnomalyDetectorsIndex.resultsWriteAlias(jobId), jobId, modelSizeStats, modelSizeStats.getId());
         persistable.setRefreshPolicy(refreshPolicy);
-        persistable.persist(listener);
+        persistable.persist(listener, true);
     }
 
     /**
@@ -378,6 +394,21 @@ public class JobResultsPersister {
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
+            client.admin().indices().refresh(refreshRequest).actionGet();
+        }
+    }
+
+    /**
+     * Makes annotations searchable as they are considered part of a job's results
+     * to fulfil the contract that job results are searchable immediately after a
+     * close or flush.
+     */
+    public void commitAnnotationWrites() {
+        // We refresh using the read alias in order to ensure all indices will
+        // be refreshed even if a rollover occurs in between.
+        RefreshRequest refreshRequest = new RefreshRequest(AnnotationIndex.READ_ALIAS_NAME);
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {
             client.admin().indices().refresh(refreshRequest).actionGet();
@@ -418,7 +449,7 @@ public class JobResultsPersister {
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
                 DatafeedTimingStats.documentId(timingStats.getJobId()));
         persistable.setRefreshPolicy(refreshPolicy);
-        return persistable.persist(() -> true);
+        return persistable.persist(() -> true, true);
     }
 
     private static XContentBuilder toXContentBuilder(ToXContent obj, ToXContent.Params params) throws IOException {
@@ -453,7 +484,7 @@ public class JobResultsPersister {
             this.refreshPolicy = refreshPolicy;
         }
 
-        BulkResponse persist(Supplier<Boolean> shouldRetry) {
+        BulkResponse persist(Supplier<Boolean> shouldRetry, boolean requireAlias) {
             logCall(indexName);
             try {
                 return resultsPersisterService.indexWithRetry(jobId,
@@ -462,8 +493,9 @@ public class JobResultsPersister {
                     params,
                     refreshPolicy,
                     id,
+                    requireAlias,
                     shouldRetry,
-                    (msg) -> auditor.warning(jobId, id + " " + msg));
+                    retryMessage -> logger.debug("[{}] {} {}", jobId, id, retryMessage));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
@@ -474,11 +506,15 @@ public class JobResultsPersister {
             }
         }
 
-        void persist(ActionListener<IndexResponse> listener) {
+        void persist(ActionListener<IndexResponse> listener, boolean requireAlias) {
             logCall(indexName);
 
             try (XContentBuilder content = toXContentBuilder(object, params)) {
-                IndexRequest indexRequest = new IndexRequest(indexName).id(id).source(content).setRefreshPolicy(refreshPolicy);
+                IndexRequest indexRequest = new IndexRequest(indexName)
+                    .id(id)
+                    .source(content)
+                    .setRefreshPolicy(refreshPolicy)
+                    .setRequireAlias(requireAlias);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
@@ -489,10 +525,12 @@ public class JobResultsPersister {
         }
 
         private void logCall(String indexName) {
-            if (id != null) {
-                logger.trace("[{}] ES API CALL: to index {} with ID [{}]", jobId, indexName, id);
-            } else {
-                logger.trace("[{}] ES API CALL: to index {} with auto-generated ID", jobId, indexName);
+            if (logger.isTraceEnabled()) {
+                if (id != null) {
+                    logger.trace("[{}] ES API CALL: to index {} with ID [{}]", jobId, indexName, id);
+                } else {
+                    logger.trace("[{}] ES API CALL: to index {} with auto-generated ID", jobId, indexName);
+                }
             }
         }
     }

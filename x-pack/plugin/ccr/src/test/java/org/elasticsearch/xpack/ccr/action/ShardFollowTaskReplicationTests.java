@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -19,7 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.TransportWriteActionTestHelper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -43,7 +44,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.RestoreOnlyRepository;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
@@ -58,6 +59,7 @@ import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.ccr.action.bulk.TransportBulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.index.engine.FollowingEngineFactory;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -346,8 +348,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         Settings settings = Settings.builder().put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
             .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
             .build();
-        IndexMetaData indexMetaData = buildIndexMetaData(between(0, 1), settings, indexMapping);
-        try (ReplicationGroup group = new ReplicationGroup(indexMetaData) {
+        IndexMetadata indexMetadata = buildIndexMetadata(between(0, 1), settings, indexMapping);
+        try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 return new FollowingEngineFactory();
@@ -440,8 +442,8 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
                      new ByteSizeValue(between(1, 1000), ByteSizeUnit.KB))
                 .build();
-        IndexMetaData indexMetaData = buildIndexMetaData(replicas, settings, indexMapping);
-        return new ReplicationGroup(indexMetaData) {
+        IndexMetadata indexMetadata = buildIndexMetadata(replicas, settings, indexMapping);
+        return new ReplicationGroup(indexMetadata) {
             @Override
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 return new FollowingEngineFactory();
@@ -464,11 +466,12 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                             Lucene.cleanLuceneIndex(primary.store().directory());
                             try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
                                 Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
-                                for (StoreFileMetaData md : sourceSnapshot) {
+                                for (StoreFileMetadata md : sourceSnapshot) {
                                     primary.store().directory().copyFrom(
                                         leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
                             }
+                            recoveryState.getIndex().setFileDetailsComplete();
                             return null;
                         });
                     }
@@ -638,7 +641,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
             .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
-        try (Translog.Snapshot snapshot = leader.getPrimary().newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = leader.getPrimary().newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null) {
                 operationsOnLeader.put(op.seqNo(), op);
@@ -652,7 +655,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
                 .map(d -> Tuple.tuple(d.getId(), d.getSeqNo())).collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
-            try (Translog.Snapshot snapshot = followingShard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
+            try (Translog.Snapshot snapshot = followingShard.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
                 Translog.Operation op;
                 while ((op = snapshot.next()) != null) {
                     Translog.Operation leaderOp = operationsOnLeader.get(op.seqNo());

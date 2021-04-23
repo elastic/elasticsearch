@@ -1,19 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.bulk;
 
-import org.apache.lucene.index.Term;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.Translog;
@@ -58,7 +57,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                     break;
                 case DELETE:
                     operations.add(
-                        new Translog.Delete(id, new Term("_id", Uid.encodeId(id)), seqNo, primaryTerm, 0));
+                        new Translog.Delete(id, seqNo, primaryTerm, 0));
                     break;
                 case NO_OP:
                     operations.add(new Translog.NoOp(seqNo, primaryTerm, "test"));
@@ -73,7 +72,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
                     operations,
                 numOps - 1, followerPrimary, logger);
 
-        try (Translog.Snapshot snapshot = followerPrimary.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = followerPrimary.newChangesSnapshot("test", 0, Long.MAX_VALUE, false, randomBoolean())) {
             assertThat(snapshot.totalOperations(), equalTo(operations.size()));
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
@@ -101,7 +100,7 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
             if (randomBoolean()) {
                 op = new Translog.Index(id, seqno++, primaryTerm, 0, SOURCE, null, -1);
             } else if (randomBoolean()) {
-                op = new Translog.Delete(id, new Term("_id", Uid.encodeId(id)), seqno++, primaryTerm, 0);
+                op = new Translog.Delete(id, seqno++, primaryTerm, 0);
             } else {
                 op = new Translog.NoOp(seqno++, primaryTerm, "test-" + i);
             }

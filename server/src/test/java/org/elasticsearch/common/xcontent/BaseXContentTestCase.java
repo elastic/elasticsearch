@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
@@ -25,7 +14,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -75,6 +64,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -173,6 +163,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'boolean':false}", () -> builder().startObject().field("boolean", Boolean.FALSE).endObject());
         assertResult("{'boolean':[true,false,true]}", () -> builder().startObject().array("boolean", true, false, true).endObject());
         assertResult("{'boolean':[false,true]}", () -> builder().startObject().array("boolean", new boolean[]{false, true}).endObject());
+        assertResult("{'boolean':[false,true]}",
+                () -> builder().startObject().field("boolean").value(new boolean[]{false, true}).endObject());
         assertResult("{'boolean':null}", () -> builder().startObject().array("boolean", (boolean[]) null).endObject());
         assertResult("{'boolean':[]}", () -> builder().startObject().array("boolean", new boolean[]{}).endObject());
         assertResult("{'boolean':null}", () -> builder().startObject().field("boolean").value((Boolean) null).endObject());
@@ -655,7 +647,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         objects.put("{'objects':['a','b','c']}", new Object[]{new Text("a"), new Text(new BytesArray("b")), new Text("c")});
         objects.put("{'objects':null}", null);
         objects.put("{'objects':[null,null,null]}", new Object[]{null, null, null});
-        objects.put("{'objects':['OPEN','CLOSE']}", IndexMetaData.State.values());
+        objects.put("{'objects':['OPEN','CLOSE']}", IndexMetadata.State.values());
         objects.put("{'objects':[{'f1':'v1'},{'f2':'v2'}]}", new Object[]{singletonMap("f1", "v1"), singletonMap("f2", "v2")});
         objects.put("{'objects':[[1,2,3],[4,5]]}", new Object[]{Arrays.asList(1, 2, 3), Arrays.asList(4, 5)});
 
@@ -701,7 +693,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         object.put("{'object':'a'}", new Text("a"));
         object.put("{'object':'b'}", new Text(new BytesArray("b")));
         object.put("{'object':null}", null);
-        object.put("{'object':'OPEN'}", IndexMetaData.State.OPEN);
+        object.put("{'object':'OPEN'}", IndexMetadata.State.OPEN);
         object.put("{'object':'NM'}", DistanceUnit.NAUTICALMILES);
         object.put("{'object':{'f1':'v1'}}", singletonMap("f1", "v1"));
         object.put("{'object':{'f1':{'f2':'v2'}}}", singletonMap("f1", singletonMap("f2", "v2")));
@@ -947,11 +939,18 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        os = new ByteArrayOutputStream();
+        final AtomicBoolean closed = new AtomicBoolean(false);
+        os = new ByteArrayOutputStream() {
+            @Override
+            public void close() {
+                closed.set(true);
+            }
+        };
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
             generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
+            assertFalse("Generator should not have closed the output stream", closed.get());
             generator.writeEndObject();
         }
 

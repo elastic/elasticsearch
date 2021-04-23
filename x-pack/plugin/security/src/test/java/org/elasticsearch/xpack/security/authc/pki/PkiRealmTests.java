@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -77,7 +79,8 @@ public class PkiRealmTests extends ESTestCase {
                 .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
                 .build();
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isAuthorizationRealmAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
     }
 
     public void testTokenSupport() throws Exception {
@@ -466,7 +469,7 @@ public class PkiRealmTests extends ESTestCase {
         List<Setting<?>> settingList = new ArrayList<>();
         settingList.addAll(InternalRealmsSettings.getSettings());
         ClusterSettings clusterSettings = new ClusterSettings(settings, new HashSet<>(settingList));
-        clusterSettings.validate(settings, false);
+        clusterSettings.validate(settings, true);
 
         assertSettingDeprecationsAndWarnings(new Setting[]{
                 PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD.getConcreteSettingForNamespace("pki1")

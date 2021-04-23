@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
@@ -10,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
@@ -61,13 +62,13 @@ public class MoveToNextStepUpdateTask extends ClusterStateUpdateTask {
 
     @Override
     public ClusterState execute(ClusterState currentState) {
-        IndexMetaData indexMetaData = currentState.getMetaData().index(index);
-        if (indexMetaData == null) {
+        IndexMetadata indexMetadata = currentState.getMetadata().index(index);
+        if (indexMetadata == null) {
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        Settings indexSettings = indexMetaData.getSettings();
-        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(currentState.getMetaData().index(index));
+        Settings indexSettings = indexMetadata.getSettings();
+        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(currentState.getMetadata().index(index));
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
             && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
             logger.trace("moving [{}] to next step ({})", index.getName(), nextStepKey);

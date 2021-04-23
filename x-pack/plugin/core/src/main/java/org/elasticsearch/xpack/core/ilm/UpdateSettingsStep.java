@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -10,7 +11,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Objects;
@@ -34,8 +35,9 @@ public class UpdateSettingsStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetaData indexMetaData, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetaData.getIndex().getName())
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexMetadata.getIndex().getName())
             .masterNodeTimeout(getMasterTimeout(currentState))
             .settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest,

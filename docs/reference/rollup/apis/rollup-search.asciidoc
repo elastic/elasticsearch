@@ -6,41 +6,49 @@
 <titleabbrev>Rollup search</titleabbrev>
 ++++
 
-Enables searching rolled-up data using the standard query DSL.  
+Enables searching rolled-up data using the standard Query DSL.
 
 experimental[]
 
 [[rollup-search-request]]
 ==== {api-request-title}
 
-`GET <index>/_rollup_search`
+`GET <target>/_rollup_search`
 
 [[rollup-search-desc]]
 ==== {api-description-title}
 
 The rollup search endpoint is needed because, internally, rolled-up documents
 utilize a different document structure than the original data. The rollup search
-endpoint rewrites standard query DSL into a format that matches the rollup
+endpoint rewrites standard Query DSL into a format that matches the rollup
 documents, then takes the response and rewrites it back to what a client would
 expect given the original query.
 
 [[rollup-search-path-params]]
 ==== {api-path-parms-title}
 
-`<index>`::
-  (Required, string) Index, indices or index-pattern to execute a rollup search
-  against.  This can include both rollup and non-rollup indices.
+`<target>`::
++
+--
+(Required, string)
+Comma-separated list of data streams and indices used to limit
+the request. Wildcard expressions (`*`) are supported.
 
-Rules for the `index` parameter:
+This target can include both rollup and non-rollup indices.
 
-- At least one index/index-pattern must be specified. This can be either a
-rollup or non-rollup index.  Omitting the index parameter, or using `_all`, is
-not permitted.
-- Multiple non-rollup indices may be specified
+Rules for the `<target>` parameter:
+
+- At least one data stream, index, or wildcard expression must be specified.
+This target can include a rollup or non-rollup index. For data streams, the
+stream's backing indices can only serve as non-rollup indices. Omitting the
+`<target>` parameter or using `_all` is not permitted.
+- Multiple non-rollup indices may be specified.
 - Only one rollup index may be specified. If more than one are supplied, an
 exception occurs.
-- Index patterns may be used, but if they match more than one rollup index an
-exception occurs.
+- Wildcard expressions may be used, but, if they match more than one rollup index, an
+exception occurs. However, you can use an expression to match multiple non-rollup
+indices or data streams.
+--
 
 [[rollup-search-request-body]]
 ==== {api-request-body-title}
@@ -71,51 +79,51 @@ a {rollup-job} with the following configuration:
 --------------------------------------------------
 PUT _rollup/job/sensor
 {
-    "index_pattern": "sensor-*",
-    "rollup_index": "sensor_rollup",
-    "cron": "*/30 * * * * ?",
-    "page_size" :1000,
-    "groups" : {
-      "date_histogram": {
-        "field": "timestamp",
-        "fixed_interval": "1h",
-        "delay": "7d"
-      },
-      "terms": {
-        "fields": ["node"]
-      }
+  "index_pattern": "sensor-*",
+  "rollup_index": "sensor_rollup",
+  "cron": "*/30 * * * * ?",
+  "page_size": 1000,
+  "groups": {
+    "date_histogram": {
+      "field": "timestamp",
+      "fixed_interval": "1h",
+      "delay": "7d"
     },
-    "metrics": [
-        {
-            "field": "temperature",
-            "metrics": ["min", "max", "sum"]
-        },
-        {
-            "field": "voltage",
-            "metrics": ["avg"]
-        }
-    ]
+    "terms": {
+      "fields": [ "node" ]
+    }
+  },
+  "metrics": [
+    {
+      "field": "temperature",
+      "metrics": [ "min", "max", "sum" ]
+    },
+    {
+      "field": "voltage",
+      "metrics": [ "avg" ]
+    }
+  ]
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]
 
 This rolls up the `sensor-*` pattern and stores the results in `sensor_rollup`.
 To search this rolled up data, we need to use the `_rollup_search` endpoint.
-However, you'll notice that we can use regular query DSL to search the rolled-up
+However, you'll notice that we can use regular Query DSL to search the rolled-up
 data:
 
 [source,console]
 --------------------------------------------------
 GET /sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sensor_prefab_data]
@@ -163,14 +171,14 @@ If we try to execute that search:
 --------------------------------------------------
 GET sensor_rollup/_rollup_search
 {
-    "size": 0,
-    "aggregations": {
-        "avg_temperature": {
-            "avg": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "avg_temperature": {
+      "avg": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]
@@ -179,19 +187,19 @@ GET sensor_rollup/_rollup_search
 [source,console-result]
 ----
 {
-    "error" : {
-        "root_cause" : [
-            {
-                "type" : "illegal_argument_exception",
-                "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
-                "stack_trace": ...
-            }
-        ],
-        "type" : "illegal_argument_exception",
-        "reason" : "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+  "error": {
+    "root_cause": [
+      {
+        "type": "illegal_argument_exception",
+        "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
         "stack_trace": ...
-    },
-    "status": 400
+      }
+    ],
+    "type": "illegal_argument_exception",
+    "reason": "There is not a rollup job that has a [avg] agg with name [avg_temperature] which also satisfies all requirements of query.",
+    "stack_trace": ...
+  },
+  "status": 400
 }
 ----
 // TESTRESPONSE[s/"stack_trace": \.\.\./"stack_trace": $body.$_path/]
@@ -206,14 +214,14 @@ the live indices to the URI:
 --------------------------------------------------
 GET sensor-1,sensor_rollup/_rollup_search <1>
 {
-    "size": 0,
-    "aggregations": {
-        "max_temperature": {
-            "max": {
-                "field": "temperature"
-            }
-        }
+  "size": 0,
+  "aggregations": {
+    "max_temperature": {
+      "max": {
+        "field": "temperature"
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[continued]

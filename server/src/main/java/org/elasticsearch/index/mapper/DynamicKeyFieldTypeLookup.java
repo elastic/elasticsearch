@@ -1,29 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
-
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * A container that supports looking up field types for 'dynamic key' fields ({@link DynamicKeyFieldMapper}).
@@ -36,7 +22,7 @@ import java.util.Map;
  * Flattened object fields live in the 'mapper-flattened' module.
  */
 class DynamicKeyFieldTypeLookup {
-    private final CopyOnWriteHashMap<String, DynamicKeyFieldMapper> mappers;
+    private final Map<String, DynamicKeyFieldMapper> mappers;
     private final Map<String, String> aliasToConcreteName;
 
     /**
@@ -45,25 +31,11 @@ class DynamicKeyFieldTypeLookup {
      */
     private final int maxKeyDepth;
 
-    DynamicKeyFieldTypeLookup() {
-        this.mappers = new CopyOnWriteHashMap<>();
-        this.aliasToConcreteName = Collections.emptyMap();
-        this.maxKeyDepth = 0;
-    }
-
-    private DynamicKeyFieldTypeLookup(CopyOnWriteHashMap<String, DynamicKeyFieldMapper> mappers,
-                                      Map<String, String> aliasToConcreteName,
-                                      int maxKeyDepth) {
-        this.mappers = mappers;
+    DynamicKeyFieldTypeLookup(Map<String, DynamicKeyFieldMapper> newMappers,
+                              Map<String, String> aliasToConcreteName) {
+        this.mappers = newMappers;
         this.aliasToConcreteName = aliasToConcreteName;
-        this.maxKeyDepth = maxKeyDepth;
-    }
-
-    DynamicKeyFieldTypeLookup copyAndAddAll(Map<String, DynamicKeyFieldMapper> newMappers,
-                                            Map<String, String> aliasToConcreteName) {
-        CopyOnWriteHashMap<String, DynamicKeyFieldMapper> combinedMappers = this.mappers.copyAndPutAll(newMappers);
-        int maxKeyDepth = getMaxKeyDepth(combinedMappers, aliasToConcreteName);
-        return new DynamicKeyFieldTypeLookup(combinedMappers, aliasToConcreteName, maxKeyDepth);
+        this.maxKeyDepth = getMaxKeyDepth(mappers, aliasToConcreteName);
     }
 
     /**
@@ -100,10 +72,8 @@ class DynamicKeyFieldTypeLookup {
         }
     }
 
-    Iterator<MappedFieldType> fieldTypes() {
-        return mappers.values().stream()
-            .<MappedFieldType>map(mapper -> mapper.keyedFieldType(""))
-            .iterator();
+    Stream<MappedFieldType> fieldTypes() {
+        return mappers.values().stream().map(mapper -> mapper.keyedFieldType(""));
     }
 
     // Visible for testing.

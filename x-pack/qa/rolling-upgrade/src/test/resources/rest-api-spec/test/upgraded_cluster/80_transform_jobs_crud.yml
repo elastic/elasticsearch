@@ -244,6 +244,16 @@ setup:
   - match: { transforms.0.state: "/started|indexing/" }
 
   - do:
+      transform.update_transform:
+        transform_id: "mixed-simple-continuous-transform"
+        body: >
+          {
+            "settings": {
+              "max_page_search_size": 1000
+            }
+          }
+
+  - do:
       transform.stop_transform:
         transform_id: "mixed-simple-continuous-transform"
         wait_for_completion: true
@@ -257,11 +267,20 @@ setup:
   - match: { transforms.0.state: "stopped" }
 
   - do:
+      transform.get_transform:
+        transform_id: "mixed-simple-continuous-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "mixed-simple-continuous-transform" }
+  - match: { transforms.0.settings.max_page_search_size: 1000 }
+
+  - do:
       transform.delete_transform:
         transform_id: "mixed-simple-continuous-transform"
 
 ---
 "Test index mappings for latest internal index and audit index":
+  - skip:
+      features: warnings
   - do:
       transform.put_transform:
         transform_id: "upgraded-simple-transform"
@@ -278,10 +297,12 @@ setup:
   - match: { acknowledged: true }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.transform-internal-007], but in a future major version, direct access to system indices will be prevented by default"
       indices.get_mapping:
-        index: .transform-internal-004
-  - match: { \.transform-internal-004.mappings.dynamic: "false" }
-  - match: { \.transform-internal-004.mappings.properties.id.type: "keyword" }
+        index: .transform-internal-007
+  - match: { \.transform-internal-007.mappings.dynamic: "false" }
+  - match: { \.transform-internal-007.mappings.properties.id.type: "keyword" }
   - do:
       indices.get_mapping:
         index: .transform-notifications-000002

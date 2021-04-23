@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.frozen;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -35,8 +36,8 @@ public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTranspor
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
         int numFrozenIndices = 0;
-        for (IndexMetaData indexMetaData : state.metaData()) {
-            if (FrozenEngine.INDEX_FROZEN.get(indexMetaData.getSettings())) {
+        for (IndexMetadata indexMetadata : state.metadata()) {
+            if (FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings())) {
                 numFrozenIndices++;
             }
         }

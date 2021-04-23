@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -143,8 +144,8 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
 
         final IndexShard indexShard = indexService.getShard(0);
         final Translog.Operation[] operations = ShardChangesAction.getOperations(indexShard, indexShard.getLastKnownGlobalCheckpoint(),
-            0, 12, indexShard.getHistoryUUID(), new ByteSizeValue(256, ByteSizeUnit.BYTES));
-        assertThat(operations.length, equalTo(12));
+            0, randomIntBetween(100, 500), indexShard.getHistoryUUID(), new ByteSizeValue(256, ByteSizeUnit.BYTES));
+        assertThat(operations.length, equalTo(8));
         assertThat(operations[0].seqNo(), equalTo(0L));
         assertThat(operations[1].seqNo(), equalTo(1L));
         assertThat(operations[2].seqNo(), equalTo(2L));
@@ -153,10 +154,6 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         assertThat(operations[5].seqNo(), equalTo(5L));
         assertThat(operations[6].seqNo(), equalTo(6L));
         assertThat(operations[7].seqNo(), equalTo(7L));
-        assertThat(operations[8].seqNo(), equalTo(8L));
-        assertThat(operations[9].seqNo(), equalTo(9L));
-        assertThat(operations[10].seqNo(), equalTo(10L));
-        assertThat(operations[11].seqNo(), equalTo(11L));
     }
 
     public void testGetOperationsAlwaysReturnAtLeastOneOp() throws Exception {
@@ -206,7 +203,7 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         final AtomicReference<Exception> reference = new AtomicReference<>();
         final ShardChangesAction.TransportAction transportAction = node().injector().getInstance(ShardChangesAction.TransportAction.class);
         ActionTestUtils.execute(transportAction, null,
-                new ShardChangesAction.Request(new ShardId(indexService.getMetaData().getIndex(), numberOfShards), "uuid"),
+                new ShardChangesAction.Request(new ShardId(indexService.getMetadata().getIndex(), numberOfShards), "uuid"),
                 new ActionListener<ShardChangesAction.Response>() {
                     @Override
                     public void onResponse(final ShardChangesAction.Response response) {

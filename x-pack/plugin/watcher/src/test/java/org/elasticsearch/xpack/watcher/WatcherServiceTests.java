@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher;
 
@@ -25,8 +26,8 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,6 +47,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
@@ -104,13 +106,13 @@ public class WatcherServiceTests extends ESTestCase {
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         Settings indexSettings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
-        metaDataBuilder.put(IndexMetaData.builder(Watch.INDEX).state(IndexMetaData.State.CLOSE).settings(indexSettings));
-        csBuilder.metaData(metaDataBuilder);
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).state(IndexMetadata.State.CLOSE).settings(indexSettings));
+        csBuilder.metadata(metadataBuilder);
 
         assertThat(service.validate(csBuilder.build()), is(false));
     }
@@ -130,13 +132,13 @@ public class WatcherServiceTests extends ESTestCase {
 
         // cluster state setup, with one node, one shard
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        MetaData.Builder metaDataBuilder = MetaData.builder();
+        Metadata.Builder metadataBuilder = Metadata.builder();
         Settings indexSettings = settings(Version.CURRENT)
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build();
-        metaDataBuilder.put(IndexMetaData.builder(Watch.INDEX).settings(indexSettings));
-        csBuilder.metaData(metaDataBuilder);
+        metadataBuilder.put(IndexMetadata.builder(Watch.INDEX).settings(indexSettings));
+        csBuilder.metadata(metadataBuilder);
 
         Index watchIndex = new Index(Watch.INDEX, "uuid");
         ShardId shardId = new ShardId(watchIndex, 0);
@@ -156,7 +158,7 @@ public class WatcherServiceTests extends ESTestCase {
         // response setup, successful refresh response
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
         when(refreshResponse.getSuccessfulShards())
-                .thenReturn(clusterState.getMetaData().getIndices().get(Watch.INDEX).getNumberOfShards());
+                .thenReturn(clusterState.getMetadata().getIndices().get(Watch.INDEX).getNumberOfShards());
         doAnswer(invocation -> {
             ActionListener<RefreshResponse> listener = (ActionListener<RefreshResponse>) invocation.getArguments()[2];
             listener.onResponse(refreshResponse);
@@ -179,7 +181,7 @@ public class WatcherServiceTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[count];
         for (int i = 0; i < count; i++) {
             String id = String.valueOf(i);
-            SearchHit hit = new SearchHit(1, id, Collections.emptyMap());
+            SearchHit hit = new SearchHit(1, id, Collections.emptyMap(), Collections.emptyMap());
             hit.version(1L);
             hit.shard(new SearchShardTarget("nodeId", new ShardId(watchIndex, 0), "whatever", OriginalIndices.NONE));
             hits[i] = hit;
@@ -234,7 +236,7 @@ public class WatcherServiceTests extends ESTestCase {
         when(watch.trigger()).thenReturn(trigger);
         when(watch.id()).thenReturn(id);
         when(watch.condition()).thenReturn(InternalAlwaysCondition.INSTANCE);
-        ExecutableNoneInput noneInput = new ExecutableNoneInput();
+        ExecutableInput noneInput = new ExecutableNoneInput();
         when(watch.input()).thenReturn(noneInput);
 
         triggerService.add(watch);
@@ -265,7 +267,7 @@ public class WatcherServiceTests extends ESTestCase {
         };
 
         ClusterState.Builder csBuilder = new ClusterState.Builder(new ClusterName("_name"));
-        csBuilder.metaData(MetaData.builder());
+        csBuilder.metadata(Metadata.builder());
 
         service.reload(csBuilder.build(), "whatever");
         verify(executionService).clearExecutionsAndQueue(any());
@@ -275,6 +277,6 @@ public class WatcherServiceTests extends ESTestCase {
 
     private static DiscoveryNode newNode() {
         return new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
     }
 }

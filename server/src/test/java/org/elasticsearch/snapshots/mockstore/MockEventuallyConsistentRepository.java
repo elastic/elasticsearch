@@ -1,40 +1,29 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots.mockstore;
 
-import org.apache.lucene.codecs.CodecUtil;
-import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
+import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -72,12 +61,14 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
     private final NamedXContentRegistry namedXContentRegistry;
 
     public MockEventuallyConsistentRepository(
-        final RepositoryMetaData metadata,
+        final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
         final Context context,
         final Random random) {
-        super(metadata, namedXContentRegistry, clusterService, BlobPath.cleanPath());
+        super(metadata, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
+                BlobPath.cleanPath());
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;
@@ -156,7 +147,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     private class MockBlobStore implements BlobStore {
 
-        private AtomicBoolean closed = new AtomicBoolean(false);
+        private final AtomicBoolean closed = new AtomicBoolean(false);
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
@@ -188,6 +179,16 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
+            public boolean blobExists(String blobName) {
+                try {
+                    readBlob(blobName);
+                    return true;
+                } catch (NoSuchFileException ignored) {
+                    return false;
+                }
+            }
+
+            @Override
             public InputStream readBlob(String name) throws NoSuchFileException {
                 ensureNotClosed();
                 final String blobPath = path.buildAsString() + name;
@@ -203,6 +204,15 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                     }
                     throw new AssertionError("Inconsistent read on [" + blobPath + ']');
                 }
+            }
+
+            @Override
+            public InputStream readBlob(String blobName, long position, long length) throws IOException {
+                final InputStream stream = readBlob(blobName);
+                if (position > 0) {
+                    stream.skip(position);
+                }
+                return Streams.limitStream(stream, length);
             }
 
             private List<BlobStoreAction> relevantActions(String blobPath) {
@@ -247,7 +257,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public Map<String, BlobMetaData> listBlobs() {
+            public Map<String, BlobMetadata> listBlobs() {
                 ensureNotClosed();
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
@@ -258,7 +268,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                         .collect(
                             Collectors.toMap(
                                 action -> action.path.substring(thisPath.length()),
-                                action -> new PlainBlobMetaData(action.path.substring(thisPath.length()), action.data.length))));
+                                action -> new PlainBlobMetadata(action.path.substring(thisPath.length()), action.data.length))));
                 }
             }
 
@@ -278,7 +288,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) {
+            public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
                 return maybeMissLatestIndexN(
                     Maps.ofEntries(listBlobs().entrySet().stream().filter(entry -> entry.getKey().startsWith(blobNamePrefix))
                         .collect(Collectors.toList())));
@@ -286,10 +296,10 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
             // Randomly filter out the index-N blobs from a listing to test that tracking of it in latestKnownRepoGen and the cluster state
             // ensures consistent repository operations
-            private Map<String, BlobMetaData> maybeMissLatestIndexN(Map<String, BlobMetaData> listing) {
+            private Map<String, BlobMetadata> maybeMissLatestIndexN(Map<String, BlobMetadata> listing) {
                 // Randomly filter out index-N blobs at the repo root to proof that we don't need them to be consistently listed
                 if (path.parent() == null && context.consistent == false) {
-                    final Map<String, BlobMetaData> filtered = new HashMap<>(listing);
+                    final Map<String, BlobMetadata> filtered = new HashMap<>(listing);
                     filtered.keySet().removeIf(b -> b.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX) && random.nextBoolean());
                     return Map.copyOf(filtered);
                 }
@@ -319,15 +329,12 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                         if (hasConsistentContent) {
                                 if (basePath().buildAsString().equals(path().buildAsString())) {
                                     try {
-                                        // TODO: dry up the logic for reading SnapshotInfo here against the code in ChecksumBlobStoreFormat
-                                        final int offset = CodecUtil.headerLength(BlobStoreRepository.SNAPSHOT_CODEC);
-                                        final SnapshotInfo updatedInfo = SnapshotInfo.fromXContentInternal(
-                                            XContentHelper.createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE,
-                                                new BytesArray(data, offset, data.length - offset - CodecUtil.footerLength()),
-                                                XContentType.SMILE));
+                                        final SnapshotInfo updatedInfo = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+                                                blobName, namedXContentRegistry, new BytesArray(data));
                                         // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
                                         // a problem and could be the result of a correctly handled master failover.
-                                        final SnapshotInfo existingInfo = snapshotFormat.readBlob(this, blobName);
+                                        final SnapshotInfo existingInfo = SNAPSHOT_FORMAT.deserialize(
+                                                blobName, namedXContentRegistry, Streams.readFully(readBlob(blobName)));
                                         assertThat(existingInfo.snapshotId(), equalTo(updatedInfo.snapshotId()));
                                         assertThat(existingInfo.reason(), equalTo(updatedInfo.reason()));
                                         assertThat(existingInfo.state(), equalTo(updatedInfo.state()));
@@ -361,9 +368,9 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
-                final boolean failIfAlreadyExists) throws IOException {
-                writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+            public void writeBlobAtomic(final String blobName, final BytesReference bytes,
+                                        final boolean failIfAlreadyExists) throws IOException {
+                writeBlob(blobName, bytes, failIfAlreadyExists);
             }
         }
     }

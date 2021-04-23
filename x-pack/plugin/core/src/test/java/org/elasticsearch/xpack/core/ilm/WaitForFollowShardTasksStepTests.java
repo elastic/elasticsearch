@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -53,7 +55,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionMet() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(2)
@@ -68,18 +70,19 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
-            @Override
-            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                conditionMetHolder[0] = conditionMet;
-                informationContextHolder[0] = informationContext;
-            }
+        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+            new AsyncWaitStep.Listener() {
+                @Override
+                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                    conditionMetHolder[0] = conditionMet;
+                    informationContextHolder[0] = informationContext;
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                exceptionHolder[0] = e;
-            }
-        }, MASTER_TIMEOUT);
+                @Override
+                public void onFailure(Exception e) {
+                    exceptionHolder[0] = e;
+                }
+            }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());
@@ -87,7 +90,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionNotMetShardsNotInSync() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(2)
@@ -102,18 +105,19 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
-            @Override
-            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                conditionMetHolder[0] = conditionMet;
-                informationContextHolder[0] = informationContext;
-            }
+        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+            new AsyncWaitStep.Listener() {
+                @Override
+                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                    conditionMetHolder[0] = conditionMet;
+                    informationContextHolder[0] = informationContext;
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                exceptionHolder[0] = e;
-            }
-        }, MASTER_TIMEOUT);
+                @Override
+                public void onFailure(Exception e) {
+                    exceptionHolder[0] = e;
+                }
+            }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(false));
         assertThat(informationContextHolder[0], notNullValue());
@@ -126,7 +130,7 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
     }
 
     public void testConditionNotMetNotAFollowerIndex() {
-        IndexMetaData indexMetadata = IndexMetaData.builder("follower-index")
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .numberOfShards(2)
             .numberOfReplicas(0)
@@ -135,18 +139,19 @@ public class WaitForFollowShardTasksStepTests extends AbstractStepTestCase<WaitF
         final boolean[] conditionMetHolder = new boolean[1];
         final ToXContentObject[] informationContextHolder = new ToXContentObject[1];
         final Exception[] exceptionHolder = new Exception[1];
-        createRandomInstance().evaluateCondition(indexMetadata, new AsyncWaitStep.Listener() {
-            @Override
-            public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
-                conditionMetHolder[0] = conditionMet;
-                informationContextHolder[0] = informationContext;
-            }
+        createRandomInstance().evaluateCondition(Metadata.builder().put(indexMetadata, true).build(), indexMetadata.getIndex(),
+            new AsyncWaitStep.Listener() {
+                @Override
+                public void onResponse(boolean conditionMet, ToXContentObject informationContext) {
+                    conditionMetHolder[0] = conditionMet;
+                    informationContextHolder[0] = informationContext;
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                exceptionHolder[0] = e;
-            }
-        }, MASTER_TIMEOUT);
+                @Override
+                public void onFailure(Exception e) {
+                    exceptionHolder[0] = e;
+                }
+            }, MASTER_TIMEOUT);
 
         assertThat(conditionMetHolder[0], is(true));
         assertThat(informationContextHolder[0], nullValue());

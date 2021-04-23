@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -11,24 +12,25 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,14 +41,14 @@ import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
+import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Request;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction.Response;
 import org.elasticsearch.xpack.ilm.IndexLifecycleTransition;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -62,53 +64,47 @@ import java.util.stream.StreamSupport;
  * This class is responsible for bootstrapping {@link IndexLifecycleMetadata} into the cluster-state, as well
  * as adding the desired new policy to be inserted.
  */
-public class TransportPutLifecycleAction extends TransportMasterNodeAction<Request, Response> {
+public class TransportPutLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutLifecycleAction.class);
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportPutLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       NamedXContentRegistry namedXContentRegistry, Client client) {
+                                       NamedXContentRegistry namedXContentRegistry, XPackLicenseState licenseState, Client client) {
         super(PutLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME);
         this.xContentRegistry = namedXContentRegistry;
+        this.licenseState = licenseState;
         this.client = client;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
-    }
-
-    @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         // headers from the thread context stored by the AuthenticationService to be shared between the
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-            .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
         LifecyclePolicy.validatePolicyName(request.getPolicy().getName());
+        List<Phase> phasesDefiningSearchableSnapshot = request.getPolicy().getPhases().values().stream()
+            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+            .collect(Collectors.toList());
+        if (phasesDefiningSearchableSnapshot.isEmpty() == false) {
+            if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
+                throw new IllegalArgumentException("policy [" + request.getPolicy().getName() + "] defines the [" +
+                    SearchableSnapshotAction.NAME + "] action but the current license is non-compliant for [searchable-snapshots]");
+            }
+        }
         clusterService.submitStateUpdateTask("put-lifecycle-" + request.getPolicy().getName(),
-                new AckedClusterStateUpdateTask<Response>(request, listener) {
-                    @Override
-                    protected Response newResponse(boolean acknowledged) {
-                        return new Response(acknowledged);
-                    }
-
+                new AckedClusterStateUpdateTask(request, listener) {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
-                        IndexLifecycleMetadata currentMetadata = currentState.metaData().custom(IndexLifecycleMetadata.TYPE);
+                        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
                         if (currentMetadata == null) { // first time using index-lifecycle feature, bootstrap metadata
                             currentMetadata = IndexLifecycleMetadata.EMPTY;
                         }
@@ -125,7 +121,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                             logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
                         }
                         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
-                        stateBuilder.metaData(MetaData.builder(currentState.getMetaData())
+                        stateBuilder.metadata(Metadata.builder(currentState.getMetadata())
                                 .putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build());
                         ClusterState nonRefreshedState = stateBuilder.build();
                         if (oldPolicy == null) {
@@ -154,8 +150,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * - A current phase in the step key
      * - Not currently in the ERROR step
      */
-    static boolean eligibleToCheckForRefresh(final IndexMetaData metaData) {
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metaData);
+    static boolean eligibleToCheckForRefresh(final IndexMetadata metadata) {
+        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metadata);
         if (executionState == null || executionState.getPhaseDefinition() == null) {
             return false;
         }
@@ -200,15 +196,15 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * Returns 'true' if the index's cached phase JSON can be safely reread, 'false' otherwise.
      */
     static boolean isIndexPhaseDefinitionUpdatable(final NamedXContentRegistry xContentRegistry, final Client client,
-                                                   final IndexMetaData metaData, final LifecyclePolicy newPolicy) {
-        final String index = metaData.getIndex().getName();
-        if (eligibleToCheckForRefresh(metaData) == false) {
+                                                   final IndexMetadata metadata, final LifecyclePolicy newPolicy) {
+        final String index = metadata.getIndex().getName();
+        if (eligibleToCheckForRefresh(metadata) == false) {
             logger.debug("[{}] does not contain enough information to check for eligibility of refreshing phase", index);
             return false;
         }
         final String policyId = newPolicy.getName();
 
-        final LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metaData);
+        final LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metadata);
         final Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(executionState);
         final String currentPhase = currentStepKey.getPhase();
 
@@ -263,7 +259,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * Rereads the phase JSON for the given index, returning a new cluster state.
      */
     static ClusterState refreshPhaseDefinition(final ClusterState state, final String index, final LifecyclePolicyMetadata updatedPolicy) {
-        final IndexMetaData idxMeta = state.metaData().index(index);
+        final IndexMetadata idxMeta = state.metadata().index(index);
         assert eligibleToCheckForRefresh(idxMeta) : "index " + index + " is missing crucial information needed to refresh phase definition";
 
         logger.trace("[{}] updating cached phase definition for policy [{}]", index, updatedPolicy.getName());
@@ -295,7 +291,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         final List<String> indicesThatCanBeUpdated =
-            StreamSupport.stream(Spliterators.spliteratorUnknownSize(state.metaData().indices().valuesIt(), 0), false)
+            StreamSupport.stream(Spliterators.spliteratorUnknownSize(state.metadata().indices().valuesIt(), 0), false)
                 .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
                 .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy()))
                 .map(meta -> meta.getIndex().getName())

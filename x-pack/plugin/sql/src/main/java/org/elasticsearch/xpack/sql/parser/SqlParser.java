@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Collections;
@@ -39,6 +41,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 
 public class SqlParser {
 
@@ -50,7 +53,14 @@ public class SqlParser {
      * Used only in tests
      */
     public LogicalPlan createStatement(String sql) {
-        return createStatement(sql, Collections.emptyList());
+        return createStatement(sql, Collections.emptyList(), UTC);
+    }
+
+    /**
+     * Used only in tests
+     */
+    public LogicalPlan createStatement(String sql, ZoneId zoneId) {
+        return createStatement(sql, Collections.emptyList(), zoneId);
     }
 
     /**
@@ -59,11 +69,11 @@ public class SqlParser {
      * @param params - a list of parameters for the statement if the statement is parametrized
      * @return logical plan
      */
-    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params) {
+    public LogicalPlan createStatement(String sql, List<SqlTypedParamValue> params, ZoneId zoneId) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser(sql, params, SqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(sql, params, zoneId, SqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     /**
@@ -81,12 +91,13 @@ public class SqlParser {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser(expression, params, SqlBaseParser::singleExpression, AstBuilder::expression);
+        return invokeParser(expression, params, UTC, SqlBaseParser::singleExpression, AstBuilder::expression);
     }
 
     private <T> T invokeParser(String sql,
-                               List<SqlTypedParamValue> params, Function<SqlBaseParser,
-                               ParserRuleContext> parseFunction,
+                               List<SqlTypedParamValue> params,
+                               ZoneId zoneId,
+                               Function<SqlBaseParser, ParserRuleContext> parseFunction,
                                BiFunction<AstBuilder, ParserRuleContext, T> visitor) {
         try {
             SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
@@ -126,7 +137,7 @@ public class SqlParser {
                 log.info("Parse tree {} " + tree.toStringTree());
             }
 
-            return visitor.apply(new AstBuilder(paramTokens), tree);
+            return visitor.apply(new AstBuilder(paramTokens, zoneId), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("SQL statement is too large, " +
                 "causing stack overflow when generating the parsing tree: [{}]", sql);
@@ -195,7 +206,7 @@ public class SqlParser {
         @Override
         public void exitNonReserved(SqlBaseParser.NonReservedContext context) {
             // tree cannot be modified during rule enter/exit _unless_ it's a terminal node
-            if (!(context.getChild(0) instanceof TerminalNode)) {
+            if ((context.getChild(0) instanceof TerminalNode) == false) {
                 int rule = ((ParserRuleContext) context.getChild(0)).getRuleIndex();
                 throw new ParsingException("nonReserved can only contain tokens. Found nested rule: " + ruleNames.get(rule));
             }

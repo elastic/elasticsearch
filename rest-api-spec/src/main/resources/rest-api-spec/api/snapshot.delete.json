@@ -2,9 +2,13 @@
   "snapshot.delete":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Deletes a snapshot."
+      "description":"Deletes one or more snapshots."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -18,8 +22,8 @@
               "description":"A repository name"
             },
             "snapshot":{
-              "type":"string",
-              "description":"A snapshot name"
+              "type":"list",
+              "description":"A comma-separated list of snapshot names"
             }
           }
         }

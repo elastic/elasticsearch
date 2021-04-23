@@ -13,8 +13,11 @@ Unfreezes an index.
 
 `POST /<index>/_unfreeze`
 
-//[[unfreeze-index-api-prereqs]]
-//==== {api-prereq-title}
+[[unfreeze-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
 
 [[unfreeze-index-api-desc]]
 ==== {api-description-title}
@@ -40,7 +43,7 @@ The following example freezes and unfreezes an index:
 
 [source,console]
 --------------------------------------------------
-POST /my_index/_freeze
-POST /my_index/_unfreeze
+POST /my-index-000001/_freeze
+POST /my-index-000001/_unfreeze
 --------------------------------------------------
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my-index-000001\n/]

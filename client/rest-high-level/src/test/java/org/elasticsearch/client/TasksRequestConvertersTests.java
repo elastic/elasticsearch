@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -22,6 +11,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.client.tasks.CancelTasksRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -40,14 +30,15 @@ public class TasksRequestConvertersTests extends ESTestCase {
             new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
         org.elasticsearch.client.tasks.TaskId parentTaskId =
             new org.elasticsearch.client.tasks.TaskId(randomAlphaOfLength(5), randomNonNegativeLong());
-        org.elasticsearch.client.tasks.CancelTasksRequest request =
-            new org.elasticsearch.client.tasks.CancelTasksRequest.Builder()
-                .withTaskId(taskId)
-                .withParentTaskId(parentTaskId)
-                .build();
+        CancelTasksRequest.Builder builder = new CancelTasksRequest.Builder().withTaskId(taskId).withParentTaskId(parentTaskId);
         expectedParams.put("task_id", taskId.toString());
         expectedParams.put("parent_task_id", parentTaskId.toString());
-        Request httpRequest = TasksRequestConverters.cancelTasks(request);
+        if (randomBoolean()) {
+            boolean waitForCompletion = randomBoolean();
+            builder.withWaitForCompletion(waitForCompletion);
+            expectedParams.put("wait_for_completion", Boolean.toString(waitForCompletion));
+        }
+        Request httpRequest = TasksRequestConverters.cancelTasks(builder.build());
         assertThat(httpRequest, notNullValue());
         assertThat(httpRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(httpRequest.getEntity(), nullValue());

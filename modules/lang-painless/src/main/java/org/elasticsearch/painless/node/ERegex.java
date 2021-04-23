@@ -1,202 +1,48 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.CallNode;
-import org.elasticsearch.painless.ir.CallSubNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ConstantNode;
-import org.elasticsearch.painless.ir.FieldNode;
-import org.elasticsearch.painless.ir.MemberFieldLoadNode;
-import org.elasticsearch.painless.ir.MemberFieldStoreNode;
-import org.elasticsearch.painless.ir.StatementExpressionNode;
-import org.elasticsearch.painless.ir.StaticNode;
-import org.elasticsearch.painless.lookup.PainlessMethod;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.lang.reflect.Modifier;
-import java.util.Arrays;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
+import java.util.Objects;
 
 /**
  * Represents a regex constant. All regexes are constants.
  */
-public final class ERegex extends AExpression {
+public class ERegex extends AExpression {
 
     private final String pattern;
-    private final int flags;
-    private String name;
+    private final String flags;
 
-    public ERegex(Location location, String pattern, String flagsString) {
-        super(location);
+    public ERegex(int identifier, Location location, String pattern, String flags) {
+        super(identifier, location);
 
-        this.pattern = pattern;
+        this.pattern = Objects.requireNonNull(pattern);
+        this.flags = Objects.requireNonNull(flags);
+    }
 
-        int flags = 0;
+    public String getPattern() {
+        return pattern;
+    }
 
-        for (int c = 0; c < flagsString.length(); c++) {
-            flags |= flagForChar(flagsString.charAt(c));
-        }
-
-        this.flags = flags;
+    public String getFlags() {
+        return flags;
     }
 
     @Override
-    void analyze(ScriptRoot scriptRoot, Scope scope) {
-        if (scriptRoot.getCompilerSettings().areRegexesEnabled() == false) {
-            throw createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
-                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
-                    + "recursion and long loops."));
-        }
-
-        if (!read) {
-            throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
-        }
-
-        try {
-            Pattern.compile(pattern, flags);
-        } catch (PatternSyntaxException e) {
-            throw new Location(location.getSourceName(), location.getOffset() + 1 + e.getIndex()).createError(
-                    new IllegalArgumentException("Error compiling regex: " + e.getDescription()));
-        }
-
-        name = scriptRoot.getNextSyntheticName("regex");
-        actual = Pattern.class;
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitRegex(this, scope);
     }
 
     @Override
-    MemberFieldLoadNode write(ClassNode classNode) {
-        FieldNode fieldNode = new FieldNode();
-        fieldNode.setLocation(location);
-        fieldNode.setModifiers(Modifier.FINAL | Modifier.STATIC | Modifier.PRIVATE);
-        fieldNode.setFieldType(Pattern.class);
-        fieldNode.setName(name);
-
-        classNode.addFieldNode(fieldNode);
-
-        try {
-            StatementExpressionNode statementExpressionNode = new StatementExpressionNode();
-            statementExpressionNode.setLocation(location);
-
-            BlockNode blockNode = classNode.getClinitBlockNode();
-            blockNode.addStatementNode(statementExpressionNode);
-
-            MemberFieldStoreNode memberFieldStoreNode = new MemberFieldStoreNode();
-            memberFieldStoreNode.setLocation(location);
-            memberFieldStoreNode.setExpressionType(void.class);
-            memberFieldStoreNode.setFieldType(Pattern.class);
-            memberFieldStoreNode.setName(name);
-            memberFieldStoreNode.setStatic(true);
-
-            statementExpressionNode.setExpressionNode(memberFieldStoreNode);
-
-            CallNode callNode = new CallNode();
-            callNode.setLocation(location);
-            callNode.setExpressionType(Pattern.class);
-
-            memberFieldStoreNode.setChildNode(callNode);
-
-            StaticNode staticNode = new StaticNode();
-            staticNode.setLocation(location);
-            staticNode.setExpressionType(Pattern.class);
-
-            callNode.setLeftNode(staticNode);
-
-            CallSubNode callSubNode = new CallSubNode();
-            callSubNode.setLocation(location);
-            callSubNode.setExpressionType(Pattern.class);
-            callSubNode.setBox(Pattern.class);
-            callSubNode.setMethod(new PainlessMethod(
-                    Pattern.class.getMethod("compile", String.class, int.class),
-                    Pattern.class,
-                    Pattern.class,
-                    Arrays.asList(String.class, int.class),
-                    null,
-                    null,
-                    null
-                    )
-            );
-
-            callNode.setRightNode(callSubNode);
-
-            ConstantNode constantNode = new ConstantNode();
-            constantNode.setLocation(location);
-            constantNode.setExpressionType(String.class);
-            constantNode.setConstant(pattern);
-
-            callSubNode.addArgumentNode(constantNode);
-
-            constantNode = new ConstantNode();
-            constantNode.setLocation(location);
-            constantNode.setExpressionType(int.class);
-            constantNode.setConstant(flags);
-
-            callSubNode.addArgumentNode(constantNode);
-        } catch (Exception exception) {
-            throw createError(new IllegalStateException("could not generate regex constant [" + pattern + "/" + flags +"] in clinit"));
-        }
-
-        MemberFieldLoadNode memberFieldLoadNode = new MemberFieldLoadNode();
-        memberFieldLoadNode.setLocation(location);
-        memberFieldLoadNode.setExpressionType(Pattern.class);
-        memberFieldLoadNode.setName(name);
-        memberFieldLoadNode.setStatic(true);
-
-        return memberFieldLoadNode;
-    }
-
-    private int flagForChar(char c) {
-        switch (c) {
-            case 'c': return Pattern.CANON_EQ;
-            case 'i': return Pattern.CASE_INSENSITIVE;
-            case 'l': return Pattern.LITERAL;
-            case 'm': return Pattern.MULTILINE;
-            case 's': return Pattern.DOTALL;
-            case 'U': return Pattern.UNICODE_CHARACTER_CLASS;
-            case 'u': return Pattern.UNICODE_CASE;
-            case 'x': return Pattern.COMMENTS;
-            default:
-                throw new IllegalArgumentException("Unknown flag [" + c + "]");
-        }
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder f = new StringBuilder();
-        if ((flags & Pattern.CANON_EQ) != 0)                f.append('c');
-        if ((flags & Pattern.CASE_INSENSITIVE) != 0)        f.append('i');
-        if ((flags & Pattern.LITERAL) != 0)                 f.append('l');
-        if ((flags & Pattern.MULTILINE) != 0)               f.append('m');
-        if ((flags & Pattern.DOTALL) != 0)                  f.append('s');
-        if ((flags & Pattern.UNICODE_CHARACTER_CLASS) != 0) f.append('U');
-        if ((flags & Pattern.UNICODE_CASE) != 0)            f.append('u');
-        if ((flags & Pattern.COMMENTS) != 0)                f.append('x');
-
-        String p = "/" + pattern + "/";
-        if (f.length() == 0) {
-            return singleLineToString(p);
-        }
-        return singleLineToString(p, f);
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

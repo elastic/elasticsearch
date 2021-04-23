@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.index;
@@ -23,7 +24,7 @@ public final class RestrictedIndicesNames {
     public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
 
     // public for tests
-    public static final String ASYNC_SEARCH_PREFIX = ".async-search-";
+    public static final String ASYNC_SEARCH_PREFIX = ".async-search";
     private static final Automaton ASYNC_SEARCH_AUTOMATON = Automatons.patterns(ASYNC_SEARCH_PREFIX + "*");
 
     // public for tests

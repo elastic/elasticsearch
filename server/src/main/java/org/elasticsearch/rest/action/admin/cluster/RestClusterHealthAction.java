@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.cluster;
@@ -43,8 +32,10 @@ public class RestClusterHealthAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cluster/health"),
-            new Route(GET, "/_cluster/health/{index}"));
+        return List.of(
+            new Route(GET, "/_cluster/health"),
+            new Route(GET, "/_cluster/health/{index}")
+        );
     }
 
     @Override
@@ -53,7 +44,17 @@ public class RestClusterHealthAction extends BaseRestHandler {
     }
 
     @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final ClusterHealthRequest clusterHealthRequest = fromRequest(request);
+        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestStatusToXContentListener<>(channel));
+    }
+
+    public static ClusterHealthRequest fromRequest(final RestRequest request) {
         final ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(Strings.splitStringByCommaToArray(request.param("index")));
         clusterHealthRequest.indicesOptions(IndicesOptions.fromRequest(request, clusterHealthRequest.indicesOptions()));
         clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
@@ -66,11 +67,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
         clusterHealthRequest.waitForNoRelocatingShards(
             request.paramAsBoolean("wait_for_no_relocating_shards", clusterHealthRequest.waitForNoRelocatingShards()));
         clusterHealthRequest.waitForNoInitializingShards(
-            request.paramAsBoolean("wait_for_no_initializing_shards", clusterHealthRequest.waitForNoRelocatingShards()));
+            request.paramAsBoolean("wait_for_no_initializing_shards", clusterHealthRequest.waitForNoInitializingShards()));
         if (request.hasParam("wait_for_relocating_shards")) {
             // wait_for_relocating_shards has been removed in favor of wait_for_no_relocating_shards
             throw new IllegalArgumentException("wait_for_relocating_shards has been removed, " +
-                                               "use wait_for_no_relocating_shards [true/false] instead");
+                "use wait_for_no_relocating_shards [true/false] instead");
         }
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -80,7 +81,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (request.param("wait_for_events") != null) {
             clusterHealthRequest.waitForEvents(Priority.valueOf(request.param("wait_for_events").toUpperCase(Locale.ROOT)));
         }
-        return channel -> client.admin().cluster().health(clusterHealthRequest, new RestStatusToXContentListener<>(channel));
+        return clusterHealthRequest;
     }
 
     private static final Set<String> RESPONSE_PARAMS = Collections.singleton("level");

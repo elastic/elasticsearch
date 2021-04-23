@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -24,12 +13,15 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -42,12 +34,17 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
+import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -210,6 +207,18 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    public void testGroupIndicesWithoutRemoteClusterClientRole() throws Exception {
+        final Settings settings = onlyRoles(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "node-1").build(),
+            Sets.newHashSet(DiscoveryNodeRole.DATA_ROLE));
+        try (RemoteClusterService service = new RemoteClusterService(settings, null)) {
+            assertFalse(service.isEnabled());
+            assertFalse(service.isCrossClusterSearchEnabled());
+            final IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
+                () -> service.groupIndices(IndicesOptions.LENIENT_EXPAND_OPEN, new String[]{"cluster_1:bar", "cluster_2:foo*"}));
+            assertThat(error.getMessage(), equalTo("node [node-1] does not have the remote cluster client role enabled"));
         }
     }
 
@@ -446,8 +455,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
     public void testRemoteNodeRoles() throws IOException, InterruptedException {
         final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-        final Settings data = Settings.builder().put("node.master", false).build();
-        final Settings dedicatedMaster = Settings.builder().put("node.data", false).put("node.ingest", "false").build();
+        final Settings data = nonMasterNode();
+        final Settings dedicatedMaster = masterOnlyNode();
         try (MockTransportService c1N1 =
                      startTransport("cluster_1_node_1", knownNodes, Version.CURRENT, dedicatedMaster);
              MockTransportService c1N2 =
@@ -649,11 +658,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             });
                         failLatch.await();
                         assertNotNull(ex.get());
-                        if (ex.get() instanceof  IllegalStateException) {
-                            assertThat(ex.get().getMessage(), equalTo("no seed node left"));
+                        if (ex.get() instanceof IllegalStateException) {
+                            assertThat(ex.get().getMessage(),
+                                either(equalTo("Unable to open any connections to remote cluster [cluster_1]"))
+                                    .or(equalTo("Unable to open any connections to remote cluster [cluster_2]")));
                         } else {
-                            assertThat(ex.get(),
-                                either(instanceOf(TransportException.class)).or(instanceOf(NoSuchRemoteClusterException.class)));
+                            assertThat(ex.get(), either(instanceOf(TransportException.class))
+                                .or(instanceOf(NoSuchRemoteClusterException.class))
+                                .or(instanceOf(NoSeedNodeLeftException.class)));
                         }
                     }
                 }
@@ -843,10 +855,34 @@ public class RemoteClusterServiceTests extends ESTestCase {
         }
     }
 
+    public void testRemoteClusterServiceNotEnabledGetRemoteClusterConnection() {
+        final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            final IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> service.getRemoteClusterService().getRemoteClusterConnection("test"));
+            assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
+        }
+    }
+
+    public void testRemoteClusterServiceNotEnabledGetCollectNodes() {
+        final Settings settings = removeRoles(Set.of(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
+        try (MockTransportService service = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> service.getRemoteClusterService().collectNodes(Set.of(), ActionListener.wrap(r -> {}, r -> {})));
+            assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
+        }
+    }
+
     private static Settings createSettings(String clusterAlias, List<String> seeds) {
         Settings.Builder builder = Settings.builder();
         builder.put(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).getKey(),
             Strings.collectionToCommaDelimitedString(seeds));
         return builder.build();
     }
+
 }

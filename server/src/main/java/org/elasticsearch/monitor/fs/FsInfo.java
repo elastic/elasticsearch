@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
 
-import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -107,16 +95,9 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         }
 
         private long addLong(long current, long other) {
-            if (other == -1) {
-                return current;
+            if (current == -1 && other == -1) {
+                return 0;
             }
-            if (current == -1) {
-                return other;
-            }
-            return current + other;
-        }
-
-        private double addDouble(double current, double other) {
             if (other == -1) {
                 return current;
             }
@@ -422,20 +403,12 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
     private final Path[] paths;
     private final IoStats ioStats;
     private final Path total;
-    private final DiskUsage leastDiskEstimate;
-    private final DiskUsage mostDiskEstimate;
 
     public FsInfo(long timestamp, IoStats ioStats, Path[] paths) {
-        this(timestamp, ioStats, paths, null, null);
-    }
-
-    public FsInfo(long timestamp, IoStats ioStats, Path[] paths, @Nullable DiskUsage leastUsage, @Nullable DiskUsage mostUsage) {
         this.timestamp = timestamp;
         this.ioStats = ioStats;
         this.paths = paths;
         this.total = total();
-        this.leastDiskEstimate = leastUsage;
-        this.mostDiskEstimate = mostUsage;
     }
 
     /**
@@ -449,8 +422,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             paths[i] = new Path(in);
         }
         this.total = total();
-        this.leastDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
-        this.mostDiskEstimate = in.readOptionalWriteable(DiskUsage::new);
     }
 
     @Override
@@ -461,22 +432,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         for (Path path : paths) {
             path.writeTo(out);
         }
-        out.writeOptionalWriteable(this.leastDiskEstimate);
-        out.writeOptionalWriteable(this.mostDiskEstimate);
     }
 
     public Path getTotal() {
         return total;
-    }
-
-    @Nullable
-    public DiskUsage getLeastDiskEstimate() {
-        return this.leastDiskEstimate;
-    }
-
-    @Nullable
-    public DiskUsage getMostDiskEstimate() {
-        return this.mostDiskEstimate;
     }
 
     private Path total() {
@@ -484,7 +443,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         Set<String> seenDevices = new HashSet<>(paths.length);
         for (Path subPath : paths) {
             if (subPath.path != null) {
-                if (!seenDevices.add(subPath.path)) {
+                if (seenDevices.add(subPath.path) == false) {
                     continue; // already added numbers for this device;
                 }
             }
@@ -512,28 +471,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         builder.field(Fields.TIMESTAMP, timestamp);
         builder.field(Fields.TOTAL);
         total().toXContent(builder, params);
-        if (leastDiskEstimate != null) {
-            builder.startObject(Fields.LEAST_ESTIMATE);
-            {
-                builder.field(Fields.PATH, leastDiskEstimate.getPath());
-                builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(leastDiskEstimate.getTotalBytes()));
-                builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE,
-                    new ByteSizeValue(leastDiskEstimate.getFreeBytes()));
-                builder.field(Fields.USAGE_PERCENTAGE, leastDiskEstimate.getUsedDiskAsPercentage());
-            }
-            builder.endObject();
-        }
 
-        if (mostDiskEstimate != null) {
-            builder.startObject(Fields.MOST_ESTIMATE);
-            {
-                builder.field(Fields.PATH, mostDiskEstimate.getPath());
-                builder.humanReadableField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, new ByteSizeValue(mostDiskEstimate.getTotalBytes()));
-                builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, new ByteSizeValue(mostDiskEstimate.getFreeBytes()));
-                builder.field(Fields.USAGE_PERCENTAGE, mostDiskEstimate.getUsedDiskAsPercentage());
-            }
-            builder.endObject();
-        }
         builder.startArray(Fields.DATA);
         for (Path path : paths) {
             path.toXContent(builder, params);
@@ -553,13 +491,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         static final String TIMESTAMP = "timestamp";
         static final String DATA = "data";
         static final String TOTAL = "total";
-        static final String TOTAL_IN_BYTES = "total_in_bytes";
         static final String IO_STATS = "io_stats";
-        static final String LEAST_ESTIMATE = "least_usage_estimate";
-        static final String MOST_ESTIMATE = "most_usage_estimate";
-        static final String USAGE_PERCENTAGE = "used_disk_percent";
-        static final String AVAILABLE = "available";
-        static final String AVAILABLE_IN_BYTES = "available_in_bytes";
-        static final String PATH = "path";
     }
 }

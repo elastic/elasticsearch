@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.shard;
 
@@ -37,8 +26,8 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.writeAndCleanup(
-                    new ShardStateMetaData(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
             ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, "");
             assertEquals(path, shardPath.getDataPath());
             assertEquals("0xDEADBEEF", shardPath.getShardId().getIndex().getUUID());
@@ -54,8 +43,8 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             assumeTrue("This test tests multi data.path but we only got one", paths.length > 1);
-            ShardStateMetaData.FORMAT.writeAndCleanup(
-                    new ShardStateMetaData(true, indexUUID, AllocationId.newInitializing()), paths);
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, indexUUID, AllocationId.newInitializing()), paths);
             Exception e = expectThrows(IllegalStateException.class, () -> ShardPath.loadShardPath(logger, env, shardId, ""));
             assertThat(e.getMessage(), containsString("more than one shard state found"));
         }
@@ -66,8 +55,8 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", "foobar", 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.writeAndCleanup(
-                    new ShardStateMetaData(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, "0xDEADBEEF", AllocationId.newInitializing()), path);
             Exception e = expectThrows(IllegalStateException.class, () -> ShardPath.loadShardPath(logger, env, shardId, ""));
             assertThat(e.getMessage(), containsString("expected: foobar on shard path"));
         }
@@ -111,8 +100,8 @@ public class ShardPathTests extends ESTestCase {
             ShardId shardId = new ShardId("foo", indexUUID, 0);
             Path[] paths = env.availableShardPaths(shardId);
             Path path = randomFrom(paths);
-            ShardStateMetaData.FORMAT.writeAndCleanup(
-                    new ShardStateMetaData(true, indexUUID, AllocationId.newInitializing()), path);
+            ShardStateMetadata.FORMAT.writeAndCleanup(
+                    new ShardStateMetadata(true, indexUUID, AllocationId.newInitializing()), path);
             ShardPath shardPath = ShardPath.loadShardPath(logger, env, shardId, customDataPath);
             boolean found = false;
             for (Path p : env.nodeDataPaths()) {

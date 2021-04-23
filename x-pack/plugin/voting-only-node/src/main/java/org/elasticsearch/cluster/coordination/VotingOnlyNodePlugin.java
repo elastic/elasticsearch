@@ -1,8 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
+
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.lucene.util.SetOnce;
@@ -10,7 +12,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.coordination.CoordinationMetaData.VotingConfiguration;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
 import org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet.UsageTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -19,18 +21,17 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -50,23 +51,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, NetworkPlugin, ActionPlugin {
 
-    public static final Setting<Boolean> VOTING_ONLY_NODE_SETTING
-        = Setting.boolSetting("node.voting_only", false, Setting.Property.NodeScope);
-
     private static final String VOTING_ONLY_ELECTION_STRATEGY = "supports_voting_only";
-
-    static DiscoveryNodeRole VOTING_ONLY_NODE_ROLE = new DiscoveryNodeRole("voting_only", "v") {
-        @Override
-        protected Setting<Boolean> roleSetting() {
-            return VOTING_ONLY_NODE_SETTING;
-        }
-    };
 
     private final Settings settings;
     private final SetOnce<ThreadPool> threadPool;
@@ -76,28 +66,15 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     public VotingOnlyNodePlugin(Settings settings) {
         this.settings = settings;
         threadPool = new SetOnce<>();
-        isVotingOnlyNode = VOTING_ONLY_NODE_SETTING.get(settings);
+        isVotingOnlyNode = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     public static boolean isVotingOnlyNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE);
+        return discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     public static boolean isFullMasterNode(DiscoveryNode discoveryNode) {
-        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(VOTING_ONLY_NODE_ROLE) == false;
-    }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Collections.singletonList(VOTING_ONLY_NODE_SETTING);
-    }
-
-    @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        if (isVotingOnlyNode && Node.NODE_MASTER_SETTING.get(settings) == false) {
-            throw new IllegalStateException("voting-only node must be master-eligible");
-        }
-        return Collections.singleton(VOTING_ONLY_NODE_ROLE);
+        return discoveryNode.isMasterNode() && discoveryNode.getRoles().contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false;
     }
 
     @Override
@@ -105,7 +82,8 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver) {
+                                               IndexNameExpressionResolver expressionResolver,
+                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();
     }

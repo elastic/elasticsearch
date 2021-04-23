@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ccr;
 
@@ -114,9 +115,8 @@ public class AutoFollowStats implements Writeable, ToXContentObject {
         numberOfFailedFollowIndices = in.readVLong();
         numberOfFailedRemoteClusterStateRequests = in.readVLong();
         numberOfSuccessfulFollowIndices = in.readVLong();
-        // note: the casts to the following Writeable.Reader<T> instances are needed by some IDEs (e.g. Eclipse 4.8) as a compiler help
-        recentAutoFollowErrors = new TreeMap<>(in.readMap(StreamInput::readString,
-            in1 -> new Tuple<>(in1.readZLong(), in1.readException())));
+        recentAutoFollowErrors = new TreeMap<>(
+                in.readMap(StreamInput::readString, in1 -> new Tuple<>(in1.readZLong(), in1.readException())));
         autoFollowedClusters = new TreeMap<>(in.readMap(StreamInput::readString, AutoFollowedCluster::new));
     }
 

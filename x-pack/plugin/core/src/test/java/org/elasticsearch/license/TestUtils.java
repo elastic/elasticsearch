@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -360,21 +361,23 @@ public class TestUtils {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
         public final List<Version> trialVersionUpdates = new ArrayList<>();
+        public final List<Long> expirationDateUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY);
+            super(Settings.EMPTY, () -> 0);
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
+        void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
+            expirationDateUpdates.add(expirationDate);
             trialVersionUpdates.add(mostRecentTrialVersion);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean, Version)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, long, Version)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -383,16 +386,20 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings);
+            super(settings, () -> 0);
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
-            super.update(mode, active, mostRecentTrialVersion);
+        public void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
+            super.update(mode, active, expirationDate, mostRecentTrialVersion);
         }
     }
 
-    public static void putLicense(MetaData.Builder builder, License license) {
-        builder.putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license, null));
+    public static XPackLicenseState newTestLicenseState() {
+        return new XPackLicenseState(Settings.EMPTY, () -> 0);
+    }
+
+    public static void putLicense(Metadata.Builder builder, License license) {
+        builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
     }
 }

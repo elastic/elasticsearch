@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.analytics;
@@ -24,18 +13,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -50,16 +38,16 @@ import java.util.Objects;
  * doesn't support any "server" side things like
  * {@linkplain Writeable#writeTo(StreamOutput)},
  * {@linkplain AggregationBuilder#rewrite(QueryRewriteContext)}, or
- * {@linkplain AbstractAggregationBuilder#build(QueryShardContext, AggregatorFactory)}.
+ * {@linkplain AbstractAggregationBuilder#build(AggregationContext, AggregatorFactory)}.
  */
-public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, StringStatsAggregationBuilder> {
+public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilder<StringStatsAggregationBuilder> {
     public static final String NAME = "string_stats";
     private static final ParseField SHOW_DISTRIBUTION_FIELD = new ParseField("show_distribution");
 
     private boolean showDistribution = false;
 
     public StringStatsAggregationBuilder(String name) {
-        super(name, CoreValuesSourceType.BYTES, ValueType.STRING);
+        super(name);
     }
 
     /**
@@ -72,8 +60,19 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
+    protected ValuesSourceType defaultValueSourceType() {
+        return CoreValuesSourceType.KEYWORD;
+    }
+
+    @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        // This would be called from the same thing that calls innerBuild, which also throws.  So it's "safe" to throw here.
+        throw new UnsupportedOperationException();
     }
 
     @Override
@@ -87,13 +86,18 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Bytes> innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig<Bytes> config,
-            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+    public BucketCardinality bucketCardinality() {
+        return BucketCardinality.NONE;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
+        AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
+    protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         throw new UnsupportedOperationException();
     }
 

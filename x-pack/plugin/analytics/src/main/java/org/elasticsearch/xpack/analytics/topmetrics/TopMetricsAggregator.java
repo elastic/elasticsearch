@@ -1,35 +1,50 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xpack.analytics.topmetrics.InternalTopMetrics.MetricValue;
+import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.REGISTRY_KEY;
 
 /**
  * Collects the {@code top_metrics} aggregation, which functions like a memory
@@ -50,20 +65,25 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     private final BucketedSort sort;
     private final Metrics metrics;
 
-    TopMetricsAggregator(String name, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData, int size,
-            SortBuilder<?> sort, List<String> metricNames, List<ValuesSource.Numeric> metricValuesSources) throws IOException {
-        super(name, context, parent, pipelineAggregators, metaData);
+    TopMetricsAggregator(
+        String name,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata,
+        int size,
+        SortBuilder<?> sort,
+        MetricValues[] metricValues
+    ) throws IOException {
+        super(name, context, parent, metadata);
         this.size = size;
-        assert metricNames.size() == metricValuesSources.size();
-        metrics = new Metrics(size, context.getQueryShardContext(), metricNames, metricValuesSources);
+        this.metrics = new TopMetricsAggregator.Metrics(metricValues);
         /*
          * If we're only collecting a single value then only provided *that*
          * value to the sort so that swaps and loads are just a little faster
          * in that *very* common case.
          */
-        BucketedSort.ExtraData values = metricValuesSources.size() == 1 ? metrics.values[0] : metrics;
-        this.sort = sort.buildBucketedSort(context.getQueryShardContext(), size, values);
+        BucketedSort.ExtraData values = metrics.values.length == 1 ? metrics.values[0] : metrics;
+        this.sort = context.buildBucketedSort(sort, size, values);
     }
 
     @Override
@@ -71,7 +91,12 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         if (size != 1) {
             throw new IllegalArgumentException("[top_metrics] can only the be target if [size] is [1] but was [" + size + "]");
         }
-        return metrics.names.contains(name);
+        for (MetricValues values : metrics.values) {
+            if (values.name.equals(name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -94,7 +119,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        assert sub == LeafBucketCollector.NO_OP_COLLECTOR : "Expected noop but was " + sub.toString();
+        assert sub.isNoop() : "Expected noop but was " + sub.toString();
 
         BucketedSort.Leaf leafSort = sort.forLeaf(ctx);
 
@@ -115,12 +140,12 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     public InternalAggregation buildAggregation(long bucket) throws IOException {
         List<InternalTopMetrics.TopMetric> topMetrics = sort.getValues(bucket, metrics.resultBuilder(sort.getFormat()));
         assert topMetrics.size() <= size;
-        return new InternalTopMetrics(name, sort.getOrder(), metrics.names, size, topMetrics, pipelineAggregators(), metaData());
+        return new InternalTopMetrics(name, sort.getOrder(), metrics.names(), size, topMetrics, metadata());
     }
 
     @Override
     public InternalTopMetrics buildEmptyAggregation() {
-        return InternalTopMetrics.buildEmptyAggregation(name, metrics.names, pipelineAggregators(), metaData());
+        return InternalTopMetrics.buildEmptyAggregation(name, metrics.names(), metadata());
     }
 
     @Override
@@ -128,21 +153,11 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         Releasables.close(sort, metrics);
     }
 
-    private static class Metrics implements BucketedSort.ExtraData, Releasable {
-        private final List<String> names;
+    static class Metrics implements BucketedSort.ExtraData, Releasable {
         private final MetricValues[] values;
 
-        Metrics(int size, QueryShardContext ctx, List<String> names, List<ValuesSource.Numeric> valuesSources) {
-            this.names = names; 
-            values = new MetricValues[valuesSources.size()];
-            int i = 0;
-            for (ValuesSource.Numeric valuesSource : valuesSources) {
-                if (valuesSource == null) {
-                    values[i++] = new MissingMetricValues();
-                    continue;
-                }
-                values[i++] = new CollectMetricValues(size, ctx.bigArrays(), valuesSource);
-            }
+        Metrics(MetricValues[] values) {
+            this.values = values;
         }
 
         boolean needsScores() {
@@ -155,21 +170,26 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         double metric(String name, long index) {
-            int valueIndex = names.indexOf(name);
-            if (valueIndex < 0) {
-                throw new IllegalArgumentException("[" + name + "] not found");
+            for (MetricValues value : values) {
+                if (value.name.equals(name)) {
+                    return value.doubleValue(index);
+                }
             }
-            return values[valueIndex].value(index);
+            throw new IllegalArgumentException("[" + name + "] not found");
         }
 
         BucketedSort.ResultBuilder<InternalTopMetrics.TopMetric> resultBuilder(DocValueFormat sortFormat) {
             return (index, sortValue) -> {
-                double[] result = new double[values.length];
+                List<InternalTopMetrics.MetricValue> result = new ArrayList<>(values.length);
                 for (int i = 0; i < values.length; i++) {
-                    result[i] = values[i].value(index);
+                    result.add(values[i].metricValue(index));
                 }
                 return new InternalTopMetrics.TopMetric(sortFormat, sortValue, result);
             };
+        }
+
+        List<String> names() {
+            return Arrays.stream(values).map(v -> v.name).collect(toList());
         }
 
         @Override
@@ -198,30 +218,88 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
     }
 
-    private interface MetricValues extends BucketedSort.ExtraData, Releasable {
-        boolean needsScores();
-        double value(long index);
+    @FunctionalInterface
+    interface MetricValuesSupplier {
+        MetricValues build(int size, BigArrays bigArrays, String name, ValuesSourceConfig config);
     }
-    private static class CollectMetricValues implements MetricValues {
-        private final BigArrays bigArrays;
-        private final ValuesSource.Numeric metricValueSource;
 
+    abstract static class MetricValues implements BucketedSort.ExtraData, Releasable {
+        protected final String name;
+
+        MetricValues(String name) {
+            this.name = name;
+        }
+
+        abstract boolean needsScores();
+        abstract double doubleValue(long index);
+        abstract InternalTopMetrics.MetricValue metricValue(long index) throws IOException;
+    }
+
+    private abstract static class CollectingMetricValues extends MetricValues {
+        protected final BigArrays bigArrays;
+        protected final ValuesSourceConfig config;
+
+        CollectingMetricValues(BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(name);
+            this.bigArrays = bigArrays;
+            this.config = config;
+        }
+
+        @Override
+        public final boolean needsScores() {
+            return config.getValuesSource().needsScores();
+        }
+    }
+
+    static MetricValues buildMetricValues(
+        ValuesSourceRegistry registry,
+        BigArrays bigArrays,
+        int size,
+        String name,
+        ValuesSourceConfig config
+    ) {
+        if (false == config.hasValues()) {
+            // `config` doesn't have the name if the
+            return new AlwaysNullMetricValues(name);
+        }
+        MetricValuesSupplier supplier = registry.getAggregator(REGISTRY_KEY, config);
+        return supplier.build(size, bigArrays, name, config);
+    }
+
+    static MetricValues buildNumericMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+        ValuesSource.Numeric numeric = (ValuesSource.Numeric) config.getValuesSource();
+        if (numeric.isFloatingPoint()) {
+            return new DoubleMetricValues(size, bigArrays, name, config);
+        }
+        return new LongMetricValues(size, bigArrays, name, config);
+    }
+
+    /**
+     * Loads metrics for floating point numbers.
+     */
+    static class DoubleMetricValues extends CollectingMetricValues {
+        private final ValuesSource.Numeric valuesSource;
         private DoubleArray values;
 
-        CollectMetricValues(int size, BigArrays bigArrays, ValuesSource.Numeric metricValueSource) {
-            this.bigArrays = bigArrays;
-            this.metricValueSource = metricValueSource;
+        DoubleMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(bigArrays, name, config);
+            valuesSource = (ValuesSource.Numeric) config.getValuesSource();
             values = bigArrays.newDoubleArray(size, false);
         }
 
         @Override
-        public boolean needsScores() {
-            return metricValueSource.needsScores();
+        public double doubleValue(long index) {
+            return values.get(index);
         }
 
         @Override
-        public double value(long index) {
-            return values.get(index);
+        public MetricValue metricValue(long index) {
+            double value = values.get(index);
+            if (Double.isNaN(value)) {
+                // Use NaN as a sentinel for "missing"
+                return null;
+            }
+            return new MetricValue(config.format(), SortValue.from(value));
         }
 
         @Override
@@ -234,12 +312,13 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         @Override
         public Loader loader(LeafReaderContext ctx) throws IOException {
             // TODO allow configuration of value mode
-            NumericDoubleValues metricValues = MultiValueMode.AVG.select(metricValueSource.doubleValues(ctx));
+            NumericDoubleValues metricValues = MultiValueMode.AVG.select(valuesSource.doubleValues(ctx));
             return (index, doc) -> {
                 if (index >= values.size()) {
                     values = bigArrays.grow(values, index + 1);
                 }
-                double metricValue = metricValues.advanceExact(doc) ? metricValues.doubleValue() : Double.NaN; 
+                // Use NaN as a sentinel for "missing"
+                double metricValue = metricValues.advanceExact(doc) ? metricValues.doubleValue() : Double.NaN;
                 values.set(index, metricValue);
             };
         }
@@ -249,10 +328,172 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
             values.close();
         }
     }
-    private static class MissingMetricValues implements MetricValues {
+
+    /**
+     * Loads metrics for whole numbers.
+     */
+    static class LongMetricValues extends CollectingMetricValues {
+        private final ValuesSource.Numeric valuesSource;
+        /**
+         * Tracks "missing" values in a {@link BitArray}. Unlike
+         * {@link DoubleMetricValues}, we there isn't a sentinel value
+         * that we can steel from the longs to represent missing that
+         * won't lead to more trouble than it is worth. So we track
+         * "missing" values explicitly.
+         */
+        private final MissingHelper empty;
+        private LongArray values;
+
+        LongMetricValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(bigArrays, name, config);
+            valuesSource = (ValuesSource.Numeric) config.getValuesSource();
+            empty = new MissingHelper(bigArrays);
+            values = bigArrays.newLongArray(size, false);
+        }
+
         @Override
-        public double value(long index) {
+        public double doubleValue(long index) {
+            if (empty.isEmpty(index)) {
+                return Double.NaN;
+            }
+            return values.get(index);
+        }
+
+        @Override
+        public MetricValue metricValue(long index) {
+            if (empty.isEmpty(index)) {
+                return null;
+            }
+            return new MetricValue(config.format(), SortValue.from(values.get(index)));
+        }
+
+        @Override
+        public void swap(long lhs, long rhs) {
+            long tmp = values.get(lhs);
+            values.set(lhs, values.get(rhs));
+            values.set(rhs, tmp);
+            empty.swap(lhs, rhs);
+        }
+
+        @Override
+        public Loader loader(LeafReaderContext ctx) throws IOException {
+            // TODO allow configuration of value mode
+            NumericDocValues metricValues = MultiValueMode.AVG.select(valuesSource.longValues(ctx));
+            return (index, doc) -> {
+                if (false == metricValues.advanceExact(doc)) {
+                    empty.markMissing(index);
+                    return;
+                }
+                if (index >= values.size()) {
+                    values = bigArrays.grow(values, index + 1);
+                }
+                values.set(index, metricValues.longValue());
+                empty.markNotMissing(index);
+            };
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(values, empty);
+        }
+    }
+
+    /**
+     * Loads metrics fields with segment ordinals.
+     */
+    static class SegmentOrdsValues extends CollectingMetricValues {
+        private final ValuesSource.Bytes.WithOrdinals valuesSource;
+        /**
+         * Reference to the segment's doc values so we can convert the
+         * {@link #segmentOrds} into strings on the way out.
+         */
+        private ObjectArray<SortedSetDocValues> segmentResolve;
+        /**
+         * Terms ordinal in the segment.
+         */
+        private LongArray segmentOrds;
+
+        SegmentOrdsValues(int size, BigArrays bigArrays, String name, ValuesSourceConfig config) {
+            super(bigArrays, name, config);
+            if (false == config.hasOrdinals()) {
+                throw new IllegalArgumentException(
+                    "top_metrics can only collect bytes that have segment ordinals but " + config.getDescription() + " does not"
+                );
+            }
+            valuesSource = (ValuesSource.Bytes.WithOrdinals) config.getValuesSource();
+            segmentResolve = bigArrays.newObjectArray(size);
+            segmentOrds = bigArrays.newLongArray(size, false);
+        }
+
+        @Override
+        public double doubleValue(long index) {
+            throw new IllegalArgumentException("pipeline aggregations may not refer to non-numeric metrics collected by top_metrics");
+        }
+
+        @Override
+        public MetricValue metricValue(long index) throws IOException {
+            long ord = segmentOrds.get(index);
+            if (ord == -1) {
+                return null;
+            }
+            SortedSetDocValues resolve = segmentResolve.get(index);
+            return new MetricValue(config.format(), SortValue.from(BytesRef.deepCopyOf(resolve.lookupOrd(ord))));
+        }
+
+        @Override
+        public void swap(long lhs, long rhs) {
+            SortedSetDocValues tempSegmentResolve = segmentResolve.get(lhs);
+            segmentResolve.set(lhs, segmentResolve.get(rhs));
+            segmentResolve.set(rhs, tempSegmentResolve);
+            long tmpSegmentOrd = segmentOrds.get(lhs);
+            segmentOrds.set(lhs, segmentOrds.get(rhs));
+            segmentOrds.set(rhs, tmpSegmentOrd);
+        }
+
+        @Override
+        public Loader loader(LeafReaderContext ctx) throws IOException {
+            SortedSetDocValues segmentOrdValues = valuesSource.ordinalsValues(ctx);
+            // For now just return the value that sorts first.
+            return (index, doc) -> {
+                if (index >= segmentResolve.size()) {
+                    segmentResolve = bigArrays.grow(segmentResolve, index + 1);
+                }
+                if (index >= segmentOrds.size()) {
+                    segmentOrds = bigArrays.grow(segmentOrds, index + 1);
+                }
+                if (false == segmentOrdValues.advanceExact(doc)) {
+                    segmentResolve.set(index, null);
+                    segmentOrds.set(index, -1);
+                    return;
+                }
+                segmentResolve.set(index, segmentOrdValues);
+                segmentOrds.set(index, segmentOrdValues.nextOrd());
+            };
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(segmentResolve, segmentOrds);
+        }
+    }
+
+    /**
+     * {@linkplain MetricValues} implementation for unmapped fields
+     * that always returns {@code null} or {@code NaN}.
+     */
+    static class AlwaysNullMetricValues extends MetricValues {
+        AlwaysNullMetricValues(String name) {
+            super(name);
+        }
+
+        @Override
+        public double doubleValue(long index) {
             return Double.NaN;
+        }
+
+        @Override
+        public MetricValue metricValue(long index) {
+            return null;
         }
 
         @Override
@@ -269,7 +510,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
         }
 
         @Override
-        public void close() {
-        }
+        public void close() {}
     }
+
 }

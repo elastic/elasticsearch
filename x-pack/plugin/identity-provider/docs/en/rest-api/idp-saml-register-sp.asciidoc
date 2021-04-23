@@ -1,0 +1,102 @@
+[role="xpack"]
+[[idp-saml-register-sp]]
+=== Register or update a SAML service provider
+++++
+<titleabbrev>Register or update a SAML service provider</titleabbrev>
+++++
+Registers a SAML service provider for use with this Identity Provider or updates the configuration of an existing one.
+
+[[idp-saml-register-sp-request]]
+==== {api-request-title}
+
+`POST /_idp/saml/sp/{sp_entity_id}` +
+`PUT  /_idp/saml/sp/{sp_entity_id}`
+
+[[idp-saml-register-sp-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have a role that grants the `cluster:admin/idp/saml/sp` privilege.
+
+[[idp-saml-register-desc]]
+==== {api-description-title}
+
+This API registers a Service Provider with the Identity Provider and sets the necessary configuration options for that SP.
+
+
+[[idp-saml-register-sp-path-params]]
+==== {api-path-parms-title}
+
+`sp_entity_id`::
+(string) The SAML entity Id of the service provider to be registered or updated. In case the entity Id is a URL, it should be urlencoded.
+
+[[idp-saml-register-sp-params]]
+==== {api-query-parms-title}
+
+`refresh`::
+(Optional, string) One of `true`, `false`, or `wait_for`.
+These values have the same meaning as in the <<docs-refresh, Index API>>,
+but the default value for this API is `false`.
+
+[[idp-saml-register-sp-body]]
+==== {api-request-body-title}
+
+The following parameters can be specified in the body of a POST or PUT request:
+
+`name`::
+(Required, string) A name to identify this service provider. Used only for informational purposes
+
+`entity_id`::
+(Optional, string) The SAML entity Id of the service provider. If not set, it will be populated with the value from the URL parameter.
+If set, it must match the value that is passed in the URL parameter.
+
+`acs`::
+(Required, string) The assertion consumer service URL of the service provider.
+
+`enabled`::
+(Optional, Boolean) Defines whether this service provider is enabled or not. Defaults to `true`.
+
+`name_id_format`::
+(Optional, string) The SAML NameID Format that this service provider wants the NameIDs of the authenticating users to have in the SAML
+Responses it receives. Defaults to an empty string, in which case the IDP default value will be used. Currently, only
+`urn:oasis:names:tc:SAML:2.0:nameid-format:transient` is supported.
+
+`sign_messages`::
+(Optional, array) The types of messages that this service provider will sign. Permitted values are `authn`, `logout`. Defaults to no
+values.
+
+`authn_expiry_ms`::
+(Optional, long) The duration (in milliseconds) of the validity of the SAML assertion as it is encoded in the `<Conditions>` element.
+Defaults to the IDP default value which is 30000 ( 5 min ).
+
+`privileges`::
+(Required, object)
+
+`attributes`::
+(Required, object) The names of the SAML Attributes that the IDP should use in the SAML response for the values of the following
+elasticsearch user properties : `principal`, `name`, `email` and the deduced roles based on the privileges configured.
+The SAML Attribute name for `principal` is required.
+
+[[idp-saml-register-example]]
+==== {api-examples-title}
+
+The following example registers a service provider for use with the identity provider
+
+[source, console]
+--------------------------------------------------------------------
+POST /_idp/saml/sp/https%3A%2F%2Fsome.sp.org%2F
+{
+  "name" : "My Service Provider",
+  "entity_id" : "https://some.sp.org/",
+  "acs" : "https://some.sp.org/saml/acs",
+  "privilegs" : {
+    "resource" : "https://some.sp.org/",
+    "roles" : {
+       "administrator": "sso:administrator"
+    }
+  },
+  "attributes" : {
+    "principal" : "urn:oid:0.9.2342.19200300.100.1.1"
+  }
+}
+--------------------------------------------------------------------
+// TEST[skip:Do not enable identity provider for the docs cluster, at least not yet]

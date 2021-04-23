@@ -107,7 +107,7 @@ CONCAT(
 
 *Output*: string
 
-*Description*: Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`. If one of the string is `NULL`, the other string will be returned.
+*Description*: Returns a character string that is the result of concatenating `string_exp1` to `string_exp2`. `NULL` input strings are treated as empty strings.
 
 [source, sql]
 --------------------------------------------------
@@ -228,7 +228,7 @@ LOCATE(
 
 *Output*: integer
 
-*Description*: Returns the starting position of the first occurrence of `pattern` within `source`. The search for the first occurrence of `pattern` begins with the first character position in `source` unless the optional argument, `start`, is specified. If `start` is specified, the search begins with the character position indicated by the value of `start`. The first character position in `source` is indicated by the value 1. If `pattern` is not found within `source`, the value 0 is returned.
+*Description*: Returns the starting position of the first occurrence of `pattern` within `source`. The optional `start` specifies the character position to start the search with. The first character position in `source` is indicated by the value 1. Not specifying `start` or specifying it as `NULL`, any negative value, 0 or 1, starts the search at the first character position. If `pattern` is not found within `source`, the value 0 is returned.
 
 [source, sql]
 --------------------------------------------------
@@ -422,6 +422,36 @@ SPACE(count) <1>
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringSpace]
 --------------------------------------------------
 
+[[sql-functions-string-startswith]]
+==== `STARTS_WITH`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+STARTS_WITH(
+    source,   <1>
+    pattern)  <2>
+--------------------------------------------------
+*Input*:
+
+<1> string expression
+<2> string expression
+
+*Output*: boolean value
+
+*Description*: Returns `true` if the source expression starts with the specified pattern, `false` otherwise. The matching is case sensitive.
+If either parameters is `null`, the function returns `null`.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringStartsWithTrue]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringStartsWithFalse]
+--------------------------------------------------
+
 [[sql-functions-string-substring]]
 ==== `SUBSTRING`
 
@@ -446,6 +476,26 @@ SUBSTRING(
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringSubString]
+--------------------------------------------------
+[[sql-functions-string-trim]]
+==== `TRIM`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TRIM(string_exp) <1>
+--------------------------------------------------
+*Input*:
+
+<1> string expression
+
+*Output*: string
+
+*Description*: Returns the characters of `string_exp`, with leading and trailing blanks removed.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[stringTrim]
 --------------------------------------------------
 
 [[sql-functions-string-ucase]]

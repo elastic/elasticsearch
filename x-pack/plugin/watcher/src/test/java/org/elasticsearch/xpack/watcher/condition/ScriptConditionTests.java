@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.condition;
 
@@ -12,7 +13,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,7 +24,7 @@ import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptMetaData;
+import org.elasticsearch.script.ScriptMetadata;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -31,7 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 import org.junit.Before;
 
@@ -69,7 +69,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         scripts.put("null.foo", s -> {
             throw new ScriptException("Error evaluating null.foo", new IllegalArgumentException(), emptyList(),
-                    "null.foo", AbstractWatcherIntegrationTestCase.WATCHER_LANG);
+                    "null.foo", Script.DEFAULT_SCRIPT_LANG);
         });
 
         scripts.put("ctx.payload.hits.total.value > 1", vars -> {
@@ -86,7 +86,7 @@ public class ScriptConditionTests extends ESTestCase {
         scriptService = WatcherMockScriptPlugin.newMockScriptService(scripts);
 
         ClusterState.Builder clusterState = new ClusterState.Builder(new ClusterName("_name"));
-        clusterState.metaData(MetaData.builder().putCustom(ScriptMetaData.TYPE, new ScriptMetaData.Builder(null).build()));
+        clusterState.metadata(Metadata.builder().putCustom(ScriptMetadata.TYPE, new ScriptMetadata.Builder(null).build()));
         ClusterState cs = clusterState.build();
         scriptService.applyClusterState(new ClusterChangedEvent("_source", cs, cs));
     }

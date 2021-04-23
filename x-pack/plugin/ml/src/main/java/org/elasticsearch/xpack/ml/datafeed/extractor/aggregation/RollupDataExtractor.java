@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
@@ -28,6 +29,7 @@ class RollupDataExtractor extends AbstractAggregationDataExtractor<RollupSearchA
     protected RollupSearchAction.RequestBuilder buildSearchRequest(SearchSourceBuilder searchSourceBuilder) {
         SearchRequest searchRequest = new SearchRequest().indices(context.indices)
             .indicesOptions(context.indicesOptions)
+            .allowPartialSearchResults(false)
             .source(searchSourceBuilder);
 
         return new RollupSearchAction.RequestBuilder(client, searchRequest);

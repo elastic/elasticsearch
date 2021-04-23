@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.monitoring.exporter.http;
@@ -26,6 +27,16 @@ class AsyncHttpResourceHelper {
     @SuppressWarnings("unchecked")
     static ActionListener<Boolean> mockBooleanActionListener() {
         return mock(ActionListener.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    static ActionListener<HttpResource.ResourcePublishResult> mockPublishResultActionListener() {
+        return mock(ActionListener.class);
+    }
+
+    static <T> ActionListener<T> wrapMockListener(ActionListener<T> mock) {
+        // wraps the mock listener so that default functions on the ActionListener interface can be used
+        return ActionListener.wrap(mock::onResponse, mock::onFailure);
     }
 
     static void whenPerformRequestAsyncWith(final RestClient client, final Response response) {

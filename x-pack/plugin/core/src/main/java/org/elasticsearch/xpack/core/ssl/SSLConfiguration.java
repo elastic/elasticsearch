@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
@@ -18,6 +19,7 @@ import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings.getKeyStoreType;
 
@@ -38,6 +40,7 @@ public final class SSLConfiguration {
     private final List<String> supportedProtocols;
     private final SSLClientAuth sslClientAuth;
     private final VerificationMode verificationMode;
+    private final boolean explicitlyConfigured;
 
     /**
      * Creates a new SSLConfiguration from the given settings. There is no fallback configuration when invoking this constructor so
@@ -52,6 +55,7 @@ public final class SSLConfiguration {
         this.supportedProtocols = getListOrDefault(SETTINGS_PARSER.supportedProtocols, settings, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
         this.sslClientAuth = SETTINGS_PARSER.clientAuth.get(settings).orElse(XPackSettings.CLIENT_AUTH_DEFAULT);
         this.verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
+        this.explicitlyConfigured = settings.isEmpty() == false;
     }
 
     /**
@@ -108,6 +112,10 @@ public final class SSLConfiguration {
         return paths;
     }
 
+    public boolean isExplicitlyConfigured() {
+        return explicitlyConfigured;
+    }
+
     @Override
     public String toString() {
         return "SSLConfiguration{" +
@@ -123,30 +131,16 @@ public final class SSLConfiguration {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof SSLConfiguration)) return false;
+        if ((o instanceof SSLConfiguration) == false) return false;
 
         SSLConfiguration that = (SSLConfiguration) o;
 
-        if (this.keyConfig() != null ? !this.keyConfig().equals(that.keyConfig()) : that.keyConfig() != null) {
-            return false;
-        }
-        if (this.trustConfig() != null ? !this.trustConfig().equals(that.trustConfig()) : that.trustConfig() != null) {
-            return false;
-        }
-        if (this.cipherSuites() != null ? !this.cipherSuites().equals(that.cipherSuites()) : that.cipherSuites() != null) {
-            return false;
-        }
-        if (!this.supportedProtocols().equals(that.supportedProtocols())) {
-            return false;
-        }
-        if (this.verificationMode() != that.verificationMode()) {
-            return false;
-        }
-        if (this.sslClientAuth() != that.sslClientAuth()) {
-            return false;
-        }
-        return this.supportedProtocols() != null ?
-                this.supportedProtocols().equals(that.supportedProtocols()) : that.supportedProtocols() == null;
+        return Objects.equals(this.keyConfig(), that.keyConfig())
+            && Objects.equals(this.trustConfig(), that.trustConfig())
+            && Objects.equals(this.cipherSuites(), that.cipherSuites())
+            && Objects.equals(this.supportedProtocols(), that.supportedProtocols())
+            && Objects.equals(this.verificationMode(), that.verificationMode())
+            && Objects.equals(this.sslClientAuth(), that.sslClientAuth());
     }
 
     @Override

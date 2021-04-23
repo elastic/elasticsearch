@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
@@ -32,7 +21,7 @@ import java.io.IOException;
 
 abstract class OutboundMessage extends NetworkMessage {
 
-    private final Writeable message;
+    protected final Writeable message;
 
     OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
         super(threadContext, version, status, requestId);
@@ -40,7 +29,6 @@ abstract class OutboundMessage extends NetworkMessage {
     }
 
     BytesReference serialize(BytesStreamOutput bytesStream) throws IOException {
-        storedContext.restore();
         bytesStream.setVersion(version);
         bytesStream.skip(TcpHeader.headerSize(version));
 
@@ -54,9 +42,9 @@ abstract class OutboundMessage extends NetworkMessage {
             variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
         }
 
-        try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
-            assert stream.getVersion().equals(version) :
-                "Stream version [" + stream.getVersion() + "] does not match version [" + version + "]";
+        try (CompressibleBytesOutputStream stream =
+                 new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
+            stream.setVersion(version);
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
@@ -95,7 +83,7 @@ abstract class OutboundMessage extends NetworkMessage {
         if (zeroCopyBuffer.length() == 0) {
             return message;
         } else {
-            return new CompositeBytesReference(message, zeroCopyBuffer);
+            return CompositeBytesReference.of(message, zeroCopyBuffer);
         }
     }
 
@@ -131,6 +119,12 @@ abstract class OutboundMessage extends NetworkMessage {
 
             return status;
         }
+
+
+        @Override
+        public String toString() {
+            return "Request{" + action + "}{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}";
+        }
     }
 
     static class Response extends OutboundMessage {
@@ -153,6 +147,12 @@ abstract class OutboundMessage extends NetworkMessage {
             }
 
             return status;
+        }
+
+        @Override
+        public String toString() {
+            return "Response{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}{"
+                    + message.getClass() + "}";
         }
     }
 

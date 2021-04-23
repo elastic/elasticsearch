@@ -1,0 +1,175 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 2 #Two shards proves that we route properly
+          mappings:
+            properties:
+              join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
+              id: { "type": "keyword" }
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": {"_id": "1"}}'
+          - '{ "tag": "bump", "subject": "surprises", "join_field": { "name": "parent" } }'
+          - '{ "index": {"_id": "2"}}'
+          - '{ "tag": "jumble", "subject": "critters", "join_field": { "name": "parent" } }'
+          - '{ "index": {"_id": "3", "routing": "1"}}'
+          - '{ "animal": "dog", "sound": "woof", "join_field": { "name": "child", "parent": "1" } }'
+          - '{ "index": {"_id": "4", "routing": "1"}}'
+          - '{ "animal": "cat", "sound": "meow", "join_field": { "name": "child", "parent": "1" } }'
+          - '{ "index": {"_id": "5", "routing": "2"}}'
+          - '{ "animal": "dog", "sound": "yap", "join_field": { "name": "child", "parent": "2" } }'
+          - '{ "index": {"_id": "6", "routing": "1"}}'
+          - '{ "join_field": { "name": "grand_child", "parent": "5" } }'
+
+---
+unconfigured:
+  - do:
+      index:
+        index: test_unconfigured
+        refresh: true
+        body:
+          join:
+            name: question
+          body: <p>I have Windows 2003 server and i bought a new Windows 2008 server...,
+          title: Whats the best way to file transfer my site from server to a newer one?,
+          tags: [windows-server-2003, windows-server-2008, file-transfer]
+
+  - do:
+      search:
+        index: test_unconfigured
+        body:
+          size: 0
+          aggs:
+            to-answers:
+              children:
+                type: answer
+  - match: { hits.total.value: 1 }
+  - match: { aggregations.to-answers.doc_count: 0 }
+
+---
+children:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            children:
+              children:
+                type: child
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.children.doc_count: 3 }
+
+---
+children cardinality:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            children:
+              children:
+                type: child
+              aggs:
+                cardinality:
+                  cardinality:
+                    field: animal.keyword
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.children.doc_count: 3 }
+  - match: { aggregations.children.cardinality.value: 2 }
+
+---
+children terms terms:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            children:
+              children:
+                type: child
+              aggs:
+                animal:
+                  terms:
+                    collect_mode: breadth_first
+                    field: animal.keyword
+                  aggs:
+                    sound:
+                      terms:
+                        field: sound.keyword
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.children.doc_count: 3 }
+  - match: { aggregations.children.animal.buckets.0.key: dog }
+  - match: { aggregations.children.animal.buckets.0.sound.buckets.0.key: woof }
+  - match: { aggregations.children.animal.buckets.0.sound.buckets.1.key: yap }
+  - match: { aggregations.children.animal.buckets.1.key: cat }
+  - match: { aggregations.children.animal.buckets.1.sound.buckets.0.key: meow }
+
+---
+parent:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            parent:
+              parent:
+                type: child
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.parent.doc_count: 2 }
+
+---
+parent cardinality:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            parent:
+              parent:
+                type: child
+              aggs:
+                cardinality:
+                  cardinality:
+                    field: tag.keyword
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.parent.doc_count: 2 }
+  - match: { aggregations.parent.cardinality.value: 2 }
+
+---
+parent terms terms:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            parent:
+              parent:
+                type: child
+              aggs:
+                tag:
+                  terms:
+                    collect_mode: breadth_first
+                    field: tag.keyword
+                  aggs:
+                    subject:
+                      terms:
+                        field: subject.keyword
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.parent.doc_count: 2 }
+  - match: { aggregations.parent.tag.buckets.0.key: bump }
+  - match: { aggregations.parent.tag.buckets.0.subject.buckets.0.key: surprises }
+  - match: { aggregations.parent.tag.buckets.1.key: jumble }
+  - match: { aggregations.parent.tag.buckets.1.subject.buckets.0.key: critters }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 
@@ -48,18 +49,6 @@ public class CaseProcessor implements Processor {
         }
         // resort to default value
         return processors.get(processors.size() - 1).process(input);
-    }
-
-    public static Object apply(List<Object> objects) {
-        // Check every condition in sequence and if it evaluates to TRUE,
-        // evaluate and return the result associated with that condition.
-        for (int i = 0; i < objects.size() - 2; i += 2) {
-            if (objects.get(i) == Boolean.TRUE) {
-                return objects.get(i + 1);
-            }
-        }
-        // resort to default value
-        return objects.get(objects.size() - 1);
     }
 
     @Override

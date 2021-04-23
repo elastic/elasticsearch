@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
@@ -20,14 +22,13 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AutodetectControlMsgWriter;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
+import org.elasticsearch.xpack.ml.process.ProcessPipes;
 import org.elasticsearch.xpack.ml.process.ProcessResultsParser;
 import org.elasticsearch.xpack.ml.process.NativeController;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -43,12 +44,10 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
 
     private final ProcessResultsParser<AutodetectResult> resultsParser;
 
-    NativeAutodetectProcess(String jobId, NativeController nativeController, InputStream logStream, OutputStream processInStream,
-                            InputStream processOutStream, OutputStream processRestoreStream, int numberOfFields, List<Path> filesToDelete,
-                            ProcessResultsParser<AutodetectResult> resultsParser, Consumer<String> onProcessCrash,
-                            Duration processConnectTimeout) {
-        super(jobId, nativeController, logStream, processInStream, processOutStream, processRestoreStream, numberOfFields, filesToDelete,
-            onProcessCrash, processConnectTimeout);
+    NativeAutodetectProcess(String jobId, NativeController nativeController, ProcessPipes processPipes,
+                            int numberOfFields, List<Path> filesToDelete, ProcessResultsParser<AutodetectResult> resultsParser,
+                            Consumer<String> onProcessCrash) {
+        super(jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash);
         this.resultsParser = resultsParser;
     }
 
@@ -80,6 +79,12 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
     @Override
     public void writeUpdateModelPlotMessage(ModelPlotConfig modelPlotConfig) throws IOException {
         newMessageWriter().writeUpdateModelPlotMessage(modelPlotConfig);
+    }
+
+    @Override
+    public void writeUpdatePerPartitionCategorizationMessage(PerPartitionCategorizationConfig perPartitionCategorizationConfig)
+        throws IOException {
+        newMessageWriter().writeCategorizationStopOnWarnMessage(perPartitionCategorizationConfig.isStopOnWarn());
     }
 
     @Override
@@ -121,5 +126,10 @@ class NativeAutodetectProcess extends AbstractNativeProcess implements Autodetec
 
     private AutodetectControlMsgWriter newMessageWriter() {
         return new AutodetectControlMsgWriter(recordWriter(), numberOfFields());
+    }
+
+    @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) throws IOException {
+        newMessageWriter().writeStartBackgroundPersistMessage(snapshotTimestamp, snapshotId, snapshotDescription);
     }
 }

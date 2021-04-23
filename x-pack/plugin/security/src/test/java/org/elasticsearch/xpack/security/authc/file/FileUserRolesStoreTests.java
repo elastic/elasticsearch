@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.file;
 
@@ -79,9 +80,10 @@ public class FileUserRolesStoreTests extends ESTestCase {
         RealmConfig config = new RealmConfig(realmId,
             Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build(),
             env, new ThreadContext(Settings.EMPTY));
-        ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
-        assertThat(store.entriesCount(), is(0));
+        try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
+            FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
+            assertThat(store.entriesCount(), is(0));
+        }
     }
 
     public void testStoreAutoReload() throws Exception {
@@ -89,48 +91,46 @@ public class FileUserRolesStoreTests extends ESTestCase {
         Path tmp = getUsersRolesPath();
         Files.copy(users, tmp, StandardCopyOption.REPLACE_EXISTING);
 
-
         final RealmConfig.RealmIdentifier realmId = new RealmConfig.RealmIdentifier("file", "file-test");
         RealmConfig config = new RealmConfig(realmId,
             Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build(),
             env, new ThreadContext(Settings.EMPTY));
-        ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        final CountDownLatch latch = new CountDownLatch(1);
+        try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
+            final CountDownLatch latch = new CountDownLatch(1);
 
-        FileUserRolesStore store = new FileUserRolesStore(config, watcherService, latch::countDown);
+            FileUserRolesStore store = new FileUserRolesStore(config, watcherService, latch::countDown);
 
-        String[] roles = store.roles("user1");
-        assertThat(roles, notNullValue());
-        assertThat(roles.length, is(3));
-        assertThat(roles, arrayContaining("role1", "role2", "role3"));
-        assertThat(store.roles("user4"), equalTo(Strings.EMPTY_ARRAY));
+            String[] roles = store.roles("user1");
+            assertThat(roles, notNullValue());
+            assertThat(roles.length, is(3));
+            assertThat(roles, arrayContaining("role1", "role2", "role3"));
+            assertThat(store.roles("user4"), equalTo(Strings.EMPTY_ARRAY));
 
-        watcherService.start();
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+                writer.append("\n");
+            }
 
-        try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
-            writer.append("\n");
+            watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
+            if (latch.getCount() != 1) {
+                fail("Listener should not be called as users roles are not changed.");
+            }
+
+            assertThat(store.roles("user1"), arrayContaining("role1", "role2", "role3"));
+
+            try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
+                writer.newLine();
+                writer.append("role4:user4\nrole5:user4\n");
+            }
+
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
+                fail("Waited too long for the updated file to be picked up");
+            }
+
+            roles = store.roles("user4");
+            assertThat(roles, notNullValue());
+            assertThat(roles.length, is(2));
+            assertThat(roles, arrayContaining("role4", "role5"));
         }
-
-        watcherService.notifyNow(ResourceWatcherService.Frequency.HIGH);
-        if (latch.getCount() != 1) {
-            fail("Listener should not be called as users roles are not changed.");
-        }
-
-        assertThat(store.roles("user1"), arrayContaining("role1", "role2", "role3"));
-
-        try (BufferedWriter writer = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
-            writer.newLine();
-            writer.append("role4:user4\nrole5:user4\n");
-        }
-
-        if (!latch.await(5, TimeUnit.SECONDS)) {
-            fail("Waited too long for the updated file to be picked up");
-        }
-
-        roles = store.roles("user4");
-        assertThat(roles, notNullValue());
-        assertThat(roles.length, is(2));
-        assertThat(roles, arrayContaining("role4", "role5"));
     }
 
     public void testStoreAutoReloadWithParseFailure() throws Exception {
@@ -142,27 +142,26 @@ public class FileUserRolesStoreTests extends ESTestCase {
         RealmConfig config = new RealmConfig(realmId,
             Settings.builder().put(settings).put(RealmSettings.getFullSettingKey(realmId, RealmSettings.ORDER_SETTING), 0).build(),
             env, new ThreadContext(Settings.EMPTY));
-        ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        final CountDownLatch latch = new CountDownLatch(1);
+        try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
+            final CountDownLatch latch = new CountDownLatch(1);
 
-        FileUserRolesStore store = new FileUserRolesStore(config, watcherService, latch::countDown);
+            FileUserRolesStore store = new FileUserRolesStore(config, watcherService, latch::countDown);
 
-        String[] roles = store.roles("user1");
-        assertThat(roles, notNullValue());
-        assertThat(roles.length, is(3));
-        assertThat(roles, arrayContaining("role1", "role2", "role3"));
-        assertThat(store.roles("user4"), equalTo(Strings.EMPTY_ARRAY));
+            String[] roles = store.roles("user1");
+            assertThat(roles, notNullValue());
+            assertThat(roles.length, is(3));
+            assertThat(roles, arrayContaining("role1", "role2", "role3"));
+            assertThat(store.roles("user4"), equalTo(Strings.EMPTY_ARRAY));
 
-        watcherService.start();
+            // now replacing the content of the users file with something that cannot be read
+            Files.write(tmp, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
 
-        // now replacing the content of the users file with something that cannot be read
-        Files.write(tmp, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
+            if (latch.await(5, TimeUnit.SECONDS) == false) {
+                fail("Waited too long for the updated file to be picked up");
+            }
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
-            fail("Waited too long for the updated file to be picked up");
+            assertThat(store.entriesCount(), is(0));
         }
-
-        assertThat(store.entriesCount(), is(0));
     }
 
     public void testParseFile() throws Exception {
@@ -233,9 +232,10 @@ public class FileUserRolesStoreTests extends ESTestCase {
 
             Environment env = TestEnvironment.newEnvironment(settings);
             RealmConfig config = new RealmConfig(realmId, settings, env, new ThreadContext(Settings.EMPTY));
-            ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-            FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
-            assertThat(store.roles("user"), equalTo(Strings.EMPTY_ARRAY));
+            try (ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)) {
+                FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
+                assertThat(store.roles("user"), equalTo(Strings.EMPTY_ARRAY));
+            }
         } finally {
             terminate(threadPool);
         }

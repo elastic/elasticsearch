@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.License;
@@ -19,7 +20,7 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
     public void testBootstrapCheckOnEmptyMetadata() {
         assertTrue(new TLSLicenseBootstrapCheck().check(emptyContext).isSuccess());
         assertTrue(new TLSLicenseBootstrapCheck().check(createTestContext(Settings.builder().put("xpack.security.transport.ssl.enabled"
-            , randomBoolean()).build(), MetaData.EMPTY_META_DATA)).isSuccess());
+            , randomBoolean()).build(), Metadata.EMPTY_METADATA)).isSuccess());
     }
 
     public void testBootstrapCheckFailureOnPremiumLicense() throws Exception {
@@ -103,10 +104,10 @@ public class TLSLicenseBootstrapCheckTests extends AbstractBootstrapCheckTestCas
 
     public BootstrapCheck.BootstrapCheckResult runBootstrapCheck(OperationMode mode, Settings.Builder settings) throws Exception {
         final License license = TestUtils.generateSignedLicense(mode.description(), TimeValue.timeValueHours(24));
-        MetaData.Builder builder = MetaData.builder();
+        Metadata.Builder builder = Metadata.builder();
         TestUtils.putLicense(builder, license);
-        MetaData metaData = builder.build();
-        final BootstrapContext context = createTestContext(settings.build(), metaData);
+        Metadata metadata = builder.build();
+        final BootstrapContext context = createTestContext(settings.build(), metadata);
         return new TLSLicenseBootstrapCheck().check(context);
     }
 

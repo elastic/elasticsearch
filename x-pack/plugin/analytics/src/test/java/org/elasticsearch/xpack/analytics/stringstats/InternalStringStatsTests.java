@@ -1,53 +1,77 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.stringstats;
 
 import org.elasticsearch.client.analytics.ParsedStringStats;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalStringStatsTests extends InternalAggregationTestCase<InternalStringStats> {
+
     @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> result = new ArrayList<>(super.getNamedXContents());
-        result.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(StringStatsAggregationBuilder.NAME),
-                (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c)));
-        return result;
+    protected SearchPlugin registerPlugin() {
+        return new AnalyticsPlugin();
     }
 
-    protected InternalStringStats createTestInstance(
-            String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    @Override
+    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
+        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
+                new ParseField(StringStatsAggregationBuilder.NAME), (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c)));
+    }
+
+    @Override
+    protected InternalStringStats createTestInstance(String name, Map<String, Object> metadata) {
+        return createTestInstance(name, metadata, Long.MAX_VALUE, Long.MAX_VALUE);
+    }
+
+    @Override
+    protected List<InternalStringStats> randomResultsToReduce(String name, int size) {
+        /*
+         * Pick random count and length that are less than
+         * Long.MAX_VALUE because reduction adds them together and sometimes
+         * serializes them and that serialization would fail if the sum has
+         * wrapped to a negative number.
+         */
+        return Stream.generate(() -> createTestInstance(name, null, Long.MAX_VALUE / size, Long.MAX_VALUE / size))
+            .limit(size)
+            .collect(toList());
+    }
+
+    private InternalStringStats createTestInstance(String name, Map<String, Object> metadata, long maxCount, long maxTotalLength) {
         if (randomBoolean()) {
-            return new InternalStringStats(name, 0, 0, 0, 0, emptyMap(), randomBoolean(), DocValueFormat.RAW,
-                    pipelineAggregators, metaData);
+            return new InternalStringStats(name, 0, 0, 0, 0, emptyMap(), randomBoolean(), DocValueFormat.RAW, metadata);
         }
-        return new InternalStringStats(name, randomLongBetween(1, Long.MAX_VALUE),
-                randomNonNegativeLong(), between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
-                randomBoolean(), DocValueFormat.RAW,
-                pipelineAggregators, metaData);
-    };
+        long count = randomLongBetween(1, maxCount);
+        long totalLength = randomLongBetween(0, maxTotalLength);
+        return new InternalStringStats(name, count, totalLength,
+                between(0, Integer.MAX_VALUE), between(0, Integer.MAX_VALUE), randomCharOccurrences(),
+                randomBoolean(), DocValueFormat.RAW, metadata);
+    }
 
     @Override
     protected InternalStringStats mutateInstance(InternalStringStats instance) throws IOException {
@@ -78,16 +102,11 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
              charOccurrences = randomValueOtherThan(charOccurrences, this::randomCharOccurrences);
              break;
          case 6:
-             showDistribution = !showDistribution;
+             showDistribution = showDistribution == false;
              break;
          }
         return new InternalStringStats(name, count, totalLength, minLength, maxLength, charOccurrences, showDistribution,
-                DocValueFormat.RAW, instance.pipelineAggregators(), instance.getMetaData());
-    }
-
-    @Override
-    protected Reader<InternalStringStats> instanceReader() {
-        return InternalStringStats::new;
+                DocValueFormat.RAW, instance.getMetadata());
     }
 
     @Override

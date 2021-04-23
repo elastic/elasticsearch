@@ -6,7 +6,7 @@ Parts of the suggest feature are still under development.
 
 [source,console]
 --------------------------------------------------
-POST twitter/_search
+POST my-index-000001/_search
 {
   "query" : {
     "match": {
@@ -23,7 +23,7 @@ POST twitter/_search
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
+// TEST[setup:messages]
 
 
 [[search-suggesters-api-request]]
@@ -33,10 +33,6 @@ The suggest feature suggests similar looking terms based on a provided text by
 using a suggester. The suggest request part is defined alongside the query part 
 in a `_search` request. If the query part is left out, only suggestions are 
 returned.
-
-NOTE: `_suggest` endpoint has been deprecated in favour of using suggest via
-`_search` endpoint. In 5.0, the `_search` endpoint has been optimized for
-suggest only search requests.
 
 
 [[search-suggesters-api-example]]
@@ -61,14 +57,14 @@ POST _search
     "my-suggest-2" : {
       "text" : "kmichy",
       "term" : {
-        "field" : "user"
+        "field" : "user.id"
       }
     }
   }
 }
 --------------------------------------------------
-// TEST[setup:twitter]
-
+// TEST[setup:messages]
+// TEST[s/^/PUT my-index-000001\/_mapping\n{"properties":{"user":{"properties":{"id":{"type":"keyword"}}}}}\n/]
 
 The below suggest response example includes the suggestion response for
 `my-suggest-1` and `my-suggest-2`. Each suggestion part contains
@@ -115,7 +111,7 @@ suggested text, its document frequency and score compared to the suggest
 entry text. The meaning of the score depends on the used suggester. The
 term suggester's score is based on the edit distance.
 
-[float]
+[discrete]
 [[global-suggest]]
 ===== Global suggest text
 

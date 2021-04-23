@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -148,7 +149,7 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      * returns {@link LoginContext}
      *
      * @return {@link LoginContext}
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException if the login triggers a checked exception
      */
     public synchronized LoginContext login() throws PrivilegedActionException {
         if (this.loginContext == null) {
@@ -181,9 +182,9 @@ public class SpnegoHttpClientConfigCallbackHandler implements HttpClientConfigCa
      *            Subject.doAs
      * @param acc the {@link AccessControlContext} to be tied to the specified
      *            subject and action see
-     *            {@link Subject#doAsPrivileged(Subject, PrivilegedExceptionAction, AccessControlContext)
+     *            {@link Subject#doAsPrivileged(Subject, PrivilegedExceptionAction, AccessControlContext)}
      * @return the value returned by the PrivilegedExceptionAction's run method
-     * @throws PrivilegedActionException
+     * @throws PrivilegedActionException if the specified action's run method threw a checked exception
      */
     static <T> T doAsPrivilegedWrapper(final Subject subject, final PrivilegedExceptionAction<T> action, final AccessControlContext acc)
             throws PrivilegedActionException {

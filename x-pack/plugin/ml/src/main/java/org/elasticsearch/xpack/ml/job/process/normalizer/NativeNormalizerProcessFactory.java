@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
@@ -23,6 +24,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class NativeNormalizerProcessFactory implements NormalizerProcessFactory {
 
@@ -31,11 +33,13 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
 
     private final Environment env;
     private final NativeController nativeController;
+    private final AtomicLong counter;
     private volatile Duration processConnectTimeout;
 
     public NativeNormalizerProcessFactory(Environment env, NativeController nativeController, ClusterService clusterService) {
         this.env = Objects.requireNonNull(env);
         this.nativeController = Objects.requireNonNull(nativeController);
+        this.counter = new AtomicLong(0);
         setProcessConnectTimeout(MachineLearning.PROCESS_CONNECT_TIMEOUT.get(env.settings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.PROCESS_CONNECT_TIMEOUT,
             this::setProcessConnectTimeout);
@@ -48,23 +52,27 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
     @Override
     public NormalizerProcess createNormalizerProcess(String jobId, String quantilesState, Integer bucketSpan,
                                                      ExecutorService executorService) {
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, NormalizerBuilder.NORMALIZE, jobId,
-                true, false, true, true, false, false);
+        // Since normalize can get run many times in quick succession for the same job the job ID alone is not sufficient to
+        // guarantee that the normalizer process pipe names are unique.  Therefore an increasing counter value is passed as
+        // well as the job ID to ensure uniqueness between calls.
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, NormalizerBuilder.NORMALIZE,
+            jobId, counter.incrementAndGet(), false, true, true, false, false);
         createNativeProcess(jobId, quantilesState, processPipes, bucketSpan);
 
-        NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, nativeController, processPipes.getLogStream().get(),
-                processPipes.getProcessInStream().get(), processPipes.getProcessOutStream().get(), processConnectTimeout);
+        NativeNormalizerProcess normalizerProcess = new NativeNormalizerProcess(jobId, nativeController, processPipes);
 
         try {
             normalizerProcess.start(executorService);
             return normalizerProcess;
-        } catch (EsRejectedExecutionException e) {
+        } catch (IOException | EsRejectedExecutionException e) {
+            String msg = "Failed to connect to normalizer for job " + jobId;
+            LOGGER.error(msg);
             try {
                 IOUtils.close(normalizerProcess);
             } catch (IOException ioe) {
                 LOGGER.error("Can't close normalizer", ioe);
             }
-            throw e;
+            throw ExceptionsHelper.serverError(msg, e);
         }
     }
 
@@ -74,9 +82,11 @@ public class NativeNormalizerProcessFactory implements NormalizerProcessFactory 
             List<String> command = new NormalizerBuilder(env, jobId, quantilesState, bucketSpan).build();
             processPipes.addArgs(command);
             nativeController.startProcess(command);
-            processPipes.connectStreams(processConnectTimeout);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("[{}] Interrupted while launching normalizer", jobId);
         } catch (IOException e) {
-            String msg = "Failed to launch normalizer for job " + jobId;
+            String msg = "[" + jobId + "] Failed to launch normalizer";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

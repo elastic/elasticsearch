@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-reverse-nested-aggregation]]
-=== Reverse nested Aggregation
+=== Reverse nested aggregation
+++++
+<titleabbrev>Reverse nested</titleabbrev>
+++++
 
 A special single bucket aggregation that enables aggregating on parent docs from nested documents. Effectively this
 aggregation can break out of the nested block structure and link to other nested structures or the root document,
@@ -19,18 +22,18 @@ the issue documents as nested documents. The mapping could look like:
 --------------------------------------------------
 PUT /issues
 {
-    "mappings": {
-         "properties" : {
-             "tags" : { "type" : "keyword" },
-             "comments" : { <1>
-                 "type" : "nested",
-                 "properties" : {
-                     "username" : { "type" : "keyword" },
-                     "comment" : { "type" : "text" }
-                 }
-             }
-         }
+  "mappings": {
+    "properties": {
+      "tags": { "type": "keyword" },
+      "comments": {                            <1>
+        "type": "nested",
+        "properties": {
+          "username": { "type": "keyword" },
+          "comment": { "type": "text" }
+        }
+      }
     }
+  }
 }
 --------------------------------------------------
 

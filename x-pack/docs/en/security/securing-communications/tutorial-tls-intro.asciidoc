@@ -9,8 +9,8 @@ used a cluster with a single {es} node to get up and running with the {stack}.
 
 You can add as many nodes as you want in a cluster but they must be able to
 communicate with each other. The communication between nodes in a cluster is
-handled by the <<modules-transport,transport module>>. To secure your
-cluster, you must ensure that the internode communications are encrypted.
+handled by the <<modules-network,transport module>>. To secure your cluster,
+you must ensure that the internode communications are encrypted.
 
 NOTE: In this tutorial, we add more nodes by installing more copies of {es} on
 the same machine. By default, {es} binds to loopback addresses for HTTP and
@@ -23,7 +23,7 @@ requirements that are not covered in this tutorial. See
 <<dev-vs-prod-mode>> and
 <<add-elasticsearch-nodes>>.
 
-[float]
+[discrete]
 [[encrypting-internode-prerequisites]]
 === Before you begin
 
@@ -40,7 +40,7 @@ IMPORTANT: To complete this tutorial, you must install the default {es} and
 When you install these products, they apply basic licenses with no expiration
 dates. All of the subsequent steps in this tutorial assume that you are using a
 basic license. For more information, see {subscriptions} and
-{stack-ov}/license-management.html[License-management].
+{kibana-ref}/managing-licenses.html[License management].
 
 include::tutorial-tls-certificates.asciidoc[]
 include::tutorial-tls-internode.asciidoc[]

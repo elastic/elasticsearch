@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.restart;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -35,7 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.isEmptyOrNullString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.emptyOrNullString;
 
 public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
@@ -54,7 +57,9 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
     @Before
     public void waitForMlTemplates() throws Exception {
-        List<String> templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
+        List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
+            ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
+            : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
         XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
     }
 
@@ -152,7 +157,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
             assertEquals(jobId, XContentMapValues.extractValue("job_id", jobStats.get(0)));
             assertEquals("opened", XContentMapValues.extractValue("state", jobStats.get(0)));
-            assertThat((String) XContentMapValues.extractValue("assignment_explanation", jobStats.get(0)), isEmptyOrNullString());
+            assertThat((String) XContentMapValues.extractValue("assignment_explanation", jobStats.get(0)), is(emptyOrNullString()));
             assertNotNull(XContentMapValues.extractValue("node", jobStats.get(0)));
         }, 30, TimeUnit.SECONDS);
     }
@@ -168,7 +173,7 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
 
             assertEquals(datafeedId, XContentMapValues.extractValue("datafeed_id", datafeedStats.get(0)));
             assertEquals("started", XContentMapValues.extractValue("state", datafeedStats.get(0)));
-            assertThat((String) XContentMapValues.extractValue("assignment_explanation", datafeedStats.get(0)), isEmptyOrNullString());
+            assertThat((String) XContentMapValues.extractValue("assignment_explanation", datafeedStats.get(0)), is(emptyOrNullString()));
             assertNotNull(XContentMapValues.extractValue("node", datafeedStats.get(0)));
         }, 30, TimeUnit.SECONDS);
     }

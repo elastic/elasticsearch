@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.env;
 
@@ -71,22 +60,22 @@ public class OverrideNodeVersionCommand extends ElasticsearchNodeCommand {
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
         final Path[] nodePaths = Arrays.stream(toNodePaths(dataPaths)).map(p -> p.path).toArray(Path[]::new);
-        final NodeMetaData nodeMetaData = PersistedClusterStateService.nodeMetaData(nodePaths);
-        if (nodeMetaData == null) {
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_METADATA_MESSAGE);
         }
 
         try {
-            nodeMetaData.upgradeToCurrentVersion();
-            throw new ElasticsearchException("found [" + nodeMetaData + "] which is compatible with current version [" + Version.CURRENT
+            nodeMetadata.upgradeToCurrentVersion();
+            throw new ElasticsearchException("found [" + nodeMetadata + "] which is compatible with current version [" + Version.CURRENT
                 + "], so there is no need to override the version checks");
         } catch (IllegalStateException e) {
             // ok, means the version change is not supported
         }
 
-        confirm(terminal, (nodeMetaData.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE)
-            .replace("V_OLD", nodeMetaData.nodeVersion().toString())
-            .replace("V_NEW", nodeMetaData.nodeVersion().toString())
+        confirm(terminal, (nodeMetadata.nodeVersion().before(Version.CURRENT) ? TOO_OLD_MESSAGE : TOO_NEW_MESSAGE)
+            .replace("V_OLD", nodeMetadata.nodeVersion().toString())
+            .replace("V_NEW", nodeMetadata.nodeVersion().toString())
             .replace("V_CUR", Version.CURRENT.toString()));
 
         PersistedClusterStateService.overrideVersion(Version.CURRENT, dataPaths);

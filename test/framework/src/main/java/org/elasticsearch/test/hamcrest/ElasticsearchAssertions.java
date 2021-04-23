@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.hamcrest;
 
@@ -43,8 +32,8 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -132,7 +121,7 @@ public class ElasticsearchAssertions {
      *
      * @param builder the request builder
      */
-    public static void assertBlocked(ActionRequestBuilder builder) {
+    public static void assertBlocked(ActionRequestBuilder<?, ?> builder) {
         assertBlocked(builder, (ClusterBlock) null);
     }
 
@@ -163,7 +152,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlockId the expected block id
      */
-    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final Integer expectedBlockId) {
+    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
         try {
             builder.get();
             fail("Request executed with success but a ClusterBlockException was expected");
@@ -191,14 +180,14 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlock the expected block
      */
-    public static void assertBlocked(final ActionRequestBuilder builder, @Nullable final ClusterBlock expectedBlock) {
+    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 
     private static boolean checkRetryableBlock(Set<ClusterBlock> clusterBlocks){
         // check only retryable blocks exist in the set
         for (ClusterBlock clusterBlock : clusterBlocks) {
-            if (clusterBlock.id() != IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id()) {
+            if (clusterBlock.id() != IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id()) {
                 return false;
             }
         }
@@ -449,8 +438,8 @@ public class ElasticsearchAssertions {
      */
     public static void assertIndexTemplateMissing(GetIndexTemplatesResponse templatesResponse, String name) {
         List<String> templateNames = new ArrayList<>();
-        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {
-            templateNames.add(indexTemplateMetaData.name());
+        for (IndexTemplateMetadata indexTemplateMetadata : templatesResponse.getIndexTemplates()) {
+            templateNames.add(indexTemplateMetadata.name());
         }
         assertThat(templateNames, not(hasItem(name)));
     }
@@ -460,8 +449,8 @@ public class ElasticsearchAssertions {
      */
     public static void assertIndexTemplateExists(GetIndexTemplatesResponse templatesResponse, String name) {
         List<String> templateNames = new ArrayList<>();
-        for (IndexTemplateMetaData indexTemplateMetaData : templatesResponse.getIndexTemplates()) {
-            templateNames.add(indexTemplateMetaData.name());
+        for (IndexTemplateMetadata indexTemplateMetadata : templatesResponse.getIndexTemplates()) {
+            templateNames.add(indexTemplateMetadata.name());
         }
         assertThat(templateNames, hasItem(name));
     }

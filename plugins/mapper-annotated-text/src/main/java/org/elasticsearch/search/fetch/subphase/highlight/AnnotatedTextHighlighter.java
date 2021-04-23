@@ -1,77 +1,62 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
+import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedHighlighterAnalyzer;
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotatedText;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class AnnotatedTextHighlighter extends UnifiedHighlighter {
-    
+
     public static final String NAME = "annotated";
-    
-    @Override
-    protected Analyzer getAnalyzer(DocumentMapper docMapper, HitContext hitContext) {
-        return new AnnotatedHighlighterAnalyzer(super.getAnalyzer(docMapper, hitContext), hitContext);
-    }
 
     // Convert the marked-up values held on-disk to plain-text versions for highlighting
     @Override
-    protected List<Object> loadFieldValues(MappedFieldType fieldType,
-                                           Field field,
-                                           QueryShardContext context,
-                                           HitContext hitContext,
-                                           boolean forceSource) throws IOException {
-        List<Object> fieldValues = super.loadFieldValues(fieldType, field, context, hitContext, forceSource);
-        String[] fieldValuesAsString = fieldValues.toArray(new String[fieldValues.size()]);
+    protected List<Object> loadFieldValues(
+        CustomUnifiedHighlighter highlighter,
+        SearchExecutionContext searchContext,
+        MappedFieldType fieldType,
+        HitContext hitContext,
+        boolean forceSource
+    ) throws IOException {
+        List<Object> fieldValues = super.loadFieldValues(highlighter, searchContext, fieldType, hitContext, forceSource);
 
-        AnnotatedText[] annotations = new AnnotatedText[fieldValuesAsString.length];
-        for (int i = 0; i < fieldValuesAsString.length; i++) {
-            annotations[i] = AnnotatedText.parse(fieldValuesAsString[i]);
+        List<Object> strings = new ArrayList<>(fieldValues.size());
+        AnnotatedText[] annotations = new AnnotatedText[fieldValues.size()];
+        for (int i = 0; i < fieldValues.size(); i++) {
+            annotations[i] = AnnotatedText.parse(fieldValues.get(i).toString());
+            strings.add(annotations[i].textMinusMarkup);
         }
-        // Store the annotations in the hitContext
-        hitContext.cache().put(AnnotatedText.class.getName(), annotations);
-
-        ArrayList<Object> result = new ArrayList<>(annotations.length);
-        for (int i = 0; i < annotations.length; i++) {
-            result.add(annotations[i].textMinusMarkup);
-        }
-        return result;
+        // Store the annotations in the formatter and analyzer
+        ((AnnotatedPassageFormatter) highlighter.getFormatter()).setAnnotations(annotations);
+        ((AnnotatedHighlighterAnalyzer) highlighter.getIndexAnalyzer()).setAnnotations(annotations);
+        return strings;
     }
 
     @Override
-    protected PassageFormatter getPassageFormatter(HitContext hitContext,SearchContextHighlight.Field field, Encoder encoder) {
-        // Retrieve the annotations from the hitContext
-        AnnotatedText[] annotations = (AnnotatedText[]) hitContext.cache().get(AnnotatedText.class.getName());
-        return new AnnotatedPassageFormatter(annotations, encoder);
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer maxAnalyzedOffset) {
+        return new AnnotatedHighlighterAnalyzer(super.wrapAnalyzer(analyzer, maxAnalyzedOffset));
+    }
+
+    @Override
+    protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchHighlightContext.Field field, Encoder encoder) {
+        return new AnnotatedPassageFormatter(encoder);
     }
 
 }

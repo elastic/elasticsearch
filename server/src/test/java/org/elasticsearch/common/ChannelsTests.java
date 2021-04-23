@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
@@ -63,7 +52,7 @@ public class ChannelsTests extends ESTestCase {
     }
 
     public void testReadWriteThoughArrays() throws Exception {
-        Channels.writeToChannel(randomBytes, fileChannel);
+        writeToChannel(randomBytes, fileChannel);
         byte[] readBytes = Channels.readFromFileChannel(fileChannel, 0, randomBytes.length);
         assertThat("read bytes didn't match written bytes", randomBytes, Matchers.equalTo(readBytes));
     }
@@ -72,7 +61,7 @@ public class ChannelsTests extends ESTestCase {
     public void testPartialReadWriteThroughArrays() throws Exception {
         int length = randomIntBetween(1, randomBytes.length / 2);
         int offset = randomIntBetween(0, randomBytes.length - length);
-        Channels.writeToChannel(randomBytes, offset, length, fileChannel);
+        writeToChannel(randomBytes, offset, length, fileChannel);
 
         int lengthToRead = randomIntBetween(1, length);
         int offsetToRead = randomIntBetween(0, length - lengthToRead);
@@ -87,7 +76,7 @@ public class ChannelsTests extends ESTestCase {
 
     public void testBufferReadPastEOFWithException() throws Exception {
         int bytesToWrite = randomIntBetween(0, randomBytes.length - 1);
-        Channels.writeToChannel(randomBytes, 0, bytesToWrite, fileChannel);
+        writeToChannel(randomBytes, 0, bytesToWrite, fileChannel);
         try {
             Channels.readFromFileChannel(fileChannel, 0, bytesToWrite + 1 + randomInt(1000));
             fail("Expected an EOFException");
@@ -98,7 +87,7 @@ public class ChannelsTests extends ESTestCase {
 
     public void testBufferReadPastEOFWithoutException() throws Exception {
         int bytesToWrite = randomIntBetween(0, randomBytes.length - 1);
-        Channels.writeToChannel(randomBytes, 0, bytesToWrite, fileChannel);
+        writeToChannel(randomBytes, 0, bytesToWrite, fileChannel);
         byte[] bytes = new byte[bytesToWrite + 1 + randomInt(1000)];
         int read = Channels.readFromFileChannel(fileChannel, 0, bytes, 0, bytes.length);
         assertThat(read, Matchers.lessThan(0));
@@ -159,6 +148,22 @@ public class ChannelsTests extends ESTestCase {
         BytesReference copyRef = new BytesArray(tmp);
 
         assertTrue("read bytes didn't match written bytes", sourceRef.equals(copyRef));
+    }
+
+    private static void writeToChannel(byte[] source, int offset, int length, FileChannel channel) throws IOException {
+        if (randomBoolean()) {
+            Channels.writeToChannel(source, offset, length, channel, channel.position());
+        } else {
+            Channels.writeToChannel(source, offset, length, channel);
+        }
+    }
+
+    private static void writeToChannel(byte[] source, FileChannel channel) throws IOException {
+        if (randomBoolean()) {
+            Channels.writeToChannel(source, channel, channel.position());
+        } else {
+            Channels.writeToChannel(source, channel);
+        }
     }
 
     class MockFileChannel extends FileChannel {
@@ -226,8 +231,8 @@ public class ChannelsTests extends ESTestCase {
         }
 
         @Override
-        public void force(boolean metaData) throws IOException {
-            delegate.force(metaData);
+        public void force(boolean metadata) throws IOException {
+            delegate.force(metadata);
         }
 
         @Override

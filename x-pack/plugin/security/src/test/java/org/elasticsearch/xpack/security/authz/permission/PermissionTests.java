@@ -1,22 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz.permission;
 
+import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.CREATE;
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.MONITOR;
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.READ;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PermissionTests extends ESTestCase {
     private Role permission;
@@ -27,6 +35,7 @@ public class PermissionTests extends ESTestCase {
         builder.add(MONITOR, "test_*", "/foo.*/");
         builder.add(READ, "baz_*foo", "/fool.*bar/");
         builder.add(MONITOR, "/bar.*/");
+        builder.add(CREATE, "ingest_foo*");
         permission = builder.build();
     }
 
@@ -34,9 +43,28 @@ public class PermissionTests extends ESTestCase {
         testAllowedIndicesMatcher(permission.indices().allowedIndicesMatcher(GetAction.NAME));
     }
 
+    public void testAllowedIndicesMatcherForMappingUpdates() throws Exception {
+        for (String mappingUpdateActionName : List.of(PutMappingAction.NAME, AutoPutMappingAction.NAME)) {
+            IndexAbstraction mockIndexAbstraction = mock(IndexAbstraction.class);
+            Predicate<IndexAbstraction> indexPredicate = permission.indices().allowedIndicesMatcher(mappingUpdateActionName);
+            // mapping updates are still permitted on indices and aliases
+            when(mockIndexAbstraction.getName()).thenReturn("ingest_foo" + randomAlphaOfLength(3));
+            when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
+            assertThat(indexPredicate.test(mockIndexAbstraction), is(true));
+            when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.ALIAS);
+            assertThat(indexPredicate.test(mockIndexAbstraction), is(true));
+            // mapping updates are NOT permitted on data streams and backing indices
+            when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.DATA_STREAM);
+            assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
+            when(mockIndexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
+            when(mockIndexAbstraction.getParentDataStream()).thenReturn(mock(IndexAbstraction.DataStream.class));
+            assertThat(indexPredicate.test(mockIndexAbstraction), is(false));
+        }
+    }
+
     public void testAllowedIndicesMatcherActionCaching() throws Exception {
-        Predicate<String> matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
-        Predicate<String> matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        Predicate<IndexAbstraction> matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
+        Predicate<IndexAbstraction> matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(matcher1, is(matcher2));
     }
 
@@ -59,11 +87,19 @@ public class PermissionTests extends ESTestCase {
     }
 
     // "baz_*foo", "/fool.*bar/"
-    private void testAllowedIndicesMatcher(Predicate<String> indicesMatcher) {
-        assertThat(indicesMatcher.test("foobar"), is(false));
-        assertThat(indicesMatcher.test("fool"), is(false));
-        assertThat(indicesMatcher.test("fool2bar"), is(true));
-        assertThat(indicesMatcher.test("baz_foo"), is(true));
-        assertThat(indicesMatcher.test("barbapapa"), is(false));
+    private void testAllowedIndicesMatcher(Predicate<IndexAbstraction> indicesMatcher) {
+        assertThat(indicesMatcher.test(mockIndexAbstraction("foobar")), is(false));
+        assertThat(indicesMatcher.test(mockIndexAbstraction("fool")), is(false));
+        assertThat(indicesMatcher.test(mockIndexAbstraction("fool2bar")), is(true));
+        assertThat(indicesMatcher.test(mockIndexAbstraction("baz_foo")), is(true));
+        assertThat(indicesMatcher.test(mockIndexAbstraction("barbapapa")), is(false));
+    }
+
+    private IndexAbstraction mockIndexAbstraction(String name) {
+        IndexAbstraction mock = mock(IndexAbstraction.class);
+        when(mock.getName()).thenReturn(name);
+        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
+                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        return mock;
     }
 }

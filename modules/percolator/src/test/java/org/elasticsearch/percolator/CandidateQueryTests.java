@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.percolator;
@@ -77,7 +66,6 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -88,12 +76,12 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -123,10 +111,11 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     private IndexWriter indexWriter;
     private DocumentMapper documentMapper;
     private DirectoryReader directoryReader;
+    private IndexService indexService;
     private MapperService mapperService;
 
     private PercolatorFieldMapper fieldMapper;
-    private PercolatorFieldMapper.FieldType fieldType;
+    private PercolatorFieldMapper.PercolatorFieldType fieldType;
 
     private List<Query> queries;
     private PercolateQuery.QueryStore queryStore;
@@ -144,7 +133,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         indexWriter = new IndexWriter(directory, config);
 
         String indexName = "test";
-        IndexService indexService = createIndex(indexName, Settings.EMPTY);
+        indexService = createIndex(indexName, Settings.EMPTY);
         mapperService = indexService.mapperService();
 
         String mapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -165,7 +154,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .endObject().endObject());
         mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
         fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper().mappers().getMapper(queryField);
-        fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
+        fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
 
         queries = new ArrayList<>();
         queryStore = ctx -> docId -> this.queries.get(docId);
@@ -197,6 +186,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         Collections.sort(intValues);
 
+        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
         List<Supplier<Query>> queryFunctions = new ArrayList<>();
@@ -207,10 +197,10 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         queryFunctions.add(() -> new TermQuery(new Term(field1, randomFrom(stringContent.get(field1)))));
         String field2 = randomFrom(stringFields);
         queryFunctions.add(() -> new TermQuery(new Term(field2, randomFrom(stringContent.get(field2)))));
-        queryFunctions.add(() -> intFieldType.termQuery(randomFrom(intValues), null));
-        queryFunctions.add(() -> intFieldType.termsQuery(Arrays.asList(randomFrom(intValues), randomFrom(intValues)), null));
+        queryFunctions.add(() -> intFieldType.termQuery(randomFrom(intValues), context));
+        queryFunctions.add(() -> intFieldType.termsQuery(Arrays.asList(randomFrom(intValues), randomFrom(intValues)), context));
         queryFunctions.add(() -> intFieldType.rangeQuery(intValues.get(4), intValues.get(intValues.size() - 4), true,
-            true, ShapeRelation.WITHIN, null, null, null));
+            true, ShapeRelation.WITHIN, null, null, context));
         queryFunctions.add(() -> new TermInSetQuery(field1, new BytesRef(randomFrom(stringContent.get(field1))),
                 new BytesRef(randomFrom(stringContent.get(field1)))));
         queryFunctions.add(() -> new TermInSetQuery(field2, new BytesRef(randomFrom(stringContent.get(field1))),
@@ -335,6 +325,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         ranges.add(new int[]{0, 10});
         ranges.add(new int[]{15, 50});
 
+        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         List<ParseContext.Document> documents = new ArrayList<>();
         {
             addQuery(new TermQuery(new Term("string_field", randomFrom(stringValues))), documents);
@@ -344,13 +335,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         {
             int[] range = randomFrom(ranges);
-            Query rangeQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, null);
+            Query rangeQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, context);
             addQuery(rangeQuery, documents);
         }
         {
             int numBooleanQueries = randomIntBetween(1, 5);
             for (int i = 0; i < numBooleanQueries; i++) {
-                Query randomBQ = randomBQ(1, stringValues, ranges, intFieldType);
+                Query randomBQ = randomBQ(1, stringValues, ranges, intFieldType, context);
                 addQuery(randomBQ, documents);
             }
         }
@@ -375,6 +366,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);
         }
+
         for (int[] range : ranges) {
             List<Field> numberFields =
                 NumberFieldMapper.NumberType.INTEGER.createFields("int_field", between(range[0], range[1]), true, true, false);
@@ -387,7 +379,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
     }
 
-    private BooleanQuery randomBQ(int depth, List<String> stringValues, List<int[]> ranges, MappedFieldType intFieldType) {
+    private BooleanQuery randomBQ(int depth, List<String> stringValues, List<int[]> ranges,
+                                  MappedFieldType intFieldType, SearchExecutionContext context) {
         final int numClauses = randomIntBetween(1, 4);
         final boolean onlyShouldClauses = randomBoolean();
         final BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -396,10 +389,10 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         for (int i = 0; i < numClauses; i++) {
             Query subQuery;
             if (randomBoolean() && depth <= 3) {
-                subQuery = randomBQ(depth + 1, stringValues, ranges, intFieldType);
+                subQuery = randomBQ(depth + 1, stringValues, ranges, intFieldType, context);
             } else if (randomBoolean()) {
                 int[] range = randomFrom(ranges);
-                subQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, null);
+                subQuery = intFieldType.rangeQuery(range[0], range[1], true, true, null, null, null, context);
             } else {
                 subQuery = new TermQuery(new Term("string_field", randomFrom(stringValues)));
             }
@@ -1109,12 +1102,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private void addQuery(Query query, List<ParseContext.Document> docs) {
-        IndexMetaData build = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(1).numberOfReplicas(0).build();
-        IndexSettings settings = new IndexSettings(build, Settings.EMPTY);
-        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(settings,
-                mapperService.documentMapperParser(), documentMapper, null, null);
+        ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
+            documentMapper.mappers(), null, null, null);
         fieldMapper.processQuery(query, parseContext);
         ParseContext.Document queryDocument = parseContext.doc();
         // Add to string representation of the query to make debugging easier:

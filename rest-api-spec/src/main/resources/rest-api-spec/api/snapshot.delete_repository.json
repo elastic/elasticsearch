@@ -5,6 +5,10 @@
       "description":"Deletes a repository."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -15,7 +19,7 @@
           "parts":{
             "repository":{
               "type":"list",
-              "description":"A comma-separated list of repository names"
+              "description":"Name of the snapshot repository to unregister. Wildcard (`*`) patterns are supported."
             }
           }
         }

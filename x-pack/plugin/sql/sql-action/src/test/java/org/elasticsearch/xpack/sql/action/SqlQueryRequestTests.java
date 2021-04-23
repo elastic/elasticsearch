@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.action;
 
@@ -31,8 +32,27 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
+import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_TYPE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_VALUE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.RUNTIME_MAPPINGS_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 
 public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQueryRequest> {
@@ -60,12 +80,12 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     @Override
     protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
-                randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
+                randomRuntimeMappings(), randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
                 randomTV(), randomBoolean(), randomAlphaOfLength(10), requestInfo,
                 randomBoolean(), randomBoolean()
         );
     }
-    
+
     @Override
     protected Writeable.Reader<SqlQueryRequest> instanceReader() {
         return SqlQueryRequest::new;
@@ -86,13 +106,13 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 request -> request.columnar(randomValueOtherThan(request.columnar(), () -> randomBoolean())),
                 request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
         );
-        SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(),
+        SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(), instance.runtimeMappings(),
                 instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.columnar(),
                 instance.cursor(), instance.requestInfo(), instance.fieldMultiValueLeniency(), instance.indexIncludeFrozen());
         mutator.accept(newRequest);
         return newRequest;
     }
-    
+
     private AbstractSqlQueryRequest mutateRequestInfo(SqlQueryRequest oldRequest, SqlQueryRequest newRequest) {
         RequestInfo requestInfo = randomValueOtherThan(newRequest.requestInfo(), this::randomRequestInfo);
         newRequest.requestInfo(requestInfo);
@@ -106,10 +126,10 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 param.hasExplicitType(true);
             }
         }
-        
+
         return newRequest;
     }
-    
+
     public void testFromXContent() throws IOException {
         xContentTester(this::createParser, this::createTestInstance, SqlQueryRequestTests::toXContent, this::doParseInstance)
             .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
@@ -126,11 +146,11 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> sqlQueryRequest.zoneId(null));
         assertEquals("time zone may not be null.", e.getMessage());
     }
-    
+
     private RequestInfo randomRequestInfo() {
         return new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), requestInfo.clientId()));
     }
-    
+
     private TimeValue randomTV() {
         return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
     }
@@ -170,19 +190,22 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     private static void toXContent(SqlQueryRequest request, XContentBuilder builder) throws IOException {
         builder.startObject();
         if (request.query() != null) {
-            builder.field("query", request.query());
+            builder.field(QUERY_NAME, request.query());
         }
-        builder.field("mode", request.mode().toString());
+        builder.field(MODE_NAME, request.mode().toString());
         if (request.clientId() != null) {
-            builder.field("client_id", request.clientId());
+            builder.field(CLIENT_ID_NAME, request.clientId());
+        }
+        if (request.version() != null) {
+            builder.field(VERSION_NAME, request.version().toString());
         }
         if (request.params() != null && request.params().isEmpty() == false) {
-            builder.startArray("params");
+            builder.startArray(PARAMS_NAME);
             for (SqlTypedParamValue val : request.params()) {
                 if (Mode.isDriver(request.mode())) {
                     builder.startObject();
-                    builder.field("type", val.type);
-                    builder.field("value", val.value);
+                    builder.field(PARAMS_TYPE_NAME, val.type);
+                    builder.field(PARAMS_VALUE_NAME, val.value);
                     builder.endObject();
                 } else {
                     builder.value(val.value);
@@ -191,35 +214,38 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
             builder.endArray();
         }
         if (request.zoneId() != null) {
-            builder.field("time_zone", request.zoneId().getId());
+            builder.field(TIME_ZONE_NAME, request.zoneId().getId());
         }
         if (request.fetchSize() != Protocol.FETCH_SIZE) {
-            builder.field("fetch_size", request.fetchSize());
+            builder.field(FETCH_SIZE_NAME, request.fetchSize());
         }
         if (request.requestTimeout() != Protocol.REQUEST_TIMEOUT) {
-            builder.field("request_timeout", request.requestTimeout().getStringRep());
+            builder.field(REQUEST_TIMEOUT_NAME, request.requestTimeout().getStringRep());
         }
         if (request.pageTimeout() != Protocol.PAGE_TIMEOUT) {
-            builder.field("page_timeout", request.pageTimeout().getStringRep());
+            builder.field(PAGE_TIMEOUT_NAME, request.pageTimeout().getStringRep());
         }
         if (request.filter() != null) {
-            builder.field("filter");
+            builder.field(FILTER_NAME);
             request.filter().toXContent(builder, ToXContent.EMPTY_PARAMS);
         }
         if (request.columnar() != null) {
-            builder.field("columnar", request.columnar());
+            builder.field(COLUMNAR_NAME, request.columnar());
         }
         if (request.fieldMultiValueLeniency()) {
-            builder.field("field_multi_value_leniency", request.fieldMultiValueLeniency());
+            builder.field(FIELD_MULTI_VALUE_LENIENCY_NAME, request.fieldMultiValueLeniency());
         }
         if (request.indexIncludeFrozen()) {
-            builder.field("index_include_frozen", request.indexIncludeFrozen());
+            builder.field(INDEX_INCLUDE_FROZEN_NAME, request.indexIncludeFrozen());
         }
         if (request.binaryCommunication() != null) {
-            builder.field("binary_format", request.binaryCommunication());
+            builder.field(BINARY_FORMAT_NAME, request.binaryCommunication());
         }
         if (request.cursor() != null) {
-            builder.field("cursor", request.cursor());
+            builder.field(CURSOR_NAME, request.cursor());
+        }
+        if (request.runtimeMappings() != null) {
+            builder.field(RUNTIME_MAPPINGS_NAME, request.runtimeMappings());
         }
         builder.endObject();
     }

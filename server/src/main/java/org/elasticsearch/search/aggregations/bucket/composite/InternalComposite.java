@@ -1,25 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +20,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -41,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.PriorityQueue;
 import java.util.Set;
 
 public class InternalComposite
@@ -58,8 +46,8 @@ public class InternalComposite
 
     InternalComposite(String name, int size, List<String> sourceNames, List<DocValueFormat> formats,
                       List<InternalBucket> buckets, CompositeKey afterKey, int[] reverseMuls, boolean earlyTerminated,
-                      List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        super(name, pipelineAggregators, metaData);
+                      Map<String, Object> metadata) {
+        super(name, metadata);
         this.sourceNames = sourceNames;
         this.formats = formats;
         this.buckets = buckets;
@@ -116,7 +104,7 @@ public class InternalComposite
          * to be able to retrieve the next page even if all buckets have been filtered.
          */
         return new InternalComposite(name, size, sourceNames, formats, newBuckets, afterKey,
-            reverseMuls, earlyTerminated, pipelineAggregators(), getMetaData());
+            reverseMuls, earlyTerminated, getMetadata());
     }
 
     @Override
@@ -161,7 +149,12 @@ public class InternalComposite
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
+        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(BucketIterator a, BucketIterator b) {
+                return a.compareTo(b) < 0;
+            }
+        };
         boolean earlyTerminated = false;
         for (InternalAggregation agg : aggregations) {
             InternalComposite sortedAgg = (InternalComposite) agg;
@@ -175,11 +168,10 @@ public class InternalComposite
         List<InternalBucket> buckets = new ArrayList<>();
         List<InternalBucket> result = new ArrayList<>();
         while (pq.size() > 0) {
-            BucketIterator bucketIt = pq.poll();
+            BucketIterator bucketIt = pq.top();
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
                 InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
                 buckets.clear();
-                reduceContext.consumeBucketsAndMaybeBreak(1);
                 result.add(reduceBucket);
                 if (result.size() >= size) {
                     break;
@@ -188,12 +180,13 @@ public class InternalComposite
             lastBucket = bucketIt.current;
             buckets.add(bucketIt.current);
             if (bucketIt.next() != null) {
-                pq.add(bucketIt);
+                pq.updateTop();
+            } else {
+                pq.pop();
             }
         }
         if (buckets.size() > 0) {
             InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
-            reduceContext.consumeBucketsAndMaybeBreak(1);
             result.add(reduceBucket);
         }
 
@@ -206,8 +199,9 @@ public class InternalComposite
             reducedFormats = lastBucket.formats;
             lastKey = lastBucket.getRawKey();
         }
+        reduceContext.consumeBucketsAndMaybeBreak(result.size());
         return new InternalComposite(name, size, sourceNames, reducedFormats, result, lastKey, reverseMuls,
-            earlyTerminated, pipelineAggregators(), metaData);
+            earlyTerminated, metadata);
     }
 
     @Override
@@ -288,7 +282,7 @@ public class InternalComposite
         InternalBucket(StreamInput in, List<String> sourceNames, List<DocValueFormat> formats, int[] reverseMuls) throws IOException {
             this.key = new CompositeKey(in);
             this.docCount = in.readVLong();
-            this.aggregations = new InternalAggregations(in);
+            this.aggregations = InternalAggregations.readFrom(in);
             this.reverseMuls = reverseMuls;
             this.sourceNames = sourceNames;
             this.formats = formats;

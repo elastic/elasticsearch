@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.analysis;
@@ -10,24 +11,29 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.LinkedHashSet;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.eql.analysis.AnalysisUtils.resolveAgainstList;
+import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
 
+    private final Configuration configuration;
     private final FunctionRegistry functionRegistry;
     private final Verifier verifier;
 
-    public Analyzer(FunctionRegistry functionRegistry, Verifier verifier) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, Verifier verifier) {
+        this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.verifier = verifier;
     }
@@ -35,9 +41,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch resolution = new Batch("Resolution",
-                new ResolveRefs());
-        
-        return asList(resolution);
+                new ResolveRefs(),
+                new ResolveFunctions());
+
+        Batch cleanup = new Batch("Finish Analysis", Limiter.ONCE,
+                new AddMissingEqualsToBoolField());
+
+        return asList(resolution, cleanup);
     }
 
     public LogicalPlan analyze(LogicalPlan plan) {
@@ -46,18 +56,18 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
     private LogicalPlan verify(LogicalPlan plan) {
         Collection<Failure> failures = verifier.verify(plan);
-        if (!failures.isEmpty()) {
+        if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }
         return plan;
     }
 
-    private static class ResolveRefs extends AnalyzeRule<LogicalPlan> {
+    private static class ResolveRefs extends AnalyzerRule<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             // if the children are not resolved, there's no way the node can be resolved
-            if (!plan.childrenResolved()) {
+            if (plan.childrenResolved() == false) {
                 return plan;
             }
 
@@ -66,41 +76,47 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 log.trace("Attempting to resolve {}", plan.nodeString());
             }
 
-            return plan.transformExpressionsUp(e -> {
-                if (e instanceof UnresolvedAttribute) {
-                    UnresolvedAttribute u = (UnresolvedAttribute) e;
-                    List<Attribute> childrenOutput = new ArrayList<>();
-                    for (LogicalPlan child : plan.children()) {
-                        childrenOutput.addAll(child.output());
-                    }
-                    NamedExpression named = resolveAgainstList(u, childrenOutput);
-                    // if resolved, return it; otherwise keep it in place to be resolved later
-                    if (named != null) {
-                        if (log.isTraceEnabled()) {
-                            log.trace("Resolved {} to {}", u, named);
-                        }
-                        return named;
-                    }
+            return plan.transformExpressionsUp(UnresolvedAttribute.class, u -> {
+                Collection<Attribute> childrenOutput = new LinkedHashSet<>();
+                for (LogicalPlan child : plan.children()) {
+                    childrenOutput.addAll(child.output());
                 }
-                return e;
+                NamedExpression named = resolveAgainstList(u, childrenOutput);
+                // if resolved, return it; otherwise keep it in place to be resolved later
+                if (named != null) {
+                    if (log.isTraceEnabled()) {
+                        log.trace("Resolved {} to {}", u, named);
+                    }
+                    return named;
+                }
+                return u;
             });
         }
     }
 
-    abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
-
-        // transformUp (post-order) - that is first children and then the node
-        // but with a twist; only if the tree is not resolved or analyzed
-        @Override
-        public final LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t), typeToken());
-        }
+    private class ResolveFunctions extends AnalyzerRule<LogicalPlan> {
 
         @Override
-        protected abstract LogicalPlan rule(SubPlan plan);
+        protected LogicalPlan rule(LogicalPlan plan) {
+            return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
+                if (uf.analyzed()) {
+                    return uf;
+                }
 
-        protected boolean skipResolved() {
-            return true;
+                String name = uf.name();
+
+                if (uf.childrenResolved() == false) {
+                    return uf;
+                }
+
+                String functionName = functionRegistry.resolveAlias(name);
+                if (functionRegistry.functionExists(functionName) == false) {
+                    return uf.missing(functionName, functionRegistry.listFunctions());
+                }
+                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                Function f = uf.buildResolved(configuration, def);
+                return f;
+            });
         }
     }
 }

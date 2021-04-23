@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.systemd;
@@ -61,30 +50,30 @@ public class SystemdPluginTests extends ESTestCase {
 
     public void testIsEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertTrue(plugin.isEnabled());
-        assertNotNull(plugin.extender);
+        assertNotNull(plugin.extender());
     }
 
     public void testIsNotPackageDistribution() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomNonPackageBuildType, Boolean.TRUE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
-        assertNull(plugin.extender);
+        assertNull(plugin.extender());
     }
 
     public void testIsImplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, null);
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
-        assertNull(plugin.extender);
+        assertNull(plugin.extender());
     }
 
     public void testIsExplicitlyNotEnabled() {
         final SystemdPlugin plugin = new SystemdPlugin(false, randomPackageBuildType, Boolean.FALSE.toString());
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         assertFalse(plugin.isEnabled());
-        assertNull(plugin.extender);
+        assertNull(plugin.extender());
     }
 
     public void testInvalid() {
@@ -102,7 +91,7 @@ public class SystemdPluginTests extends ESTestCase {
             randomIntBetween(0, Integer.MAX_VALUE),
             (maybe, plugin) -> {
                 assertThat(maybe, OptionalMatchers.isEmpty());
-                verify(plugin.extender).cancel();
+                verify(plugin.extender()).cancel();
             });
     }
 
@@ -181,11 +170,11 @@ public class SystemdPluginTests extends ESTestCase {
             }
 
         };
-        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null);
+        plugin.createComponents(null, null, threadPool, null, null, null, null, null, null, null, null);
         if (Boolean.TRUE.toString().equals(esSDNotify)) {
-            assertNotNull(plugin.extender);
+            assertNotNull(plugin.extender());
         } else {
-            assertNull(plugin.extender);
+            assertNull(plugin.extender());
         }
 
         boolean success = false;

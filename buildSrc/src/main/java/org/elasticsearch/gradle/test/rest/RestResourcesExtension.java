@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.test.rest;
 
@@ -30,29 +19,58 @@ import javax.inject.Inject;
  */
 public class RestResourcesExtension {
 
-    final RestResourcesSpec restApi;
-    final RestResourcesSpec restTests;
+    private final RestResourcesSpec restApi;
+    private final XpackRestResourcesSpec restTests;
 
     @Inject
     public RestResourcesExtension(ObjectFactory objects) {
         restApi = new RestResourcesSpec(objects);
-        restTests = new RestResourcesSpec(objects);
+        restTests = new XpackRestResourcesSpec(objects);
     }
 
     void restApi(Action<? super RestResourcesSpec> spec) {
         spec.execute(restApi);
     }
 
-    void restTests(Action<? super RestResourcesSpec> spec) {
+    void restTests(Action<? super XpackRestResourcesSpec> spec) {
+        if (BuildParams.isInternal() == false) {
+            // TODO: Separate this out into an "internal" plugin so we don't even expose this API to external folks
+            throw new UnsupportedOperationException("Including tests is not supported from external builds.");
+        }
         spec.execute(restTests);
     }
 
-    static class RestResourcesSpec {
+    public RestResourcesSpec getRestApi() {
+        return restApi;
+    }
+
+    public XpackRestResourcesSpec getRestTests() {
+        return restTests;
+    }
+
+    public static class RestResourcesSpec {
+
+        private final ListProperty<String> include;
+
+        RestResourcesSpec(ObjectFactory objects) {
+            include = objects.listProperty(String.class);
+        }
+
+        public void include(String... include) {
+            this.include.addAll(include);
+        }
+
+        public ListProperty<String> getInclude() {
+            return include;
+        }
+    }
+
+    public static class XpackRestResourcesSpec {
 
         private final ListProperty<String> includeCore;
         private final ListProperty<String> includeXpack;
 
-        RestResourcesSpec(ObjectFactory objects) {
+        XpackRestResourcesSpec(ObjectFactory objects) {
             includeCore = objects.listProperty(String.class);
             includeXpack = objects.listProperty(String.class);
         }
@@ -62,9 +80,6 @@ public class RestResourcesExtension {
         }
 
         public void includeXpack(String... include) {
-            if (BuildParams.isInternal() == false) {
-                throw new IllegalStateException("Can not include x-pack rest resources from an external build.");
-            }
             this.includeXpack.addAll(include);
         }
 

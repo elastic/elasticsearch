@@ -1,30 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.elasticsearch.painless.symbol.ScopeTable.Variable;
-import org.objectweb.asm.Opcodes;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class DeclarationNode extends StatementNode {
 
@@ -40,69 +25,24 @@ public class DeclarationNode extends StatementNode {
         return expressionNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected String name;
-    protected Class<?> declarationType;
-    protected boolean requiresDefault;
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setDeclarationType(Class<?> declarationType) {
-        this.declarationType = declarationType;
-    }
-
-    public Class<?> getDeclarationType() {
-        return declarationType;
-    }
-
-    public String getDeclarationCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(declarationType);
-    }
-
-    public void setRequiresDefault(boolean requiresDefault) {
-        this.requiresDefault = requiresDefault;
-    }
-
-    public boolean requiresDefault() {
-        return requiresDefault;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeStatementOffset(location);
-
-        Variable variable = scopeTable.defineVariable(declarationType, name);
-
-        if (expressionNode == null) {
-            if (requiresDefault) {
-                Class<?> sort = variable.getType();
-
-                if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                        sort == short.class || sort == char.class || sort == int.class) {
-                    methodWriter.push(0);
-                } else if (sort == long.class) {
-                    methodWriter.push(0L);
-                } else if (sort == float.class) {
-                    methodWriter.push(0F);
-                } else if (sort == double.class) {
-                    methodWriter.push(0D);
-                } else {
-                    methodWriter.visitInsn(Opcodes.ACONST_NULL);
-                }
-            }
-        } else {
-            expressionNode.write(classWriter, methodWriter, scopeTable);
-        }
-
-        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitDeclaration(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        if (expressionNode != null) {
+            expressionNode.visit(irTreeVisitor, scope);
+        }
+    }
+
+    /* ---- end visitor ---- */
+
+    public DeclarationNode(Location location) {
+        super(location);
+    }
+
 }

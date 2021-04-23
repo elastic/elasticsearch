@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.tasks;
 
@@ -33,6 +22,7 @@ public class CancelTasksRequest implements Validatable {
     private Optional<TimeValue> timeout = Optional.empty();
     private Optional<TaskId> parentTaskId = Optional.empty();
     private Optional<TaskId> taskId = Optional.empty();
+    private Boolean waitForCompletion;
 
     CancelTasksRequest(){}
 
@@ -76,21 +66,30 @@ public class CancelTasksRequest implements Validatable {
         return taskId;
     }
 
+    public Boolean getWaitForCompletion() {
+        return waitForCompletion;
+    }
+
+    public void setWaitForCompletion(boolean waitForCompletion) {
+        this.waitForCompletion = waitForCompletion;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof CancelTasksRequest)) return false;
+        if ((o instanceof CancelTasksRequest) == false) return false;
         CancelTasksRequest that = (CancelTasksRequest) o;
         return Objects.equals(getNodes(), that.getNodes()) &&
             Objects.equals(getActions(), that.getActions()) &&
             Objects.equals(getTimeout(), that.getTimeout()) &&
             Objects.equals(getParentTaskId(), that.getParentTaskId()) &&
-            Objects.equals(getTaskId(), that.getTaskId()) ;
+            Objects.equals(getTaskId(), that.getTaskId()) &&
+            Objects.equals(waitForCompletion, that.waitForCompletion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNodes(), getActions(), getTimeout(), getParentTaskId(), getTaskId());
+        return Objects.hash(getNodes(), getActions(), getTimeout(), getParentTaskId(), getTaskId(), waitForCompletion);
     }
 
     @Override
@@ -101,6 +100,7 @@ public class CancelTasksRequest implements Validatable {
             ", timeout=" + timeout +
             ", parentTaskId=" + parentTaskId +
             ", taskId=" + taskId +
+            ", waitForCompletion=" + waitForCompletion +
             '}';
     }
 
@@ -110,6 +110,7 @@ public class CancelTasksRequest implements Validatable {
         private Optional<TaskId> parentTaskId = Optional.empty();
         private List<String> actionsFilter = new ArrayList<>();
         private List<String> nodesFilter = new ArrayList<>();
+        private Boolean waitForCompletion;
 
         public Builder withTimeout(TimeValue timeout){
             this.timeout = Optional.of(timeout);
@@ -138,6 +139,11 @@ public class CancelTasksRequest implements Validatable {
             return this;
         }
 
+        public Builder withWaitForCompletion(boolean waitForCompletion) {
+            this.waitForCompletion = waitForCompletion;
+            return this;
+        }
+
         public CancelTasksRequest build() {
             CancelTasksRequest request = new CancelTasksRequest();
             timeout.ifPresent(request::setTimeout);
@@ -145,6 +151,9 @@ public class CancelTasksRequest implements Validatable {
             parentTaskId.ifPresent(request::setParentTaskId);
             request.setNodes(nodesFilter);
             request.setActions(actionsFilter);
+            if (waitForCompletion != null) {
+                request.setWaitForCompletion(waitForCompletion);
+            }
             return request;
         }
     }

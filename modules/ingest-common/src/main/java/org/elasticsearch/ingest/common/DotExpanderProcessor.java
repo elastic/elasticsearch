@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.common;
@@ -33,8 +22,8 @@ public final class DotExpanderProcessor extends AbstractProcessor {
     private final String path;
     private final String field;
 
-    DotExpanderProcessor(String tag, String path, String field) {
-        super(tag);
+    DotExpanderProcessor(String tag, String description, String path, String field) {
+        super(tag, description);
         this.path = path;
         this.field = field;
     }
@@ -96,7 +85,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public Processor create(Map<String, Processor.Factory> processorFactories, String tag,
+        public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description,
                                 Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             if (field.contains(".") == false) {
@@ -117,7 +106,7 @@ public final class DotExpanderProcessor extends AbstractProcessor {
             }
 
             String path = ConfigurationUtils.readOptionalStringProperty(TYPE, tag, config, "path");
-            return new DotExpanderProcessor(tag, path, field);
+            return new DotExpanderProcessor(tag, null, path, field);
         }
     }
 }

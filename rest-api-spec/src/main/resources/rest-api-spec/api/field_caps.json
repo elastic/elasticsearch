@@ -5,6 +5,10 @@
       "description":"Returns the information about the capabilities of fields among multiple indices."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -47,6 +51,7 @@
         "options":[
           "open",
           "closed",
+          "hidden",
           "none",
           "all"
         ],
@@ -58,6 +63,9 @@
         "default":false,
         "description":"Indicates whether unmapped fields should be included in the response."
       }
+    },
+    "body":{
+      "description":"An index filter specified with the Query DSL"
     }
   }
 }

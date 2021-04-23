@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http;
@@ -43,8 +32,10 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -54,8 +45,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -67,6 +60,10 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
+    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
+
+    private static final long PRUNE_THROTTLE_INTERVAL = TimeUnit.SECONDS.toMillis(60);
+    private static final long MAX_CLIENT_STATS_AGE = TimeUnit.MINUTES.toMillis(5);
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -74,7 +71,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
-    protected final CorsHandler.Config corsConfig;
+    protected final CorsHandler corsHandler;
     private final NamedXContentRegistry xContentRegistry;
 
     protected final PortsRange port;
@@ -86,8 +83,13 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final AtomicLong totalChannelsAccepted = new AtomicLong();
     private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final Map<Integer, HttpStats.ClientStats> httpChannelStats = new ConcurrentHashMap<>();
 
     private final HttpTracer tracer;
+
+    private volatile long slowLogThresholdMs;
+    protected volatile long lastClientStatsPruneTime;
+    private volatile boolean clientStatsEnabled;
 
     protected AbstractHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
                                           NamedXContentRegistry xContentRegistry, Dispatcher dispatcher, ClusterSettings clusterSettings) {
@@ -98,7 +100,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.xContentRegistry = xContentRegistry;
         this.dispatcher = dispatcher;
         this.handlingSettings = HttpHandlingSettings.fromSettings(settings);
-        this.corsConfig = CorsHandler.fromSettings(settings);
+        this.corsHandler = CorsHandler.fromSettings(settings);
 
         // we can't make the network.bind_host a fallback since we already fall back to http.host hence the extra conditional here
         List<String> httpBindHost = SETTING_HTTP_BIND_HOST.get(settings);
@@ -113,6 +115,11 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = new HttpTracer(settings, clusterSettings);
+        clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
+                slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis());
+        slowLogThresholdMs = TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings).getMillis();
+        clusterSettings.addSettingsUpdateConsumer(HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED, this::enableClientStats);
+        clientStatsEnabled = HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED.get(settings);
     }
 
     @Override
@@ -131,7 +138,38 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpChannels.size(), totalChannelsAccepted.get());
+        pruneClientStats(false);
+        return new HttpStats(new ArrayList<>(httpChannelStats.values()), httpChannels.size(), totalChannelsAccepted.get());
+    }
+
+    /**
+     * Prunes client stats of entries that have been disconnected for more than five minutes.
+     *
+     * @param throttled When true, executes the prune process only if more than 60 seconds has elapsed since the last execution.
+     */
+    void pruneClientStats(boolean throttled) {
+        if (clientStatsEnabled && throttled == false ||
+            (threadPool.relativeTimeInMillis() - lastClientStatsPruneTime > PRUNE_THROTTLE_INTERVAL)) {
+            long nowMillis = threadPool.absoluteTimeInMillis();
+            for (var statsEntry : httpChannelStats.entrySet()) {
+                long closedTimeMillis = statsEntry.getValue().closedTimeMillis;
+                if (closedTimeMillis > 0 && (nowMillis - closedTimeMillis > MAX_CLIENT_STATS_AGE)) {
+                    httpChannelStats.remove(statsEntry.getKey());
+                }
+            }
+            lastClientStatsPruneTime = threadPool.relativeTimeInMillis();
+        }
+    }
+
+    /**
+     * Enables or disables collection of HTTP client stats.
+     */
+    void enableClientStats(boolean enabled) {
+        this.clientStatsEnabled = enabled;
+        if (enabled == false) {
+            // when disabling, immediately clear client stats
+            httpChannelStats.clear();
+        }
     }
 
     protected void bindServer() {
@@ -177,7 +215,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             }
             return true;
         });
-        if (!success) {
+        if (success == false) {
             throw new BindHttpException(
                 "Failed to bind to " + NetworkAddress.format(hostAddress, port),
                 lastException.get()
@@ -294,8 +332,37 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         boolean addedOnThisCall = httpChannels.add(httpChannel);
         assert addedOnThisCall : "Channel should only be added to http channel set once";
         totalChannelsAccepted.incrementAndGet();
-        httpChannel.addCloseListener(ActionListener.wrap(() -> httpChannels.remove(httpChannel)));
+        addClientStats(httpChannel);
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
+    }
+
+    private HttpStats.ClientStats addClientStats(final HttpChannel httpChannel) {
+        if (clientStatsEnabled) {
+            final HttpStats.ClientStats clientStats;
+            if (httpChannel != null) {
+                clientStats = new HttpStats.ClientStats(threadPool.absoluteTimeInMillis());
+                httpChannelStats.put(HttpStats.ClientStats.getChannelKey(httpChannel), clientStats);
+                httpChannel.addCloseListener(ActionListener.wrap(() -> {
+                    try {
+                        httpChannels.remove(httpChannel);
+                        HttpStats.ClientStats disconnectedClientStats =
+                            httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+                        if (disconnectedClientStats != null) {
+                            disconnectedClientStats.closedTimeMillis = threadPool.absoluteTimeInMillis();
+                        }
+                    } catch (Exception e) {
+                        // the listener code above should never throw
+                        logger.trace("error removing HTTP channel listener", e);
+                    }
+                }));
+            } else {
+                clientStats = null;
+            }
+            pruneClientStats(true);
+            return clientStats;
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -305,18 +372,73 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * @param httpChannel that received the http request
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
-        handleIncomingRequest(httpRequest, httpChannel, null);
+        updateClientStats(httpRequest, httpChannel);
+        final long startTime = threadPool.relativeTimeInMillis();
+        try {
+            handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+        } finally {
+            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long logThreshold = slowLogThresholdMs;
+            if (logThreshold > 0 && took > logThreshold) {
+                logger.warn("handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                    httpRequest.header(Task.X_OPAQUE_ID), httpRequest.method(), httpRequest.uri(), httpChannel, took, logThreshold);
+            }
+        }
     }
 
-    /**
-     * This method handles an incoming http request that has encountered an error.
-     *
-     * @param httpRequest that is incoming
-     * @param httpChannel that received the http request
-     * @param exception   that was encountered
-     */
-    public void incomingRequestError(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
-        handleIncomingRequest(httpRequest, httpChannel, exception);
+    void updateClientStats(final HttpRequest httpRequest, final HttpChannel httpChannel) {
+        if (clientStatsEnabled && httpChannel != null) {
+            HttpStats.ClientStats clientStats = httpChannelStats.get(HttpStats.ClientStats.getChannelKey(httpChannel));
+            if (clientStats == null) {
+                // will always return a non-null value when httpChannel is non-null
+                clientStats = addClientStats(httpChannel);
+            }
+
+            if (clientStats.agent == null) {
+                final String elasticProductOrigin = getFirstValueForHeader(httpRequest, "x-elastic-product-origin");
+                if (elasticProductOrigin != null) {
+                    clientStats.agent = elasticProductOrigin;
+                } else {
+                    final String userAgent = getFirstValueForHeader(httpRequest, "User-Agent");
+                    if (userAgent != null) {
+                        clientStats.agent = userAgent;
+                    }
+                }
+            }
+            if (clientStats.localAddress == null) {
+                clientStats.localAddress =
+                    httpChannel.getLocalAddress() == null ? null : NetworkAddress.format(httpChannel.getLocalAddress());
+                clientStats.remoteAddress =
+                    httpChannel.getRemoteAddress() == null ? null : NetworkAddress.format(httpChannel.getRemoteAddress());
+            }
+            if (clientStats.forwardedFor == null) {
+                final String forwardedFor = getFirstValueForHeader(httpRequest, "x-forwarded-for");
+                if (forwardedFor != null) {
+                    clientStats.forwardedFor = forwardedFor;
+                }
+            }
+            if (clientStats.opaqueId == null) {
+                final String opaqueId = getFirstValueForHeader(httpRequest, "x-opaque-id");
+                if (opaqueId != null) {
+                    clientStats.opaqueId = opaqueId;
+                }
+            }
+            clientStats.lastRequestTimeMillis = threadPool.absoluteTimeInMillis();
+            clientStats.lastUri = httpRequest.uri();
+            clientStats.requestCount.increment();
+            clientStats.requestSizeBytes.add(httpRequest.content().length());
+        }
+    }
+
+    private static String getFirstValueForHeader(final HttpRequest request, final String header) {
+        for (Map.Entry<String, List<String>> entry : request.getHeaders().entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(header)) {
+                if (entry.getValue().size() > 0) {
+                    return entry.getValue().get(0);
+                }
+            }
+        }
+        return null;
     }
 
     // Visible for testing
@@ -332,6 +454,15 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     }
 
     private void handleIncomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel, final Exception exception) {
+        if (exception == null) {
+            HttpResponse earlyResponse = corsHandler.handleInbound(httpRequest);
+            if (earlyResponse != null) {
+                httpChannel.sendResponse(earlyResponse, earlyResponseListener(httpRequest, httpChannel));
+                httpRequest.release();
+                return;
+            }
+        }
+
         Exception badRequestCause = exception;
 
         /*
@@ -346,9 +477,9 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             RestRequest innerRestRequest;
             try {
                 innerRestRequest = RestRequest.request(xContentRegistry, httpRequest, httpChannel);
-            } catch (final RestRequest.ContentTypeHeaderException e) {
+            } catch (final RestRequest.MediaTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutContentTypeHeader(httpRequest, httpChannel, badRequestCause);
+                innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderName());
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
@@ -370,12 +501,14 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             ThreadContext threadContext = threadPool.getThreadContext();
             try {
                 innerChannel =
-                    new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext, trace);
+                    new DefaultRestChannel(httpChannel, httpRequest, restRequest, bigArrays, handlingSettings, threadContext, corsHandler,
+                        trace);
             } catch (final IllegalArgumentException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 final RestRequest innerRequest = RestRequest.requestWithoutParameters(xContentRegistry, httpRequest, httpChannel);
                 innerChannel =
-                    new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, trace);
+                    new DefaultRestChannel(httpChannel, httpRequest, innerRequest, bigArrays, handlingSettings, threadContext, corsHandler,
+                        trace);
             }
             channel = innerChannel;
         }
@@ -383,13 +516,24 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         dispatchRequest(restRequest, channel, badRequestCause);
     }
 
-    private RestRequest requestWithoutContentTypeHeader(HttpRequest httpRequest, HttpChannel httpChannel, Exception badRequestCause) {
-        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader("Content-Type");
+    private RestRequest requestWithoutFailedHeader(HttpRequest httpRequest,
+                                                   HttpChannel httpChannel,
+                                                   Exception badRequestCause,
+                                                   String failedHeaderName) {
+        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader(failedHeaderName);
         try {
             return RestRequest.request(xContentRegistry, httpRequestWithoutContentType, httpChannel);
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
             return RestRequest.requestWithoutParameters(xContentRegistry, httpRequestWithoutContentType, httpChannel);
+        }
+    }
+
+    private static ActionListener<Void> earlyResponseListener(HttpRequest request, HttpChannel httpChannel) {
+        if (HttpUtils.shouldCloseConnection(request)) {
+            return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
+        } else {
+            return NO_OP;
         }
     }
 }

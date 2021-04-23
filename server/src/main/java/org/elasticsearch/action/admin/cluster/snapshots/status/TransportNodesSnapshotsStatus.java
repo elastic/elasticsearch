@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -23,7 +12,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -40,6 +28,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -167,9 +156,9 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
     }
 
 
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
 
-        private List<Snapshot> snapshots;
+        private final List<Snapshot> snapshots;
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
@@ -189,24 +178,12 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
 
     public static class NodeSnapshotStatus extends BaseNodeResponse {
 
-        private Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status;
+        private final Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status;
 
         public NodeSnapshotStatus(StreamInput in) throws IOException {
             super(in);
-            int numberOfSnapshots = in.readVInt();
-            Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> snapshotMapBuilder = new HashMap<>(numberOfSnapshots);
-            for (int i = 0; i < numberOfSnapshots; i++) {
-                Snapshot snapshot = new Snapshot(in);
-                int numberOfShards = in.readVInt();
-                Map<ShardId, SnapshotIndexShardStatus> shardMapBuilder = new HashMap<>(numberOfShards);
-                for (int j = 0; j < numberOfShards; j++) {
-                    ShardId shardId =  new ShardId(in);
-                    SnapshotIndexShardStatus status = new SnapshotIndexShardStatus(in);
-                    shardMapBuilder.put(shardId, status);
-                }
-                snapshotMapBuilder.put(snapshot, unmodifiableMap(shardMapBuilder));
-            }
-            status = unmodifiableMap(snapshotMapBuilder);
+            status = unmodifiableMap(
+                    in.readMap(Snapshot::new, input -> unmodifiableMap(input.readMap(ShardId::new, SnapshotIndexShardStatus::new))));
         }
 
         public NodeSnapshotStatus(DiscoveryNode node, Map<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> status) {
@@ -222,15 +199,8 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (status != null) {
-                out.writeVInt(status.size());
-                for (Map.Entry<Snapshot, Map<ShardId, SnapshotIndexShardStatus>> entry : status.entrySet()) {
-                    entry.getKey().writeTo(out);
-                    out.writeVInt(entry.getValue().size());
-                    for (Map.Entry<ShardId, SnapshotIndexShardStatus> shardEntry : entry.getValue().entrySet()) {
-                        shardEntry.getKey().writeTo(out);
-                        shardEntry.getValue().writeTo(out);
-                    }
-                }
+                out.writeMap(status, (o, s) -> s.writeTo(o),
+                        (output, v) -> output.writeMap(v, (o, shardId) -> shardId.writeTo(o), (o, sis) -> sis.writeTo(o)));
             } else {
                 out.writeVInt(0);
             }

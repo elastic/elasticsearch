@@ -36,28 +36,34 @@ ES_HOME=`dirname "$ES_HOME"`
 ES_CLASSPATH="$ES_HOME/lib/*"
 
 # now set the path to java
-if [ ! -z "$JAVA_HOME" ]; then
-  JAVA="$JAVA_HOME/bin/java"
-  JAVA_TYPE="JAVA_HOME"
+if [ ! -z "$ES_JAVA_HOME" ]; then
+  JAVA="$ES_JAVA_HOME/bin/java"
+  JAVA_TYPE="ES_JAVA_HOME"
 else
+  # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then
     # macOS has a different structure
     JAVA="$ES_HOME/jdk.app/Contents/Home/bin/java"
   else
     JAVA="$ES_HOME/jdk/bin/java"
   fi
-  JAVA_TYPE="bundled jdk"
+  JAVA_TYPE="bundled JDK"
 fi
 
 if [ ! -x "$JAVA" ]; then
-    echo "could not find java in $JAVA_TYPE at $JAVA" >&2
-    exit 1
-  fi
+  echo "could not find java in $JAVA_TYPE at $JAVA" >&2
+  exit 1
+fi
 
 # do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if [ ! -z "$JAVA_TOOL_OPTIONS" ]; then
   echo "warning: ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
   unset JAVA_TOOL_OPTIONS
+fi
+
+# warn that we are not observing the value of JAVA_HOME
+if [ ! -z "$JAVA_HOME" ]; then
+  echo "warning: ignoring JAVA_HOME=$JAVA_HOME; using $JAVA_TYPE" >&2
 fi
 
 # JAVA_OPTS is not a built-in JVM mechanism but some people think it is so we
@@ -67,8 +73,14 @@ if [ ! -z "$JAVA_OPTS" ]; then
   echo "pass JVM parameters via ES_JAVA_OPTS"
 fi
 
+if [[ "$("$JAVA" -version 2>/dev/null)" =~ "Unable to map CDS archive" ]]; then
+  XSHARE="-Xshare:off"
+else
+  XSHARE="-Xshare:auto"
+fi
+
 # check the Java version
-"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
+"$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 
 export HOSTNAME=$HOSTNAME
 
@@ -85,6 +97,10 @@ ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
 ES_DISTRIBUTION_TYPE=${es.distribution.type}
 ES_BUNDLED_JDK=${es.bundled_jdk}
+
+if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
+  echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
+fi
 
 if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   # Allow environment variables to be set by creating a file with the
@@ -113,7 +129,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
         es_arg_array+=("${es_opt}")
       fi
     fi
-  done < <(env)
+  done <<< "$(env)"
 
   # Reset the positional parameters to the es_arg_array values and any existing positional params
   set -- "$@" "${es_arg_array[@]}"

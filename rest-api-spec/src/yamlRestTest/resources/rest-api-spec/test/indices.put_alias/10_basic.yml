@@ -1,0 +1,105 @@
+---
+"Basic test for put alias":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_false: ''
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+
+  - do:
+      indices.exists_alias:
+        name: test_alias
+
+  - is_true: ''
+
+  - do:
+      indices.get_alias:
+        name: test_alias
+
+  - match: {test_index.aliases.test_alias: {}}
+
+---
+"Can't create alias with invalid characters":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      catch: bad_request
+      indices.put_alias:
+        index: test_index
+        name: test_*
+
+---
+"Can't create alias with the same name as an index":
+
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      indices.create:
+        index: foo
+
+  - do:
+      catch: bad_request
+      indices.put_alias:
+        index: test_index
+        name: foo
+
+---
+"Can set is_write_index":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body:
+          is_write_index: true
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+  - match: {test_index.aliases.test_alias: { 'is_write_index': true }}
+
+---
+"Can create filtered alias with a date_nanos range query":
+  - skip:
+      version: " - 7.99.99"
+      reason: "skipping older version until backport"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              date_nanos_field:
+                type: date_nanos
+
+  - do:
+      indices.put_alias:
+        index: test_index
+        name: test_alias
+        body: {"filter": {"range": {"date_nanos_field": {"gt": "now-7d/d"}}}}
+
+  - do:
+      indices.get_alias:
+        index: test_index
+        name: test_alias
+  - match: {test_index.aliases.test_alias: {"filter": {"range": {"date_nanos_field": {"gt": "now-7d/d"}}}}}

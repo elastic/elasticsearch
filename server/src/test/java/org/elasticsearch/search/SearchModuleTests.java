@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search;
 
@@ -29,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -39,17 +28,19 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
@@ -155,7 +146,6 @@ public class SearchModuleTests extends ESTestCase {
                 return singletonList(new PipelineAggregationSpec(
                         DerivativePipelineAggregationBuilder.NAME,
                         DerivativePipelineAggregationBuilder::new,
-                        DerivativePipelineAggregator::new,
                         DerivativePipelineAggregationBuilder::parse)
                             .addResultReader(InternalDerivative::new));
             }
@@ -173,7 +163,8 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     private ThrowingRunnable registryForPlugin(SearchPlugin plugin) {
-        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin)).getNamedXContents());
+        return () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, singletonList(plugin))
+            .getNamedXContents());
     }
 
     public void testRegisterSuggester() {
@@ -278,7 +269,7 @@ public class SearchModuleTests extends ESTestCase {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec("test",
-                        TestPipelineAggregationBuilder::new, TestPipelineAggregator::new, TestPipelineAggregationBuilder::fromXContent));
+                        TestPipelineAggregationBuilder::new, TestPipelineAggregationBuilder::fromXContent));
             }
         }));
 
@@ -309,6 +300,7 @@ public class SearchModuleTests extends ESTestCase {
             "bool",
             "boosting",
             "constant_score",
+            "combined_fields",
             "dis_max",
             "exists",
             "field_masking_span",
@@ -316,7 +308,6 @@ public class SearchModuleTests extends ESTestCase {
             "fuzzy",
             "geo_bounding_box",
             "geo_distance",
-            "geo_polygon",
             "geo_shape",
             "ids",
             "intervals",
@@ -354,26 +345,31 @@ public class SearchModuleTests extends ESTestCase {
     };
 
     //add here deprecated queries to make sure we log a deprecation warnings when they are used
-    private static final String[] DEPRECATED_QUERIES = new String[] {};
+    private static final String[] DEPRECATED_QUERIES = new String[] {"geo_polygon"};
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
      */
-    private static class TestAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, TestAggregationBuilder> {
+    private static class TestAggregationBuilder extends ValuesSourceAggregationBuilder<TestAggregationBuilder> {
         protected TestAggregationBuilder(TestAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metaData) {
-            super(clone, factoriesBuilder, metaData);
+                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
         }
 
         @Override
-        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metaData) {
-            return new TestAggregationBuilder(this, factoriesBuilder, metaData);
+        protected ValuesSourceType defaultValueSourceType() {
+            return CoreValuesSourceType.KEYWORD;
+        }
+
+        @Override
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+            return new TestAggregationBuilder(this, factoriesBuilder, metadata);
         }
         /**
          * Read from a stream.
          */
         protected TestAggregationBuilder(StreamInput in) throws IOException {
-            super(in, null, null);
+            super(in);
         }
 
         @Override
@@ -382,14 +378,24 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
+        protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+            return ValuesSourceRegistry.UNREGISTERED_KEY;
+        }
+
+        @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource> innerBuild(QueryShardContext queryShardContext,
-                                                                            ValuesSourceConfig<ValuesSource> config,
-                                                                            AggregatorFactory parent,
-                                                                            Builder subFactoriesBuilder) throws IOException {
+        public BucketCardinality bucketCardinality() {
+            return BucketCardinality.NONE;
+        }
+
+        @Override
+        protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
+                                                           ValuesSourceConfig config,
+                                                           AggregatorFactory parent,
+                                                           Builder subFactoriesBuilder) throws IOException {
             return null;
         }
 
@@ -424,7 +430,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected PipelineAggregator createInternal(Map<String, Object> metaData) {
+        protected PipelineAggregator createInternal(Map<String, Object> metadata) {
             return null;
         }
 
@@ -436,25 +442,17 @@ public class SearchModuleTests extends ESTestCase {
         private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
+
+        @Override
+        protected void validate(ValidationContext context) {}
     }
 
     /**
      * Dummy test {@link PipelineAggregator} used to test registering aggregation builders.
      */
     private static class TestPipelineAggregator extends PipelineAggregator {
-        /**
-         * Read from a stream.
-         */
-        TestPipelineAggregator(StreamInput in) throws IOException {
-            super(in);
-        }
-        @Override
-        public String getWriteableName() {
-            return "test";
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
+        TestPipelineAggregator() {
+            super("test", new String[] {}, null);
         }
 
         @Override
@@ -491,7 +489,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+        public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
             return null;
         }
     }
@@ -535,7 +533,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected SuggestionSearchContext.SuggestionContext build(QueryShardContext context) throws IOException {
+        protected SuggestionSearchContext.SuggestionContext build(SearchExecutionContext context) throws IOException {
             return null;
         }
 

@@ -1,0 +1,30 @@
+{
+  "cluster.delete_voting_config_exclusions":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/voting-config-exclusions.html",
+      "description":"Clears cluster voting config exclusions."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_cluster/voting_config_exclusions",
+          "methods":[
+            "DELETE"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "wait_for_removal": {
+        "type":"boolean",
+        "description":"Specifies whether to wait for all excluded nodes to be removed from the cluster before clearing the voting configuration exclusions list.",
+        "default":true
+      }
+    }
+  }
+}

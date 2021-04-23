@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,6 +37,7 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
     public static final ParseField MODEL_ID = new ParseField("model_id");
     public static final ParseField PIPELINE_COUNT = new ParseField("pipeline_count");
+    public static final ParseField INFERENCE_STATS = new ParseField("inference_stats");
 
     private GetTrainedModelsStatsAction() {
         super(NAME, GetTrainedModelsStatsAction.Response::new);
@@ -66,37 +67,33 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
 
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client, GetTrainedModelsStatsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends AbstractGetResourcesResponse<Response.TrainedModelStats> {
 
         public static class TrainedModelStats implements ToXContentObject, Writeable {
             private final String modelId;
             private final IngestStats ingestStats;
+            private final InferenceStats inferenceStats;
             private final int pipelineCount;
 
             private static final IngestStats EMPTY_INGEST_STATS = new IngestStats(new IngestStats.Stats(0, 0, 0, 0),
                 Collections.emptyList(),
                 Collections.emptyMap());
 
-            public TrainedModelStats(String modelId, IngestStats ingestStats, int pipelineCount) {
+            public TrainedModelStats(String modelId, IngestStats ingestStats, int pipelineCount, InferenceStats inferenceStats) {
                 this.modelId = Objects.requireNonNull(modelId);
                 this.ingestStats = ingestStats == null ? EMPTY_INGEST_STATS : ingestStats;
                 if (pipelineCount < 0) {
                     throw new ElasticsearchException("[{}] must be a greater than or equal to 0", PIPELINE_COUNT.getPreferredName());
                 }
                 this.pipelineCount = pipelineCount;
+                this.inferenceStats = inferenceStats;
             }
 
             public TrainedModelStats(StreamInput in) throws IOException {
                 modelId = in.readString();
                 ingestStats = new IngestStats(in);
                 pipelineCount = in.readVInt();
+                this.inferenceStats = in.readOptionalWriteable(InferenceStats::new);
             }
 
             public String getModelId() {
@@ -120,6 +117,9 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                     // Ingest stats is a fragment
                     ingestStats.toXContent(builder, params);
                 }
+                if (this.inferenceStats != null) {
+                    builder.field(INFERENCE_STATS.getPreferredName(), this.inferenceStats);
+                }
                 builder.endObject();
                 return builder;
             }
@@ -129,11 +129,12 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 out.writeString(modelId);
                 ingestStats.writeTo(out);
                 out.writeVInt(pipelineCount);
+                out.writeOptionalWriteable(this.inferenceStats);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(modelId, ingestStats, pipelineCount);
+                return Objects.hash(modelId, ingestStats, pipelineCount, inferenceStats);
             }
 
             @Override
@@ -147,7 +148,8 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 TrainedModelStats other = (TrainedModelStats) obj;
                 return Objects.equals(this.modelId, other.modelId)
                     && Objects.equals(this.ingestStats, other.ingestStats)
-                    && Objects.equals(this.pipelineCount, other.pipelineCount);
+                    && Objects.equals(this.pipelineCount, other.pipelineCount)
+                    && Objects.equals(this.inferenceStats, other.inferenceStats);
             }
         }
 
@@ -169,21 +171,22 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
         public static class Builder {
 
             private long totalModelCount;
-            private Set<String> expandedIds;
+            private Map<String, Set<String>> expandedIdsWithAliases;
             private Map<String, IngestStats> ingestStatsMap;
+            private Map<String, InferenceStats> inferenceStatsMap;
 
             public Builder setTotalModelCount(long totalModelCount) {
                 this.totalModelCount = totalModelCount;
                 return this;
             }
 
-            public Builder setExpandedIds(Set<String> expandedIds) {
-                this.expandedIds = expandedIds;
+            public Builder setExpandedIdsWithAliases(Map<String, Set<String>> expandedIdsWithAliases) {
+                this.expandedIdsWithAliases = expandedIdsWithAliases;
                 return this;
             }
 
-            public Set<String> getExpandedIds() {
-                return this.expandedIds;
+            public Map<String, Set<String>> getExpandedIdsWithAliases() {
+                return this.expandedIdsWithAliases;
             }
 
             public Builder setIngestStatsByModelId(Map<String, IngestStats> ingestStatsByModelId) {
@@ -191,13 +194,23 @@ public class GetTrainedModelsStatsAction extends ActionType<GetTrainedModelsStat
                 return this;
             }
 
+            public Builder setInferenceStatsByModelId(Map<String, InferenceStats> infereceStatsByModelId) {
+                this.inferenceStatsMap = infereceStatsByModelId;
+                return this;
+            }
+
             public Response build() {
-                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIds.size());
-                expandedIds.forEach(id -> {
+                List<TrainedModelStats> trainedModelStats = new ArrayList<>(expandedIdsWithAliases.size());
+                expandedIdsWithAliases.keySet().forEach(id -> {
                     IngestStats ingestStats = ingestStatsMap.get(id);
-                    trainedModelStats.add(new TrainedModelStats(id, ingestStats, ingestStats == null ?
-                        0 :
-                        ingestStats.getPipelineStats().size()));
+                    InferenceStats inferenceStats = inferenceStatsMap.get(id);
+                    trainedModelStats.add(new TrainedModelStats(
+                        id,
+                        ingestStats,
+                        ingestStats == null ?
+                            0 :
+                            ingestStats.getPipelineStats().size(),
+                        inferenceStats));
                 });
                 trainedModelStats.sort(Comparator.comparing(TrainedModelStats::getModelId));
                 return new Response(new QueryPage<>(trainedModelStats, totalModelCount, RESULTS_FIELD));

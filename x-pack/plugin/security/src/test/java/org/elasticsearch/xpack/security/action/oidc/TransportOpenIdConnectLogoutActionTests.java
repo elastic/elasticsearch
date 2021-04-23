@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
@@ -26,13 +27,13 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -167,11 +168,13 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
             return null;
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         when(securityIndex.isAvailable()).thenReturn(true);
+        when(securityIndex.freeze()).thenReturn(securityIndex);
 
         final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
 
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isTokenServiceAllowed()).thenReturn(true);
+        when(licenseState.isSecurityEnabled()).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
 
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, new SecurityContext(settings, threadContext),
                                         securityIndex, securityIndex, clusterService);
@@ -200,11 +203,11 @@ public class TransportOpenIdConnectLogoutActionTests extends OpenIdConnectTestCa
         final Authentication authentication = new Authentication(user, realmRef, null, null, Authentication.AuthenticationType.REALM,
             tokenMetadata);
 
-        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, tokenMetadata, future);
-        final String accessToken = future.actionGet().v1();
+        final String accessToken = future.actionGet().getAccessToken();
         mockGetTokenFromId(tokenService, userTokenId, authentication, false, client);
 
         final OpenIdConnectLogoutRequest request = new OpenIdConnectLogoutRequest();

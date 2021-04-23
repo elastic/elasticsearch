@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
@@ -9,7 +10,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
@@ -20,11 +20,10 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.type.EsField;
 
+import java.time.ZoneId;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -44,15 +43,17 @@ public class QueryContainerTests extends ESTestCase {
     }
 
     public void testRewriteToContainsNestedFieldWhenContainsNestedField() {
+        ZoneId zoneId = randomZone();
         Query original = new BoolQuery(source, true,
             new NestedQuery(source, path, singletonMap(name, new SimpleImmutableEntry<>(hasDocValues, format)),
                     new MatchAll(source)),
-            new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean()));
+            new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), zoneId));
         assertSame(original, QueryContainer.rewriteToContainNestedField(original, source, path, name, format, randomBoolean()));
     }
 
     public void testRewriteToContainsNestedFieldWhenCanAddNestedField() {
-        Query buddy = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean());
+        ZoneId zoneId = randomZone();
+        Query buddy = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), zoneId);
         Query original = new BoolQuery(source, true,
             new NestedQuery(source, path, emptyMap(), new MatchAll(source)),
             buddy);
@@ -64,7 +65,8 @@ public class QueryContainerTests extends ESTestCase {
     }
 
     public void testRewriteToContainsNestedFieldWhenDoesNotContainNestedFieldAndCantAdd() {
-        Query original = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean());
+        ZoneId zoneId = randomZone();
+        Query original = new RangeQuery(source, randomAlphaOfLength(5), 0, randomBoolean(), 100, randomBoolean(), zoneId);
         Query expected = new BoolQuery(source, true,
             original,
             new NestedQuery(source, path, singletonMap(name, new SimpleImmutableEntry<>(hasDocValues, format)),
@@ -82,11 +84,8 @@ public class QueryContainerTests extends ESTestCase {
         Attribute fourth = new FieldAttribute(Source.EMPTY, "fourth", esField);
         Alias firstAliased = new Alias(Source.EMPTY, "firstAliased", first);
 
-        Map<Attribute, Expression> aliasesMap = new LinkedHashMap<>();
-        aliasesMap.put(firstAliased.toAttribute(), first);
-
         QueryContainer queryContainer = new QueryContainer()
-            .withAliases(new AttributeMap<>(aliasesMap))
+            .withAliases(new AttributeMap<>(firstAliased.toAttribute(), first))
             .addColumn(third)
             .addColumn(first)
             .addColumn(fourth)

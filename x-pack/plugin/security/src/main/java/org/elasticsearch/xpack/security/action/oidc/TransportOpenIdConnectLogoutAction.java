@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.oidc;
 
@@ -54,7 +55,7 @@ public class TransportOpenIdConnectLogoutAction extends HandledTransportAction<O
     protected void doExecute(Task task, OpenIdConnectLogoutRequest request, ActionListener<OpenIdConnectLogoutResponse> listener) {
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             final String token = request.getToken();
-            tokenService.getAuthenticationAndMetaData(token, ActionListener.wrap(
+            tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(
                 tuple -> {
                     final Authentication authentication = tuple.v1();
                     final Map<String, Object> tokenMetadata = tuple.v2();

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client;
@@ -23,10 +12,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.security.AuthenticateRequest;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.client.security.ChangePasswordRequest;
+import org.elasticsearch.client.security.ClearApiKeyCacheRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
+import org.elasticsearch.client.security.ClearPrivilegesCacheResponse;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
+import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -59,6 +52,7 @@ import org.elasticsearch.client.security.GetUserPrivilegesRequest;
 import org.elasticsearch.client.security.GetUserPrivilegesResponse;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GetUsersResponse;
+import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
 import org.elasticsearch.client.security.HasPrivilegesResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
@@ -511,6 +505,69 @@ public final class SecurityClient {
     }
 
     /**
+     * Clears the privileges cache for a set of privileges.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the privileges for which the cache should be cleared.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the clear privileges cache call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClearPrivilegesCacheResponse clearPrivilegesCache(ClearPrivilegesCacheRequest request,
+                                                             RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearPrivilegesCache, options,
+            ClearPrivilegesCacheResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Clears the privileges cache for a set of privileges asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-privilege-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the privileges for which the cache should be cleared.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable clearPrivilegesCacheAsync(ClearPrivilegesCacheRequest request, RequestOptions options,
+                                                 ActionListener<ClearPrivilegesCacheResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearPrivilegesCache, options,
+            ClearPrivilegesCacheResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Clears the api key cache for a set of IDs.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-api-key-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with the security for which the cache should be cleared for the specified API key IDs.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the clear security cache call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */public ClearSecurityCacheResponse clearApiKeyCache(ClearApiKeyCacheRequest request,
+                                                          RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearApiKeyCache, options,
+            ClearSecurityCacheResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Clears the api key cache for a set of IDs asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-api-key-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request  the request with the security for which the cache should be cleared for the specified API key IDs.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable clearApiKeyCacheAsync(ClearApiKeyCacheRequest request, RequestOptions options,
+                                             ActionListener<ClearSecurityCacheResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearApiKeyCache, options,
+            ClearSecurityCacheResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Synchronously retrieve the X.509 certificates that are used to encrypt communications in an Elasticsearch cluster.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html">
      * the docs</a> for more.
@@ -765,7 +822,7 @@ public final class SecurityClient {
      */
     public InvalidateTokenResponse invalidateToken(InvalidateTokenRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
-            InvalidateTokenResponse::fromXContent, emptySet());
+            InvalidateTokenResponse::fromXContent, singleton(404));
     }
 
     /**
@@ -780,7 +837,7 @@ public final class SecurityClient {
     public Cancellable invalidateTokenAsync(InvalidateTokenRequest request, RequestOptions options,
                                             ActionListener<InvalidateTokenResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::invalidateToken, options,
-            InvalidateTokenResponse::fromXContent, listener, emptySet());
+            InvalidateTokenResponse::fromXContent, listener, singleton(404));
     }
 
     /**
@@ -1009,11 +1066,42 @@ public final class SecurityClient {
     }
 
     /**
+     * Create an API Key on behalf of another user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-grant-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to grant an API key
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create API key call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateApiKeyResponse grantApiKey(final GrantApiKeyRequest request, final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::grantApiKey, options,
+            CreateApiKeyResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates an API key on behalf of another user.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-grant-api-key.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to grant an API key
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable grantApiKeyAsync(final GrantApiKeyRequest request, final RequestOptions options,
+                                         final ActionListener<CreateApiKeyResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::grantApiKey, options,
+            CreateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
      * Get an Elasticsearch access token from an {@code X509Certificate} chain. The certificate chain is that of the client from a mutually
      * authenticated TLS session, and it is validated by the PKI realms with {@code delegation.enabled} toggled to {@code true}.<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
      * docs</a> for more details.
-     * 
+     *
      * @param request the request containing the certificate chain
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response from the delegate-pki-authentication API key call
@@ -1031,7 +1119,7 @@ public final class SecurityClient {
      * {@code true}.<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the
      * docs</a> for more details.
-     * 
+     *
      * @param request the request containing the certificate chain
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion

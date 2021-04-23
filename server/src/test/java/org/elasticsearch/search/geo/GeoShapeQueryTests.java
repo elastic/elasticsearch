@@ -1,33 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -37,6 +25,7 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -69,8 +58,8 @@ import static org.hamcrest.Matchers.greaterThan;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH,
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
+        LegacyGeoShapeFieldMapper.PrefixTrees.GEOHASH,
+        LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE
     };
 
     @Override
@@ -101,16 +90,11 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .startObject("properties").startObject("geo")
             .field("type", "geo_shape");
         if (randomBoolean()) {
-            xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
-                .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
+            xcb = xcb.field("tree", randomFrom(PREFIX_TREES));
         }
         xcb = xcb.endObject().endObject().endObject();
 
         return xcb;
-    }
-
-    public void testIndexPointsFilterRectangle() throws Exception {
-        super.testIndexPointsFilterRectangle(Strings.toString(createRandomMapping()));
     }
 
     public void testShapeFetchingPath() throws Exception {
@@ -480,7 +464,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         // don't use random mapping as permits quadtree
         String mapping = Strings.toString(
             usePrefixTrees ?
-                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE) :
+                createPrefixTreeMapping(LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE) :
                 createDefaultMapping());
         client().admin().indices().prepareCreate("test").setMapping(mapping).get();
         ensureGreen();
@@ -544,7 +528,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
                     .setRefreshPolicy(IMMEDIATE).get();
         } catch (MapperParsingException e) {
             // RandomShapeGenerator created something other than a POINT type, verify the correct exception is thrown
-            assertThat(e.getCause().getMessage(), containsString("is configured for points only"));
+            assertThat(e.getMessage(), containsString("is configured for points only"));
             return;
         }
 
@@ -754,5 +738,63 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
+    }
+
+    public void testDistanceQuery() throws Exception {
+        String mapping = Strings.toString(createRandomMapping());
+        client().admin().indices().prepareCreate("test_distance").setMapping(mapping).get();
+        ensureGreen();
+
+        CircleBuilder circleBuilder = new CircleBuilder().center(new Coordinate(1, 0)).radius(350, DistanceUnit.KILOMETERS);
+
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("geo", new PointBuilder(2, 2)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("geo", new PointBuilder(3, 1)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("geo", new PointBuilder(-20, -30)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+        client().index(new IndexRequest("test_distance")
+            .source(jsonBuilder().startObject().field("geo", new PointBuilder(20, 30)).endObject())
+            .setRefreshPolicy(IMMEDIATE)).actionGet();
+
+        SearchResponse response = client().prepareSearch("test_distance")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.WITHIN))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.INTERSECTS))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.DISJOINT))
+            .get();
+        assertEquals(2, response.getHits().getTotalHits().value);
+        response = client().prepareSearch("test_distance")
+            .setQuery(QueryBuilders.geoShapeQuery("geo", circleBuilder.buildGeometry()).relation(ShapeRelation.CONTAINS))
+            .get();
+        assertEquals(0, response.getHits().getTotalHits().value);
+    }
+
+    public void testIndexRectangleSpanningDateLine() throws Exception {
+        String mapping = Strings.toString(createRandomMapping());
+
+        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        ensureGreen();
+
+        EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(178, 10), new Coordinate(-178, -10));
+
+        XContentBuilder docSource = envelopeBuilder.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
+        client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
+
+        ShapeBuilder filterShape = new PointBuilder(179, 0);
+
+        GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", filterShape);
+        geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setQuery(geoShapeQueryBuilder).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
@@ -36,22 +37,18 @@ public class SysTables extends Command {
     private final LikePattern pattern;
     private final LikePattern clusterPattern;
     private final EnumSet<IndexType> types;
-    // flag indicating whether tables are reported as `TABLE` or `BASE TABLE`
-    private final boolean legacyTableTypes;
 
-    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types,
-            boolean legacyTableTypes) {
+    public SysTables(Source source, LikePattern clusterPattern, String index, LikePattern pattern, EnumSet<IndexType> types) {
         super(source);
         this.clusterPattern = clusterPattern;
         this.index = index;
         this.pattern = pattern;
         this.types = types;
-        this.legacyTableTypes = legacyTableTypes;
     }
 
     @Override
     protected NodeInfo<SysTables> info() {
-        return NodeInfo.create(this, SysTables::new, clusterPattern, index, pattern, types, legacyTableTypes);
+        return NodeInfo.create(this, SysTables::new, clusterPattern, index, pattern, types);
     }
 
     @Override
@@ -89,7 +86,7 @@ public class SysTables extends Command {
                 return;
             }
         }
-        
+
         boolean includeFrozen = session.configuration().includeFrozen();
 
         // enumerate types
@@ -102,7 +99,7 @@ public class SysTables extends Command {
                 List<List<?>> values = new ArrayList<>();
                 // send only the types, everything else is made of empty strings
                 // NB: since the types are sent in SQL, frozen doesn't have to be taken into account since
-                // it's just another BASE TABLE
+                // it's just another TABLE
                 Set<IndexType> typeSet = IndexType.VALID_REGULAR;
                 for (IndexType type : typeSet) {
                     Object[] enumeration = new Object[10];
@@ -121,7 +118,7 @@ public class SysTables extends Command {
         String cRegex = clusterPattern != null ? clusterPattern.asJavaRegex() : null;
 
         // if the catalog doesn't match, don't return any results
-        if (cRegex != null && !Pattern.matches(cRegex, cluster)) {
+        if (cRegex != null && Pattern.matches(cRegex, cluster) == false) {
             listener.onResponse(Page.last(Rows.empty(output())));
             return;
         }
@@ -142,13 +139,13 @@ public class SysTables extends Command {
 
         session.indexResolver().resolveNames(idx, regex, tableTypes, ActionListener.wrap(result -> listener.onResponse(
                 of(session, result.stream()
-                 // sort by type (which might be legacy), then by name
-                 .sorted(Comparator.<IndexInfo, String> comparing(i -> legacyName(i.type()))
+                 // sort by type, then by name
+                 .sorted(Comparator.<IndexInfo, String> comparing(i -> i.type().toSql())
                            .thenComparing(Comparator.comparing(i -> i.name())))
                  .map(t -> asList(cluster,
                          null,
                          t.name(),
-                         legacyName(t.type()),
+                         t.type().toSql(),
                          EMPTY,
                          null,
                          null,
@@ -157,10 +154,6 @@ public class SysTables extends Command {
                          null))
                 .collect(toList())))
         , listener::onFailure));
-    }
-
-    private String legacyName(IndexType indexType) {
-        return legacyTableTypes && IndexType.INDICES_ONLY.contains(indexType) ? IndexType.SQL_TABLE : indexType.toSql();
     }
 
     @Override

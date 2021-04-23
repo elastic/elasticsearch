@@ -127,7 +127,7 @@ searches, consider the following setting changes:
 * Lower the `size` limit using the
 <<index-max-result-window,`index.max_result_window`>> index setting.
 
-* Decrease the maximum number of aggregation buckets using the
+* Decrease the maximum number of allowed aggregation buckets using the
 <<search-settings-max-buckets,search.max_buckets>> cluster setting.
 
 * Disable expensive queries using the
@@ -196,7 +196,7 @@ GET _cat/shards?v=true&h=index,shard,prirep,state,node,unassigned.reason&s=state
 ----
 
 Unassigned shards have a `state` of `UNASSIGNED`. The `prirep` value is `p` for
-primary shards or `r` for replicas. The `unassigned.reason` describes why the
+primary shards and `r` for replicas. The `unassigned.reason` describes why the
 shard remains unassigned.
 
 To get a more in-depth explanation of each shard's allocation status, use the
@@ -221,8 +221,8 @@ most common causes and their solutions.
 **Re-enable shard allocation**
 
 You typically disable allocation during a <<restart-cluster,restart>> or other
-cluster maintenance. If you forget to later re-enable allocation, {es} will be
-unable to assign shards. To re-enable allocation, reset the
+cluster maintenance. If you forgot to re-enable allocation afterward, {es} will
+be unable to assign shards. To re-enable allocation, reset the
 `cluster.routing.allocation.enable` cluster setting.
 
 [source,console]

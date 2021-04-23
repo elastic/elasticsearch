@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
@@ -36,8 +37,8 @@ import static java.util.Collections.unmodifiableMap;
  */
 public final class Mapping implements ToXContentFragment {
 
-    //TODO is it ok to use current here?
-    public static final Mapping EMPTY = empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT);
+    //TODO is it ok to use current here? and the empty metadata mappers?
+    public static final Mapping EMPTY = empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT, new MetadataFieldMapper[0]);
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
@@ -45,10 +46,12 @@ public final class Mapping implements ToXContentFragment {
     private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     private final Map<String, MetadataFieldMapper> metadataMappersByName;
 
-    static Mapping empty(String type, Version indexVersionCreated) {
+    static Mapping empty(String type,
+                         Version indexVersionCreated,
+                         MetadataFieldMapper[] metadataMappers) {
         return new Mapping(
             new RootObjectMapper.Builder(type, indexVersionCreated).build(new ContentPath()),
-            new MetadataFieldMapper[0],
+            metadataMappers,
             Collections.emptyMap());
     }
 

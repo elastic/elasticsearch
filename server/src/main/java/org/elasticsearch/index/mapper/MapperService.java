@@ -353,7 +353,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
         }
-        Mapping mapping = Mapping.empty(SINGLE_MAPPING_NAME, parserContextSupplier.get().indexVersionCreated());
+        Mapping mapping = Mapping.empty(SINGLE_MAPPING_NAME, parserContextSupplier.get().indexVersionCreated(),
+            getMetadataMappers().values().toArray(new MetadataFieldMapper[0]));
         mapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }

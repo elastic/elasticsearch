@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

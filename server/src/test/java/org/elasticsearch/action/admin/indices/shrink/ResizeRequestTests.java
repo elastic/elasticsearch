@@ -118,55 +118,6 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
-    public void testEqualsAndHashCode() {
-        ResizeRequest request = createTestInstance();
-        assertEquals(request, request);
-        assertEquals(request.hashCode(), request.hashCode());
-
-        ResizeRequest copy = new ResizeRequest();
-        copy.setTargetIndex(request.getTargetIndexRequest());
-        copy.setSourceIndex(request.getSourceIndex());
-        copy.setResizeType(request.getResizeType());
-        copy.setCopySettings(request.getCopySettings());
-        copy.setMaxPrimaryShardSize(request.getMaxPrimaryShardSize());
-        assertEquals(request, copy);
-        assertEquals(copy, request);
-        assertEquals(request.hashCode(), copy.hashCode());
-
-        // Changing targetIndexRequest makes requests not equal
-        copy.setTargetIndex(new CreateIndexRequest(request.getTargetIndexRequest().index() + randomAlphaOfLength(1)));
-        assertNotEquals(request, copy);
-        assertNotEquals(request.hashCode(), copy.hashCode());
-
-        // Changing sourceIndex makes requests not equal
-        copy.setSourceIndex(request.getSourceIndex() + randomAlphaOfLength(1));
-        assertNotEquals(request, copy);
-        assertNotEquals(request.hashCode(), copy.hashCode());
-
-        // Changing resizeType makes requests not equal
-        copy.setResizeType(ResizeType.SPLIT);
-        assertNotEquals(request, copy);
-        assertNotEquals(request.hashCode(), copy.hashCode());
-
-        // Changing resizeType makes requests not equal
-        if (request.getCopySettings()) {
-            copy.setCopySettings(null);
-        } else {
-            copy.setCopySettings(true);
-        }
-        assertNotEquals(request, copy);
-        assertNotEquals(request.hashCode(), copy.hashCode());
-
-        // Changing maxPrimaryShardSize makes requests not equal
-        if (request.getMaxPrimaryShardSize() != null) {
-            copy.setMaxPrimaryShardSize(null);
-        } else {
-            copy.setMaxPrimaryShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
-        }
-        assertNotEquals(request, copy);
-        assertNotEquals(request.hashCode(), copy.hashCode());
-    }
-
     public void testSerializeRequest() throws IOException {
         ResizeRequest request = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();

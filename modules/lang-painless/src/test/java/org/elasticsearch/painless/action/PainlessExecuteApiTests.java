@@ -222,24 +222,26 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         request = new Request(new Script(ScriptType.INLINE, "painless",
-                "emit(\"192.168.0.1\"); emit(\"127.0.0.1\"); emit(\"255.255.255.255\"); emit(\"0.0.0.0\");",
+                "emit(\"192.168.0.1\"); emit(\"2001:db8::8a2e:370:7334\"); emit(\"2001:0db8:0000:0000:0000:8a2e:0370:7333\"); " +
+                        "emit(\"127.0.0.1\"); emit(\"255.255.255.255\"); emit(\"0.0.0.0\");",
                 emptyMap()), "ip_field", contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
-        assertEquals(response.getResult(), Arrays.asList("0.0.0.0", "127.0.0.1", "192.168.0.1", "255.255.255.255"));
+        assertEquals(response.getResult(), Arrays.asList("0.0.0.0", "127.0.0.1", "192.168.0.1", "255.255.255.255",
+                "2001:db8::8a2e:370:7333", "2001:db8::8a2e:370:7334"));
     }
 
     public void testLongFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_value", "type=long");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index",
-                new BytesArray("{\"test_point\":\"30.2,40.2\"}"), new MatchAllQueryBuilder());
+                new BytesArray("{\"test_value\":\"42\"}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
-                "emit((long)doc['test_point'].value.lat); emit((long)doc['test_point'].value.lon);", emptyMap()),
+                "emit(doc['test_value'].value); emit(doc['test_value'].value - 2);", emptyMap()),
                 "long_field", contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
-        assertArrayEquals((long[])response.getResult(), new long[] {30, 40});
+        assertArrayEquals((long[])response.getResult(), new long[] {40, 42});
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
@@ -252,17 +254,17 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
     public void testKeywordFieldExecutionContext() throws IOException {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
-        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "test_point", "type=geo_point");
+        IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
 
         Request.ContextSetup contextSetup = new Request.ContextSetup("index",
-                new BytesArray("{\"test_point\":\"30.2,40.2\"}"), new MatchAllQueryBuilder());
+                new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"), new MatchQueryBuilder("text", "fox"));
+        contextSetup.setXContentType(XContentType.JSON);
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(new Script(ScriptType.INLINE, "painless",
-                "emit(doc['test_point'].value.lat.toString().substring(0, 5)); " +
-                        "emit(doc['test_point'].value.lon.toString().substring(0, 5));", emptyMap()),
+                "emit(doc['rank'].value + doc['text'].value)", emptyMap()),
                 "keyword_field", contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
-        assertArrayEquals((String[])response.getResult(), new String[] {"30.19", "40.19"});
+        assertArrayEquals((String[])response.getResult(), new String[] {"4quick brown fox"});
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);

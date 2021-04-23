@@ -43,6 +43,7 @@ public class VectorTileUtils {
         throws IOException {
         final Map<String, Object> map = Maps.flatten(
             XContentHelper.convertToMap(XContentHelper.toXContent(toXContent, XContentType.CBOR, false), true, XContentType.CBOR).v2(),
+            true,
             true
         );
         for (Map.Entry<String, Object> entry : map.entrySet()) {

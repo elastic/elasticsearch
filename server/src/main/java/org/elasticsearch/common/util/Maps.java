@@ -12,6 +12,7 @@ import org.elasticsearch.Assertions;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -127,23 +128,41 @@ public class Maps {
                 .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
-    public static Map<String, Object> flatten(Map<String, Object> map, boolean ordered) {
-        return flatten(map, ordered, null);
+    public static Map<String, Object> flatten(Map<String, Object> map, boolean flattenArrays, boolean ordered) {
+        return flatten(map, flattenArrays, ordered, null);
     }
 
     @SuppressWarnings("unchecked")
-    private static Map<String, Object> flatten(Map<String, Object> map, boolean ordered, String parentPath) {
-        Map<String, Object> flatMap = ordered ? new TreeMap() : new HashMap<>();
+    private static Map<String, Object> flatten(Map<String, Object> map, boolean flattenArrays, boolean ordered, String parentPath) {
+        Map<String, Object> flatMap = ordered ? new TreeMap<>() : new HashMap<>();
         String prefix = parentPath != null ? parentPath + "." : "";
-
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             if (entry.getValue() instanceof Map) {
-                flatMap.putAll(flatten((Map<String, Object>) entry.getValue(), ordered, prefix + entry.getKey()));
+                flatMap.putAll(flatten((Map<String, Object>) entry.getValue(), flattenArrays, ordered, prefix + entry.getKey()));
+            } else if (flattenArrays && entry.getValue() instanceof List) {
+                flatMap.putAll(flatten((List<Object>) entry.getValue(), ordered, prefix + entry.getKey()));
             } else {
                 flatMap.put(prefix + entry.getKey(), entry.getValue());
             }
         }
+        return flatMap;
+    }
 
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> flatten(List<Object> list, boolean ordered, String parentPath) {
+        Map<String, Object> flatMap = ordered ? new TreeMap<>() : new HashMap<>();
+        String prefix = parentPath != null ? parentPath + "." : "";
+        for (int i = 0; i < list.size(); i++) {
+            Object cur = list.get(i);
+            if (cur instanceof Map) {
+                flatMap.putAll(flatten((Map<String, Object>) cur, true, ordered, prefix + i));
+            }
+            if (cur instanceof List) {
+                flatMap.putAll(flatten((List<Object>) cur, ordered, prefix + i));
+            } else {
+                flatMap.put(prefix + i, cur);
+            }
+        }
         return flatMap;
     }
 }

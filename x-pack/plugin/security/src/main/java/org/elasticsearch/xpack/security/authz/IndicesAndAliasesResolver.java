@@ -183,7 +183,7 @@ class IndicesAndAliasesResolver {
                 }
                 authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
                     ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
-                    // TODO pass the authorizedIndicesSupplier inside the index abstraction resolver
+                    // cannot pass the async supplier
                     List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
                             authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
                     if (indicesOptions.ignoreUnavailable()) {
@@ -234,18 +234,20 @@ class IndicesAndAliasesResolver {
                         aliasesReplacedStepListener.onResponse(null);
                     }
                     aliasesReplacedStepListener.whenComplete(anotherVoid -> {
-                        if (indicesReplacedWithNoIndices.get()) {
-                            if (indicesRequest instanceof GetAliasesRequest == false) {
-                                listener.onFailure(new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only " +
-                                        "known request implementing " + AliasesRequest.class.getSimpleName() +
-                                        " that may allow no indices. Found [" + indicesRequest.getClass().getName() +
-                                        "] which ended up with an empty set of indices."));
-                            }
-                            //if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the request will
-                            //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
-                        } else {
-                            resolvedIndicesStepListener.whenComplete(resolvedIndicesBuilder -> {
+                        resolvedIndicesStepListener.whenComplete(resolvedIndicesBuilder -> {
+                            if (indicesReplacedWithNoIndices.get()) {
+                                if (indicesRequest instanceof GetAliasesRequest == false) {
+                                    listener.onFailure(new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only " +
+                                            "known request implementing " + AliasesRequest.class.getSimpleName() +
+                                            " that may allow no indices. Found [" + indicesRequest.getClass().getName() +
+                                            "] which ended up with an empty set of indices."));
+                                    return;
+                                }
+                                //if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the
+                                // request will not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
+                            } else {
                                 resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
+                            }
                                 /*
                                  * If no aliases are authorized, then fill in an expression that Metadata#findAliases evaluates to an
                                  * empty alias list. We can not put an empty list here because core resolves this as _all. For other
@@ -259,7 +261,6 @@ class IndicesAndAliasesResolver {
                                 }
                                 listener.onResponse(resolvedIndicesBuilder.build());
                             }, listener::onFailure);
-                        }
                     }, listener::onFailure);
                 } else {
                     resolvedIndicesStepListener.whenComplete(resolvedIndicesBuilder -> {

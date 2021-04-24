@@ -132,7 +132,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 33, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 15);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
 
     public void testEmpty() throws Exception {
@@ -140,7 +140,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + newY);
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(1));
-        assertLayer(tile, META_LAYER, 4096, 1, 12);
+        assertLayer(tile, META_LAYER, 4096, 1, 8);
     }
 
     public void testGridPrecision() throws Exception {
@@ -151,7 +151,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 1);
             assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-            assertLayer(tile, META_LAYER, 4096, 1, 15);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
         }
         {
             final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
@@ -169,7 +169,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 1);
             assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-            assertLayer(tile, META_LAYER, 4096, 1, 15);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
         }
         {
             final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
@@ -178,7 +178,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 1);
             assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-            assertLayer(tile, META_LAYER, 4096, 1, 15);
+            assertLayer(tile, META_LAYER, 4096, 1, 13);
         }
         {
             final Request mvtRequest = new Request(HttpGet.METHOD_NAME, INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
@@ -194,7 +194,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(2));
         assertLayer(tile, HITS_LAYER, 4096, 33, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 11);
+        assertLayer(tile, META_LAYER, 4096, 1, 9);
     }
 
     public void testNoHitsLayer() throws Exception {
@@ -203,7 +203,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(2));
         assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 14);
+        assertLayer(tile, META_LAYER, 4096, 1, 12);
     }
 
     public void testBasicQueryGet() throws Exception {
@@ -221,7 +221,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 15);
+        assertLayer(tile, META_LAYER, 4096, 1, 13);
     }
 
     public void testBasicShape() throws Exception {
@@ -230,7 +230,9 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 15);
+        // The same max and min values are present in all buckets so min and max aggs return all buckets as max and mins
+        // as an array at the moment hence 2 additional values and 256 * 256 * 2 additional keys
+        assertLayer(tile, META_LAYER, 4096, 1, 9 + 2 + 256 * 256 * 2);
     }
 
     public void testWithFields() throws Exception {
@@ -240,7 +242,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 3);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 1);
-        assertLayer(tile, META_LAYER, 4096, 1, 15);
+        assertLayer(tile, META_LAYER, 4096, 1, 9 + 2 + 256 * 256 * 2);
     }
 
     public void testMinAgg() throws Exception {
@@ -258,7 +260,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 1);
         assertLayer(tile, AGGS_LAYER, 4096, 256 * 256, 2);
-        assertLayer(tile, META_LAYER, 4096, 1, 19);
+        assertLayer(tile, META_LAYER, 4096, 1, 9 + 4 + 256 * 256 * 4);
     }
 
     private void assertLayer(VectorTile.Tile tile, String name, int extent, int numFeatures, int numTags) {

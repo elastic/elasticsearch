@@ -235,9 +235,10 @@ class IndicesAndAliasesResolver {
                     aliasesReplacedStepListener.whenComplete(anotherVoid -> {
                         if (indicesReplacedWithNoIndices.get()) {
                             if (indicesRequest instanceof GetAliasesRequest == false) {
-                                listener.onFailure(new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only known " +
-                                        "request implementing " + AliasesRequest.class.getSimpleName() + " that may allow no indices. Found [" +
-                                        indicesRequest.getClass().getName() + "] which ended up with an empty set of indices."));
+                                listener.onFailure(new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only " +
+                                        "known request implementing " + AliasesRequest.class.getSimpleName() +
+                                        " that may allow no indices. Found [" + indicesRequest.getClass().getName() +
+                                        "] which ended up with an empty set of indices."));
                             }
                             //if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the request will
                             //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
@@ -316,7 +317,7 @@ class IndicesAndAliasesResolver {
                 } else {
                     // the user is not authorized to put mappings for this index, but could have been
                     // authorized for a write using an alias that triggered a dynamic mapping update
-                    ImmutableOpenMap<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
+                    ImmutableOpenMap<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[]{concreteIndexName});
                     List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
                     if (aliasMetadata != null) {
                         Optional<String> foundAlias = aliasMetadata.stream()

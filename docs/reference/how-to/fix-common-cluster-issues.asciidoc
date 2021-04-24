@@ -210,6 +210,8 @@ degrade cluster performance.
 
 **Check your cluster status**
 
+Use the <<cluster-health,cluster health API>>.
+
 [source,console]
 ----
 GET _cluster/health?filter_path=status,*_shards
@@ -232,8 +234,8 @@ Unassigned shards have a `state` of `UNASSIGNED`. The `prirep` value is `p` for
 primary shards and `r` for replicas. The `unassigned.reason` describes why the
 shard remains unassigned.
 
-To get a more in-depth explanation of each shard's allocation status, use the
-<<cluster-allocation-explain,cluster allocation explanation API>>.
+To get a more in-depth explanation of each unassigned shard's allocation status,
+use the <<cluster-allocation-explain,cluster allocation explanation API>>.
 
 [source,console]
 ----
@@ -241,7 +243,7 @@ GET _cluster/allocation/explain?filter_path=index,node_allocation_decisions.node
 ----
 // TEST[catch:bad_request]
 
-You can often use details from the response to resolve the issue. If the cluster
+You can often use details in the response to resolve the issue. If the cluster
 contains no unassigned shards, the API returns a `400` error.
 
 [discrete]
@@ -273,12 +275,12 @@ PUT _cluster/settings
 Shards often become unassigned when a data node leaves the cluster. This can
 occur for several reasons, ranging from connectivity issues to hardware failure.
 After you resolve the issue and recover the node, it will rejoin the cluster.
-{es} will then automatically allocate the unassigned shards.
+{es} will then automatically allocate any unassigned shards.
 
 To avoid wasting resources on temporary issues, {es} <<delayed-allocation,delays
 allocation>> by one minute by default. If you've recovered a node and don’t want
 to wait for the delay period, you can call the <<cluster-reroute,cluster reroute
-API>> with no arguments. This request starts the allocation process, which runs
+API>> with no arguments to start the allocation process. The process runs
 asynchronously in the background.
 
 [source,console]
@@ -318,8 +320,8 @@ replica, it remains unassigned. To fix this, you can:
 * Add a data node to the same tier to host the replica.
 
 * Change the `index.number_of_replicas` index setting to reduce the number of
-replicas per primary shard. We recommend keeping at least one replica for each
-primary shard.
+replicas for each primary shard. We recommend keeping at least one replica per
+primary.
 
 [source,console]
 ----
@@ -355,7 +357,7 @@ can use a <<snapshot-restore,snapshot>> to store it off-cluster.
 
 * If you no longer write to an index, use the <<indices-forcemerge,force merge
 API>> or {ilm-init}'s <<ilm-forcemerge,force merge action>> to merge its
-segments into larger ones and free up disk space.
+segments into larger ones.
 +
 [source,console]
 ----
@@ -364,8 +366,7 @@ POST my-index/_forcemerge
 // TEST[s/^/PUT my-index\n/]
 
 * If an index is read-only, use the <<indices-shrink-index,shrink index API>> or
-{ilm-init}'s <<ilm-shrink,shrink action>> to reduce its primary shard count and
-free up space.
+{ilm-init}'s <<ilm-shrink,shrink action>> to reduce its primary shard count.
 +
 [source,console]
 ----

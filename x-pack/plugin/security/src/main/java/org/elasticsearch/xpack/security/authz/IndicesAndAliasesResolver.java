@@ -51,6 +51,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -125,11 +126,11 @@ class IndicesAndAliasesResolver {
         }
     }
 
-    // for tests
     ResolvedIndices resolve(TransportRequest request, Metadata metadata, List<String> authorizedIndices) {
         PlainActionFuture<ResolvedIndices> future = PlainActionFuture.newFuture();
+        // if the supplier is not async, the method is not async, hence get is non-blocking
         resolve(request, metadata, listener -> listener.onResponse(authorizedIndices), future);
-        return FutureUtils.get(future);
+        return FutureUtils.get(future, 0, TimeUnit.MILLISECONDS);
     }
 
     void resolveIndicesAndAliases(IndicesRequest indicesRequest, Metadata metadata, AsyncSupplier<List<String>> authorizedIndicesSupplier
@@ -285,12 +286,12 @@ class IndicesAndAliasesResolver {
         }
     }
 
-    // for tests
     ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, Metadata metadata,
                                              List<String> authorizedIndices) {
         PlainActionFuture<ResolvedIndices> future = PlainActionFuture.newFuture();
+        // if the supplier is not async, the method is not async, hence get is non-blocking
         resolveIndicesAndAliases(indicesRequest, metadata, listener -> listener.onResponse(authorizedIndices), future);
-        return FutureUtils.get(future);
+        return FutureUtils.get(future, 0, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -344,14 +345,14 @@ class IndicesAndAliasesResolver {
         }
     }
 
-    // for tests
     static String getPutMappingIndexOrAlias(PutMappingRequest request, List<String> authorizedIndicesList, Metadata metadata) {
         PlainActionFuture<String> future = PlainActionFuture.newFuture();
+        // if the supplier is not async, the method is not async, hence get is non-blocking
         getPutMappingIndexOrAlias(request,
                 listener -> listener.onResponse(authorizedIndicesList),
                 metadata,
                 future);
-        return FutureUtils.get(future);
+        return FutureUtils.get(future, 0, TimeUnit.MILLISECONDS);
     }
 
     static boolean allowsRemoteIndices(IndicesRequest request) {

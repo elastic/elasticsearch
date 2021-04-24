@@ -122,7 +122,7 @@ include::{es-repo-dir}/tab-widgets/jvm-memory-pressure-widget.asciidoc[]
 As memory usage increases, garbage collection becomes more frequent and takes
 longer. You can track the frequency and length of garbage collection events in
 <<logging,`elasticsearch.log`>>. For example, the following event states {es}
-`spent` more than 50% (21 seconds) of the `last` 40 seconds in garbage
+spent more than 50% (21 seconds) of the last 40 seconds performing garbage
 collection.
 
 [source,log]
@@ -188,7 +188,7 @@ settings>> to limit the number of field mappings.
 
 While more efficient than individual requests, large <<docs-bulk,bulk indexing>>
 or <<search-multi-search,multi-search>> requests can still create high JVM
-memory pressure. If possible, try using smaller requests and allow more time
+memory pressure. If possible, submit smaller requests and allow more time
 between them.
 
 **Upgrade node memory**

@@ -245,33 +245,35 @@ class IndicesAndAliasesResolver {
         } else if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX) {
             throw new IllegalStateException("concrete index [" + concreteIndexName + "] is a [" +
                 indexAbstraction.getType().getDisplayName() + "], but a concrete index is expected");
-        } else if (authorizedIndicesList.contains(concreteIndexName)) {
-            // user is authorized to put mappings for this index
-            resolvedAliasOrIndex = concreteIndexName;
         } else {
-            // the user is not authorized to put mappings for this index, but could have been
-            // authorized for a write using an alias that triggered a dynamic mapping update
-            ImmutableOpenMap<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
-            List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
-            if (aliasMetadata != null) {
-                Optional<String> foundAlias = aliasMetadata.stream()
-                    .map(AliasMetadata::alias)
-                    .filter(authorizedIndicesList::contains)
-                    .filter(aliasName -> {
-                        IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
-                        List<IndexMetadata> indexMetadata = alias.getIndices();
-                        if (indexMetadata.size() == 1) {
-                            return true;
-                        } else {
-                            assert alias.getType() == IndexAbstraction.Type.ALIAS;
-                            IndexMetadata idxMeta = alias.getWriteIndex();
-                            return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
-                        }
-                    })
-                    .findFirst();
-                resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
-            } else {
+            if (authorizedIndicesList.contains(concreteIndexName)) {
+                // user is authorized to put mappings for this index
                 resolvedAliasOrIndex = concreteIndexName;
+            } else {
+                // the user is not authorized to put mappings for this index, but could have been
+                // authorized for a write using an alias that triggered a dynamic mapping update
+                ImmutableOpenMap<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
+                List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
+                if (aliasMetadata != null) {
+                    Optional<String> foundAlias = aliasMetadata.stream()
+                            .map(AliasMetadata::alias)
+                            .filter(authorizedIndicesList::contains)
+                            .filter(aliasName -> {
+                                IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
+                                List<IndexMetadata> indexMetadata = alias.getIndices();
+                                if (indexMetadata.size() == 1) {
+                                    return true;
+                                } else {
+                                    assert alias.getType() == IndexAbstraction.Type.ALIAS;
+                                    IndexMetadata idxMeta = alias.getWriteIndex();
+                                    return idxMeta != null && idxMeta.getIndex().getName().equals(concreteIndexName);
+                                }
+                            })
+                            .findFirst();
+                    resolvedAliasOrIndex = foundAlias.orElse(concreteIndexName);
+                } else {
+                    resolvedAliasOrIndex = concreteIndexName;
+                }
             }
         }
 

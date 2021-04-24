@@ -284,20 +284,18 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<List<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
-                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata.getIndicesLookup(),
-                    authzIndicesListener));
-            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>((resolvedIndicesListener) -> {
-                authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
-                    resolveIndexNames(request, metadata, authorizedIndices, resolvedIndicesListener);
-                }, e -> {
-                    auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                    if (e instanceof IndexNotFoundException) {
-                        listener.onFailure(e);
-                    } else {
-                        listener.onFailure(denialException(authentication, action, request, e));
-                    }
-                }));
-            });
+                    authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata.getIndicesLookup(),
+                            authzIndicesListener.delegateResponse((l, e) -> {
+                                auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+                                if (e instanceof IndexNotFoundException) {
+                                    listener.onFailure(e);
+                                } else {
+                                    listener.onFailure(denialException(authentication, action, request, e));
+                                }
+                            })));
+            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier =
+                    new CachingAsyncSupplier<>((resolvedIndicesListener) -> indicesAndAliasesResolver.resolve(request, metadata,
+                            authorizedIndicesSupplier, resolvedIndicesListener));
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
                 metadata.getIndicesLookup(), wrapPreservingContext(new AuthorizationResultListener<>(result ->
                     handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine,
@@ -490,7 +488,7 @@ public class AuthorizationService {
         final AuditTrail auditTrail = auditTrailService.get();
 
             resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
-                final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
+                final List<String> localIndices = overallResolvedIndices.getLocal();
                 for (BulkItemRequest item : request.items()) {
                     String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
                         final ResolvedIndices resolvedIndices =
@@ -589,11 +587,6 @@ public class AuthorizationService {
                 return DeleteAction.NAME;
         }
         throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
-    }
-
-    private void resolveIndexNames(TransportRequest request, Metadata metadata, List<String> authorizedIndices,
-                                   ActionListener<ResolvedIndices> listener) {
-        listener.onResponse(indicesAndAliasesResolver.resolve(request, metadata, authorizedIndices));
     }
 
     private void putTransientIfNonExisting(String key, Object value) {

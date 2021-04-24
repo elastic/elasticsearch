@@ -99,6 +99,11 @@ public final class ResolvedIndices {
             remote.addAll(indices);
         }
 
+        public void add(ResolvedIndices resolvedIndices) {
+            addLocal(resolvedIndices.getLocal());
+            addRemote(resolvedIndices.getRemote());
+        }
+
         /** @return <code>true</code> if both the local and remote index lists are empty. */
         public boolean isEmpty() {
             return local.isEmpty() && remote.isEmpty();

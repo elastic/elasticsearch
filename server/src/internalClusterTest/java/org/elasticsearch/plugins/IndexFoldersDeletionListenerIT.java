@@ -36,7 +36,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 import static org.elasticsearch.gateway.MetadataStateFormat.STATE_DIR_NAME;

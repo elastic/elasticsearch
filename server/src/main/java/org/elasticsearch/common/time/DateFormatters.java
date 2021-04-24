@@ -1040,7 +1040,7 @@ public class DateFormatters {
     /////////////////////////////////////////
 
     private static final DateTimeFormatter DATE_FORMATTER = new DateTimeFormatterBuilder()
-        .appendValue(ChronoField.YEAR, 1, 5, SignStyle.NORMAL)
+        .appendValue(ChronoField.YEAR, 1, 9, SignStyle.NORMAL)
         .optionalStart()
         .appendLiteral('-')
         .appendValue(MONTH_OF_YEAR, 1, 2, SignStyle.NOT_NEGATIVE)

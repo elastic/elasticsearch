@@ -215,6 +215,22 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
         assertSamePrinterOutput("E, d MMM yyyy HH:mm:ss Z", javaTimeNow, dateTimeNow, LocaleUtils.parse("de"));
     }
 
+    public void testDateOptionalTimeYearsWithManyDigits() {
+        assertSameDateAs("2018-12-31T10:15:30", "yyyy-MM-dd'T'HH:mm:ss", "date_optional_time");
+        assertSameDateAs("12018-12-31T10:15:30", "yyyyy-MM-dd'T'HH:mm:ss", "date_optional_time");
+        assertSameDateAs("122018-12-31T10:15:30", "yyyyyy-MM-dd'T'HH:mm:ss", "date_optional_time");
+        assertSameDateAs("1232018-12-31T10:15:30", "yyyyyyy-MM-dd'T'HH:mm:ss", "date_optional_time");
+        assertSameDateAs("12342018-12-31T10:15:30", "yyyyyyyy-MM-dd'T'HH:mm:ss", "date_optional_time");
+        assertSameDateAs("123452018-12-31T10:15:30", "yyyyyyyyy-MM-dd'T'HH:mm:ss", "date_optional_time");
+
+        assertSameDate("2018-12-31T10:15:30", "date_optional_time");
+        assertSameDate("12018-12-31T10:15:30", "date_optional_time");
+        assertSameDate("122018-12-31T10:15:30", "date_optional_time");
+        assertSameDate("1232018-12-31T10:15:30", "date_optional_time");
+        assertSameDate("12342018-12-31T10:15:30", "date_optional_time");
+        assertSameDate("123452018-12-31T10:15:30", "date_optional_time");
+    }
+
     public void testDuellingFormatsValidParsing() {
         assertSameDate("1522332219", "epoch_second");
         assertSameDate("0", "epoch_second");

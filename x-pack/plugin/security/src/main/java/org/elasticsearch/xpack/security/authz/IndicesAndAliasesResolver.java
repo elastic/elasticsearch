@@ -114,9 +114,8 @@ class IndicesAndAliasesResolver {
     }
 
     ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, Metadata metadata, Collection<String> authorizedIndices) {
-        final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
-        boolean indicesReplacedWithNoIndices = false;
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
+            final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
             /*
              * This is a special case since PutMappingRequests from dynamic mapping updates have a concrete index
              * if this index is set and it's in the list of authorized indices we are good and don't need to put
@@ -125,7 +124,10 @@ class IndicesAndAliasesResolver {
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                     : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metadata));
+            return resolvedIndicesBuilder.build();
         } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
+            boolean indicesReplacedWithNoIndices = false;
+            final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
             final IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
             final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
@@ -174,7 +176,42 @@ class IndicesAndAliasesResolver {
             } else {
                 replaceable.indices(resolvedIndicesBuilder.build().toArray());
             }
+
+            if (indicesRequest instanceof AliasesRequest) {
+                //special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.
+                //AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
+                AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
+                if (aliasesRequest.expandAliasesWildcards()) {
+                    List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
+                            loadAuthorizedAliases(authorizedIndices, metadata));
+                    aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
+                }
+                if (indicesReplacedWithNoIndices) {
+                    if (indicesRequest instanceof GetAliasesRequest == false) {
+                        throw new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only known " +
+                                "request implementing " + AliasesRequest.class.getSimpleName() + " that may allow no indices. Found [" +
+                                indicesRequest.getClass().getName() + "] which ended up with an empty set of indices.");
+                    }
+                    //if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the request will
+                    //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
+                } else {
+                    resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
+                }
+                /*
+                 * If no aliases are authorized, then fill in an expression that Metadata#findAliases evaluates to an
+                 * empty alias list. We can not put an empty list here because core resolves this as _all. For other
+                 * request types, this replacement is not needed and can trigger issues when we rewrite the request
+                 * on the coordinating node. For example, for a remove index request, if we did this replacement,
+                 * the request would be rewritten to include "*","-*" and for a user that does not have permissions
+                 * on "*", the master node would not authorize the request.
+                 */
+                if (aliasesRequest.expandAliasesWildcards() && aliasesRequest.aliases().length == 0) {
+                    aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
+                }
+            }
+            return resolvedIndicesBuilder.build();
         } else {
+            final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
             if (containsWildcards(indicesRequest)) {
                 throw new IllegalStateException("There are no external requests known to support wildcards that don't support replacing " +
                         "their indices");
@@ -187,41 +224,8 @@ class IndicesAndAliasesResolver {
             for (String name : indicesRequest.indices()) {
                 resolvedIndicesBuilder.addLocal(nameExpressionResolver.resolveDateMathExpression(name));
             }
+            return resolvedIndicesBuilder.build();
         }
-
-        if (indicesRequest instanceof AliasesRequest) {
-            //special treatment for AliasesRequest since we need to replace wildcards among the specified aliases too.
-            //AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
-            AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
-            if (aliasesRequest.expandAliasesWildcards()) {
-                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(),
-                        loadAuthorizedAliases(authorizedIndices, metadata));
-                aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
-            }
-            if (indicesReplacedWithNoIndices) {
-                if (indicesRequest instanceof GetAliasesRequest == false) {
-                    throw new IllegalStateException(GetAliasesRequest.class.getSimpleName() + " is the only known " +
-                            "request implementing " + AliasesRequest.class.getSimpleName() + " that may allow no indices. Found [" +
-                            indicesRequest.getClass().getName() + "] which ended up with an empty set of indices.");
-                }
-                //if we replaced the indices with '-*' we shouldn't be adding the aliases to the list otherwise the request will
-                //not get authorized. Leave only '-*' and ignore the rest, result will anyway be empty.
-            } else {
-                resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
-            }
-            /*
-             * If no aliases are authorized, then fill in an expression that Metadata#findAliases evaluates to an
-             * empty alias list. We can not put an empty list here because core resolves this as _all. For other
-             * request types, this replacement is not needed and can trigger issues when we rewrite the request
-             * on the coordinating node. For example, for a remove index request, if we did this replacement,
-             * the request would be rewritten to include "*","-*" and for a user that does not have permissions
-             * on "*", the master node would not authorize the request.
-             */
-            if (aliasesRequest.expandAliasesWildcards() && aliasesRequest.aliases().length == 0) {
-                aliasesRequest.replaceAliases(NO_INDICES_OR_ALIASES_ARRAY);
-            }
-        }
-        return resolvedIndicesBuilder.build();
     }
 
     /**

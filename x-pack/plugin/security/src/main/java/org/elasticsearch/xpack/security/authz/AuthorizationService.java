@@ -33,6 +33,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -84,6 +86,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -706,23 +709,22 @@ public class AuthorizationService {
 
     private static class CachingAsyncSupplier<V> implements AsyncSupplier<V> {
 
-        private final AsyncSupplier<V> asyncSupplier;
-        private V value = null;
+        private final AsyncSupplier<V> asyncSupplierDelegate;
+        private final ConcurrentHashMap<AsyncSupplier<V>, ListenableFuture<V>> map;
 
-        private CachingAsyncSupplier(AsyncSupplier<V> supplier) {
-            this.asyncSupplier = supplier;
+        private CachingAsyncSupplier(AsyncSupplier<V> supplierDelegate) {
+            this.asyncSupplierDelegate = supplierDelegate;
+            this.map = new ConcurrentHashMap<>(1);
         }
 
         @Override
-        public synchronized void getAsync(ActionListener<V> listener) {
-            if (value == null) {
-                asyncSupplier.getAsync(ActionListener.wrap(loaded -> {
-                    value = loaded;
-                    listener.onResponse(value);
-                }, listener::onFailure));
-            } else {
-                listener.onResponse(value);
-            }
+        public void getAsync(ActionListener<V> listener) {
+            map.computeIfAbsent(asyncSupplierDelegate, ignore -> {
+                ListenableFuture<V> cachedListener = new ListenableFuture();
+                // trigger async computation
+                asyncSupplierDelegate.getAsync(cachedListener);
+                return cachedListener;
+            }).addListener(listener, EsExecutors.newDirectExecutorService());
         }
     }
 

@@ -113,7 +113,6 @@ class IndicesAndAliasesResolver {
         return resolveIndicesAndAliases((IndicesRequest) request, metadata, authorizedIndices);
     }
 
-
     ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, Metadata metadata, Collection<String> authorizedIndices) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;

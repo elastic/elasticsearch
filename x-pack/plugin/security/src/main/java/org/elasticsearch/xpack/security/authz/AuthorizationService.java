@@ -33,8 +33,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.common.util.AsyncSupplier.CachingAsyncSupplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
@@ -53,7 +52,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupplier;
+import org.elasticsearch.common.util.AsyncSupplier;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
@@ -86,7 +85,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -704,27 +702,6 @@ public class AuthorizationService {
             }
             failureConsumer.accept(
                 denialException(requestInfo.getAuthentication(), requestInfo.getAction(), requestInfo.getRequest(), context, e));
-        }
-    }
-
-    private static class CachingAsyncSupplier<V> implements AsyncSupplier<V> {
-
-        private final AsyncSupplier<V> asyncSupplierDelegate;
-        private final ConcurrentHashMap<AsyncSupplier<V>, ListenableFuture<V>> map;
-
-        private CachingAsyncSupplier(AsyncSupplier<V> supplierDelegate) {
-            this.asyncSupplierDelegate = supplierDelegate;
-            this.map = new ConcurrentHashMap<>(1);
-        }
-
-        @Override
-        public void getAsync(ActionListener<V> listener) {
-            map.computeIfAbsent(asyncSupplierDelegate, ignore -> {
-                ListenableFuture<V> cachedListener = new ListenableFuture();
-                // trigger async computation
-                asyncSupplierDelegate.getAsync(cachedListener);
-                return cachedListener;
-            }).addListener(listener, EsExecutors.newDirectExecutorService());
         }
     }
 

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.AsyncSupplier;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -353,13 +354,4 @@ public interface AuthorizationEngine {
         }
     }
 
-    @FunctionalInterface
-    interface AsyncSupplier<V> {
-
-        /**
-         * Asynchronously retrieves the value that is being supplied and notifies the listener upon
-         * completion.
-         */
-        void getAsync(ActionListener<V> listener);
-    }
 }

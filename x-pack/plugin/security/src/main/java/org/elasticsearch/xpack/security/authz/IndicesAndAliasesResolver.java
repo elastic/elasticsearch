@@ -175,13 +175,13 @@ class IndicesAndAliasesResolver {
                     resolvedIndicesStepListener.onResponse(new ResolvedIndices.Builder());
                 }
             } else {
-                final ResolvedIndices split;
-                if (allowsRemoteIndices(indicesRequest)) {
-                    split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
-                } else {
-                    split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
-                }
                 authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
+                    final ResolvedIndices split;
+                    if (allowsRemoteIndices(indicesRequest)) {
+                        split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+                    } else {
+                        split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
+                    }
                     ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
                     // cannot pass the async supplier
                     List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,

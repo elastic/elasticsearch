@@ -285,7 +285,10 @@ public class AuthorizationService {
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<List<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
                     authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata.getIndicesLookup(),
-                            authzIndicesListener.delegateResponse((l, e) -> {
+                            authzIndicesListener));
+            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier =
+                    new CachingAsyncSupplier<>((resolvedIndicesListener) -> indicesAndAliasesResolver.resolve(request, metadata,
+                            authorizedIndicesSupplier, resolvedIndicesListener.delegateResponse((l, e) -> {
                                 auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
                                 if (e instanceof IndexNotFoundException) {
                                     listener.onFailure(e);
@@ -293,9 +296,6 @@ public class AuthorizationService {
                                     listener.onFailure(denialException(authentication, action, request, e));
                                 }
                             })));
-            final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier =
-                    new CachingAsyncSupplier<>((resolvedIndicesListener) -> indicesAndAliasesResolver.resolve(request, metadata,
-                            authorizedIndicesSupplier, resolvedIndicesListener));
             authzEngine.authorizeIndexAction(requestInfo, authzInfo, resolvedIndicesAsyncSupplier,
                 metadata.getIndicesLookup(), wrapPreservingContext(new AuthorizationResultListener<>(result ->
                     handleIndexActionAuthorizationResult(result, requestInfo, requestId, authzInfo, authzEngine,

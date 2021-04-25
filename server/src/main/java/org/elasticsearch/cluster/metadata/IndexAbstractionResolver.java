@@ -100,7 +100,8 @@ public class IndexAbstractionResolver {
                         } else {
                             availableIndexAbstractionsSupplier.getAsync(ActionListener.wrap(availableIndexAbstractions -> {
                                 if (availableIndexAbstractions.contains(dateMathName) &&
-                                        isIndexVisible(indexAbstraction.get(), dateMathName, indicesOptions, metadata, includeDataStreams, true)) {
+                                        isIndexVisible(indexAbstraction.get(), dateMathName, indicesOptions, metadata, includeDataStreams
+                                                , true)) {
                                     if (minus) {
                                         finalIndices.remove(dateMathName);
                                     } else {
@@ -126,12 +127,14 @@ public class IndexAbstractionResolver {
                                 Set<String> resolvedIndices = new HashSet<>();
                                 for (String authorizedIndex : availableIndexAbstractions) {
                                     if (Regex.simpleMatch(indexAbstraction.get(), authorizedIndex) &&
-                                            isIndexVisible(indexAbstraction.get(), authorizedIndex, indicesOptions, metadata, includeDataStreams)) {
+                                            isIndexVisible(indexAbstraction.get(), authorizedIndex, indicesOptions, metadata,
+                                                    includeDataStreams)) {
                                         resolvedIndices.add(authorizedIndex);
                                     }
                                 }
                                 if (resolvedIndices.isEmpty()) {
-                                    //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
+                                    //es core honours allow_no_indices for each wildcard expression,
+                                    // we do the same here by throwing index not found.
                                     if (indicesOptions.allowNoIndices() == false) {
                                         listener.onFailure(new IndexNotFoundException(indexAbstraction.get()));
                                         return;

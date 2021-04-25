@@ -102,7 +102,7 @@ class IndicesAndAliasesResolver {
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
      */
 
-    void resolve(TransportRequest request, Metadata metadata, AsyncSupplier<List<String>> authorizedIndicesSupplier,
+    void resolve(TransportRequest request, Metadata metadata, AsyncSupplier<Collection<String>> authorizedIndicesSupplier,
                  ActionListener<ResolvedIndices> listener) {
         if (request instanceof IndicesAliasesRequest) {
             IndicesAliasesRequest indicesAliasesRequest = (IndicesAliasesRequest) request;
@@ -133,7 +133,8 @@ class IndicesAndAliasesResolver {
         return FutureUtils.get(future, 0, TimeUnit.MILLISECONDS);
     }
 
-    void resolveIndicesAndAliases(IndicesRequest indicesRequest, Metadata metadata, AsyncSupplier<List<String>> authorizedIndicesSupplier
+    void resolveIndicesAndAliases(IndicesRequest indicesRequest, Metadata metadata,
+                                  AsyncSupplier<Collection<String>> authorizedIndicesSupplier
             , ActionListener<ResolvedIndices> listener) {
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
             /*
@@ -175,26 +176,36 @@ class IndicesAndAliasesResolver {
                     resolvedIndicesStepListener.onResponse(new ResolvedIndices.Builder());
                 }
             } else {
-                authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
-                    final ResolvedIndices split;
+                final ResolvedIndices split;
+                try {
                     if (allowsRemoteIndices(indicesRequest)) {
                         split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
                     } else {
                         split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), Collections.emptyList());
                     }
-                    ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
-                    // cannot pass the async supplier
-                    List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
-                            authorizedIndices, replaceWildcards, indicesRequest.includeDataStreams());
-                    if (indicesOptions.ignoreUnavailable()) {
-                        //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
-                        //remove all the ones that the current user is not authorized for and ignore them
-                        replaced = replaced.stream().filter(authorizedIndices::contains).collect(Collectors.toList());
-                    }
-                    resolvedIndicesBuilder.addLocal(replaced);
-                    resolvedIndicesBuilder.addRemote(split.getRemote());
-                    resolvedIndicesStepListener.onResponse(resolvedIndicesBuilder);
-                }, listener::onFailure));
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                indexAbstractionResolver.resolveIndexAbstractions(split.getLocal(), indicesOptions, metadata,
+                        authorizedIndicesSupplier, replaceWildcards, indicesRequest.includeDataStreams(),
+                        ActionListener.wrap(replaced -> {
+                            ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
+                            if (indicesOptions.ignoreUnavailable()) {
+                                authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
+                                    //out of all the explicit names (expanded from wildcards and original ones that were left untouched)
+                                    //remove all the ones that the current user is not authorized for and ignore them
+                                    resolvedIndicesBuilder.addLocal(replaced.stream().filter(authorizedIndices::contains)
+                                            .collect(Collectors.toList()));
+                                    resolvedIndicesBuilder.addRemote(split.getRemote());
+                                    resolvedIndicesStepListener.onResponse(resolvedIndicesBuilder);
+                                }, listener::onFailure));
+                            } else {
+                                resolvedIndicesBuilder.addLocal(replaced);
+                                resolvedIndicesBuilder.addRemote(split.getRemote());
+                                resolvedIndicesStepListener.onResponse(resolvedIndicesBuilder);
+                            }
+                        }, listener::onFailure));
             }
 
             final StepListener<Void> indicesReplacedStepListener = new StepListener<>();
@@ -301,7 +312,7 @@ class IndicesAndAliasesResolver {
      * request's concrete index is not in the list of authorized indices, then we need to look to
      * see if this can be authorized against an alias
      */
-    static void getPutMappingIndexOrAlias(PutMappingRequest request, AsyncSupplier<List<String>> authorizedIndicesSupplier,
+    static void getPutMappingIndexOrAlias(PutMappingRequest request, AsyncSupplier<Collection<String>> authorizedIndicesSupplier,
                                           Metadata metadata, ActionListener<String> listener) {
         final String concreteIndexName = request.getConcreteIndex().getName();
         // validate that the concrete index exists, otherwise there is no remapping that we could do

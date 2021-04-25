@@ -8,16 +8,26 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.AsyncSupplier;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class IndexAbstractionResolver {
 
@@ -43,69 +53,116 @@ public class IndexAbstractionResolver {
     public List<String> resolveIndexAbstractions(Iterable<String> indices, IndicesOptions indicesOptions, Metadata metadata,
                                                  Collection<String> availableIndexAbstractions, boolean replaceWildcards,
                                                  boolean includeDataStreams) {
-        List<String> finalIndices = new ArrayList<>();
-        boolean wildcardSeen = false;
-        for (String index : indices) {
-            String indexAbstraction;
-            boolean minus = false;
-            if (index.charAt(0) == '-' && wildcardSeen) {
-                indexAbstraction = index.substring(1);
-                minus = true;
-            } else {
-                indexAbstraction = index;
-            }
+        PlainActionFuture<List<String>> future = PlainActionFuture.newFuture();
+        // if the supplier is not async, the method is not async, hence get is non-blocking
+        resolveIndexAbstractions(indices, indicesOptions, metadata, listener -> listener.onResponse(availableIndexAbstractions),
+                replaceWildcards,
+                includeDataStreams,
+                future);
+        return FutureUtils.get(future, 0, TimeUnit.MILLISECONDS);
+    }
 
-            // we always need to check for date math expressions
-            final String dateMathName = indexNameExpressionResolver.resolveDateMathExpression(indexAbstraction);
-            if (dateMathName != indexAbstraction) {
-                assert dateMathName.equals(indexAbstraction) == false;
-                if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
-                    // continue
-                    indexAbstraction = dateMathName;
-                } else if (availableIndexAbstractions.contains(dateMathName) &&
-                    isIndexVisible(indexAbstraction, dateMathName, indicesOptions, metadata, includeDataStreams, true)) {
-                    if (minus) {
-                        finalIndices.remove(dateMathName);
-                    } else {
-                        finalIndices.add(dateMathName);
-                    }
-                } else {
-                    if (indicesOptions.ignoreUnavailable() == false) {
-                        throw new IndexNotFoundException(dateMathName);
-                    }
-                }
-            }
+    public void resolveIndexAbstractions(Iterable<String> indices, IndicesOptions indicesOptions, Metadata metadata,
+                                         AsyncSupplier<Collection<String>> availableIndexAbstractionsSupplier, boolean replaceWildcards,
+                                         boolean includeDataStreams, ActionListener<List<String>> listener) {
+        final Iterator<String> indicesIterator = indices.iterator();
+        final Runnable evalItems = new ActionRunnable(listener) {
 
-            if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
-                wildcardSeen = true;
-                Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : availableIndexAbstractions) {
-                    if (Regex.simpleMatch(indexAbstraction, authorizedIndex) &&
-                        isIndexVisible(indexAbstraction, authorizedIndex, indicesOptions, metadata, includeDataStreams)) {
-                        resolvedIndices.add(authorizedIndex);
-                    }
-                }
-                if (resolvedIndices.isEmpty()) {
-                    //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                    if (indicesOptions.allowNoIndices() == false) {
-                        throw new IndexNotFoundException(indexAbstraction);
-                    }
+            final List<String> finalIndices = new ArrayList<>();
+            final AtomicBoolean wildcardSeen = new AtomicBoolean(false);
+
+            @Override
+            public void doRun() {
+                if (false == indicesIterator.hasNext()) {
+                    listener.onResponse(finalIndices);
                 } else {
-                    if (minus) {
-                        finalIndices.removeAll(resolvedIndices);
+                    final String index = indicesIterator.next();
+                    final AtomicReference<String> indexAbstraction;
+                    final boolean minus;
+                    if (index.charAt(0) == '-' && wildcardSeen.get()) {
+                        indexAbstraction = new AtomicReference<>(index.substring(1));
+                        minus = true;
                     } else {
-                        finalIndices.addAll(resolvedIndices);
+                        indexAbstraction = new AtomicReference<>(index);
+                        minus = false;
                     }
-                }
-            } else if (dateMathName.equals(indexAbstraction)) {
-                if (minus) {
-                    finalIndices.remove(indexAbstraction);
-                } else {
-                    finalIndices.add(indexAbstraction);
+
+                    // we always need to check for date math expressions
+                    final String dateMathName = indexNameExpressionResolver.resolveDateMathExpression(indexAbstraction.get());
+                    final StepListener<Void> evaluateDateMathStep = new StepListener<>();
+                    if (dateMathName != indexAbstraction.get()) {
+                        assert dateMathName.equals(indexAbstraction.get()) == false;
+                        if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
+                            // this is a date math and a wildcard
+                            indexAbstraction.set(dateMathName);
+                            // continue
+                            evaluateDateMathStep.onResponse(null);
+                        } else {
+                            availableIndexAbstractionsSupplier.getAsync(ActionListener.wrap(availableIndexAbstractions -> {
+                                if (availableIndexAbstractions.contains(dateMathName) &&
+                                        isIndexVisible(indexAbstraction.get(), dateMathName, indicesOptions, metadata, includeDataStreams, true)) {
+                                    if (minus) {
+                                        finalIndices.remove(dateMathName);
+                                    } else {
+                                        finalIndices.add(dateMathName);
+                                    }
+                                } else {
+                                    if (indicesOptions.ignoreUnavailable() == false) {
+                                        listener.onFailure(new IndexNotFoundException(dateMathName));
+                                        return;
+                                    }
+                                }
+                                evaluateDateMathStep.onResponse(null);
+                            }, listener::onFailure));
+                        }
+                    } else {
+                        evaluateDateMathStep.onResponse(null);
+                    }
+
+                    evaluateDateMathStep.whenComplete(anotherVoid -> {
+                        if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction.get())) {
+                            wildcardSeen.set(true);
+                            availableIndexAbstractionsSupplier.getAsync(ActionListener.wrap(availableIndexAbstractions -> {
+                                Set<String> resolvedIndices = new HashSet<>();
+                                for (String authorizedIndex : availableIndexAbstractions) {
+                                    if (Regex.simpleMatch(indexAbstraction.get(), authorizedIndex) &&
+                                            isIndexVisible(indexAbstraction.get(), authorizedIndex, indicesOptions, metadata, includeDataStreams)) {
+                                        resolvedIndices.add(authorizedIndex);
+                                    }
+                                }
+                                if (resolvedIndices.isEmpty()) {
+                                    //es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
+                                    if (indicesOptions.allowNoIndices() == false) {
+                                        listener.onFailure(new IndexNotFoundException(indexAbstraction.get()));
+                                        return;
+                                    }
+                                } else {
+                                    if (minus) {
+                                        finalIndices.removeAll(resolvedIndices);
+                                    } else {
+                                        finalIndices.addAll(resolvedIndices);
+                                    }
+                                }
+                                // next expression item
+                                this.doRun();
+                            }, listener::onFailure));
+                        } else if (dateMathName.equals(indexAbstraction.get())) {
+                            if (minus) {
+                                finalIndices.remove(indexAbstraction.get());
+                            } else {
+                                finalIndices.add(indexAbstraction.get());
+                            }
+                            // next expression item
+                            this.doRun();
+                        } else {
+                            // next expression item
+                            this.doRun();
+                        }
+                    }, listener::onFailure);
                 }
             }
-        }
-        return finalIndices;
+        };
+        evalItems.run();
     }
 
     public static boolean isIndexVisible(String expression, String index, IndicesOptions indicesOptions, Metadata metadata,

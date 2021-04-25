@@ -283,9 +283,9 @@ public class AuthorizationService {
             authzEngine.authorizeClusterAction(requestInfo, authzInfo, clusterAuthzListener);
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
-            final AsyncSupplier<List<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
+            final AsyncSupplier<Collection<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener ->
                     authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata.getIndicesLookup(),
-                            authzIndicesListener));
+                            authzIndicesListener.map(list -> list)));
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier =
                     new CachingAsyncSupplier<>((resolvedIndicesListener) -> indicesAndAliasesResolver.resolve(request, metadata,
                             authorizedIndicesSupplier, resolvedIndicesListener.delegateResponse((l, e) -> {

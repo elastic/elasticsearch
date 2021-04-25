@@ -348,7 +348,7 @@ GET _cat/allocation?v=true&h=node,shards,disk.*
 
 If your nodes are running low on disk space, you have a few options:
 
-* Upgrade your node hardware to increase disk space.
+* Upgrade your nodes to increase disk space.
 
 * Delete unneeded indices to free up space. If you use {ilm-init}, you can
 update your lifecycle policy to use <<ilm-searchable-snapshot,searchable

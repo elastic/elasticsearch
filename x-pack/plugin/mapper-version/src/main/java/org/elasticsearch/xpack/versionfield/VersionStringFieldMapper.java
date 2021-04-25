@@ -343,15 +343,11 @@ public class VersionStringFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String versionString;
-        if (context.externalValueSet()) {
-            versionString = context.externalValue().toString();
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
         } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                versionString = parser.textOrNull();
-            }
+            versionString = parser.textOrNull();
         }
 
         if (versionString == null) {

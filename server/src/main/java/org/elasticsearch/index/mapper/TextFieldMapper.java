@@ -851,12 +851,7 @@ public class TextFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        final String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
+        final String value = context.parser().textOrNull();
 
         if (value == null) {
             return;

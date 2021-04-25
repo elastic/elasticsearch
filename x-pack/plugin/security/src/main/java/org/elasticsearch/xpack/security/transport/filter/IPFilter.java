@@ -98,14 +98,14 @@ public class IPFilter {
             "transport.profiles.default.xpack.security.filter.allow",
             TRANSPORT_FILTER_ALLOW_SETTING,
             Function.identity(),
-            s -> Collections.emptyList(),
+            TRANSPORT_FILTER_ALLOW_SETTING::get,
             ALLOW_VALIDATOR,
             Property.NodeScope);
     public static final Setting<List<String>> HTTP_FILTER_ALLOW_SETTING = Setting.listSetting(
             setting("http.filter.allow"),
             HTTP_FILTER_ALLOW_FALLBACK,
             Function.identity(),
-            s -> Collections.emptyList(),
+            HTTP_FILTER_ALLOW_FALLBACK::get,
             ALLOW_VALIDATOR,
             Property.OperatorDynamic,
             Property.NodeScope);
@@ -114,14 +114,14 @@ public class IPFilter {
             "transport.profiles.default.xpack.security.filter.deny",
             TRANSPORT_FILTER_DENY_SETTING,
             Function.identity(),
-            s -> Collections.emptyList(),
+            TRANSPORT_FILTER_DENY_SETTING::get,
             DENY_VALIDATOR,
             Property.NodeScope);
     public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting(
             setting("http.filter.deny"),
             HTTP_FILTER_DENY_FALLBACK,
             Function.identity(),
-            s -> Collections.emptyList(),
+            HTTP_FILTER_DENY_FALLBACK::get,
             DENY_VALIDATOR,
             Property.OperatorDynamic,
             Property.NodeScope);

@@ -555,10 +555,11 @@ public final class RepositoryData {
     /**
      * Resolve the given index names to index ids.
      */
-    public List<IndexId> resolveIndices(final List<String> indices) {
-        List<IndexId> resolvedIndices = new ArrayList<>(indices.size());
+    public Map<String, IndexId> resolveIndices(final List<String> indices) {
+        Map<String, IndexId> resolvedIndices = new HashMap<>(indices.size());
         for (final String indexName : indices) {
-            resolvedIndices.add(resolveIndexId(indexName));
+            final IndexId indexId = resolveIndexId(indexName);
+            resolvedIndices.put(indexId.getName(), indexId);
         }
         return resolvedIndices;
     }
@@ -570,8 +571,8 @@ public final class RepositoryData {
      * @param indicesToResolve names of indices to resolve
      * @param inFlightIds      name to index mapping for currently in-flight snapshots not yet in the repository data to fall back to
      */
-    public List<IndexId> resolveNewIndices(List<String> indicesToResolve, Map<String, IndexId> inFlightIds) {
-        List<IndexId> snapshotIndices = new ArrayList<>();
+    public Map<String, IndexId> resolveNewIndices(List<String> indicesToResolve, Map<String, IndexId> inFlightIds) {
+        Map<String, IndexId> snapshotIndices = new HashMap<>(indicesToResolve.size());
         for (String index : indicesToResolve) {
             IndexId indexId = indices.get(index);
             if (indexId == null) {
@@ -580,7 +581,7 @@ public final class RepositoryData {
             if (indexId == null) {
                 indexId = new IndexId(index, UUIDs.randomBase64UUID());
             }
-            snapshotIndices.add(indexId);
+            snapshotIndices.put(indexId.getName(), indexId);
         }
         return snapshotIndices;
     }

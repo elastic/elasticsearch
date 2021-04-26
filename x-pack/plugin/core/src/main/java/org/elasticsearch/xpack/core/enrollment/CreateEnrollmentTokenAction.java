@@ -5,16 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.action.enrollment;
+package org.elasticsearch.xpack.core.enrollment;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.settings.Setting;
 
 /**
  * ActionType for creating an enrollment new token
  */
 public class CreateEnrollmentTokenAction extends ActionType<CreateEnrollmentTokenResponse> {
-    public static final String NAME = "cluster:admin/xpack/security/enrollment/create";
-    public static final org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenAction INSTANCE =
+    public static final String NAME = "cluster:admin/xpack/enrollment/create";
+    public static final CreateEnrollmentTokenAction INSTANCE =
         new CreateEnrollmentTokenAction();
 
     private CreateEnrollmentTokenAction() {

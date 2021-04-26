@@ -4,9 +4,10 @@
 <titleabbrev>Create Enrollment Token</titleabbrev>
 ++++
 
-Create an enrollment token to enroll a new node to join an existing cluster with security enabled.
+Create an enrollment token to allow a new node enroll in an existing secured elasticsearch cluster, or a client to configure itself to
+communicate with a secured elasticsearch cluster.
 
-[[create-enrollment-token-api-request]]
+[[cluster-create-enrollment-token-api-request]]
 ==== {api-request-title}
 
 `POST /_cluster/enrollment_token`
@@ -19,7 +20,8 @@ Create an enrollment token to enroll a new node to join an existing cluster with
 ==== {api-description-title}
 
 The purpose of the create enrollment token API is to generate a token with which user can enroll a new node
-to join an existing cluster where security is enabled.
+in an existing secured elasticsearch cluster, or a client can configure itself to
+communicate with a secured elasticsearch cluster.
 
 [[cluster-create-enrollment-token-api-examples]]
 ==== {api-examples-title}
@@ -38,14 +40,14 @@ The API returns a response such as
 }
 --------------------------------------------------
 
-<1> The enrollment token containing information about:
-    - IP Address and port number for the interface where the Elasticsearch node is listening on;
-    - The fingerprint of the CA certificate that is used to sign the certificate that the Elasticsearch node presents;
-    - Credentials by which the holder of the token can authenticate itself to the elasticsearch node. An API key is used for this.
+<1> The enrollment token contains the following information:
+    - IP Address and port number for the interface where the Elasticsearch node is listening for HTTP connections;
+    - The fingerprint of the CA certificate that is used to sign the certificate that the Elasticsearch node presents for TLS on the HTTP layer;
+    - An API key which allows a holder of the token to authenticate themself to the elasticsearch node.
 
 as Base64 encoded string.
 
-The enrollment key may look like:
+A decoded enrollment token is shown below (spaces and new lines added for clarity) :
 [source,console-result]
 --------------------------------------------------
 {

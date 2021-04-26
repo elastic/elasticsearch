@@ -90,7 +90,7 @@ import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAct
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenAction;
+import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;

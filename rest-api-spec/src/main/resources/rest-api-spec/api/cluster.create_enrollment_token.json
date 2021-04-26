@@ -2,7 +2,7 @@
   "cluster.create_enrollment_token":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-create-enrollment-token.html",
-      "description":"Create an enrollment token to enroll a new node to join an existing cluster with security enabled."
+      "description":"Create an enrollment token to allow a new node enroll in an existing secured elasticsearch cluster, or a client to configure itself to\ncommunicate with a secured elasticsearch cluster."
     },
     "stability":"stable",
     "visibility":"public",

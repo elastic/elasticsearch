@@ -5,12 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.action.enrollment;
+package org.elasticsearch.xpack.core.enrollment;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -18,7 +20,7 @@ import java.util.Objects;
 /**
  * Response containing the enrollment token string that was generated from an enrollment token creation request.
  */
-public class CreateEnrollmentTokenResponse  extends ActionResponse {
+public class CreateEnrollmentTokenResponse  extends ActionResponse  implements ToXContentObject {
     private static final ParseField ENROLLMENT_TOKEN = new ParseField("enrollment_token");
 
     private String enrollmentTokenString;
@@ -52,5 +54,12 @@ public class CreateEnrollmentTokenResponse  extends ActionResponse {
     @Override
     public int hashCode() {
         return Objects.hash(enrollmentTokenString);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(ENROLLMENT_TOKEN.getPreferredName(), enrollmentTokenString);
+        return builder.endObject();
     }
 }

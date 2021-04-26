@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.security.action.enrollment;
+package org.elasticsearch.xpack.core.enrollment;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -20,20 +20,13 @@ import java.io.IOException;
  */
 
 public class CreateEnrollmentTokenRequest extends ActionRequest {
-    private final String id;
 
     public CreateEnrollmentTokenRequest(StreamInput in) throws IOException {
         super(in);
-        this.id = UUIDs.base64UUID();
     }
 
     public CreateEnrollmentTokenRequest() {
         super();
-        this.id = UUIDs.base64UUID();
-    }
-
-    public String getId() {
-        return id;
     }
 
     @Override

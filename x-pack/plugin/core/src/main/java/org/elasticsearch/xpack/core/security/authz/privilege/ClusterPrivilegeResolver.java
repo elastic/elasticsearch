@@ -134,7 +134,6 @@ public class ClusterPrivilegeResolver {
         "manage_autoscaling",
         Set.of("cluster:admin/autoscaling/*")
     );
-    private static final Set<String> MANAGE_ENROLLMENT_PATTERN = Set.of("cluster:admin/enrollment/*");
 
     public static final NamedClusterPrivilege MANAGE_CCR =            new ActionClusterPrivilege("manage_ccr", MANAGE_CCR_PATTERN);
     public static final NamedClusterPrivilege READ_CCR = new ActionClusterPrivilege("read_ccr", READ_CCR_PATTERN);
@@ -157,9 +156,9 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/tasks/cancel"));
 
     public static final NamedClusterPrivilege MANAGE_ENROLLMENT = new ActionClusterPrivilege("manage_enrollment",
-        MANAGE_ENROLLMENT_PATTERN);
+        Set.of("cluster:admin/xpack/enrollment/*"));
     public static final NamedClusterPrivilege ENROLL = new ActionClusterPrivilege("enroll",
-        Set.of("cluster:admin/xpack/security/enrollment/enroll"));
+        Set.of("cluster:admin/xpack/enrollment/enroll"));
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,

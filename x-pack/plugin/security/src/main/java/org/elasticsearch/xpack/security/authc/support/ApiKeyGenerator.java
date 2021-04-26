@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 
 public class ApiKeyGenerator {
@@ -56,27 +54,5 @@ public class ApiKeyGenerator {
                 },
                 listener::onFailure));
 
-    }
-
-    public void generateApiKeyForEnrollment(Authentication authentication, CreateEnrollmentTokenRequest request,
-                                                    ActionListener<CreateApiKeyResponse> listener) {
-        if (authentication == null) {
-            listener.onFailure(new ElasticsearchSecurityException("no authentication available to generate API key for enrollment token"));
-        }
-        if (apiKeyService.isInEnrollmentMode () == false) {
-            listener.onFailure(new IllegalArgumentException("Enrollment mode is not enabled"));
-        }
-        rolesStore.getRoleDescriptors(new HashSet<>(Collections.singleton("enroll")),
-            ActionListener.wrap(roleDescriptors -> {
-                    for (RoleDescriptor rd : roleDescriptors) {
-                        try {
-                            DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
-                        } catch (ElasticsearchException | IllegalArgumentException e) {
-                            listener.onFailure(e);
-                        }
-                    }
-                    apiKeyService.createApiKeyForEnrollment(authentication, request, roleDescriptors, listener);
-                },
-                listener::onFailure));
     }
 }

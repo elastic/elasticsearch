@@ -21,8 +21,8 @@ Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
 `enroll`::
-The privilege to call the APIs to enroll a node in a cluster and to allow Kibana to
-configure itself to communicate with an Elasticsearch cluster.
+The privilege to call the enroll API to enroll a node in a secured Elasticsearch cluster and to allow a client to
+configure itself to communicate with a secured Elasticsearch cluster.
 
 `grant_api_key`::
 Privileges to create {es} API keys on behalf of other users.
@@ -59,8 +59,7 @@ manage follower indices and auto-follow patterns. This privilege is necessary
 only on clusters that contain follower indices.
 
 `manage_enrollment`::
-The privilege to call the create enrollment token API and to call
-the Enroll Node and Enroll Token API. `enroll` is also included in `manage_enrollment`.
+The privilege to call the create enrollment token and enroll APIs. `enroll` is implicitly granted by `manage_enrollment`.
 
 `manage_ilm`::
 All {Ilm} operations related to managing policies.

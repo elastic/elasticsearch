@@ -11,15 +11,16 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.enrollment.EnrollmentSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenAction;
-import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenRequest;
-import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenResponse;
+import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenAction;
+import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenRequest;
+import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Rest endpoint to create an enrollment token
  */
 public class RestCreateEnrollmentTokenAction extends SecurityBaseRestHandler {
+    private final Settings settings;
 
     /**
      * @param settings the node's settings
@@ -40,6 +42,7 @@ public class RestCreateEnrollmentTokenAction extends SecurityBaseRestHandler {
      */
     public RestCreateEnrollmentTokenAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
+        this.settings = settings;
     }
 
     @Override
@@ -56,6 +59,9 @@ public class RestCreateEnrollmentTokenAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (EnrollmentSettings.ENROLLMENT_ENABLED.get(settings) != true) {
+            throw new IllegalStateException("Enrollment mode is not enabled.");
+        }
         final CreateEnrollmentTokenRequest enrollmentTokenRequest = new CreateEnrollmentTokenRequest();
         final ActionType<CreateEnrollmentTokenResponse> action = CreateEnrollmentTokenAction.INSTANCE;
         return channel -> client.execute(action, enrollmentTokenRequest,

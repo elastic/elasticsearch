@@ -15,8 +15,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-import static org.elasticsearch.xpack.test.SecuritySettingsSourceField.basicAuthHeaderValue;
-
 public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";

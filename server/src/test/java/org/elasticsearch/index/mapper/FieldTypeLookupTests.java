@@ -16,7 +16,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -25,7 +24,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
 public class FieldTypeLookupTests extends ESTestCase {
 
@@ -35,7 +33,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
         assertThat(names, equalTo(Set.of("foo")));
-        assertEquals(0, size(lookup.filter(ft -> true)));
     }
 
     public void testAddNewField() {
@@ -43,7 +40,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
         assertNull(lookup.get("bar"));
         assertEquals(f.fieldType(), lookup.get("foo"));
-        assertEquals(1, size(lookup.filter(ft -> true)));
     }
 
     public void testAddFieldAlias() {
@@ -174,14 +170,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    private static int size(Iterable<MappedFieldType> iterable) {
-        int count = 0;
-        for (MappedFieldType fieldType : iterable) {
-            count++;
-        }
-        return count;
-    }
-
     public void testFlattenedLookup() {
         String fieldName = "object1.object2.field";
         FlattenedFieldMapper mapper = createFlattenedMapper(fieldName);
@@ -193,7 +181,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         String searchFieldName = fieldName + "." + objectKey;
 
         MappedFieldType searchFieldType = lookup.get(searchFieldName);
-        assertEquals(mapper.keyedFieldName(), searchFieldType.name());
+        assertEquals(mapper.keyedFieldType(objectKey).name(), searchFieldType.name());
         assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
 
         FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
@@ -214,7 +202,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         String searchFieldName = aliasName + "." + objectKey;
 
         MappedFieldType searchFieldType = lookup.get(searchFieldName);
-        assertEquals(mapper.keyedFieldName(), searchFieldType.name());
+        assertEquals(mapper.keyedFieldType(objectKey).name(), searchFieldType.name());
         assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
 
         FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
@@ -265,19 +253,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         String fieldName = "field";
         aliases.put(longAliasName, fieldName);
         assertEquals(3,  DynamicKeyFieldTypeLookup.getMaxKeyDepth(mappers, aliases));
-    }
-
-    public void testFieldLookupIterator() {
-        MockFieldMapper mapper = new MockFieldMapper("foo");
-        FlattenedFieldMapper flattenedMapper = createFlattenedMapper("object1.object2.field");
-
-        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper, flattenedMapper), emptyList(), emptyList());
-
-        Set<String> fieldNames = new HashSet<>();
-        lookup.filter(ft -> true).forEach(ft -> fieldNames.add(ft.name()));
-
-        assertThat(fieldNames, containsInAnyOrder(
-            mapper.name(), flattenedMapper.name(), flattenedMapper.keyedFieldName()));
     }
 
     private FlattenedFieldMapper createFlattenedMapper(String fieldName) {

@@ -20,7 +20,7 @@ GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRe
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index'
+    include '_common', 'indices', 'index'
   }
 }
 

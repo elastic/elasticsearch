@@ -52,7 +52,7 @@ the job.
 NOTE: If you use the `force` query parameter, the request returns without performing
 the associated actions such as flushing buffers and persisting the model snapshots.
 Therefore, do not use this parameter if you want the job to be in a consistent state
-after the close job API returns.  The `force` query parameter should only be used in
+after the close job API returns. The `force` query parameter should only be used in
 situations where the job has already failed, or where you are not interested in
 results the job might have recently produced or might produce in the future.
 

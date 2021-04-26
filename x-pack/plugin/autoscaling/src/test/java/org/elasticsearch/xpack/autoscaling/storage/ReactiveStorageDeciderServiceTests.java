@@ -51,7 +51,6 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
-import org.elasticsearch.xpack.core.DataTier;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -180,7 +179,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ImmutableOpenMap.Builder<String, Long> shardSizeBuilder,
         long expected
     ) {
-        ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null);
+        ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null, null);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
@@ -344,7 +343,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (shardsWithSizes.isEmpty() == false) {
             shardSizeBuilder.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
         }
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSizeBuilder.build(), null, null);
+        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSizeBuilder.build(), null, null, null);
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
@@ -434,7 +433,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ClusterInfo.EMPTY,
             null,
             Set.of(),
-            Set.of(DataTier.DATA_WARM_NODE_ROLE)
+            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
         RoutingAllocation allocation = new RoutingAllocation(

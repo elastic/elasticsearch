@@ -91,7 +91,7 @@ this error.
 |_group identification_ |
 
 Groups are located by either an LDAP search or by the "memberOf" attribute on
-the user.  Also, If subtree search is turned off, it will search only one
+the user. Also, If subtree search is turned off, it will search only one
 level deep. For all the options, see <<ref-ldap-settings>>.
 There are many options here and sticking to the defaults will not work for all
 scenarios.

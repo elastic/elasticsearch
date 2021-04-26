@@ -38,6 +38,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 4
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'xpack.security.enabled', 'false'
     }
   }
 

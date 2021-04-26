@@ -17,6 +17,7 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 
 import java.io.ByteArrayInputStream;
@@ -28,24 +29,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Objects;
-import java.util.regex.Pattern;
 
 /**
  * A decoded credential that may be used to authenticate a {@link ServiceAccount}.
  * It consists of:
  * <ol>
- *   <li>A {@link #getAccountId() service account id}</li>
- *   <li>The {@link #getTokenName() name of the token} to be used</li>
+ *   <li>A {@link #getTokenId() service account token ID}</li>
  *   <li>The {@link #getSecret() secret credential} for that token</li>
  * </ol>
  */
 public class ServiceAccountToken implements AuthenticationToken, Closeable {
-
-    public static final String INVALID_TOKEN_NAME_MESSAGE = "service account token name must have at least 1 character " +
-        "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). " +
-        "It must not begin with an underscore (_).";
-
-    private static final Pattern VALID_TOKEN_NAME = Pattern.compile("^[a-zA-Z0-9-][a-zA-Z0-9_-]{0,255}$");
 
     public static final byte MAGIC_BYTE = '\0';
     public static final byte TOKEN_TYPE = '\1';
@@ -55,34 +48,33 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountToken.class);
 
-    private final ServiceAccountId accountId;
-    private final String tokenName;
+    private final ServiceAccountTokenId tokenId;
     private final SecureString secret;
 
     // pkg private for testing
     ServiceAccountToken(ServiceAccountId accountId, String tokenName, SecureString secret) {
-        this.accountId = Objects.requireNonNull(accountId, "service account ID cannot be null");
-        if (false == isValidTokenName(tokenName)) {
-            throw new IllegalArgumentException(INVALID_TOKEN_NAME_MESSAGE);
-        }
-        this.tokenName = tokenName;
+        tokenId = new ServiceAccountTokenId(accountId, tokenName);
         this.secret = Objects.requireNonNull(secret, "service account token secret cannot be null");
     }
 
-    public ServiceAccountId getAccountId() {
-        return accountId;
-    }
-
-    public String getTokenName() {
-        return tokenName;
+    public ServiceAccountTokenId getTokenId() {
+        return tokenId;
     }
 
     public SecureString getSecret() {
         return secret;
     }
 
+    public ServiceAccountId getAccountId() {
+        return tokenId.getAccountId();
+    }
+
+    public String getTokenName() {
+        return tokenId.getTokenName();
+    }
+
     public String getQualifiedName() {
-        return getAccountId().asPrincipal() + "/" + tokenName;
+        return tokenId.getQualifiedName();
     }
 
     public SecureString asBearerString() throws IOException {
@@ -131,18 +123,23 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
     }
 
     @Override
+    public String toString() {
+        return getQualifiedName();
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o)
             return true;
         if (o == null || getClass() != o.getClass())
             return false;
         ServiceAccountToken that = (ServiceAccountToken) o;
-        return accountId.equals(that.accountId) && tokenName.equals(that.tokenName) && secret.equals(that.secret);
+        return tokenId.equals(that.tokenId) && secret.equals(that.secret);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(accountId, tokenName, secret);
+        return Objects.hash(tokenId, secret);
     }
 
     public static ServiceAccountToken newToken(ServiceAccountId accountId, String tokenName) {
@@ -151,7 +148,7 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
 
     @Override
     public String principal() {
-        return accountId.asPrincipal();
+        return tokenId.getAccountId().asPrincipal();
     }
 
     @Override
@@ -164,7 +161,48 @@ public class ServiceAccountToken implements AuthenticationToken, Closeable {
         close();
     }
 
-    public static boolean isValidTokenName(String name) {
-        return name != null && VALID_TOKEN_NAME.matcher(name).matches();
+    public static class ServiceAccountTokenId {
+        private final ServiceAccountId accountId;
+        private final String tokenName;
+
+        public ServiceAccountTokenId(ServiceAccountId accountId, String tokenName) {
+            this.accountId = Objects.requireNonNull(accountId, "service account ID cannot be null");
+            if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
+                throw new IllegalArgumentException(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE);
+            }
+            this.tokenName = Objects.requireNonNull(tokenName, "service account token name cannot be null");
+        }
+
+        public ServiceAccountId getAccountId() {
+            return accountId;
+        }
+
+        public String getTokenName() {
+            return tokenName;
+        }
+
+        public String getQualifiedName() {
+            return accountId.asPrincipal() + "/" + tokenName;
+        }
+
+        @Override
+        public String toString() {
+            return getQualifiedName();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            ServiceAccountTokenId that = (ServiceAccountTokenId) o;
+            return accountId.equals(that.accountId) && tokenName.equals(that.tokenName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(accountId, tokenName);
+        }
     }
 }

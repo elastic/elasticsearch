@@ -85,8 +85,6 @@ For resiliency, indices in the cold tier can rely on
 [[frozen-tier]]
 === Frozen tier
 
-experimental::[]
-
 Once data is no longer being queried, or being queried rarely, it may move from
 the cold tier to the frozen tier where it stays for the rest of its life.
 
@@ -105,7 +103,7 @@ transitioning into the frozen tier into a shared-cache searchable snapshot.
 Search is typically slower on the frozen tier than the cold tier, because {es}
 must sometimes fetch data from the snapshot repository.
 
-NOTE: The frozen tier is not yet available on the {ess-trial}[{ess}]. To
+NOTE: The frozen tier is not yet available on {ess-trial}[{ess}]. To
 recreate similar functionality, see
 <<searchable-snapshots-frozen-tier-on-cloud>>.
 

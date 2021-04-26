@@ -9,13 +9,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.plugins.Plugin;
 
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -34,13 +32,6 @@ public class ExternalFieldMapperTests extends MapperServiceTestCase {
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
-
-        assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
-        assertThat(point.lat(), closeTo(42.0, 1e-5));
-        assertThat(point.lon(), closeTo(51.0, 1e-5));
-
-        assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
         assertThat(doc.rootDoc().getField("field.field"), notNullValue());
         assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
@@ -69,14 +60,6 @@ public class ExternalFieldMapperTests extends MapperServiceTestCase {
 
         assertThat(doc.rootDoc().getField("field.bool"), notNullValue());
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
-
-        assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        GeoPoint point = new GeoPoint().resetFromIndexableField(doc.rootDoc().getField("field.point"));
-        assertThat(point.lat(), closeTo(42.0, 1E-5));
-        assertThat(point.lon(), closeTo(51.0, 1E-5));
-
-        IndexableField shape = doc.rootDoc().getField("field.shape");
-        assertThat(shape, notNullValue());
 
         IndexableField field = doc.rootDoc().getField("field.text");
         assertThat(field, notNullValue());

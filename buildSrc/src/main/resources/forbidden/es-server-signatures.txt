@@ -51,6 +51,8 @@ java.nio.channels.FileChannel#read(java.nio.ByteBuffer, long)
 @defaultMessage Use Lucene.parseLenient instead it strips off minor version
 org.apache.lucene.util.Version#parseLeniently(java.lang.String)
 
+org.apache.lucene.index.NoMergePolicy#INSTANCE @ explicit use of NoMergePolicy risks forgetting to configure NoMergeScheduler; use org.elasticsearch.common.lucene.Lucene#indexWriterConfigWithNoMerging() instead.
+
 @defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#relativeTimeInMillis instead
 org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
 org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()

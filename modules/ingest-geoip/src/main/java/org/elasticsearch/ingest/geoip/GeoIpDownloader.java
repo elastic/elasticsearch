@@ -11,9 +11,10 @@ package org.elasticsearch.ingest.geoip;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -58,11 +59,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
-    public static final boolean GEOIP_V2_FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.geoip_v2_feature_flag_enabled"));
-
-    public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting("geoip.downloader.poll.interval",
+    public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting("ingest.geoip.downloader.poll.interval",
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);
-    public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("geoip.downloader.endpoint",
+    public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("ingest.geoip.downloader.endpoint",
         "https://geoip.elastic.co/v1/database", Property.NodeScope);
 
     public static final String GEOIP_DOWNLOADER = "geoip-downloader";
@@ -81,8 +80,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     private volatile GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY;
 
     GeoIpDownloader(Client client, HttpClient httpClient, ClusterService clusterService, ThreadPool threadPool, Settings settings,
-                    long id, String type, String action, String description, TaskId parentTask,
-                    Map<String, String> headers) {
+                    long id, String type, String action, String description, TaskId parentTask, Map<String, String> headers) {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
@@ -104,7 +102,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         logger.info("updating geoip databases");
         List<Map<String, Object>> response = fetchDatabasesOverview();
         for (Map<String, Object> res : response) {
-            processDatabase(res);
+            if (res.get("name").toString().endsWith(".tgz")) {
+                processDatabase(res);
+            }
         }
     }
 
@@ -121,7 +121,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     //visible for testing
     void processDatabase(Map<String, Object> databaseInfo) {
-        String name = databaseInfo.get("name").toString().replace(".gz", "");
+        String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
         if (state.contains(name) && Objects.equals(md5, state.get(name).getMd5())) {
             updateTimestamp(name, state.get(name));
@@ -129,12 +129,17 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         }
         logger.info("updating geoip database [" + name + "]");
         String url = databaseInfo.get("url").toString();
+        if (url.startsWith("http") == false) {
+            //relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
+            int lastSlash = endpoint.substring(8).lastIndexOf('/');
+            url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
+        }
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
-            int lastChunk = indexChunks(name, is, firstChunk, md5);
+            int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
-                state = state.put(name, new Metadata(System.currentTimeMillis(), firstChunk, lastChunk - 1, md5));
+                state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
@@ -173,18 +178,26 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     //visible for testing
-    int indexChunks(String name, InputStream is, int chunk, String expectedMd5) throws IOException {
+    int indexChunks(String name, InputStream is, int chunk, String expectedMd5, long timestamp) throws IOException {
         MessageDigest md = MessageDigests.md5();
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             md.update(buf);
-            client.prepareIndex(DATABASES_INDEX).setId(name + "_" + chunk)
-                .setCreate(true)
-                .setSource(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .setWaitForActiveShards(ActiveShardCount.ALL)
-                .get();
+            IndexRequest indexRequest = new IndexRequest(DATABASES_INDEX)
+                .id(name + "_" + chunk + "_" + timestamp)
+                .create(true)
+                .source(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf);
+            client.index(indexRequest).actionGet();
             chunk++;
         }
+
+        // May take some time before automatic flush kicks in:
+        // (otherwise the translog will contain large documents for some time without good reason)
+        FlushRequest flushRequest = new FlushRequest(DATABASES_INDEX);
+        client.admin().indices().flush(flushRequest).actionGet();
+        // Ensure that the chunk documents are visible:
+        RefreshRequest refreshRequest = new RefreshRequest(DATABASES_INDEX);
+        client.admin().indices().refresh(refreshRequest).actionGet();
+
         String actualMd5 = MessageDigests.toHexString(md.digest());
         if (Objects.equals(expectedMd5, actualMd5) == false) {
             throw new IOException("md5 checksum mismatch, expected [" + expectedMd5 + "], actual [" + actualMd5 + "]");
@@ -234,7 +247,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     @Override
     public GeoIpDownloaderStats getStatus() {
-        return isCancelled() || isCompleted() ? null: stats;
+        return isCancelled() || isCompleted() ? null : stats;
     }
 
     private void scheduleNextRun(TimeValue time) {

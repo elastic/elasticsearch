@@ -196,7 +196,8 @@ instead of the lengthier `get` method.
 require semicolons for the final statement of a block. However, it does require
 them in other cases to remove ambiguity.
 
-Use this abbreviated syntax anywhere that {es} supports scripts.
+Use this abbreviated syntax anywhere that {es} supports scripts, such as
+when you're creating <<runtime-mapping-fields,runtime fields>>.
 
 [discrete]
 [[script-stored-scripts]]

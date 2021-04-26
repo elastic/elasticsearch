@@ -14,11 +14,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.script.DoubleFieldScript;
+import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -32,6 +37,13 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     protected abstract Number missingValue();
 
+    /**
+     * @return does this mapper allow index time scripts
+     */
+    protected boolean allowsIndexTimeScript() {
+        return false;
+    }
+
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("doc_values", b -> b.field("doc_values", false));
@@ -42,6 +54,22 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             m -> assertFalse(((NumberFieldMapper) m).coerce()));
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
             m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+
+        if (allowsIndexTimeScript()) {
+            checker.registerConflictCheck("script", b -> b.field("script", "foo"));
+            checker.registerUpdateCheck(
+                b -> {
+                    minimalMapping(b);
+                    b.field("script", "test");
+                    b.field("on_script_error", "fail");
+                },
+                b -> {
+                    minimalMapping(b);
+                    b.field("script", "test");
+                    b.field("on_script_error", "continue");
+                },
+                m -> assertThat((m).onScriptError, equalTo("continue")));
+        }
     }
 
     @Override
@@ -226,5 +254,33 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         return randomBoolean() ? n : n.toString();
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        if (context == LongFieldScript.CONTEXT) {
+            return (T) LongScriptFieldType.PARSE_FROM_SOURCE;
+        }
+        if (context == DoubleFieldScript.CONTEXT) {
+            return (T) DoubleScriptFieldType.PARSE_FROM_SOURCE;
+        }
+        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+    }
+
+    public void testScriptableTypes() throws IOException {
+        if (allowsIndexTimeScript()) {
+            createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("script", "foo");
+            }));
+        } else {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("script", "foo");
+            })));
+            assertEquals("Failed to parse mapping: Unknown parameter [script] for mapper [field]", e.getMessage());
+        }
+    }
+
     protected abstract Number randomNumber();
+
 }

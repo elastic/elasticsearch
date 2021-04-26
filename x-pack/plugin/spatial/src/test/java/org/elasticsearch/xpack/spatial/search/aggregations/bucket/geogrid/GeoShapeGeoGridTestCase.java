@@ -191,11 +191,24 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
 
             GeoShapeValues.GeoShapeValue value = geoShapeValue(p);
             GeoRelation tileRelation =  value.relate(pointTile);
-            boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
-                && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
-                || (crossesDateline && boundsWestLeft <= pointTile.getMaxX() && boundsWestRight >= pointTile.getMinX()));
-            if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
-                numDocsWithin += 1;
+//            boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
+//                && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
+//                || (crossesDateline && boundsWestLeft <= pointTile.getMaxX() && boundsWestRight >= pointTile.getMinX()));
+//            if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
+//                numDocsWithin += 1;
+//            }
+            if (tileRelation != GeoRelation.QUERY_DISJOINT) {
+                if (bbox.top() >= pointTile.getMinY() && bbox.bottom() <= pointTile.getMaxY()) {
+                    if (crossesDateline) {
+                        if (bbox.left() <= pointTile.getMaxX() || bbox.right() >= pointTile.getMinX()) {
+                            numDocsWithin += 1;
+                        }
+                    } else {
+                        if(bbox.left() <= pointTile.getMaxX() && bbox.right() >= pointTile.getMinX()) {
+                            numDocsWithin += 1;
+                        }
+                    }
+                }
             }
 
             docs.add(binaryGeoShapeDocValuesField(FIELD_NAME, p));

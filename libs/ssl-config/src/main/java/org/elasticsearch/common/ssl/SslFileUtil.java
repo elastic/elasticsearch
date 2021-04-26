@@ -38,7 +38,7 @@ final class SslFileUtil {
             return accessDenied(fileType, paths, (AccessDeniedException) cause);
         }
         String message = "cannot read configured " + fileType + " [" + pathsToString(paths) + "]";
-        if (cause != null) {
+        if (cause != null && cause.getMessage() != null) {
             message += " - " + cause.getMessage();
         }
         return new SslConfigException(message, cause);

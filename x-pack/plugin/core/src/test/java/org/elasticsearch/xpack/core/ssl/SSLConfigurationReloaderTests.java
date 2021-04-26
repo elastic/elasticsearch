@@ -360,7 +360,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         latch.await();
         assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
+        assertThat(exceptionRef.get(), throwableWithMessage(containsString("cannot read configured [jks] keystore")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
@@ -455,7 +455,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         latch.await();
         assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
+        assertThat(exceptionRef.get(), throwableWithMessage(containsString("cannot read configured [jks] keystore (as a truststore)")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 
@@ -500,7 +500,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
 
         latch.await();
         assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
+        assertThat(exceptionRef.get(), throwableWithMessage(containsString("cannot load PEM certificate_authorities")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
     }
 

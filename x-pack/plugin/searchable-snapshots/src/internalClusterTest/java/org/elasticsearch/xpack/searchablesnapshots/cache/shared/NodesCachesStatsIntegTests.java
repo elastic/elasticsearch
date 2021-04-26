@@ -107,13 +107,6 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
         }
 
-        final ClearSearchableSnapshotsCacheResponse clearCacheResponse = client().execute(
-            ClearSearchableSnapshotsCacheAction.INSTANCE,
-            new ClearSearchableSnapshotsCacheRequest(mountedIndex)
-        ).actionGet();
-        assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
-        assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
-
         for (int i = 0; i < 20; i++) {
             client().prepareSearch(mountedIndex)
                 .setQuery(
@@ -126,6 +119,13 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         }
 
         assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+
+        final ClearSearchableSnapshotsCacheResponse clearCacheResponse = client().execute(
+            ClearSearchableSnapshotsCacheAction.INSTANCE,
+            new ClearSearchableSnapshotsCacheRequest(mountedIndex)
+        ).actionGet();
+        assertThat(clearCacheResponse.getSuccessfulShards(), greaterThan(0));
+        assertThat(clearCacheResponse.getFailedShards(), equalTo(0));
 
         final String[] dataNodesWithFrozenShards = client().admin()
             .cluster()
@@ -155,11 +155,13 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 assertThat(nodeCachesStats.getBytesWritten(), greaterThan(0L));
                 assertThat(nodeCachesStats.getReads(), greaterThan(0L));
                 assertThat(nodeCachesStats.getBytesRead(), greaterThan(0L));
+                assertThat(nodeCachesStats.getEvictions(), greaterThan(0L));
             } else {
                 assertThat(nodeCachesStats.getWrites(), equalTo(0L));
                 assertThat(nodeCachesStats.getBytesWritten(), equalTo(0L));
                 assertThat(nodeCachesStats.getReads(), equalTo(0L));
                 assertThat(nodeCachesStats.getBytesRead(), equalTo(0L));
+                assertThat(nodeCachesStats.getEvictions(), equalTo(0L));
             }
         }
     }

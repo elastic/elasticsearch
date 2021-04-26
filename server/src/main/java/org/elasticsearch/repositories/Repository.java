@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -19,7 +18,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -182,37 +180,16 @@ public interface Repository extends LifecycleComponent {
     boolean isReadOnly();
 
     /**
-     * Creates a snapshot of the shard based on the index commit point.
+     * Creates a snapshot of the shard referenced by the given {@link SnapshotShardContext}.
      * <p>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
-     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
-     * <p>
-     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
-     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store                 store to be snapshotted
-     * @param mapperService         the shards mapper service
-     * @param snapshotId            snapshot id
-     * @param indexId               id for the index being snapshotted
-     * @param snapshotIndexCommit   commit point
-     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
-     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
-     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
-     * @param snapshotStatus        snapshot status
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * @param listener              listener invoked on completion
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object returned by
+     * {@link SnapshotShardContext#status()} and check its {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process
+     * should be aborted.
+     *
+     * @param snapshotShardContext snapshot shard context that must be completed via {@link SnapshotShardContext#onResponse} or
+     *                             {@link SnapshotShardContext#onFailure}
      */
-    void snapshotShard(
-            Store store,
-            MapperService mapperService,
-            SnapshotId snapshotId,
-            IndexId indexId,
-            IndexCommit snapshotIndexCommit,
-            @Nullable String shardStateIdentifier,
-            IndexShardSnapshotStatus snapshotStatus,
-            Version repositoryMetaVersion,
-            Map<String, Object> userMetadata,
-            ActionListener<ShardSnapshotResult> listener);
+    void snapshotShard(SnapshotShardContext snapshotShardContext);
 
     /**
      * Restores snapshot of the shard.

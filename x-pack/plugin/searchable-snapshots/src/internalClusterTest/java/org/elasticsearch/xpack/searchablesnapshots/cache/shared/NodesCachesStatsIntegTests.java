@@ -27,11 +27,12 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest;
 
 import java.util.Locale;
-import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -124,7 +125,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
 
         assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
-        final Set<String> dataNodesWithFrozenShards = client().admin()
+        final String[] dataNodesWithFrozenShards = client().admin()
             .cluster()
             .prepareState()
             .get()
@@ -135,13 +136,15 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             .stream()
             .filter(ShardRouting::assignedToNode)
             .map(ShardRouting::currentNodeId)
-            .collect(Collectors.toSet());
+            .collect(toSet())
+            .toArray(String[]::new);
 
         final NodesCachesStatsResponse response = client().execute(
             TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
-            new NodesRequest(dataNodesWithFrozenShards.toArray(String[]::new))
+            new NodesRequest(dataNodesWithFrozenShards)
         ).actionGet();
-        assertThat(response.getNodes(), hasSize(dataNodesWithFrozenShards.size()));
+        assertThat(response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
+            containsInAnyOrder(dataNodesWithFrozenShards));
         assertThat(response.hasFailures(), equalTo(false));
 
         for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {

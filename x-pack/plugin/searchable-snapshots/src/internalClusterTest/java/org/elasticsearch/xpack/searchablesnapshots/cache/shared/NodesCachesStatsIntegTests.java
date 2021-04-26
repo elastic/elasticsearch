@@ -145,8 +145,10 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
             new NodesRequest(dataNodesWithFrozenShards)
         ).actionGet();
-        assertThat(response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
-            containsInAnyOrder(dataNodesWithFrozenShards));
+        assertThat(
+            response.getNodes().stream().map(r -> r.getNode().getId()).collect(Collectors.toList()),
+            containsInAnyOrder(dataNodesWithFrozenShards)
+        );
         assertThat(response.hasFailures(), equalTo(false));
 
         for (NodeCachesStatsResponse nodeCachesStats : response.getNodes()) {

@@ -53,9 +53,8 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnDirectExecutorService() throws InterruptedException {
-        final ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
-        checkExecutionError(getExecuteRunner(directExecutorService));
-        checkExecutionError(getSubmitRunner(directExecutorService));
+        checkExecutionError(getExecuteRunner(EsExecutors.DIRECT_EXECUTOR_SERVICE));
+        checkExecutionError(getSubmitRunner(EsExecutors.DIRECT_EXECUTOR_SERVICE));
     }
 
     public void testExecutionErrorOnFixedESThreadPoolExecutor() throws InterruptedException {
@@ -151,9 +150,8 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnDirectExecutorService() throws InterruptedException {
-        final ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
-        checkExecutionException(getExecuteRunner(directExecutorService), true);
-        checkExecutionException(getSubmitRunner(directExecutorService), false);
+        checkExecutionException(getExecuteRunner(EsExecutors.DIRECT_EXECUTOR_SERVICE), true);
+        checkExecutionException(getSubmitRunner(EsExecutors.DIRECT_EXECUTOR_SERVICE), false);
     }
 
     public void testExecutionExceptionOnFixedESThreadPoolExecutor() throws InterruptedException {

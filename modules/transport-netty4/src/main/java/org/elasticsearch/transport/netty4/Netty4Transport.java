@@ -80,7 +80,6 @@ public class Netty4Transport extends TcpTransport {
     public static final Setting<Integer> NETTY_BOSS_COUNT =
         intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
-
     private final SharedGroupFactory sharedGroupFactory;
     private final RecvByteBufAllocator recvByteBufAllocator;
     private final ByteSizeValue receivePredictorMin;
@@ -301,6 +300,7 @@ public class Netty4Transport extends TcpTransport {
             addClosedExceptionLogger(ch);
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
+            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
@@ -316,7 +316,6 @@ public class Netty4Transport extends TcpTransport {
     protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
-        private final NettyByteBufSizer sizer = new NettyByteBufSizer();
 
         protected ServerChannelInitializer(String name) {
             this.name = name;
@@ -329,7 +328,7 @@ public class Netty4Transport extends TcpTransport {
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
-            ch.pipeline().addLast("byte_buf_sizer", sizer);
+            ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("logging", new ESLoggingHandler());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(pageCacheRecycler, Netty4Transport.this));
             serverAcceptedChannel(nettyTcpChannel);

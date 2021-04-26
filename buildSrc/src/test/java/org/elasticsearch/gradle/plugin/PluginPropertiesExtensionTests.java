@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.plugin;
 
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.testfixtures.ProjectBuilder;

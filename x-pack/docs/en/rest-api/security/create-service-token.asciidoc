@@ -54,7 +54,7 @@ alphanumeric characters (`a-z`, `A-Z`, `0-9`), dashes (`-`), and underscores
 
 NOTE: Token names must be unique in the context of the associated service
 account. They must also be globally unique with their fully qualified names,
-which is comprised of the service account principal and token name, such as
+which are comprised of the service account principal and token name, such as
 `<namespace>/<service>/<token-name>`.
 --
 

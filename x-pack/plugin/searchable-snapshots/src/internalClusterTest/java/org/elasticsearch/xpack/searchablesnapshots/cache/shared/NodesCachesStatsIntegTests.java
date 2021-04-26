@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.shared;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -29,7 +30,6 @@ import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearcha
 import java.util.Locale;
 import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -84,7 +84,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 .cluster()
                 .prepareNodesStats(nodeId)
                 .clear()
-                .setFs(true)
+                .addMetric(NodesStatsRequest.Metric.FS.metricName())
                 .get()
                 .getNodesMap()
                 .get(nodeId)
@@ -138,7 +138,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             .stream()
             .filter(ShardRouting::assignedToNode)
             .map(ShardRouting::currentNodeId)
-            .collect(toSet())
+            .distinct()
             .toArray(String[]::new);
 
         final NodesCachesStatsResponse response = client().execute(

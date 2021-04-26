@@ -4,8 +4,19 @@
 <titleabbrev>Cluster allocation explain</titleabbrev>
 ++++
 
-Provides explanations for shard allocations in the cluster.
+Provides an explanation for the allocation of a shard in the cluster.
 
+[source,console]
+--------------------------------------------------
+GET /_cluster/allocation/explain
+{
+  "index": "my-index-000001",
+  "shard": 0,
+  "primary": false,
+  "current_node": "nodeA"
+}
+--------------------------------------------------
+// TEST[skip:nothing is set up yet, actual tests are below]
 
 [[cluster-allocation-explain-api-request]]
 ==== {api-request-title}

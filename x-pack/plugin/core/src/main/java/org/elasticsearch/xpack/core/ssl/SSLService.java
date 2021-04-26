@@ -501,7 +501,7 @@ public class SSLService {
                         name = "(shared)";
                         break;
                 }
-                return name + " with trust=[" + configuration.getTrustConfig() + "]";
+                return name + " (with trust configuration: " + configuration.getTrustConfig() + ")";
             };
             trustManager = new DiagnosticTrustManager(trustManager, contextName, diagnosticLogger::warn);
         }

@@ -126,7 +126,13 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                     " the certificate is issued by \\[CN=Certificate Authority 1,OU=ssl-error-message-test,DC=elastic,DC=co\\]" +
                     " but the server did not provide a copy of the issuing certificate in the certificate chain;" +
                     " the issuing certificate with fingerprint \\[[0-9a-f]{40}\\]" +
-                    " is trusted in this ssl context " + Pattern.quote("([" + HTTP_CLIENT_SSL + "])")));
+                    " is trusted in this ssl context " +
+                    Pattern.quote("([" + HTTP_CLIENT_SSL + " (with trust configuration: PEM-trust{") +
+                    "\\S+" +
+                    Pattern.quote(
+                        "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt" +
+                            "})])")
+            ));
             enableHttpsHostnameChecking(clientSocket);
             connect(clientSocket, webServer);
             assertThat(clientSocket.isConnected(), is(true));

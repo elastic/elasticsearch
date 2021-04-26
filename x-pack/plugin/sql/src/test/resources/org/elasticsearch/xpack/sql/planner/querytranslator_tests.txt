@@ -462,7 +462,6 @@ SELECT * FROM test WHERE keyword IN ('foo', 'bar', 'lala', 'foo', concat('la', '
 ;
 
 InExpressionWhereClause2
-InExpressionWhereClause2
 SELECT int FROM test WHERE POWER(int, 2) IN (10, null, 20, 30 - 10);
 InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.in(InternalSqlScriptUtils.power(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))
 "params":{"v0":"int","v1":2,"v2":[10.0,null,20.0]}

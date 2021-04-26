@@ -73,7 +73,6 @@ public final class Mapping implements ToXContentFragment {
         this.metadataMappersMap = unmodifiableMap(metadataMappersMap);
         this.metadataMappersByName = unmodifiableMap(metadataMappersByName);
         this.meta = meta;
-
     }
 
     CompressedXContent toCompressedXContent() {
@@ -82,6 +81,10 @@ public final class Mapping implements ToXContentFragment {
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
         }
+    }
+
+    boolean hasMappings() {
+        return root.iterator().hasNext();
     }
 
     /**

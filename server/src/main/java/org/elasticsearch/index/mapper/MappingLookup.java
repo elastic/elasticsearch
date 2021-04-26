@@ -39,11 +39,9 @@ public final class MappingLookup {
      * A lookup representing an empty mapping.
      */
     //TODO possibly all usages of this should be replaced?
-    public static final MappingLookup EMPTY = new MappingLookup(
-        Mapping.EMPTY,
-        List.of(),
-        List.of(),
-        List.of(),
+    public static final MappingLookup EMPTY = empty(
+        Version.CURRENT,
+        new MetadataFieldMapper[0],
         null,
         null,
         null
@@ -332,7 +330,7 @@ public final class MappingLookup {
     }
 
     public boolean hasMappings() {
-        return this != EMPTY;
+        return mapping.hasMappings();
     }
 
     public boolean isSourceEnabled() {

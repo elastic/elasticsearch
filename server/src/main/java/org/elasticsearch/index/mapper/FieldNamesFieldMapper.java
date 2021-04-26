@@ -18,7 +18,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -153,42 +152,6 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     @Override
     public FieldNamesFieldType fieldType() {
         return (FieldNamesFieldType) super.fieldType();
-    }
-
-    static Iterable<String> extractFieldNames(final String fullPath) {
-        return new Iterable<String>() {
-            @Override
-            public Iterator<String> iterator() {
-                return new Iterator<>() {
-                    int endIndex = nextEndIndex(0);
-
-                    private int nextEndIndex(int index) {
-                        while (index < fullPath.length() && fullPath.charAt(index) != '.') {
-                            index += 1;
-                        }
-                        return index;
-                    }
-
-                    @Override
-                    public boolean hasNext() {
-                        return endIndex <= fullPath.length();
-                    }
-
-                    @Override
-                    public String next() {
-                        final String result = fullPath.substring(0, endIndex);
-                        endIndex = nextEndIndex(endIndex + 1);
-                        return result;
-                    }
-
-                    @Override
-                    public void remove() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                };
-            }
-        };
     }
 
     @Override

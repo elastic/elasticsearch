@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.test.rest.transform;
+package org.elasticsearch.gradle.internal.test.rest.transform;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 

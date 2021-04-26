@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
 
 import java.util.concurrent.TimeUnit

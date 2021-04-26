@@ -9,7 +9,7 @@
 apply plugin:"elasticsearch.internal-distribution-bwc-setup"
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 
 BuildParams.getBwcVersions().forPreviousUnreleased { unreleasedVersion ->

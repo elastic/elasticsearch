@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'

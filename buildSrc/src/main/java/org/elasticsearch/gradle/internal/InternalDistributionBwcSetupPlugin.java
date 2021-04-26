@@ -8,10 +8,9 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.BwcVersions;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;

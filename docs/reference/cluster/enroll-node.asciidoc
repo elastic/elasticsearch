@@ -38,18 +38,17 @@ The API returns a response such as
 --------------------------------------------------
 {
   "http_ca_keystore" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <1>
-  "transport_keystore" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuE/yiOXvqZ6j+xuVSQ0CAwGGoA==", <2>
+  "transport_keystore" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <2>
   "cluster_name" : "cluster-name",               <3>
   "nodes_addresses" : [                          <4>
-    "192.168.1.2:9300",
-    "192.168.1.3:9301",
-    "192.168.1.5:9300",
-    "192.168.1.6:9300",
-    "192.168.1.7:9301",
+    "192.168.1.2:9300"
   ]
 }
 --------------------------------------------------
-
+// TESTRESPONSE[s/MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=/$body.http_ca_keystore/]
+// TESTRESPONSE[s/MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==/$body.transport_keystore/]
+// TESTRESPONSE[s/cluster-name/$body.cluster_name/]
+// TESTRESPONSE[s/192.168.1.2:9300/$body.nodes_addresses.0/]
 <1> The keystore containing the CA private key and X509 certificate that can be used by the
     new node in order to sign its certificate for the HTTP layer, as a Base64 encoded string.
 <2> The keystore containing the private key and X509 certificate that the node can use for

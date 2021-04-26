@@ -27,6 +27,7 @@ import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
+import org.elasticsearch.client.xpack.NodeEnrollmentResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -52,6 +53,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -385,5 +387,17 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
             highLevelClient().cluster()::existsComponentTemplate, highLevelClient().cluster()::existsComponentTemplateAsync);
 
         assertFalse(exist);
+    }
+
+    public void testEnrollNode() throws Exception {
+        final NodeEnrollmentResponse nodeEnrollmentResponse =
+            execute(highLevelClient().cluster()::enrollNode, highLevelClient().cluster()::enrollNodeAsync, RequestOptions.DEFAULT);
+        assertThat(nodeEnrollmentResponse, notNullValue());
+        assertThat(nodeEnrollmentResponse.getHttpCaKeystore()
+            , endsWith("ECAwGGoA=="));
+        assertThat(nodeEnrollmentResponse.getTransportKeystore()
+            , endsWith("fSI09on8AgMBhqA="));
+        List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
+        assertThat(nodesAddresses.size(), equalTo(1));
     }
 }

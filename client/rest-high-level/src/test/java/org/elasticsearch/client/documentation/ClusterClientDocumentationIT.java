@@ -29,6 +29,7 @@ import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
+import org.elasticsearch.client.xpack.NodeEnrollmentResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -695,5 +696,47 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::delete-component-template-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testClientEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::node-enrollment-execute
+            NodeEnrollmentResponse response = client.cluster().enrollNode(RequestOptions.DEFAULT);
+            // end::node-enrollment-execute
+
+            // tag::node-enrollment-response
+            String httpCaKeystore = response.getHttpCaKeystore(); // <1>
+            String transportKeyStore = response.getTransportKeystore(); // <2>
+            String clusterName = response.getClusterName(); // <3>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <4>
+            // end::node-enrollment-response
+        }
+
+        {
+            // tag::node-enrollment-execute-listener
+            ActionListener<NodeEnrollmentResponse> listener =
+                new ActionListener<NodeEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(NodeEnrollmentResponse response) {
+                        // <1>
+                    }
+
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::node-enrollment-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::node-enrollment-execute-async
+            client.cluster().enrollNodeAsync(RequestOptions.DEFAULT, listener);
+            // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
     }
 }

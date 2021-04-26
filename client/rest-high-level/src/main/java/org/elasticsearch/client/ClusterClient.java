@@ -23,6 +23,8 @@ import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
+import org.elasticsearch.client.xpack.NodeEnrollmentRequest;
+import org.elasticsearch.client.xpack.NodeEnrollmentResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -272,5 +274,26 @@ public final class ClusterClient {
 
         return restHighLevelClient.performRequestAsync(componentTemplatesRequest,
             ClusterRequestConverters::componentTemplatesExist, options, RestHighLevelClient::convertExistsResponse, listener, emptySet());
+    }
+
+    /**
+     * Allows a node to join to a secured cluster using the Enroll Node API.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public NodeEnrollmentResponse enrollNode(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
+            options, NodeEnrollmentResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously allows a node to join to a secured cluster using the Enroll Node API.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
+     */
+    public Cancellable enrollNodeAsync(RequestOptions options, ActionListener<NodeEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
+            options, NodeEnrollmentResponse::fromXContent, listener, emptySet());
     }
 }

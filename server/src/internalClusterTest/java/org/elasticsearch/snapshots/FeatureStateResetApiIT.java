@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class FeatureStateResetApiIT extends ESIntegTestCase {
 
@@ -102,21 +103,27 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
     }
 
     /**
-     * Evil test - what if the cleanup method fails?
+     * Evil test - test that when a feature fails to reset, we get a response object
+     * indicating the failure
      */
-    public void testFailFastOnStateCleanupFailure() throws Exception {
+    public void testFeatureResetFailure() throws Exception {
         try {
-            EvilSystemIndexTestPlugin.beEvil = true;
+            EvilSystemIndexTestPlugin.setBeEvil(true);
             ResetFeatureStateResponse resetFeatureStateResponse = client().execute(ResetFeatureStateAction.INSTANCE,
                 new ResetFeatureStateRequest()).get();
 
             List<String> failedFeatures = resetFeatureStateResponse.getFeatureStateResetStatusList().stream()
                 .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
-                .map(ResetFeatureStateResponse.ResetFeatureStateStatus::getFeatureName)
+                .peek(status -> assertThat(status.getException(), notNullValue()))
+                .map(status -> {
+                    // all failed statuses should have exceptions
+                    assertThat(status.getException(), notNullValue());
+                    return status.getFeatureName();
+                })
                 .collect(Collectors.toList());
             assertThat(failedFeatures, contains("EvilSystemIndexTestPlugin"));
         } finally {
-            EvilSystemIndexTestPlugin.beEvil = false;
+            EvilSystemIndexTestPlugin.setBeEvil(false);
         }
     }
 
@@ -189,15 +196,23 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             return "a plugin that can be very bad";
         }
 
+        public static synchronized void setBeEvil(boolean evil) {
+            beEvil = evil;
+        }
+
+        public static synchronized boolean isEvil() {
+            return beEvil;
+        }
+
         @Override
         public void cleanUpFeature(
             ClusterService clusterService,
             Client client,
             ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
-            if (beEvil == false) {
-                listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.success(getFeatureName()));
-            } else {
+            if (isEvil()) {
                 listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(getFeatureName(), "problem!"));
+            } else {
+                listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.success(getFeatureName()));
             }
         }
     }

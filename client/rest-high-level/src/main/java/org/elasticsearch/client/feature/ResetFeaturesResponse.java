@@ -74,7 +74,7 @@ public class ResetFeaturesResponse {
         private static final ParseField EXCEPTION = new ParseField("exception");
 
         private static final ConstructingObjectParser<ResetFeatureStateStatus, Void> PARSER = new ConstructingObjectParser<>(
-            "features", true,
+            "feature_state_reset_stats", true,
             (a, ctx) -> new ResetFeatureStateStatus((String) a[0], (String) a[1], (ElasticsearchException) a[2])
         );
 
@@ -84,7 +84,7 @@ public class ResetFeaturesResponse {
             PARSER.declareField(ConstructingObjectParser.constructorArg(),
                 (p, c) -> p.text(), STATUS, ObjectParser.ValueType.STRING);
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ElasticsearchException.failureFromXContent(p), EXCEPTION);
+                (p, c) -> ElasticsearchException.fromXContent(p), EXCEPTION);
         }
 
         /**

@@ -172,7 +172,12 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             builder.startObject();
             builder.field("feature_name", this.featureName);
             builder.field("status", this.status);
-            ElasticsearchException.generateFailureXContent(builder, params, exception, true);
+            if (Objects.nonNull(this.exception)) {
+                builder.field("exception");
+                builder.startObject();
+                new ElasticsearchException(exception).toXContent(builder, params);
+                builder.endObject();
+            }
             builder.endObject();
             return builder;
         }

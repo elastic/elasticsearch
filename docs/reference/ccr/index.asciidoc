@@ -121,7 +121,11 @@ image::images/ccr-arch-bi-directional.png[Bi-directional configuration where eac
 NOTE: This configuration is useful for index-only workloads, where no updates
 to document values occur. In this configuration, documents indexed by {es} are
 immutable. Clients are located in each datacenter alongside the {es}
-cluster, and do not communicate with clusters in different datacenters.
+cluster, and do not communicate with clusters in different datacenters. 
+For instance, follower indices will reject writes. If doc-1 is indexed by 
+Cluster-A and then replicated to Cluster-B, if a client connects to Cluster-B 
+and attempts to update doc-1, the update request will fail. In order to update 
+doc-1, the client would need to connect to Cluster-A.
 
 [discrete]
 [[ccr-data-locality]]

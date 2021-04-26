@@ -8,7 +8,7 @@ Allows you to use the mustache language to pre render search requests.
 
 [source,console]
 ------------------------------------------
-GET _search/template
+GET my-index-000001/_search/template
 {
   "source" : {
     "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
@@ -27,6 +27,12 @@ GET _search/template
 ==== {api-request-title}
 
 `GET _search/template`
+
+`GET <target>/_search/template`
+
+`POST _search/template`
+
+`POST <target>/_search/template`
 
 [[search-template-api-prereqs]]
 ==== {api-prereq-title}
@@ -55,8 +61,13 @@ per type and context as described in the
 [[search-template-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-
+`<target>`::
+(Optional, string)
+Comma-separated list of data streams, indices, and index aliases to search.
+Supports wildcards (`*`).
++
+To search all data streams and indices in a cluster, omit this parameter or use
+`_all` or `*`.
 
 [[search-template-api-query-params]]
 ==== {api-query-parms-title}

@@ -232,10 +232,10 @@ if (project != rootProject) {
     naming.clear()
     naming {
       Tests {
-        baseClass 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+        baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
       }
       IT {
-        baseClass 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
+        baseClass 'org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase'
       }
     }
   }
@@ -251,9 +251,9 @@ if (project != rootProject) {
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
+    onlyIf { org.elasticsearch.gradle.internal.info.BuildParams.inFipsJvm == false }
     it.executable = Jvm.current().getJavaExecutable()
-    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
+    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.internal.info.BuildParams.defaultParallel.toString()) as Integer
   }
 
   publishing.publications.named("elastic").configure {

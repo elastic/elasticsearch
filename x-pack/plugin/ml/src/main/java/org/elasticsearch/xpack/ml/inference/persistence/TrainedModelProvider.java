@@ -183,10 +183,9 @@ public class TrainedModelProvider {
                             Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelConfig.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -213,10 +212,9 @@ public class TrainedModelProvider {
                                 trainedModelDefinitionDoc.getDocNum())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelDefinitionDoc.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelDefinitionDoc.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -241,10 +239,9 @@ public class TrainedModelProvider {
                                 trainedModelMetadata.getModelId())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelMetadata.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA, trainedModelMetadata.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -342,10 +339,9 @@ public class TrainedModelProvider {
                         Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
                 } else {
                     listener.onFailure(
-                        new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e,
-                            trainedModelConfig.getModelId()));
+                        new ElasticsearchStatusException(
+                            Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                            RestStatus.INTERNAL_SERVER_ERROR, e));
                 }
             }
         );
@@ -696,7 +692,8 @@ public class TrainedModelProvider {
                 // Otherwise, treat it as if it was never expanded to begin with.
                 Set<String> missingConfigs = Sets.difference(modelIds.keySet(), observedIds);
                 if (missingConfigs.isEmpty() == false && allowNoResources == false) {
-                    getTrainedModelListener.onFailure(new ResourceNotFoundException(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs));
+                    getTrainedModelListener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs)));
                     return;
                 }
                 // Ensure sorted even with the injection of locally resourced models

@@ -7,8 +7,8 @@
 Allows you to use the mustache language to pre render search requests.
 
 [source,console]
-------------------------------------------
-GET my-index-000001/_search/template
+----
+GET my-index/_search/template
 {
   "source" : {
     "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
@@ -20,8 +20,8 @@ GET my-index-000001/_search/template
     "my_size" : 5
   }
 }
-------------------------------------------
-// TEST[setup:my_index]
+----
+// TEST[s/^/PUT my-index\n/]
 
 [[search-template-api-request]]
 ==== {api-request-title}

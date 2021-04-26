@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.core.termsenum.action;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class TermsEnumRequestBuilder extends BroadcastOperationRequestBuilder<TermsEnumRequest, TermsEnumResponse, TermsEnumRequestBuilder> {
+public class TermsEnumRequestBuilder extends BroadcastOperationRequestBuilder<
+    TermsEnumRequest,
+    TermsEnumResponse,
+    TermsEnumRequestBuilder> {
 
     public TermsEnumRequestBuilder(ElasticsearchClient client, TermsEnumAction action) {
         super(client, action, new TermsEnumRequest());

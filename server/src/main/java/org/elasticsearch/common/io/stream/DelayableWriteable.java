@@ -46,7 +46,9 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readBytesReference());
+        // TODO: the BytesReference read here can be very large => we should move to not copying the bytes by using
+        //       in.readReleasableBytesReference instead
+        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readLargeBytesReference());
     }
 
     private DelayableWriteable() {}

@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
@@ -120,9 +122,9 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
-     * when reading large bytes references where possible top avoid needless allocations and copying.
+     * when reading large bytes references where possible to avoid needless allocations and copying.
      */
-    public BytesReference readBytesReference() throws IOException {
+    public BytesArray readBytesReference() throws IOException {
         int length = readArraySize();
         return readBytesReference(length);
     }
@@ -154,13 +156,42 @@ public abstract class StreamInput extends InputStream {
      * Reads a bytes reference from this stream, might hold an actual reference to the underlying
      * bytes of the stream.
      */
-    public BytesReference readBytesReference(int length) throws IOException {
+    private BytesArray readBytesReference(int length) throws IOException {
         if (length == 0) {
             return BytesArray.EMPTY;
         }
+        return readBytesArray(length);
+    }
+
+    /**
+     * Reads the given number of bytes into a freshly allocated {@code byte} and wraps it as a {@link BytesReference}.
+     *
+     * @param length length of the resulting {@link BytesReference}
+     */
+    private BytesArray readBytesArray(int length) throws IOException {
         byte[] bytes = new byte[length];
         readBytes(bytes, 0, length);
         return new BytesArray(bytes, 0, length);
+    }
+
+    /**
+     * Reads a {@link CompositeBytesReference} made up of pages of size {@link PageCacheRecycler#BYTE_PAGE_SIZE} to avoid allocating very
+     * large {@code byte[]}.
+     * TODO: this is a stop gap solution to avoid large allocations in code that should move to pooled allocation.
+     *       Usage of this method should be replaced by #readReleasableBytesReference() to lower memory use and avoid copying
+     * @deprecated use {@link #readReleasableBytesReference()} instead
+     */
+    @Deprecated
+    public BytesReference readLargeBytesReference() throws IOException {
+        final int length = readVInt();
+        final int remainder = length % PageCacheRecycler.BYTE_PAGE_SIZE;
+        final int pages = length / PageCacheRecycler.BYTE_PAGE_SIZE + (remainder == 0 ? 0 : 1);
+        final BytesReference[] references = new BytesReference[pages];
+        for (int i = 0; i < pages - 1; i++) {
+            references[i] = readBytesArray(PageCacheRecycler.BYTE_PAGE_SIZE);
+        }
+        references[pages - 1] = readBytesArray(remainder == 0 ? PageCacheRecycler.BYTE_PAGE_SIZE : remainder);
+        return CompositeBytesReference.of(references);
     }
 
     public BytesRef readBytesRef() throws IOException {

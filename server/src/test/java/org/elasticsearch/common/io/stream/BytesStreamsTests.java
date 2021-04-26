@@ -930,4 +930,18 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(newEx.getMessage(), equalTo("disk broken"));
         assertArrayEquals(newEx.getStackTrace(), rootEx.getStackTrace());
     }
+
+    public void testReadLargeBytesReference() throws IOException {
+        final byte[] veryLarge = randomizedByteArrayWithSize(
+                randomIntBetween(1, 3) * PageCacheRecycler.BYTE_PAGE_SIZE + randomIntBetween(0, PageCacheRecycler.PAGE_SIZE_IN_BYTES));
+        final BytesArray original = new BytesArray(veryLarge);
+        final BytesStreamOutput tmp = new BytesStreamOutput(veryLarge.length);
+        tmp.writeBytesReference(original);
+        final BytesReference copy = tmp.bytes().streamInput().readLargeBytesReference();
+        assertFalse("must not allocate a single large array", copy.hasArray());
+        assertEquals(original, copy);
+        final BytesReference copy2 = tmp.bytes().streamInput().readBytesReference();
+        assertFalse("must allocate a single large array", copy.hasArray());
+        assertEquals(original, copy2);
+    }
 }

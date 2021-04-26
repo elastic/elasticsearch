@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -175,48 +174,10 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                     previousPath = path;
                 }
                 for (String path : paths) {
-                    for (String fieldName : extractFieldNames(path)) {
-                        document.add(new Field(fieldType().name(), fieldName, Defaults.FIELD_TYPE));
-                    }
+                    document.add(new Field(fieldType().name(), path, Defaults.FIELD_TYPE));
                 }
             }
         }
-    }
-
-    static Iterable<String> extractFieldNames(final String fullPath) {
-        return new Iterable<String>() {
-            @Override
-            public Iterator<String> iterator() {
-                return new Iterator<String>() {
-                    int endIndex = nextEndIndex(0);
-
-                    private int nextEndIndex(int index) {
-                        while (index < fullPath.length() && fullPath.charAt(index) != '.') {
-                            index += 1;
-                        }
-                        return index;
-                    }
-
-                    @Override
-                    public boolean hasNext() {
-                        return endIndex <= fullPath.length();
-                    }
-
-                    @Override
-                    public String next() {
-                        final String result = fullPath.substring(0, endIndex);
-                        endIndex = nextEndIndex(endIndex + 1);
-                        return result;
-                    }
-
-                    @Override
-                    public void remove() {
-                        throw new UnsupportedOperationException();
-                    }
-
-                };
-            }
-        };
     }
 
     @Override

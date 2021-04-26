@@ -234,19 +234,6 @@ unassigned due to <<delayed-allocation,delayed allocation>>.
 <2> The remaining delay before allocating the replica shard.
 <3> Information about the shard data found on a node.
 
-===== All unassigned shards
-
-To get allocation explanations for any unassigned primary or replica shards in a
-cluster, call the API with no arguments. 
-
-[source,console]
-----
-GET _cluster/allocation/explain
-----
-// TEST[catch:bad_request]
-
-If the cluster contains no unassigned shards, the API returns a `400` error.
-
 ===== Assigned shard
 
 The following response contains an allocation explanation for an assigned shard.

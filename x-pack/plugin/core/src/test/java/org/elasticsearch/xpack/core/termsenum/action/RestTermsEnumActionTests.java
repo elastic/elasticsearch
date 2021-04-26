@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum.action;
+package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -31,7 +31,8 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
-import org.elasticsearch.xpack.core.termenum.rest.RestTermEnumAction;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
+import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -46,18 +47,18 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-public class RestTermEnumActionTests extends ESTestCase {
+public class RestTermsEnumActionTests extends ESTestCase {
 
-    private static ThreadPool threadPool = new TestThreadPool(RestTermEnumActionTests.class.getName());
+    private static ThreadPool threadPool = new TestThreadPool(RestTermsEnumActionTests.class.getName());
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(emptySet(), null, client,
         new NoneCircuitBreakerService(), usageService);
-    private static RestTermEnumAction action = new RestTermEnumAction();
+    private static RestTermsEnumAction action = new RestTermsEnumAction();
 
     /**
-     * Configures {@link NodeClient} to stub {@link TermEnumAction} transport action.
+     * Configures {@link NodeClient} to stub {@link TermsEnumAction} transport action.
      * <p>
      * This lower level of execution is out of the scope of this test.
      */
@@ -66,7 +67,7 @@ public class RestTermEnumActionTests extends ESTestCase {
     public static void stubTermEnumAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(TermEnumAction.NAME,
+        final TransportAction transportAction = new TransportAction(TermsEnumAction.NAME,
             new ActionFilters(Collections.emptySet()), taskManager) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
@@ -74,7 +75,7 @@ public class RestTermEnumActionTests extends ESTestCase {
         };
 
         final Map<ActionType, TransportAction> actions = new HashMap<>();
-        actions.put(TermEnumAction.INSTANCE, transportAction);
+        actions.put(TermsEnumAction.INSTANCE, transportAction);
 
         client.initialize(actions, taskManager, () -> "local",
             mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));        
@@ -140,7 +141,7 @@ public class RestTermEnumActionTests extends ESTestCase {
     
     private RestRequest createRestRequest(String content) {
         return new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("index1/_terms")
+            .withPath("index1/_terms_enum")
             .withParams(emptyMap())
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();

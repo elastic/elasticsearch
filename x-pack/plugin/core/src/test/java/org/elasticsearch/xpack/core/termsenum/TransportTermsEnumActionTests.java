@@ -4,29 +4,29 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum;
+package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.core.termenum.action.TermEnumAction;
-import org.elasticsearch.xpack.core.termenum.action.TermEnumRequest;
-import org.elasticsearch.xpack.core.termenum.action.TermEnumResponse;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransportTermEnumActionTests extends ESSingleNodeTestCase {
+public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
 
     /*
      * Copy of test that tripped up similarly broadcast ValidateQuery
      */
     public void testListenerOnlyInvokedOnceWhenIndexDoesNotExist() {
         final AtomicBoolean invoked = new AtomicBoolean();
-        final ActionListener<TermEnumResponse> listener = new ActionListener<>() {
+        final ActionListener<TermsEnumResponse> listener = new ActionListener<>() {
 
             @Override
-            public void onResponse(final TermEnumResponse validateQueryResponse) {
+            public void onResponse(final TermsEnumResponse validateQueryResponse) {
                 fail("onResponse should not be invoked in this failure case");
             }
 
@@ -38,7 +38,7 @@ public class TransportTermEnumActionTests extends ESSingleNodeTestCase {
             }
 
         };
-        client().execute(TermEnumAction.INSTANCE, new TermEnumRequest("non-existent-index"),listener);
+        client().execute(TermsEnumAction.INSTANCE, new TermsEnumRequest("non-existent-index"),listener);
         assertThat(invoked.get(), equalTo(true)); // ensure that onFailure was invoked
     }
 

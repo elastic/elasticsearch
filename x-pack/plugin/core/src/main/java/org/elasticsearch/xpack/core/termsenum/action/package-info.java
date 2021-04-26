@@ -7,4 +7,4 @@
 /**
  * Enumerate a field's terms action.
  */
-package org.elasticsearch.xpack.core.termenum.action;
+package org.elasticsearch.xpack.core.termsenum.action;

@@ -4,14 +4,14 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum;
+package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
-import org.elasticsearch.xpack.core.termenum.action.TermEnumResponse;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-public class TermEnumResponseTests extends AbstractBroadcastResponseTestCase<TermEnumResponse> {
+public class TermsEnumResponseTests extends AbstractBroadcastResponseTestCase<TermsEnumResponse> {
 
     protected static List<String> getRandomTerms() {
         int termCount = randomIntBetween(0, 100);
@@ -32,7 +32,7 @@ public class TermEnumResponseTests extends AbstractBroadcastResponseTestCase<Ter
         return terms;
     }
 
-    private static TermEnumResponse createRandomTermEnumResponse() {
+    private static TermsEnumResponse createRandomTermEnumResponse() {
         int totalShards = randomIntBetween(1, 10);
         int successfulShards = randomIntBetween(0, totalShards);
         int failedShards = totalShards - successfulShards;
@@ -45,30 +45,30 @@ public class TermEnumResponseTests extends AbstractBroadcastResponseTestCase<Ter
                 new DefaultShardOperationFailedException(index, shard, exc)
             );
         }
-        return new TermEnumResponse(getRandomTerms(), totalShards, successfulShards, failedShards, shardFailures, randomBoolean());
+        return new TermsEnumResponse(getRandomTerms(), totalShards, successfulShards, failedShards, shardFailures, randomBoolean());
     }
 
     @Override
-    protected TermEnumResponse doParseInstance(XContentParser parser) throws IOException {
-        return TermEnumResponse.fromXContent(parser);
+    protected TermsEnumResponse doParseInstance(XContentParser parser) throws IOException {
+        return TermsEnumResponse.fromXContent(parser);
     }
 
     @Override
-    protected TermEnumResponse createTestInstance() {
+    protected TermsEnumResponse createTestInstance() {
         return createRandomTermEnumResponse();
     }
 
     @Override
-    protected void assertEqualInstances(TermEnumResponse response, TermEnumResponse parsedResponse) {
+    protected void assertEqualInstances(TermsEnumResponse response, TermsEnumResponse parsedResponse) {
         super.assertEqualInstances(response, parsedResponse);
         assertEquals(response.getTerms().size(), parsedResponse.getTerms().size());
         assertTrue(response.getTerms().containsAll(parsedResponse.getTerms()));
     }
 
     @Override
-    protected TermEnumResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
+    protected TermsEnumResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
                                                        List<DefaultShardOperationFailedException> failures) {
-        return new TermEnumResponse(getRandomTerms(), totalShards, successfulShards, failedShards, failures, randomBoolean());
+        return new TermsEnumResponse(getRandomTerms(), totalShards, successfulShards, failedShards, failures, randomBoolean());
 
     }
 
@@ -77,7 +77,7 @@ public class TermEnumResponseTests extends AbstractBroadcastResponseTestCase<Ter
         String s = randomAlphaOfLengthBetween(1, 10);
         List<String> terms = new ArrayList<>();
         terms.add(s);
-        TermEnumResponse response = new TermEnumResponse(terms, 10, 10, 0, new ArrayList<>(), true);
+        TermsEnumResponse response = new TermsEnumResponse(terms, 10, 10, 0, new ArrayList<>(), true);
 
         String output = Strings.toString(response);
         assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"terms\":[" +

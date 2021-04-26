@@ -14,7 +14,7 @@
  * See the license for the specific language governing permissions and
  * limitations under the license.
  */
-package org.elasticsearch.xpack.core.termenum.action;
+package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;

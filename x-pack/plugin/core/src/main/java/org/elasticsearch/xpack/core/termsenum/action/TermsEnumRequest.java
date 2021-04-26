@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum.action;
+package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -24,7 +24,7 @@ import java.util.Arrays;
 /**
  * A request to gather terms for a given field matching a string prefix
  */
-public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implements ToXContentObject {
+public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
 
     public static int DEFAULT_SIZE = 10;
     public static int DEFAULT_TIMEOUT_MILLIS = 1000;
@@ -36,11 +36,11 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
     long taskStartTimeMillis;
     private QueryBuilder indexFilter;
 
-    public TermEnumRequest() {
+    public TermsEnumRequest() {
         this(Strings.EMPTY_ARRAY);
     }
 
-    public TermEnumRequest(StreamInput in) throws IOException {
+    public TermsEnumRequest(StreamInput in) throws IOException {
         super(in);
         field = in.readString();
         string = in.readString();
@@ -53,7 +53,7 @@ public class TermEnumRequest extends BroadcastRequest<TermEnumRequest> implement
      * Constructs a new term enum request against the provided indices. No indices provided means it will
      * run against all indices.
      */
-    public TermEnumRequest(String... indices) {
+    public TermsEnumRequest(String... indices) {
         super(indices);
         indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
         timeout(new TimeValue(DEFAULT_TIMEOUT_MILLIS));

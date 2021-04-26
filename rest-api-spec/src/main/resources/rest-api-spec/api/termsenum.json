@@ -1,8 +1,8 @@
 {
   "termsenum":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/term-enum.html",
-      "description": "The termenum API  can be used to discover terms in the index that begin with the provided string. It is designed for low-latency look-ups used in auto-complete scenarios."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/terms-enum.html",
+      "description": "The terms enum API  can be used to discover terms in the index that begin with the provided string. It is designed for low-latency look-ups used in auto-complete scenarios."
     },
     "stability":"beta",
     "visibility":"public",
@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path": "/{index}/_terms",
+          "path": "/{index}/_terms_enum",
           "methods": [
             "GET",
             "POST"

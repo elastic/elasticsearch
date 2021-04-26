@@ -1,12 +1,12 @@
-[[search-term-enum]]
-=== Term enum API
+[[search-terms-enum]]
+=== Terms enum API
 
-The term enum API can be used to discover terms in the index that match
+The terms enum API can be used to discover terms in the index that match
 a partial string. This is used for auto-complete:
 
 [source,console]
 --------------------------------------------------
-POST stackoverflow/_terms
+POST stackoverflow/_terms_enum
 {
     "field" : "tags",
     "string" : "kiba"
@@ -35,20 +35,20 @@ The API returns the following response:
 The "complete" flag is false if time or space constraints were met and the
 set of terms examined was not the full set of available values.
 
-[[search-term-enum-api-request]]
+[[search-terms-enum-api-request]]
 ==== {api-request-title}
 
-`GET /<target>/_terms`
+`GET /<target>/_terms_enum`
 
 
-[[search-term-enum-api-desc]]
+[[search-terms-enum-api-desc]]
 ==== {api-description-title}
 
-The termenum API  can be used to discover terms in the index that begin with the provided
+The termsenum API  can be used to discover terms in the index that begin with the provided
 string. It is designed for low-latency look-ups used in auto-complete scenarios.
 
 
-[[search-term-enum-api-path-params]]
+[[search-terms-enum-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
@@ -59,38 +59,38 @@ Wildcard (`*`) expressions are supported.
 To search all data streams or indices in a cluster, omit this parameter or use
 `_all` or `*`.
 
-[[search-term-enum-api-request-body]]
+[[search-terms-enum-api-request-body]]
 ==== {api-request-body-title}
 
-[[term-enum-field-param]]
+[[terms-enum-field-param]]
 `field`::
 (Mandatory, string)
 Which field to match
 
-[[term-enum-string-param]]
+[[terms-enum-string-param]]
 `string`::
 (Mandatory, string)
 The string to match at the start of indexed terms
 
-[[term-enum-size-param]]
+[[terms-enum-size-param]]
 `size`::
 (Optional, integer)
 How many matching terms to return. Defaults to 10
 
-[[term-enum-timeout-param]]
+[[terms-enum-timeout-param]]
 `timeout`::
 (Optional, integer)
 The maximum length of time in milliseconds to spend collecting results. Defaults to 1000.
 If the timeout is exceeded the `complete` flag set to false in the response and the results may
 be partial or empty.
 
-[[term-enum-case_insensitive-param]]
+[[terms-enum-case_insensitive-param]]
 `case_insensitive`::
 (Optional, boolean)
 When true the provided search string is matched against index terms without case sensitivity.
 Defaults to false.
 
-[[term-enum-index_filter-param]]
+[[terms-enum-index_filter-param]]
 `index_filter`::
 (Optional,  <<query-dsl,query object>> Allows to filter an index shard if the provided
 query rewrites to `match_none`.

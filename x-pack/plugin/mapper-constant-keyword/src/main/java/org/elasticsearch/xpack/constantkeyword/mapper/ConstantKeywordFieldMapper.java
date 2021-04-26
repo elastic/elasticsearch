@@ -39,8 +39,8 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.core.termenum.action.SimpleTermCountEnum;
-import org.elasticsearch.xpack.core.termenum.action.TermCount;
+import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
+import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;
 import java.time.ZoneId;

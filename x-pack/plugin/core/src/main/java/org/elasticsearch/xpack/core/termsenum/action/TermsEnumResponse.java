@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum.action;
+package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -23,20 +23,20 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * The response of the termenum/list action.
+ * The response of the _terms_enum action.
  */
-public class TermEnumResponse extends BroadcastResponse {
+public class TermsEnumResponse extends BroadcastResponse {
 
     public static final String TERMS_FIELD = "terms";
     public static final String COMPLETE_FIELD = "complete";
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<TermEnumResponse, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<TermsEnumResponse, Void> PARSER = new ConstructingObjectParser<>(
         "term_enum_results",
         true,
         arg -> {
             BroadcastResponse response = (BroadcastResponse) arg[0];
-            return new TermEnumResponse(
+            return new TermsEnumResponse(
                 (List<String>) arg[1],
                 response.getTotalShards(),
                 response.getSuccessfulShards(),
@@ -57,14 +57,14 @@ public class TermEnumResponse extends BroadcastResponse {
     private boolean complete;
     private int skippedShards;
 
-    TermEnumResponse(StreamInput in) throws IOException {
+    TermsEnumResponse(StreamInput in) throws IOException {
         super(in);
         terms = in.readStringList();
         complete = in.readBoolean();
         skippedShards = in.readVInt();
     }
 
-    public TermEnumResponse(
+    public TermsEnumResponse(
         List<String> terms,
         int totalShards,
         int successfulShards,
@@ -110,7 +110,7 @@ public class TermEnumResponse extends BroadcastResponse {
         builder.field(COMPLETE_FIELD, complete);
     }
 
-    public static TermEnumResponse fromXContent(XContentParser parser) {
+    public static TermsEnumResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 }

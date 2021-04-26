@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum;
+package org.elasticsearch.xpack.core.termsenum;
 
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
@@ -26,9 +26,9 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.termenum.action.MultiShardTermsEnum;
-import org.elasticsearch.xpack.core.termenum.action.SimpleTermCountEnum;
-import org.elasticsearch.xpack.core.termenum.action.TermCount;
+import org.elasticsearch.xpack.core.termsenum.action.MultiShardTermsEnum;
+import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
+import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.Closeable;
 import java.util.ArrayList;

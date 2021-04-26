@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum.action;
+package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -20,10 +20,10 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Internal termenum request executed directly against a specific node, querying potentially many 
+ * Internal terms enum request executed directly against a specific node, querying potentially many 
  * shards in one request
  */
-public class NodeTermEnumRequest extends TransportRequest implements IndicesRequest {
+public class NodeTermsEnumRequest extends TransportRequest implements IndicesRequest {
 
     private String field;
     private String string;
@@ -37,7 +37,7 @@ public class NodeTermEnumRequest extends TransportRequest implements IndicesRequ
     private String nodeId;
     
 
-    public NodeTermEnumRequest(StreamInput in) throws IOException {
+    public NodeTermsEnumRequest(StreamInput in) throws IOException {
         super(in);
         // Set the clock running as soon as we appear on a node.
         nodeStartedTimeMillis = System.currentTimeMillis();
@@ -57,7 +57,7 @@ public class NodeTermEnumRequest extends TransportRequest implements IndicesRequ
         }
     }
 
-    public NodeTermEnumRequest(final String nodeId, final Set<ShardId> shardIds, TermEnumRequest request) {
+    public NodeTermsEnumRequest(final String nodeId, final Set<ShardId> shardIds, TermsEnumRequest request) {
         this.field = request.field();
         this.string = request.string();
         this.caseInsensitive = request.caseInsensitive();

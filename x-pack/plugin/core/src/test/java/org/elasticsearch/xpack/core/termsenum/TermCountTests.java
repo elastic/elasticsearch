@@ -4,12 +4,12 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum;
+package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.termenum.action.TermCount;
+import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;
 

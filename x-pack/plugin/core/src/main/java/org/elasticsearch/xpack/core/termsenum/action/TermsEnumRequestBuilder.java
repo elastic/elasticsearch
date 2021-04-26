@@ -4,28 +4,28 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.termenum.action;
+package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class TermEnumRequestBuilder extends BroadcastOperationRequestBuilder<TermEnumRequest, TermEnumResponse, TermEnumRequestBuilder> {
+public class TermsEnumRequestBuilder extends BroadcastOperationRequestBuilder<TermsEnumRequest, TermsEnumResponse, TermsEnumRequestBuilder> {
 
-    public TermEnumRequestBuilder(ElasticsearchClient client, TermEnumAction action) {
-        super(client, action, new TermEnumRequest());
+    public TermsEnumRequestBuilder(ElasticsearchClient client, TermsEnumAction action) {
+        super(client, action, new TermsEnumRequest());
     }
 
-    public TermEnumRequestBuilder setField(String field) {
+    public TermsEnumRequestBuilder setField(String field) {
         request.field(field);
         return this;
     }
 
-    public TermEnumRequestBuilder setString(String string) {
+    public TermsEnumRequestBuilder setString(String string) {
         request.string(string);
         return this;
     }
 
-    public TermEnumRequestBuilder setSize(int size) {
+    public TermsEnumRequestBuilder setSize(int size) {
         request.size(size);
         return this;
     }

@@ -5,10 +5,14 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.gradle
 
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.gradle.api.file.CopySpec
+package org.elasticsearch.gradle;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import org.apache.tools.ant.filters.ReplaceTokens;
+import org.gradle.api.file.CopySpec;
 
 /**
  * Gradle provides "expansion" functionality using groovy's SimpleTemplatingEngine (TODO: check name).
@@ -20,15 +24,21 @@ import org.gradle.api.file.CopySpec
  * TODO: we should get rid of this hack, and make the rest tests use some other identifier
  * for builtin vars
  */
-class MavenFilteringHack {
+public class MavenFilteringHack {
     /**
      * Adds a filter to the given copy spec that will substitute maven variables.
-     * @param CopySpec
+     *
      */
-    static void filter(CopySpec copySpec, Map substitutions) {
-        Map mavenSubstitutions = substitutions.collectEntries() {
-            key, value -> ["{${key}".toString(), value.toString()]
-        }
-        copySpec.filter(ReplaceTokens, tokens: mavenSubstitutions, beginToken: '$', endToken: '}')
+    static void filter(CopySpec copySpec, Map<Object, Object> substitutions) {
+        Map<String, String> mavenSubstitutions = new LinkedHashMap<>();
+        Map<String, Object> argMap = new LinkedHashMap<>();
+
+        substitutions.forEach((k, v) -> mavenSubstitutions.put("{" + k.toString(), v.toString()));
+
+        argMap.put("tokens", mavenSubstitutions);
+        argMap.put("beginToken", "$");
+        argMap.put("endToken", "}");
+
+        copySpec.filter(argMap, ReplaceTokens.class);
     }
 }

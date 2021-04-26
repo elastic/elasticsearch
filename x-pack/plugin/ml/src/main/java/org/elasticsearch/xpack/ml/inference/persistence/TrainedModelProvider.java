@@ -171,10 +171,14 @@ public class TrainedModelProvider {
         }
         assert trainedModelConfig.getModelDefinition() == null;
 
+        IndexRequest request =
+            createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig);
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig),
+            request,
             ActionListener.wrap(
                 indexResponse -> listener.onResponse(true),
                 e -> {
@@ -836,6 +840,8 @@ public class TrainedModelProvider {
                         }
                     });
 
+                    logger.info("found IDS: " + tokens + ", for request " + idExpression);
+
                     // Reverse lookup to see what model aliases were matched by their found trained model IDs
                     ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
                     requiredMatches.filterMatchedIds(matchedTokens);
@@ -1163,8 +1169,6 @@ public class TrainedModelProvider {
     }
 
     private IndexRequest createRequest(IndexRequest request, String docId, ToXContentObject body) {
-        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             XContentBuilder source = body.toXContent(builder, FOR_INTERNAL_STORAGE_PARAMS);
             return request.opType(DocWriteRequest.OpType.CREATE).id(docId).source(source);

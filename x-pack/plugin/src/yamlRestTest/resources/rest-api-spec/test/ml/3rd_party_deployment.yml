@@ -27,6 +27,7 @@
         model_id: distilbert-finetuned-sst
   - match: { trained_model_configs.0.location.model_id: distilbert-finetuned-sst }
 
-  - do:
-      ml.start_deployment:
-        model_id: distilbert-finetuned-sst
+#  - do:
+#      ml.start_deployment:
+#        model_id: distilbert-finetuned-sst
+

@@ -38,6 +38,7 @@ public class RepositoriesMetadataSerializationTests extends AbstractDiffableSeri
                     randomAlphaOfLength(10),
                     randomAlphaOfLength(10),
                     randomSettings(),
+                    randomSettings(),
                     generation,
                     generation + randomLongBetween(0, generation)));
         }

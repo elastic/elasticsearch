@@ -23,7 +23,7 @@ import java.util.Objects;
  */
 public class RepositoryMetadata implements Writeable {
 
-    public static final Version REPO_METADATA_WITH_TRANSIENT_SETTINGS_VERSION = Version.V_7_14_0;
+    public static final Version REPO_METADATA_WITH_TRANSIENT_SETTINGS_VERSION = Version.V_8_0_0;
 
     private final String name;
     private final String uuid;

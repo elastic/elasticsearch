@@ -23,6 +23,8 @@ import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
+import org.elasticsearch.client.xpack.ClientEnrollmentRequest;
+import org.elasticsearch.client.xpack.ClientEnrollmentResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -273,4 +275,36 @@ public final class ClusterClient {
         return restHighLevelClient.performRequestAsync(componentTemplatesRequest,
             ClusterRequestConverters::componentTemplatesExist, options, RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
+
+    /**
+     * Enrolls a client to a secured cluster using the Enroll Client API
+     *
+     * @param clientEnrollmentRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClientEnrollmentResponse enrollClient(ClientEnrollmentRequest clientEnrollmentRequest,
+        RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(clientEnrollmentRequest,
+            ClusterRequestConverters::clientEnrollment,
+            options,
+            ClientEnrollmentResponse::fromXContent,
+            emptySet());
+    }
+
+    /**
+     * Asynchronously enrolls a client to a secured cluster using the Enroll Client API
+     *
+     * @param clientEnrollmentRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public Cancellable enrollClientAsync(ClientEnrollmentRequest clientEnrollmentRequest,
+                                         RequestOptions options,
+                                         ActionListener<ClientEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(clientEnrollmentRequest,
+            ClusterRequestConverters::clientEnrollment, options, ClientEnrollmentResponse::fromXContent, listener, emptySet());
+    }
+
 }

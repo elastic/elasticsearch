@@ -11,6 +11,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpHead;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.client.indices.ComponentTemplatesExistRequest;
 import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
+import org.elasticsearch.client.xpack.ClientEnrollmentRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -127,6 +129,12 @@ final class ClusterRequestConverters {
         RequestConverters.Params params = new RequestConverters.Params();
         params.withMasterTimeout(deleteComponentTemplateRequest.masterNodeTimeout());
         request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request clientEnrollment(ClientEnrollmentRequest clientEnrollmentRequest) throws IOException{
+        Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/enroll_client");
+        request.setEntity(RequestConverters.createEntity(clientEnrollmentRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

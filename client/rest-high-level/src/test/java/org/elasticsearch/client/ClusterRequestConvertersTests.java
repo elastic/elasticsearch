@@ -9,6 +9,7 @@
 package org.elasticsearch.client;
 
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
@@ -16,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
+import org.elasticsearch.client.xpack.ClientEnrollmentRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -145,6 +147,14 @@ public class ClusterRequestConvertersTests extends ESTestCase {
         Request expectedRequest = ClusterRequestConverters.remoteInfo(request);
         assertEquals("/_remote/info", expectedRequest.getEndpoint());
         assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
+        assertEquals(emptyMap(), expectedRequest.getParameters());
+    }
+
+    public void testEnrollClient() throws IOException {
+        ClientEnrollmentRequest request = new ClientEnrollmentRequest(randomAlphaOfLengthBetween(5,8), null);
+        Request expectedRequest = ClusterRequestConverters.clientEnrollment(request);
+        assertEquals("/_cluster/enroll_client", expectedRequest.getEndpoint());
+        assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(emptyMap(), expectedRequest.getParameters());
     }
 }

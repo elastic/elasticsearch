@@ -1,0 +1,93 @@
+[[cluster-enroll-client]]
+=== Enroll Client API
+++++
+<titleabbrev>Enroll Client</titleabbrev>
+++++
+
+Allows a client to configure itself to communicate with a secured {es} cluster.
+
+[[cluster-enroll-client-api-request]]
+==== {api-request-title}
+
+`POST /_cluster/enroll_client`
+
+[[cluster-enroll-client-api-prereqs]]
+==== {api-prereq-title}
+
+
+* You must have the `enroll` <<privileges-list-cluster,cluster privilege>> to use this API.
+
+[[cluster-enroll-client-api-desc]]
+==== {api-description-title}
+
+The purpose of the enroll client API is to allow a client to configure itself to
+communicate with an {es} cluster that is already configured with security features
+enabled.
+
+[[cluster-enroll-client-api-request-body]]
+==== {api-request-body-title}
+
+`client_type`::
+(Required, string) Specifies the type of the client to enroll to the node.
+Supported client types are `kibana`, `generic_client`.
+
+`kibana`::
+This client type indicates that the enrolling client is a kibana instance.
+
+`generic_client`::
+This client type indicates that the enrolling client is a generic client, for
+instance an elasticsearch language client.
+
+`client_password`::
+(Optional, string)
+The enrolling client can optionally request to set the password of an existing
+user so that it can use it to authenticate future requests to the secured {es}
+cluster. Different client types have different limitations whether they
+can set a password and which user passwords they can set.
+When the `client_type` is `kibana`, the provided value is used to set the password
+of the `kibana_system` user.
+When the `client_type` is `generic_client`, `client_password` cannot be set.
+
+[[cluster-enroll-client-api-examples]]
+==== {api-examples-title}
+
+
+==== Example of enrolling a kibana instance
+
+[source,console]
+--------------------------------------------------
+POST /_cluster/enroll_client
+{
+  "client_type" : "kibana",                    <1>
+  "client_password" : "ar4nd0mstr0ngp4ssw0rd"  <2>
+}
+--------------------------------------------------
+
+<1> Indicates that this is a kibana instance enrolling
+<2> The password for the `kibana_system` user
+
+[source,console_result]
+--------------------------------------------------
+{
+  "http_ca" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <1>
+  "nodes_addresses" : ["192.168.1.2:9203"] <2>
+}
+--------------------------------------------------
+// TEST[skip:until we enable secrurity for the docs cluster]
+<1> The PEM encoded CA certificate that is used to sign the certificates that {es}
+nodes use for TLS on the HTTP layer.
+<2> The list of addresses and ports for the HTTP layer for all nodes that are
+members of the {es} cluster.
+
+
+==== Example of enrolling a generic client
+
+[source,console]
+--------------------------------------------------
+POST /_cluster/enroll_client
+{
+  "client_type" : "generic_client",            <1>
+}
+--------------------------------------------------
+
+<1> Indicates that this is a generic client instance enrolling

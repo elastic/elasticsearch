@@ -63,7 +63,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
+import org.elasticsearch.xpack.core.action.ClientEnrollmentAction;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
+import org.elasticsearch.xpack.core.action.TransportClientEnrollmentAction;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
@@ -75,6 +77,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.rest.action.RestClientEnrollmentRequest;
 import org.elasticsearch.xpack.core.rest.action.RestReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.core.rest.action.RestXPackUsageAction;
@@ -244,12 +247,12 @@ public class XPackPlugin extends XPackClientPlugin
             clusterState.custom(TokenMetadata.TYPE) != null ||
             metadata.custom(TransformMetadata.TYPE) != null;
     }
-    
+
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
-    
+
 
     @Override
     public Settings additionalSettings() {
@@ -294,6 +297,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
+        actions.add(new ActionHandler<>(ClientEnrollmentAction.INSTANCE, TransportClientEnrollmentAction.class));
         return actions;
     }
 
@@ -330,6 +334,7 @@ public class XPackPlugin extends XPackClientPlugin
         handlers.add(new RestXPackInfoAction());
         handlers.add(new RestXPackUsageAction());
         handlers.add(new RestReloadAnalyzersAction());
+        handlers.add(new RestClientEnrollmentRequest());
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;

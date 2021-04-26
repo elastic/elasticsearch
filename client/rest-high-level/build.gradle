@@ -67,6 +67,7 @@ tasks.named('forbiddenApisMain').configure {
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
+File httpCaCert = file("./httpCa.crt")
 
 tasks.named("integTest").configure {
   systemProperty 'tests.rest.async', 'false'
@@ -116,6 +117,7 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
   extraConfigFile pkiTrustCert.name, pkiTrustCert
+  extraConfigFile httpCaCert.name, httpCaCert
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'

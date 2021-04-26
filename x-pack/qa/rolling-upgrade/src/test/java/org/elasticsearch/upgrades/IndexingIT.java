@@ -30,6 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
  * duplication but for now we have no real way to share code.
  */
 public class IndexingIT extends AbstractUpgradeTestCase {
+
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:

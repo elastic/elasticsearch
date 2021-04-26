@@ -8,7 +8,7 @@ beta::[]
 <titleabbrev>Create service account tokens</titleabbrev>
 ++++
 
-Creates a  <<service-accounts,service accounts>> token without requiring basic
+Creates a  <<service-accounts,service accounts>> token for access without requiring basic
 authentication.
 
 [[security-api-create-service-token-request]]
@@ -28,6 +28,8 @@ authentication.
 
 [[security-api-create-service-token-desc]]
 ==== {api-description-title}
+include::../../security/authentication/service-accounts.asciidoc[tag=service-accounts-tls]
+
 A successful create service account token API call returns a JSON structure
 that contains the service account token, its name, and its secret value.
 
@@ -51,8 +53,8 @@ alphanumeric characters (`a-z`, `A-Z`, `0-9`), dashes (`-`), and underscores
 (`_`), but cannot begin with an underscore.
 
 NOTE: Token names must be unique in the context of the associated service
-account. They must also use a globally unique fully qualified token, which is
-comprised of the service account principal and token name, such as
+account. They must also be globally unique with their fully qualified names,
+which is comprised of the service account principal and token name, such as
 `<namespace>/<service>/<token-name>`.
 --
 

@@ -14,12 +14,12 @@ token caches.
 [[security-api-clear-service-token-caches-request]]
 ==== {api-request-title}
 
-`POST /_security/service/{namespace}/{service}/credential/{token_name}/_clear_cache`
+`POST /_security/service/{namespace}/{service}/credential/token/{token_name}/_clear_cache`
 
 [[security-api-clear-service-token-caches-prereqs]]
 ==== {api-prereq-title}
 
-* To use this API, you must have at least the `manage_service_account`
+* To use this API, you must have at least the `manage_security`
 <<privileges-list-cluster,cluster privilege>>.
 
 [[security-api-clear-service-token-caches-desc]]
@@ -46,7 +46,7 @@ See <<service-accounts,Service accounts>> for more information.
 `token_name`::
 (Required, string) Comma-separated list of token names to evict from the
 service account token caches. Use a wildcard (`*`) to evict all tokens that
-belong to a service account.
+belong to a service account. Does not support other wildcard patterns.
 
 [[security-api-clear-service-token-caches-example]]
 ==== {api-examples-title}

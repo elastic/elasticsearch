@@ -72,8 +72,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            mapperService.parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping)));
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            mapperService.parseMapping(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping)));
         assertThat(e.getMessage(), containsString(SparseVectorFieldMapper.ERROR_MESSAGE));
     }
 
@@ -96,7 +96,8 @@ public class SparseVectorFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
             .endObject());
 
-        DocumentMapper mapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping));
+        DocumentMapper mapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         assertWarnings(SparseVectorFieldMapper.ERROR_MESSAGE_7X);
 
         // Check that new vectors cannot be indexed.

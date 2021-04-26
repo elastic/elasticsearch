@@ -199,8 +199,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 RepositoryData.MISSING_UUID, // old-format repository data has no UUID
                 repositoryData.getGenId(),
                 repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, Function.identity())),
-                repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotState)),
-                Collections.emptyMap(),
+                repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID,
+                        s -> new RepositoryData.SnapshotDetails(repositoryData.getSnapshotState(s), null))),
                 Collections.emptyMap(),
                 ShardGenerations.EMPTY,
                 IndexMetaDataGenerations.EMPTY,
@@ -332,8 +332,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 repositoryData.getUuid(),
                 repositoryData.getGenId(),
                 snapshotIds,
-                snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotState)),
-                snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getVersion)),
+                snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotDetails)),
                 repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
                 ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, "0").build(),
                 repositoryData.indexMetaDataGenerations(), repositoryData.getClusterUUID());

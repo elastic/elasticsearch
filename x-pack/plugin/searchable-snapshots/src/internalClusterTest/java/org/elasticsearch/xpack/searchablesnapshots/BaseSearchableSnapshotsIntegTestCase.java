@@ -319,8 +319,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     protected void assertExecutorIsIdle(String executorName) throws Exception {
         assertBusy(() -> {
-            for (DiscoveryNode discoveryNode : getDiscoveryNodes()) {
-                ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, discoveryNode.getName());
+            for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
                 ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(executorName);
                 assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
                 assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));

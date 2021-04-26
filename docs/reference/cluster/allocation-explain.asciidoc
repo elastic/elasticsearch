@@ -79,7 +79,7 @@ it finds by sending an empty body for the request.
 [[cluster-allocation-explain-api-examples]]
 ==== {api-examples-title}
 
-===== Unassigned primary shards
+===== Unassigned primary shard
 
 The following request gets an allocation explanation for an unassigned primary
 shard.
@@ -177,7 +177,7 @@ primary shard that was previously allocated.
 ----
 // NOTCONSOLE
 
-===== Unassigned replica shards
+===== Unassigned replica shard
 
 The following response contains an allocation explanation for a replica that's
 unassigned due to <<delayed-allocation,delayed allocation>>.
@@ -247,7 +247,7 @@ GET _cluster/allocation/explain
 
 If the cluster contains no unassigned shards, the API returns a `400` error.
 
-===== Assigned shards
+===== Assigned shard
 
 The following response contains an allocation explanation for an assigned shard.
 The response indicates the shard is not allowed to remain on its current node

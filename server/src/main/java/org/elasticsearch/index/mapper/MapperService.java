@@ -603,14 +603,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
-     * then the fields will be returned with a type prefix.
-     */
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return mappingLookup().simpleMatchToFullName(pattern);
-    }
-
-    /**
      * {@code volatile} read a (mostly) immutable snapshot current mapping.
      */
     public MappingLookup mappingLookup() {

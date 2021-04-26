@@ -62,7 +62,7 @@ POST /_cluster/enroll_client
   "client_password" : "ar4nd0mstr0ngp4ssw0rd"  <2>
 }
 --------------------------------------------------
-
+// TEST[skip:until we enable security for the docs cluster]
 <1> Indicates that this is a kibana instance enrolling
 <2> The password for the `kibana_system` user
 
@@ -70,10 +70,11 @@ POST /_cluster/enroll_client
 --------------------------------------------------
 {
   "http_ca" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <1>
-  "nodes_addresses" : ["192.168.1.2:9203"] <2>
+  "nodes_addresses" : [                                                                                          <2>
+    "192.168.1.2:9203"
+  ]
 }
 --------------------------------------------------
-// TEST[skip:until we enable secrurity for the docs cluster]
 <1> The PEM encoded CA certificate that is used to sign the certificates that {es}
 nodes use for TLS on the HTTP layer.
 <2> The list of addresses and ports for the HTTP layer for all nodes that are

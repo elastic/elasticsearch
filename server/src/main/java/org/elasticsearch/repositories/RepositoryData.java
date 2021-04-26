@@ -661,13 +661,6 @@ public final class RepositoryData {
             if (snapshotDetails.getEndTimeMillis() != -1) {
                 builder.field(END_TIME_MILLIS, snapshotDetails.getEndTimeMillis());
             }
-            if (snapshotDetails.getPartialIndices() != null) {
-                builder.startArray(PARTIAL_INDICES);
-                for (String indexName : snapshotDetails.getPartialIndices()) {
-                    builder.value(indexName);
-                }
-                builder.endArray();
-            }
 
             builder.endObject();
         }
@@ -833,7 +826,6 @@ public final class RepositoryData {
             Version version = null;
             long startTimeMillis = -1;
             long endTimeMillis = -1;
-            List<String> partialIndices = null;
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String currentFieldName = parser.currentName();
                 parser.nextToken();
@@ -861,17 +853,13 @@ public final class RepositoryData {
                         assert endTimeMillis == -1;
                         endTimeMillis = parser.longValue();
                         break;
-                    case PARTIAL_INDICES:
-                        assert partialIndices == null;
-                        partialIndices = parser.list().stream().map(s -> (String) s).collect(Collectors.toUnmodifiableList());
-                        break;
                 }
             }
-            assert (startTimeMillis == -1) == (endTimeMillis == -1) && (startTimeMillis == -1) == (partialIndices == null)
-                    : "unexpected: " + startTimeMillis + ", " + endTimeMillis + ", " + partialIndices;
+            assert (startTimeMillis == -1) == (endTimeMillis == -1)
+                    : "unexpected: " + startTimeMillis + ", " + endTimeMillis + ", ";
             final SnapshotId snapshotId = new SnapshotId(name, uuid);
             if (state != null || version != null) {
-                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis, partialIndices));
+                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis));
             }
             snapshots.put(uuid, snapshotId);
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {
@@ -975,7 +963,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
+        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;
@@ -989,20 +977,15 @@ public final class RepositoryData {
         // May be -1 if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
         private final long endTimeMillis;
 
-        @Nullable // may be omitted if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
-        private final List<String> partialIndices;
-
         public SnapshotDetails(
                 @Nullable SnapshotState snapshotState,
                 @Nullable Version version,
                 long startTimeMillis,
-                long endTimeMillis,
-                @Nullable List<String> partialIndices) {
+                long endTimeMillis) {
             this.snapshotState = snapshotState;
             this.version = version;
             this.startTimeMillis = startTimeMillis;
             this.endTimeMillis = endTimeMillis;
-            this.partialIndices = partialIndices;
         }
 
         @Nullable
@@ -1029,11 +1012,6 @@ public final class RepositoryData {
             return endTimeMillis;
         }
 
-        @Nullable // if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
-        public List<String> getPartialIndices() {
-            return partialIndices;
-        }
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -1042,13 +1020,12 @@ public final class RepositoryData {
             return startTimeMillis == that.startTimeMillis
                     && endTimeMillis == that.endTimeMillis
                     && snapshotState == that.snapshotState
-                    && Objects.equals(version, that.version)
-                    && Objects.equals(partialIndices, that.partialIndices);
+                    && Objects.equals(version, that.version);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, partialIndices);
+            return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis);
         }
 
     }

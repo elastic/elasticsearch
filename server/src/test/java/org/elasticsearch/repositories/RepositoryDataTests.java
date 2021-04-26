@@ -108,8 +108,7 @@ public class RepositoryDataTests extends ESTestCase {
                         randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
                         randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                         randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        Collections.emptyList()),
+                        randomNonNegativeLong()),
                 shardGenerations,
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));
@@ -136,8 +135,7 @@ public class RepositoryDataTests extends ESTestCase {
                     randomFrom(SnapshotState.values()),
                     randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                     randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    Collections.emptyList()));
+                    randomNonNegativeLong()));
         }
         RepositoryData repositoryData = new RepositoryData(
                 MISSING_UUID,
@@ -201,8 +199,7 @@ public class RepositoryDataTests extends ESTestCase {
                         state,
                         randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                         randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        Collections.emptyList()),
+                        randomNonNegativeLong()),
                 ShardGenerations.EMPTY,
                 Collections.emptyMap(),
                 Collections.emptyMap());
@@ -231,8 +228,7 @@ public class RepositoryDataTests extends ESTestCase {
                             parsedRepositoryData.getSnapshotState(snapshotId),
                             parsedRepositoryData.getVersion(snapshotId),
                             parsedRepositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis(),
-                            parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis(),
-                            parsedRepositoryData.getSnapshotDetails(snapshotId).getPartialIndices()));
+                            parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis()));
         }
 
         final IndexId corruptedIndexId = randomFrom(parsedRepositoryData.getIndices().values());
@@ -358,8 +354,7 @@ public class RepositoryDataTests extends ESTestCase {
                 SnapshotState.SUCCESS,
                 Version.CURRENT,
                 randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                Collections.emptyList());
+                randomNonNegativeLong());
         final RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot, details, shardGenerations, indexLookup, newIdentifiers);
         assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(newSnapshot)),
                 newIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
@@ -413,8 +408,7 @@ public class RepositoryDataTests extends ESTestCase {
                         randomFrom(SnapshotState.values()),
                         randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
                         randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomSubsetOf(indexLookup.keySet().stream().map(IndexId::getName).collect(Collectors.toUnmodifiableList()))),
+                        randomNonNegativeLong()),
                 builder.build(),
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));

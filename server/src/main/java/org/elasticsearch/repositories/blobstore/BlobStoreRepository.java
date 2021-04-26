@@ -27,7 +27,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResultDeduplicator;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
@@ -1119,12 +1118,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             snapshotInfo.state(),
                             Version.CURRENT,
                             snapshotInfo.startTime(),
-                            snapshotInfo.endTime(),
-                            snapshotInfo.shardFailures()
-                                    .stream()
-                                    .map(ShardOperationFailedException::index)
-                                    .distinct()
-                                    .collect(Collectors.toUnmodifiableList()));
+                            snapshotInfo.endTime());
                     final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
                         snapshotId, snapshotDetails, shardGenerations, indexMetas, indexMetaIdentifiers);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, repositoryMetaVersion, stateTransformer,
@@ -1808,8 +1802,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final List<SnapshotId> snapshotIdsWithoutAllDetails = repositoryData.getSnapshotIds().stream().filter(
                 snapshotId -> repositoryData.getVersion(snapshotId) == null
                         || repositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis() == -1
-                        || repositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis() == -1
-                        || repositoryData.getSnapshotDetails(snapshotId).getPartialIndices() == null).collect(Collectors.toList());
+                        || repositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis() == -1).collect(Collectors.toList());
             if (snapshotIdsWithoutAllDetails.isEmpty() == false) {
                 final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
                 final GroupedActionListener<Void> loadExtraDetailsListener = new GroupedActionListener<>(
@@ -1837,12 +1830,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         snapshotInfo.state(),
                                         snapshotInfo.version(),
                                         snapshotInfo.startTime(),
-                                        snapshotInfo.endTime(),
-                                        snapshotInfo.shardFailures()
-                                                .stream()
-                                                .map(ShardOperationFailedException::index)
-                                                .distinct()
-                                                .collect(Collectors.toUnmodifiableList())));
+                                        snapshotInfo.endTime()));
                     }));
                 }
             } else {
@@ -1869,6 +1857,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     newRepositoryData.snapshotsToXContent(xContentBuilder, version);
                 }
                 final BytesReference serializedRepoData = out.bytes();
+                logger.info("--> repo data {}", serializedRepoData.utf8ToString());
                 writeAtomic(blobContainer(), indexBlob, serializedRepoData, true);
                 repoDataToCache = compressRepoDataForCache(serializedRepoData);
             }

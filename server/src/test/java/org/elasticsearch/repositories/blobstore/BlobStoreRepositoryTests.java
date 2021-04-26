@@ -50,7 +50,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -256,7 +255,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     greaterThanOrEqualTo(beforeStartTime),
                     lessThanOrEqualTo(afterEndTime),
                     greaterThanOrEqualTo(snapshotDetails.getStartTimeMillis())));
-            assertThat(snapshotDetails.getPartialIndices(), contains("red-index"));
         };
 
         final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
@@ -274,8 +272,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                                 SnapshotState.PARTIAL,
                                 Version.CURRENT,
                                 -1,
-                                -1,
-                                null))),
+                                -1))),
                 repositoryData.getGenId());
 
         snapshotDetailsAsserter.accept(PlainActionFuture.get(repository::getRepositoryData).getSnapshotDetails(snapshotId));
@@ -328,8 +325,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
                     Version.CURRENT,
                     randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomSubsetOf(indexLookup.keySet().stream().map(IndexId::getName).collect(Collectors.toUnmodifiableList())));
+                    randomNonNegativeLong());
             repoData = repoData.addSnapshot(
                 snapshotId,
                 details,

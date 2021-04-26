@@ -323,3 +323,16 @@ cluster balance.
 <1> Whether rebalancing is allowed on the cluster.
 <2> Whether the shard can be rebalanced to another node.
 <3> The reason the shard cannot be rebalanced to the node, in this case indicating that it offers no better balance than the current node.
+
+===== No arguments
+
+If you call the API with no arguments, {es} retrieves an allocation explanation
+for an arbitrary unassigned primary or replica shard.
+
+[source,console]
+----
+GET _cluster/allocation/explain
+----
+// TEST[catch:bad_request]
+
+If the cluster contains no unassigned shards, the API returns a `400` error.

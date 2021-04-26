@@ -73,9 +73,6 @@ you might expect otherwise.
     (Optional, integer) Specifies the ID of the shard that you would like an 
     explanation for.
 
-You can also have {es} explain the allocation of the first unassigned shard that 
-it finds by sending an empty body for the request.
-
 [[cluster-allocation-explain-api-examples]]
 ==== {api-examples-title}
 

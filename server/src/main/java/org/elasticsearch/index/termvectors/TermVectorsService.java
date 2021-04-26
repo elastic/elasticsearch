@@ -152,7 +152,7 @@ public class TermVectorsService  {
     private static void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
         Set<String> fieldNames = new HashSet<>();
         for (String pattern : request.selectedFields()) {
-            fieldNames.addAll(indexShard.mapperService().simpleMatchToFullName(pattern));
+            fieldNames.addAll(indexShard.mapperService().mappingLookup().simpleMatchToFullName(pattern));
         }
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }

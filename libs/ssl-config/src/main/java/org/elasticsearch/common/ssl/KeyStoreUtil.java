@@ -62,22 +62,12 @@ final class KeyStoreUtil {
      * @throws SslConfigException       If there is a problem reading from the provided path
      * @throws GeneralSecurityException If there is a problem with the keystore contents
      */
-    static KeyStore readKeyStore(Path path, String type, char[] password) throws GeneralSecurityException {
-        if (Files.notExists(path)) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath()
-                + "] because the file does not exist");
+    static KeyStore readKeyStore(Path path, String ksType, char[] password) throws GeneralSecurityException, IOException {
+        KeyStore keyStore = KeyStore.getInstance(ksType);
+        try (InputStream in = Files.newInputStream(path)) {
+            keyStore.load(in, password);
         }
-        try {
-            KeyStore keyStore = KeyStore.getInstance(type);
-            try (InputStream in = Files.newInputStream(path)) {
-                keyStore.load(in, password);
-            }
-            return keyStore;
-        } catch (IOException e) {
-            throw new SslConfigException(
-                "cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
-                e);
-        }
+        return keyStore;
     }
 
     /**

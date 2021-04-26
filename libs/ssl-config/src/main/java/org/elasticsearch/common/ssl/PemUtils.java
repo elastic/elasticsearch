@@ -18,13 +18,11 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
@@ -109,13 +107,9 @@ public final class PemUtils {
             } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
                 return parseOpenSslEC(removeECHeaders(bReader), passwordSupplier);
             } else {
-                throw new SslConfigException("error parsing Private Key [" + keyPath.toAbsolutePath()
-                    + "], file does not contain a supported key format");
+                throw new SslConfigException("cannot read PEM private key [" + keyPath.toAbsolutePath()
+                    + "] because the file does not contain a supported key format");
             }
-        } catch (FileNotFoundException | NoSuchFileException e) {
-            throw new SslConfigException("private key file [" + keyPath.toAbsolutePath() + "] does not exist", e);
-        } catch (IOException | GeneralSecurityException e) {
-            throw new SslConfigException("private key file [" + keyPath.toAbsolutePath() + "] cannot be parsed", e);
         }
     }
 

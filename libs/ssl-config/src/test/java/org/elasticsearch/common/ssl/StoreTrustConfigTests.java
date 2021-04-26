@@ -10,6 +10,7 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -33,10 +34,17 @@ public class StoreTrustConfigTests extends ESTestCase {
     private static final char[] JKS_PASS = "jks-pass".toCharArray();
     private static final String DEFAULT_ALGORITHM = TrustManagerFactory.getDefaultAlgorithm();
 
+    private Path configBasePath;
+
+    @Before
+    public void setUp() {
+        configBasePath = getDataPath("/certs");
+    }
+
     public void testBuildTrustConfigFromPKCS12() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca1/ca.p12");
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, P12_PASS, "PKCS12", DEFAULT_ALGORITHM, true);
+        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, P12_PASS, "PKCS12", DEFAULT_ALGORITHM, true, configBasePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertCertificateChain(trustConfig, "CN=Test CA 1");
     }
@@ -44,7 +52,7 @@ public class StoreTrustConfigTests extends ESTestCase {
     public void testBuildTrustConfigFromJKS() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca-all/ca.jks");
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, JKS_PASS, "jks", DEFAULT_ALGORITHM, true);
+        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, JKS_PASS, "jks", DEFAULT_ALGORITHM, true, configBasePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertCertificateChain(trustConfig, "CN=Test CA 1", "CN=Test CA 2", "CN=Test CA 3");
     }
@@ -53,7 +61,8 @@ public class StoreTrustConfigTests extends ESTestCase {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = createTempFile("ca", ".p12");
         Files.write(ks, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], randomFrom("PKCS12", "jks"), DEFAULT_ALGORITHM, true);
+        final String type = randomFrom("PKCS12", "jks");
+        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], type, DEFAULT_ALGORITHM, true, configBasePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertInvalidFileFormat(trustConfig, ks);
     }
@@ -61,7 +70,8 @@ public class StoreTrustConfigTests extends ESTestCase {
     public void testMissingKeyStoreFailsWithMeaningfulMessage() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca-all/ca.p12").getParent().resolve("keystore.dne");
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], randomFrom("PKCS12", "jks"), DEFAULT_ALGORITHM, true);
+        final String type = randomFrom("PKCS12", "jks");
+        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], type, DEFAULT_ALGORITHM, true, configBasePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertFileNotFound(trustConfig, ks);
     }
@@ -69,7 +79,7 @@ public class StoreTrustConfigTests extends ESTestCase {
     public void testIncorrectPasswordFailsWithMeaningfulMessage() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
         final Path ks = getDataPath("/certs/ca1/ca.p12");
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], "PKCS12", DEFAULT_ALGORITHM, true);
+        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, new char[0], "PKCS12", DEFAULT_ALGORITHM, true, configBasePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertPasswordIsIncorrect(trustConfig, ks);
     }
@@ -88,7 +98,7 @@ public class StoreTrustConfigTests extends ESTestCase {
             ks = getDataPath("/certs/cert-all/certs.jks");
             password = JKS_PASS;
         }
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, password, type, DEFAULT_ALGORITHM, true);
+        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, password, type, DEFAULT_ALGORITHM, true, configBasePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ks));
         assertNoCertificateEntries(trustConfig, ks);
     }
@@ -100,7 +110,7 @@ public class StoreTrustConfigTests extends ESTestCase {
 
         final Path ks = createTempFile("ca", "p12");
 
-        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, P12_PASS, "PKCS12", DEFAULT_ALGORITHM, true);
+        final StoreTrustConfig trustConfig = new StoreTrustConfig(ks, P12_PASS, "PKCS12", DEFAULT_ALGORITHM, true, configBasePath);
 
         Files.copy(ks1, ks, StandardCopyOption.REPLACE_EXISTING);
         assertCertificateChain(trustConfig, "CN=Test CA 1");

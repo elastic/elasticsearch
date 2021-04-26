@@ -236,6 +236,12 @@ public abstract class SslConfigurationLoader {
     }
 
     /**
+     * Clients of this class should implement this method to determine whether there are any settings for a given prefix.
+     * This is used to populate {@link SslConfiguration#isExplicitlyConfigured()}.
+     */
+    protected abstract boolean hasSettings(String prefix);
+
+    /**
      * Clients of this class should implement this method to load a fully-qualified key from the preferred settings source.
      * This method will be called for basic string settings (see {@link SslConfigurationKeys#getStringKeys()}).
      * <p>
@@ -290,7 +296,8 @@ public abstract class SslConfigurationLoader {
         if (ciphers == null || ciphers.isEmpty()) {
             throw new SslConfigException("no cipher suites configured in [" + settingPrefix + CIPHERS + "]");
         }
-        return new SslConfiguration(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+        final boolean isExplicitlyConfigured = hasSettings(settingPrefix);
+        return new SslConfiguration(isExplicitlyConfigured, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
     }
 
     private SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
@@ -305,13 +312,13 @@ public abstract class SslConfigurationLoader {
             return TrustEverythingConfig.TRUST_EVERYTHING;
         }
         if (certificateAuthorities != null) {
-            return new PemTrustConfig(certificateAuthorities);
+            return new PemTrustConfig(certificateAuthorities, basePath);
         }
         if (trustStorePath != null) {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
             final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath));
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
-            return new StoreTrustConfig(trustStorePath, password, storeType, algorithm, true);
+            return new StoreTrustConfig(trustStorePath, password, storeType, algorithm, true, basePath);
         }
         return buildDefaultTrustConfig(defaultTrustConfig, keyConfig);
     }
@@ -345,7 +352,7 @@ public abstract class SslConfigurationLoader {
                     settingPrefix + CERTIFICATE + "]");
             }
             final char[] password = resolvePasswordSetting(KEY_SECURE_PASSPHRASE, KEY_LEGACY_PASSPHRASE);
-            return new PemKeyConfig(certificatePath, keyPath, password);
+            return new PemKeyConfig(certificatePath, keyPath, password, basePath);
         }
 
         if (keyStorePath != null) {
@@ -356,7 +363,7 @@ public abstract class SslConfigurationLoader {
             }
             final String storeType = resolveSetting(KEYSTORE_TYPE, Function.identity(), inferKeyStoreType(keyStorePath));
             final String algorithm = resolveSetting(KEYSTORE_ALGORITHM, Function.identity(), KeyManagerFactory.getDefaultAlgorithm());
-            return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyPassword, algorithm);
+            return new StoreKeyConfig(keyStorePath, storePassword, storeType, keyPassword, algorithm, basePath);
         }
 
         return defaultKeyConfig;

@@ -489,14 +489,19 @@ public class SSLService {
                     .limit(2) // we only need to distinguishing between 0/1/many
                     .map(Entry::getKey)
                     .collect(Collectors.toUnmodifiableList());
+                final String name;
                 switch (names.size()) {
                     case 0:
-                        return "(unknown)";
+                        name = "(unknown)";
+                        break;
                     case 1:
-                        return names.get(0);
+                        name = names.get(0);
+                        break;
                     default:
-                        return "(shared)";
+                        name = "(shared)";
+                        break;
                 }
+                return name + " with trust=[" + configuration.getTrustConfig() + "]";
             };
             trustManager = new DiagnosticTrustManager(trustManager, contextName, diagnosticLogger::warn);
         }
@@ -824,6 +829,8 @@ public class SSLService {
         if (configuration == null) {
             logger.warn("Cannot find SSL configuration for context {}. Known contexts are: {}", contextName,
                 Strings.collectionToCommaDelimitedString(sslConfigurations.keySet()));
+        } else {
+            logger.debug("SSL configuration [{}] is [{}]", contextName, configuration);
         }
         return configuration;
     }

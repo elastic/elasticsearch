@@ -22,6 +22,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -29,7 +30,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
@@ -102,7 +102,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
-        final SSLConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
+        final SslConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final SSLSocketFactory clientSocketFactory = sslService.sslSocketFactory(clientSslConfig);
 
         final Logger diagnosticLogger = LogManager.getLogger(DiagnosticTrustManager.class);
@@ -150,7 +150,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private CloseableHttpClient buildHttpClient(SSLService sslService) {
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         final SSLSocketFactory socketFactory = sslService.sslSocketFactory(sslConfiguration);
         final SSLConnectionSocketFactory connectionSocketFactory = new SSLConnectionSocketFactory(socketFactory, verifier);
@@ -158,7 +158,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private RestClient buildRestClient(SSLService sslService, MockWebServer webServer) {
-        final SSLConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
+        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final HttpHost httpHost = new HttpHost(webServer.getHostName(), webServer.getPort(), "https");
         return RestClient.builder(httpHost)
             .setHttpClientConfigCallback(client -> client.setSSLStrategy(sslService.sslIOSessionStrategy(sslConfiguration)))
@@ -192,7 +192,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private MockWebServer initWebServer(SSLService sslService) throws IOException {
-        final SSLConfiguration httpSslConfig = sslService.getSSLConfiguration(HTTP_SERVER_SSL);
+        final SslConfiguration httpSslConfig = sslService.getSSLConfiguration(HTTP_SERVER_SSL);
         final MockWebServer webServer = new MockWebServer(sslService.sslContext(httpSslConfig), false);
 
         webServer.enqueue(new MockResponse().setBody("{}").setResponseCode(200));

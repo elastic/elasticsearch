@@ -9,7 +9,9 @@
 package org.elasticsearch.common.ssl;
 
 import javax.net.ssl.X509ExtendedTrustManager;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -30,6 +32,7 @@ final class StoreTrustConfig implements SslTrustConfig {
     private final String type;
     private final String algorithm;
     private final boolean requireTrustAnchors;
+    private final Path configBasePath;
 
     /**
      * @param path      The path to the keystore file
@@ -38,13 +41,15 @@ final class StoreTrustConfig implements SslTrustConfig {
  *                  See {@link KeyStoreUtil#inferKeyStoreType(Path)}.
      * @param algorithm The algorithm to use for the Trust Manager (see {@link javax.net.ssl.TrustManagerFactory#getAlgorithm()}).
      * @param requireTrustAnchors If true, the truststore will be checked to ensure that it contains at least one valid trust anchor.
+     * @param configBasePath The base path for the configuration directory
      */
-    StoreTrustConfig(Path path, char[] password, String type, String algorithm, boolean requireTrustAnchors) {
+    StoreTrustConfig(Path path, char[] password, String type, String algorithm, boolean requireTrustAnchors, Path configBasePath) {
         this.path = Objects.requireNonNull(path, "Truststore path cannot be null");
         this.type = Objects.requireNonNull(type, "Truststore type cannot be null");
         this.algorithm = Objects.requireNonNull(algorithm, "Truststore algorithm cannot be null");
         this.password = Objects.requireNonNull(password, "Truststore password cannot be null (but may be empty)");
         this.requireTrustAnchors = requireTrustAnchors;
+        this.configBasePath = configBasePath;
     }
 
     @Override
@@ -67,13 +72,13 @@ final class StoreTrustConfig implements SslTrustConfig {
                             return null;
                         }
                     } catch (KeyStoreException ex) {
-                        throw keystoreException(ex, "read keystore certificates");
+                        throw keystoreException(ex);
                     }
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toUnmodifiableList());
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e, "process keystore");
+            throw keystoreException(e);
         }
     }
 
@@ -86,21 +91,34 @@ final class StoreTrustConfig implements SslTrustConfig {
             }
             return KeyStoreUtil.createTrustManager(store, algorithm);
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e, "create trust manager from keystore");
+            throw keystoreException(e);
         }
     }
 
     private KeyStore readKeyStore() {
         try {
             return KeyStoreUtil.readKeyStore(path, type, password);
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
+        } catch (IOException e) {
+            throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e);
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e, "read keystore");
+            throw keystoreException(e);
         }
     }
 
-    private SslConfigException keystoreException(GeneralSecurityException e, String context) {
-        return new SslConfigException("failed to " + context + " for path=[" + path.toAbsolutePath()
-            + "] type=[" + type + "] password=[" + (password.length == 0 ? "<empty>" : "<non-empty>") + "]", e);
+    private SslConfigException keystoreException(GeneralSecurityException e) {
+         final String extra;
+        if (password.length == 0) {
+             extra = "(no password was provided)";
+         } else {
+             extra = "(a keystore password was provided)";
+         }
+        return SslFileUtil.securityException(fileTypeForException(), List.of(path), e, extra);
+    }
+
+    private String fileTypeForException() {
+        return "[" + type + "] keystore (as a truststore)";
     }
 
     /**

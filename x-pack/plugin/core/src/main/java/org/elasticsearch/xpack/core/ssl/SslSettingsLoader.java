@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ssl;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.env.Environment;
@@ -35,6 +36,12 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         this.secureSettings = sslConfigurationSettings.getSecureSettings()
             .stream()
             .collect(Collectors.toMap(Setting::getKey, Function.identity()));
+        setDefaultClientAuth(SslClientAuthenticationMode.REQUIRED);
+    }
+
+    @Override
+    protected boolean hasSettings(String prefix) {
+        return settings.getAsSettings(prefix).isEmpty() == false;
     }
 
     @Override

@@ -37,6 +37,11 @@ public class SslConfigurationLoaderTests extends ESTestCase {
     private MockSecureSettings secureSettings = new MockSecureSettings();
     private SslConfigurationLoader loader = new SslConfigurationLoader("test.ssl.") {
         @Override
+        protected boolean hasSettings(String prefix) {
+            return true;
+        }
+
+        @Override
         protected String getSettingAsString(String key) throws Exception {
             return settings.get(key);
         }

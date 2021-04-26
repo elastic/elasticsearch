@@ -17,6 +17,7 @@ import java.security.cert.Certificate;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -25,8 +26,8 @@ import java.util.stream.Collectors;
 class CompositeTrustConfig implements SslTrustConfig {
     private final List<SslTrustConfig> configs;
 
-    public CompositeTrustConfig(List<SslTrustConfig> configs) {
-        this.configs = configs;
+    CompositeTrustConfig(List<SslTrustConfig> configs) {
+        this.configs = List.copyOf(configs);
     }
 
     @Override
@@ -57,5 +58,23 @@ class CompositeTrustConfig implements SslTrustConfig {
         return configs.stream().map(SslTrustConfig::getConfiguredCertificates)
             .flatMap(Collection::stream)
             .collect(Collectors.toUnmodifiableList());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CompositeTrustConfig that = (CompositeTrustConfig) o;
+        return configs.equals(that.configs);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(configs);
+    }
+
+    @Override
+    public String toString() {
+        return "Composite-Trust{" + configs.stream().map(SslTrustConfig::toString).collect(Collectors.joining(",")) + '}';
     }
 }

@@ -10,7 +10,9 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
+import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -25,13 +27,18 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import javax.net.ssl.X509ExtendedTrustManager;
-
 public class PemTrustConfigTests extends ESTestCase {
+
+    private Path basePath;
+
+    @Before
+    public void setUp() {
+        basePath = getDataPath("/certs");
+    }
 
     public void testBuildTrustConfigFromSinglePemFile() throws Exception {
         final Path cert = getDataPath("/certs/ca1/ca.crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(cert));
+        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(cert), basePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert));
         assertCertificateChain(trustConfig, "CN=Test CA 1");
     }
@@ -40,7 +47,7 @@ public class PemTrustConfigTests extends ESTestCase {
         final Path cert1 = getDataPath("/certs/ca1/ca.crt");
         final Path cert2 = getDataPath("/certs/ca2/ca.crt");
         final Path cert3 = getDataPath("/certs/ca3/ca.crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(cert1, cert2, cert3));
+        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(cert1, cert2, cert3), basePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert1, cert2, cert3));
         assertCertificateChain(trustConfig, "CN=Test CA 1", "CN=Test CA 2", "CN=Test CA 3");
     }
@@ -48,21 +55,21 @@ public class PemTrustConfigTests extends ESTestCase {
     public void testBadFileFormatFails() throws Exception {
         final Path ca = createTempFile("ca", ".crt");
         Files.write(ca, generateRandomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
+        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca), basePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
         assertInvalidFileFormat(trustConfig, ca);
     }
 
     public void testEmptyFileFails() throws Exception {
         final Path ca = createTempFile("ca", ".crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca));
+        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(ca), basePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(ca));
         assertEmptyFile(trustConfig, ca);
     }
 
     public void testMissingFileFailsWithMeaningfulMessage() throws Exception {
         final Path cert = getDataPath("/certs/ca1/ca.crt").getParent().resolve("dne.crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(cert));
+        final PemTrustConfig trustConfig = new PemTrustConfig(Collections.singletonList(cert), basePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert));
         assertFileNotFound(trustConfig, cert);
     }
@@ -71,7 +78,7 @@ public class PemTrustConfigTests extends ESTestCase {
         final Path cert1 = getDataPath("/certs/ca1/ca.crt");
         final Path cert2 = getDataPath("/certs/ca2/ca.crt").getParent().resolve("dne.crt");
         final Path cert3 = getDataPath("/certs/ca3/ca.crt");
-        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(cert1, cert2, cert3));
+        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(cert1, cert2, cert3), basePath);
         assertThat(trustConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert1, cert2, cert3));
         assertFileNotFound(trustConfig, cert2);
     }
@@ -84,7 +91,7 @@ public class PemTrustConfigTests extends ESTestCase {
         final Path ca1 = createTempFile("ca1", ".crt");
         final Path ca2 = createTempFile("ca2", ".crt");
 
-        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(ca1, ca2));
+        final PemTrustConfig trustConfig = new PemTrustConfig(Arrays.asList(ca1, ca2), basePath);
 
         Files.copy(cert1, ca1, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(cert2, ca2, StandardCopyOption.REPLACE_EXISTING);

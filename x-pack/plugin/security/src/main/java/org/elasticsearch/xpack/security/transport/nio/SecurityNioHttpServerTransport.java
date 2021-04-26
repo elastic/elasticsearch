@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -29,7 +30,6 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.nio.SocketChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.nio.NioGroupFactory;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SecurityHttpExceptionHandler;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -49,7 +49,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
     private final SecurityHttpExceptionHandler securityExceptionHandler;
     private final IPFilter ipFilter;
     private final SSLService sslService;
-    private final SSLConfiguration sslConfiguration;
+    private final SslConfiguration sslConfiguration;
     private final boolean sslEnabled;
 
     public SecurityNioHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays,
@@ -109,7 +109,7 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
             SocketChannelContext context;
             if (sslEnabled) {
                 SSLEngine sslEngine;
-                boolean hostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
+                boolean hostnameVerificationEnabled = sslConfiguration.getVerificationMode().isHostnameVerificationEnabled();
                 if (hostnameVerificationEnabled) {
                     InetSocketAddress address = (InetSocketAddress) channel.getRemoteAddress();
                     // we create the socket based on the name given. don't reverse DNS

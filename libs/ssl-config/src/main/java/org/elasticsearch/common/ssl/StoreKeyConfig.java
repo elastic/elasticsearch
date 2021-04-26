@@ -10,7 +10,9 @@ package org.elasticsearch.common.ssl;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
+import java.io.IOException;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -34,6 +36,7 @@ public class StoreKeyConfig implements SslKeyConfig {
     private final String type;
     private final char[] keyPassword;
     private final String algorithm;
+    private final Path configBasePath;
 
     /**
      * @param path          The path to the keystore file
@@ -43,18 +46,20 @@ public class StoreKeyConfig implements SslKeyConfig {
      * @param keyPassword   The password for the key(s) within the keystore
      *                      (see {@link javax.net.ssl.KeyManagerFactory#init(KeyStore, char[])}).
      * @param algorithm     The algorithm to use for the Key Manager (see {@link KeyManagerFactory#getAlgorithm()}).
+     * @param configBasePath The base path for configuration files (used for error handling)
      */
-    StoreKeyConfig(Path path, char[] storePassword, String type, char[] keyPassword, String algorithm) {
+    StoreKeyConfig(Path path, char[] storePassword, String type, char[] keyPassword, String algorithm, Path configBasePath) {
         this.path = Objects.requireNonNull(path, "Keystore path cannot be null");
         this.storePassword = Objects.requireNonNull(storePassword, "Keystore password cannot be null (but may be empty)");
         this.type = Objects.requireNonNull(type, "Keystore type cannot be null");
         this.keyPassword = Objects.requireNonNull(keyPassword, "Key password cannot be null (but may be empty)");
         this.algorithm = Objects.requireNonNull(algorithm, "Keystore algorithm cannot be null");
+        this.configBasePath = configBasePath;
     }
 
     @Override
     public SslTrustConfig asTrustConfig() {
-        return new StoreTrustConfig(path, storePassword, type, algorithm, false);
+        return new StoreTrustConfig(path, storePassword, type, algorithm, false, configBasePath);
     }
 
     @Override
@@ -82,12 +87,12 @@ public class StoreKeyConfig implements SslKeyConfig {
                         }
                         return certificates.stream();
                     } catch (KeyStoreException ex) {
-                        throw keystoreException(ex, "read keystore certificates");
+                        throw keystoreException(ex);
                     }
                 })
                 .collect(Collectors.toUnmodifiableList());
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e, "process keystore");
+            throw keystoreException(e);
         }
     }
 
@@ -98,29 +103,33 @@ public class StoreKeyConfig implements SslKeyConfig {
             checkKeyStore(keyStore);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, algorithm);
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e, "initialize SSL KeyManager");
+            throw keystoreException(e);
         }
     }
 
     private KeyStore readKeyStore() {
         try {
             return KeyStoreUtil.readKeyStore(path, type, storePassword);
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure("[" + type + "] keystore", List.of(path), e, configBasePath);
+        } catch (IOException e) {
+            throw SslFileUtil.ioException("[" + type + "] keystore", List.of(path), e);
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e, "read keystore");
+            throw keystoreException(e);
         }
     }
 
-    private SslConfigException keystoreException(GeneralSecurityException e, String context) {
-        String message = "failed to " + context + " for [" + path + "] and type [" + type + "]";
+    private SslConfigException keystoreException(GeneralSecurityException e) {
+        String extra = null;
         if (e instanceof UnrecoverableKeyException) {
-            message += " this is usually caused by an incorrect key-password";
+            extra = " this is usually caused by an incorrect key-password";
             if (keyPassword.length == 0) {
-                message += " (no key-password was provided)";
+                extra += " (no key-password was provided)";
             } else if (Arrays.equals(storePassword, keyPassword)) {
-                message += " (we tried to access the key using the same password as the keystore)";
+                extra += " (we tried to access the key using the same password as the keystore)";
             }
         }
-        return new SslConfigException(message, e);
+        return SslFileUtil.securityException("[" + type + "] keystore", List.of(path), e, extra);
     }
 
     /**

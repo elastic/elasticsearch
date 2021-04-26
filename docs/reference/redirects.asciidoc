@@ -16,13 +16,18 @@ See <<security-api,Security APIs>>.
 
 See <<security-api,Security APIs>>.
 
-[role="exclude",id="security-api-delete-service-tokens"]
+[role="exclude",id="security-api-delete-service-token"]
 === Delete service account tokens
 
 See <<security-api,Security APIs>>.
 
 [role="exclude",id="security-api-clear-service-token-caches"]
 === Clear service account token caches
+
+See <<security-api,Security APIs>>.
+
+[role="exclude",id="security-api-create-service-token"]
+=== Create service account tokens
 
 See <<security-api,Security APIs>>.
 

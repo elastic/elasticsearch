@@ -246,6 +246,38 @@ public class TransportSearchableSnapshotsNodeCachesStatsAction extends Transport
             builder.endObject();
             return builder;
         }
+
+        public int getNumRegions() {
+            return numRegions;
+        }
+
+        public long getSize() {
+            return size;
+        }
+
+        public long getRegionSize() {
+            return regionSize;
+        }
+
+        public long getWrites() {
+            return writes;
+        }
+
+        public long getBytesWritten() {
+            return bytesWritten;
+        }
+
+        public long getReads() {
+            return reads;
+        }
+
+        public long getBytesRead() {
+            return bytesRead;
+        }
+
+        public long getEvictions() {
+            return evictions;
+        }
     }
 
     public static class NodesCachesStatsResponse extends BaseNodesResponse<NodeCachesStatsResponse> implements ToXContentObject {

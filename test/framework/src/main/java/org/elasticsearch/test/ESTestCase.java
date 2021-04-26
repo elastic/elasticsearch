@@ -34,7 +34,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -1044,12 +1043,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Returns a random number of temporary paths. */
     public String[] tmpPaths() {
-        final int numPaths = TestUtil.nextInt(random(), 1, 3);
-        final String[] absPaths = new String[numPaths];
-        for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = createTempDir().toAbsolutePath().toString();
-        }
-        return absPaths;
+        return new String[] { createTempDir().toAbsolutePath().toString() };
     }
 
     public NodeEnvironment newNodeEnvironment() throws IOException {
@@ -1060,7 +1054,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath()).build();
     }
 
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {

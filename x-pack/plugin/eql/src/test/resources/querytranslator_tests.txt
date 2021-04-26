@@ -1,5 +1,5 @@
 //
-// QueryFolder test
+// QueryTranslation tests
 //
 // A test is made up of a name (one line), a query that can span multiple lines and ends with ; and one or multiple assertions (one per line) that end with ;
 //
@@ -10,20 +10,25 @@
 // ...
 // <expectation n>
 // ;
-// NOTE: do not use whitespaces in the relevant parts of the query itself, as they will be removed. For example 'process where process_name : "System Idle Process"'
-// The whitespaces between System Idle Process will be removed and the assertion will fail.
-
+//
+// Notes:
+//   - The EQL query could span multiple lines and should be terminated with semicolon (;)
+//   - The currently supported matchers: `CONTAINS` (the default one), `REGEX`
+//   - To ignore a test, add the -Ignore to the end of the name
+//   - Matchers can be skipped, if you just want to test that a query is optimized/plan without errors
+//   - Do not use whitespaces in the relevant parts of the query itself, as they will be removed.
+//     For example 'process where process_name : "System Idle Process"'
+//     The whitespaces between System Idle Process will be removed and the assertion will fail.
 
 basic
 process where true
 ;
-null
 ;
 
 singleNumericFilterEquals
 process where serial_event_id == 1
 ;
-"term":{"serial_event_id":{"value":1,"boost":1.0}
+contains "term":{"serial_event_id":{"value":1,"boost":1.0}
 ;
 
 singleNumericFilterLess

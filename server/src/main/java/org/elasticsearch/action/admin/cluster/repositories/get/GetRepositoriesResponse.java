@@ -56,7 +56,8 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        repositories.toXContent(builder, new DelegatingMapParams(Map.of(RepositoriesMetadata.HIDE_GENERATIONS_PARAM, "true"), params));
+        repositories.toXContent(builder, new DelegatingMapParams(Map.of(RepositoriesMetadata.HIDE_GENERATIONS_PARAM, "true",
+                RepositoriesMetadata.HIDE_TRANSIENT_SETTINGS_PARAM, "true"), params));
         builder.endObject();
         return builder;
     }

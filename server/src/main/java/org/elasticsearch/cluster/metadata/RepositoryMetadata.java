@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,10 +23,14 @@ import java.util.Objects;
  */
 public class RepositoryMetadata implements Writeable {
 
+    public static final Version REPO_METADATA_WITH_TRANSIENT_SETTINGS_VERSION = Version.V_7_14_0;
+
     private final String name;
     private final String uuid;
     private final String type;
     private final Settings settings;
+    // unlike {@code settings} these can change during the repository's lifetime, i.e. the repository doesn't have to be recreated
+    private final Settings transientSettings;
 
     /**
      * Safe repository generation.
@@ -45,18 +50,21 @@ public class RepositoryMetadata implements Writeable {
      * @param settings repository settings
      */
     public RepositoryMetadata(String name, String type, Settings settings) {
-        this(name, RepositoryData.MISSING_UUID, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
+        this(name, RepositoryData.MISSING_UUID, type, settings, Settings.EMPTY, RepositoryData.UNKNOWN_REPO_GEN,
+                RepositoryData.EMPTY_REPO_GEN);
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
-        this(metadata.name, metadata.uuid, metadata.type, metadata.settings, generation, pendingGeneration);
+        this(metadata.name, metadata.uuid, metadata.type, metadata.settings, metadata.transientSettings, generation, pendingGeneration);
     }
 
-    public RepositoryMetadata(String name, String uuid, String type, Settings settings, long generation, long pendingGeneration) {
+    public RepositoryMetadata(String name, String uuid, String type, Settings settings, Settings transientSettings,
+                              long generation, long pendingGeneration) {
         this.name = name;
         this.uuid = uuid;
         this.type = type;
         this.settings = settings;
+        this.transientSettings = transientSettings;
         this.generation = generation;
         this.pendingGeneration = pendingGeneration;
         assert generation <= pendingGeneration :
@@ -104,6 +112,15 @@ public class RepositoryMetadata implements Writeable {
     }
 
     /**
+     * Returns transient repository settings, which can change for the lifetime of the repository
+     *
+     * @return transient repository settings
+     */
+    public Settings transientSettings() {
+        return this.transientSettings;
+    }
+
+    /**
      * Returns the safe repository generation. {@link RepositoryData} for this generation is assumed to exist in the repository.
      * All operations on the repository must be based on the {@link RepositoryData} at this generation.
      * See package level documentation for the blob store based repositories {@link org.elasticsearch.repositories.blobstore} for details
@@ -136,6 +153,11 @@ public class RepositoryMetadata implements Writeable {
         }
         type = in.readString();
         settings = Settings.readSettingsFromStream(in);
+        if (in.getVersion().onOrAfter(REPO_METADATA_WITH_TRANSIENT_SETTINGS_VERSION)) {
+            transientSettings = Settings.readSettingsFromStream(in);
+        } else {
+            transientSettings = Settings.EMPTY;
+        }
         generation = in.readLong();
         pendingGeneration = in.readLong();
     }
@@ -153,17 +175,22 @@ public class RepositoryMetadata implements Writeable {
         }
         out.writeString(type);
         Settings.writeSettingsToStream(settings, out);
+        if (out.getVersion().onOrAfter(REPO_METADATA_WITH_TRANSIENT_SETTINGS_VERSION)) {
+            Settings.writeSettingsToStream(transientSettings, out);
+        }
         out.writeLong(generation);
         out.writeLong(pendingGeneration);
     }
 
     /**
-     * Checks if this instance is equal to the other instance in all fields other than {@link #generation} and {@link #pendingGeneration}.
+     * Checks if this instance is equal to the other instance in all fields other than {@link #generation}, {@link #pendingGeneration}, and
+     * {@link #transientSettings}.
      *
      * @param other other repository metadata
-     * @return {@code true} if both instances equal in all fields but the generation fields
+     * @return {@code true} if both instances equal in all fields but the generation fields and the transient settings
      */
     public boolean equalsIgnoreGenerations(RepositoryMetadata other) {
+        // TODO test this
         return name.equals(other.name) && uuid.equals(other.uuid()) && type.equals(other.type()) && settings.equals(other.settings());
     }
 
@@ -179,21 +206,22 @@ public class RepositoryMetadata implements Writeable {
         if (type.equals(that.type) == false) return false;
         if (generation != that.generation) return false;
         if (pendingGeneration != that.pendingGeneration) return false;
+        if (transientSettings.equals(that.transientSettings) == false) return false;
         return settings.equals(that.settings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, uuid, type, settings, generation, pendingGeneration);
+        return Objects.hash(name, uuid, type, settings, transientSettings, generation, pendingGeneration);
     }
 
     @Override
     public String toString() {
         return "RepositoryMetadata{" + name + "}{" + uuid + "}{" + type + "}{" + settings + "}{"
-                + generation + "}{" + pendingGeneration + "}";
+                + transientSettings + "}{" + generation + "}{" + pendingGeneration + "}";
     }
 
     public RepositoryMetadata withUuid(String uuid) {
-        return new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration);
+        return new RepositoryMetadata(name, uuid, type, settings, transientSettings, generation, pendingGeneration);
     }
 }

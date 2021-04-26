@@ -45,6 +45,12 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      */
     public static final String HIDE_GENERATIONS_PARAM = "hide_generations";
 
+    /**
+     * Serialization parameter used to hide the {@link RepositoryMetadata#transientSettings()} in
+     * {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
+     */
+    public static final String HIDE_TRANSIENT_SETTINGS_PARAM = "hide_transient_settings";
+
     private final List<RepositoryMetadata> repositories;
 
     /**
@@ -198,6 +204,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 String uuid = RepositoryData.MISSING_UUID;
                 String type = null;
                 Settings settings = Settings.EMPTY;
+                Settings transientSettings = Settings.EMPTY;
                 long generation = RepositoryData.UNKNOWN_REPO_GEN;
                 long pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -218,6 +225,11 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                                 throw new ElasticsearchParseException("failed to parse repository [{}], incompatible params", name);
                             }
                             settings = Settings.fromXContent(parser);
+                        } else if ("transient_settings".equals(currentFieldName)) {
+                            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                                throw new ElasticsearchParseException("failed to parse repository [{}], incompatible params", name);
+                            }
+                            transientSettings = Settings.fromXContent(parser);
                         } else if ("generation".equals(currentFieldName)) {
                             if (parser.nextToken() != XContentParser.Token.VALUE_NUMBER) {
                                 throw new ElasticsearchParseException("failed to parse repository [{}], unknown type", name);
@@ -239,7 +251,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
                 if (type == null) {
                     throw new ElasticsearchParseException("failed to parse repository [{}], missing repository type", name);
                 }
-                repository.add(new RepositoryMetadata(name, uuid, type, settings, generation, pendingGeneration));
+                repository.add(new RepositoryMetadata(name, uuid, type, settings, transientSettings, generation, pendingGeneration));
             } else {
                 throw new ElasticsearchParseException("failed to parse repositories");
             }
@@ -279,7 +291,11 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         builder.startObject("settings");
         repository.settings().toXContent(builder, params);
         builder.endObject();
-
+        if (params.paramAsBoolean(HIDE_TRANSIENT_SETTINGS_PARAM, false) == false) {
+            builder.startObject("transient_settings");
+            repository.transientSettings().toXContent(builder, params);
+            builder.endObject();
+        }
         if (params.paramAsBoolean(HIDE_GENERATIONS_PARAM, false) == false) {
             builder.field("generation", repository.generation());
             builder.field("pending_generation", repository.pendingGeneration());

@@ -81,9 +81,12 @@ final class SslFileUtil {
     }
 
     public static SslConfigException securityException(String fileType, List<Path> paths, GeneralSecurityException cause, String detail) {
-        String message = "cannot load " + fileType + " from [" + pathsToString(paths) + "]";
+        String message = "cannot load " + fileType + " from [" + pathsToString(paths) + "] due to " + cause.getClass().getSimpleName();
+        if (cause.getMessage() != null) {
+            message += " (" + cause.getMessage() + ")";
+        }
         if (detail != null) {
-            message = message + ' ' + detail;
+            message = message + "; " + detail;
         }
         return new SslConfigException(message, cause);
     }

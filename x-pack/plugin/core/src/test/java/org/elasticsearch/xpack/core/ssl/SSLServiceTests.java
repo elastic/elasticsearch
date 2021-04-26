@@ -226,7 +226,7 @@ public class SSLServiceTests extends ESTestCase {
             fail("expected an exception");
         } catch (ElasticsearchException e) {
             assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
-            assertThat(e.getCause(), throwableWithMessage(containsString("failed to initialize SSL KeyManager")));
+            assertThat(e.getCause(), throwableWithMessage(containsString("cannot load [jks] keystore")));
         }
     }
 

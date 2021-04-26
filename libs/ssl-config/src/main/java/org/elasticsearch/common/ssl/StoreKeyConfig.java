@@ -122,7 +122,7 @@ public class StoreKeyConfig implements SslKeyConfig {
     private SslConfigException keystoreException(GeneralSecurityException e) {
         String extra = null;
         if (e instanceof UnrecoverableKeyException) {
-            extra = " this is usually caused by an incorrect key-password";
+            extra = "this is usually caused by an incorrect key-password";
             if (keyPassword.length == 0) {
                 extra += " (no key-password was provided)";
             } else if (Arrays.equals(storePassword, keyPassword)) {

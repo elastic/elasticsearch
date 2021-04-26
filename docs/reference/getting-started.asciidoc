@@ -359,8 +359,8 @@ GET logs-my_app-default/_search
 // TEST[continued]
 
 [discrete]
-[[combine-queries-sorts]]
-==== Combine queries and sorts
+[[combine-queries]]
+==== Combine queries
 
 You can use the `bool` query to combine multiple queries. The following search
 combines two `range` queries: one on `@timestamp` and one on the `source.ip`

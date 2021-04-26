@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -27,7 +28,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.ilm.AsyncActionStep;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.UpdateSettingsStep;
 import org.junit.After;
@@ -131,9 +131,9 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
             new StepKey("hot", "action", "updateSetting"), new StepKey("hot", "action", "validate"), client(),
             invalidValueSetting);
 
-        step.performAction(indexMetadata, state, observer, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, state, observer, new ActionListener<>() {
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 latch.countDown();
                 fail("expected the test to fail when updating the setting to an invalid value");
             }
@@ -148,9 +148,9 @@ public class UpdateSettingsStepTests extends ESSingleNodeTestCase {
                     new StepKey("hot", "action", "updateSetting"), new StepKey("hot", "action", "validate"), client(),
                     validIndexSetting);
 
-                step.performAction(indexMetadata, state, observer, new AsyncActionStep.Listener() {
+                step.performAction(indexMetadata, state, observer, new ActionListener<>() {
                     @Override
-                    public void onResponse(boolean complete) {
+                    public void onResponse(Boolean complete) {
                         latch.countDown();
                         assertThat(complete, is(true));
                     }

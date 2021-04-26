@@ -650,7 +650,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // COUNT(<field_name>)
                 } else if (c.distinct() == false) {
                     LeafAgg leafAgg = toAgg(functionId, f);
-                    AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count", false));
+                    AggPathInput a = new AggPathInput(f, new MetricAggRef(leafAgg.id(), "doc_count", "_count", null));
                     queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
                     return new Tuple<>(queryC, a);
                 }
@@ -678,14 +678,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 aggInput = new AggPathInput(f,
                         new MetricAggRef(cAggPath, ia.innerName(),
                             ia.innerKey() != null ? QueryTranslator.nameOf(ia.innerKey()) : null,
-                            isDateBased(ia.dataType())));
+                            ia.dataType()));
             }
             else {
                 LeafAgg leafAgg = toAgg(functionId, f);
                 if (f instanceof TopHits) {
                     aggInput = new AggPathInput(f, new TopHitsAggRef(leafAgg.id(), f.dataType()));
                 } else {
-                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), isDateBased(f.dataType())));
+                    aggInput = new AggPathInput(f, new MetricAggRef(leafAgg.id(), f.dataType()));
                 }
                 queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
             }

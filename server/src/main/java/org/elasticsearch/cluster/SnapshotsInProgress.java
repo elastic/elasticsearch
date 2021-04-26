@@ -26,6 +26,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryOperation;
 import org.elasticsearch.repositories.RepositoryShardId;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.InFlightShardSnapshotStates;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
@@ -354,20 +355,42 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         @Nullable
         private final String reason;
 
+        @Nullable // only present in state SUCCESS; may be null even in SUCCESS if this state came over the wire from an older node
+        private final ShardSnapshotResult shardSnapshotResult;
+
         public ShardSnapshotStatus(String nodeId, String generation) {
             this(nodeId, ShardState.INIT, generation);
         }
 
         public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, @Nullable String generation) {
-            this(nodeId, state, null, generation);
+            this(nodeId, assertNotSuccess(state), null, generation);
         }
 
         public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, String reason, @Nullable String generation) {
+            this(nodeId, assertNotSuccess(state), reason, generation, null);
+        }
+
+        private ShardSnapshotStatus(
+                @Nullable String nodeId,
+                ShardState state,
+                String reason,
+                @Nullable String generation,
+                @Nullable ShardSnapshotResult shardSnapshotResult) {
             this.nodeId = nodeId;
             this.state = state;
             this.reason = reason;
             this.generation = generation;
+            this.shardSnapshotResult = shardSnapshotResult;
             assert assertConsistent();
+        }
+
+        private static ShardState assertNotSuccess(ShardState shardState) {
+            assert shardState != ShardState.SUCCESS : "use ShardSnapshotStatus#success";
+            return shardState;
+        }
+
+        public static ShardSnapshotStatus success(String nodeId, ShardSnapshotResult shardSnapshotResult) {
+            return new ShardSnapshotStatus(nodeId, ShardState.SUCCESS, null, shardSnapshotResult.getGeneration(), shardSnapshotResult);
         }
 
         private boolean assertConsistent() {
@@ -376,6 +399,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             assert (state != ShardState.INIT && state != ShardState.WAITING) || nodeId != null : "Null node id for state [" + state + "]";
             assert state != ShardState.QUEUED || (nodeId == null && generation == null && reason == null) :
                     "Found unexpected non-null values for queued state shard nodeId[" + nodeId + "][" + generation + "][" + reason + "]";
+            assert state == ShardState.SUCCESS || shardSnapshotResult == null;
+            assert shardSnapshotResult == null || shardSnapshotResult.getGeneration().equals(generation)
+                    : "generation [" + generation + "] does not match result generation [" + shardSnapshotResult.getGeneration() + "]";
             return true;
         }
 
@@ -384,10 +410,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final ShardState state = ShardState.fromValue(in.readByte());
             final String generation = in.readOptionalString();
             final String reason = in.readOptionalString();
+            final ShardSnapshotResult shardSnapshotResult = in.readOptionalWriteable(ShardSnapshotResult::new);
             if (state == ShardState.QUEUED) {
                 return UNASSIGNED_QUEUED;
             }
-            return new ShardSnapshotStatus(nodeId, state, reason, generation);
+            return new ShardSnapshotStatus(nodeId, state, reason, generation, shardSnapshotResult);
         }
 
         public ShardState state() {
@@ -408,6 +435,12 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return reason;
         }
 
+        @Nullable
+        public ShardSnapshotResult shardSnapshotResult() {
+            assert state == ShardState.SUCCESS : "result is unavailable in state " + state;
+            return shardSnapshotResult;
+        }
+
         /**
          * Checks if this shard snapshot is actively executing.
          * A shard is defined as actively executing if it either is in a state that may write to the repository
@@ -423,6 +456,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeByte(state.value);
             out.writeOptionalString(generation);
             out.writeOptionalString(reason);
+            out.writeOptionalWriteable(shardSnapshotResult);
         }
 
         @Override
@@ -430,8 +464,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ShardSnapshotStatus status = (ShardSnapshotStatus) o;
-            return Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason)
-                    && Objects.equals(generation, status.generation) && state == status.state;
+            return Objects.equals(nodeId, status.nodeId)
+                    && Objects.equals(reason, status.reason)
+                    && Objects.equals(generation, status.generation)
+                    && state == status.state
+                    && Objects.equals(shardSnapshotResult, status.shardSnapshotResult);
         }
 
         @Override
@@ -440,12 +477,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
             result = 31 * result + (reason != null ? reason.hashCode() : 0);
             result = 31 * result + (generation != null ? generation.hashCode() : 0);
+            result = 31 * result + (shardSnapshotResult != null ? shardSnapshotResult.hashCode() : 0);
             return result;
         }
 
         @Override
         public String toString() {
-            return "ShardSnapshotStatus[state=" + state + ", nodeId=" + nodeId + ", reason=" + reason + ", generation=" + generation + "]";
+            return "ShardSnapshotStatus[state=" + state + ", nodeId=" + nodeId + ", reason=" + reason + ", generation=" + generation +
+                    ", shardSnapshotResult=" + shardSnapshotResult + "]";
         }
     }
 

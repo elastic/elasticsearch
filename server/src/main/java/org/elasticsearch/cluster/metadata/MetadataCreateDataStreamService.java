@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -91,23 +92,47 @@ public class MetadataCreateDataStreamService {
         return createDataStream(metadataCreateIndexService, current, request);
     }
 
-    public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
+    public static final class CreateDataStreamClusterStateUpdateRequest
+        extends ClusterStateUpdateRequest<CreateDataStreamClusterStateUpdateRequest> {
 
         private final String name;
+        private final SystemDataStreamDescriptor descriptor;
 
         public CreateDataStreamClusterStateUpdateRequest(String name,
                                                          TimeValue masterNodeTimeout,
                                                          TimeValue timeout) {
+            this(name, null, masterNodeTimeout, timeout);
+        }
+
+        public CreateDataStreamClusterStateUpdateRequest(String name,
+                                                         SystemDataStreamDescriptor systemDataStreamDescriptor,
+                                                         TimeValue masterNodeTimeout,
+                                                         TimeValue timeout) {
             this.name = name;
+            this.descriptor = systemDataStreamDescriptor;
             masterNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
+        }
+
+        public boolean isSystem() {
+            return descriptor != null;
+        }
+
+        public SystemDataStreamDescriptor getSystemDataStreamDescriptor() {
+            return descriptor;
         }
     }
 
     static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
                                          ClusterState currentState,
                                          CreateDataStreamClusterStateUpdateRequest request) throws Exception {
-        return createDataStream(metadataCreateIndexService, currentState, request.name, List.of(), null);
+        return createDataStream(
+            metadataCreateIndexService,
+            currentState,
+            request.name,
+            List.of(),
+            null,
+            request.getSystemDataStreamDescriptor());
     }
 
     /**
@@ -124,11 +149,20 @@ public class MetadataCreateDataStreamService {
                                          ClusterState currentState,
                                          String dataStreamName,
                                          List<IndexMetadata> backingIndices,
-                                         IndexMetadata writeIndex) throws Exception
+                                         IndexMetadata writeIndex) throws Exception {
+        assert metadataCreateIndexService.getSystemIndices().isSystemDataStream(dataStreamName) == false :
+            "dataStream [" + dataStreamName + "] is system but no system descriptor was provided!";
+        return createDataStream(metadataCreateIndexService, currentState, dataStreamName, backingIndices, writeIndex, null);
+    }
+
+    static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
+                                                 ClusterState currentState,
+                                                 String dataStreamName,
+                                                 List<IndexMetadata> backingIndices,
+                                                 IndexMetadata writeIndex,
+                                                 SystemDataStreamDescriptor systemDataStreamDescriptor) throws Exception
     {
-        if (writeIndex == null) {
-            Objects.requireNonNull(metadataCreateIndexService);
-        }
+        Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);
         Objects.requireNonNull(backingIndices);
         if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {
@@ -146,14 +180,22 @@ public class MetadataCreateDataStreamService {
                 + DataStream.BACKING_INDEX_PREFIX + "'");
         }
 
-        ComposableIndexTemplate template = lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+        final boolean isSystem = systemDataStreamDescriptor != null;
+        final ComposableIndexTemplate template = isSystem ?
+            systemDataStreamDescriptor.getComposableIndexTemplate() :
+            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
         if (writeIndex == null) {
             String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
             CreateIndexClusterStateUpdateRequest createIndexRequest =
                 new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
                     .dataStreamName(dataStreamName)
-                    .settings(Settings.builder().put("index.hidden", true).build());
+                    .systemDataStreamDescriptor(systemDataStreamDescriptor);
+
+            if (isSystem == false) {
+                createIndexRequest.settings(Settings.builder().put("index.hidden", true).build());
+            }
+
             try {
                 currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
             } catch (ResourceAlreadyExistsException e) {
@@ -172,9 +214,9 @@ public class MetadataCreateDataStreamService {
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList());
         dsBackingIndices.add(writeIndex.getIndex());
-        boolean hidden = template.getDataStreamTemplate().isHidden();
+        boolean hidden = isSystem ? false : template.getDataStreamTemplate().isHidden();
         DataStream newDataStream = new DataStream(dataStreamName, timestampField, dsBackingIndices, 1L,
-            template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, false);
+            template.metadata() != null ? Map.copyOf(template.metadata()) : null, hidden, false, isSystem);
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
         logger.info("adding data stream [{}] with write index [{}] and backing indices [{}]", dataStreamName,
             writeIndex.getIndex().getName(),

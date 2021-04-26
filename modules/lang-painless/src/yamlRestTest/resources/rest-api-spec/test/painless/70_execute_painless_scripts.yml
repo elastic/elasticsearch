@@ -265,13 +265,13 @@ setup:
   - match: { result: [ -90, 0, 20, 20, 35 ] }
 
 ---
-"Execute with string field context (single-value)":
+"Execute with keyword field context (single-value)":
   - do:
       scripts_painless_execute:
         body:
           script:
             source: "emit(doc['point'].value.lat.toString().substring(0, 5));"
-          context: "string_field"
+          context: "keyword_field"
           context_setup:
             document:
               point: "30.2,40.2"
@@ -279,14 +279,14 @@ setup:
   - match: { result.0: "30.19" }
 
 ---
-"Execute with string field context (multi-value)":
+"Execute with keyword field context (multi-value)":
   - do:
       scripts_painless_execute:
         body:
           script:
             source: "emit(doc['point'].value.lat.toString().substring(0, 5));
                      emit(doc['point'].value.lon.toString().substring(0, 5) + 'test');"
-          context: "string_field"
+          context: "keyword_field"
           context_setup:
             document:
               point: "30.2,40.2"

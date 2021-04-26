@@ -8,8 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.LoggedExec;
-import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;

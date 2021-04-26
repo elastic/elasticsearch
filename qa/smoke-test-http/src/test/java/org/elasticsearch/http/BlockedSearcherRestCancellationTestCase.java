@@ -31,9 +31,7 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -115,21 +113,7 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             cancellable.cancel();
             expectThrows(CancellationException.class, future::actionGet);
 
-            logger.info("--> checking that all tasks are marked as cancelled");
-            assertBusy(() -> {
-                boolean foundTask = false;
-                for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                    for (CancellableTask cancellableTask : transportService.getTaskManager().getCancellableTasks().values()) {
-                        if (cancellableTask.getAction().startsWith(actionPrefix)) {
-                            foundTask = true;
-                            assertTrue(
-                                    "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
-                                    cancellableTask.isCancelled());
-                        }
-                    }
-                }
-                assertTrue("found no cancellable tasks", foundTask);
-            });
+            assertAllCancellableTasksAreCancelled(actionPrefix);
         } finally {
             Releasables.close(releasables);
         }

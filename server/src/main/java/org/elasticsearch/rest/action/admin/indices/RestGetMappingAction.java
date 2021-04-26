@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -26,6 +27,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -73,14 +75,15 @@ public class RestGetMappingAction extends BaseRestHandler {
         final TimeValue timeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
         getMappingsRequest.masterNodeTimeout(timeout);
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestActionListener<>(channel) {
-
-            @Override
-            protected void processResponse(GetMappingsResponse getMappingsResponse) {
-                final long startTimeMs = threadPool.relativeTimeInMillis();
-                // Process serialization on MANAGEMENT pool since the serialization of the raw mappings to XContent can be too slow to
-                // execute on an IO thread
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
+        final HttpChannel httpChannel = request.getHttpChannel();
+        return channel -> new RestCancellableNodeClient(client, httpChannel).admin().indices().getMappings(getMappingsRequest,
+            new RestActionListener<>(channel) {
+                @Override
+                protected void processResponse(GetMappingsResponse getMappingsResponse) {
+                    final long startTimeMs = threadPool.relativeTimeInMillis();
+                    // Process serialization on MANAGEMENT pool since the serialization of the raw mappings to XContent can be too slow to
+                    // execute on an IO thread
+                    threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
                         ActionRunnable.wrap(this, l -> new RestBuilderListener<GetMappingsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(final GetMappingsResponse response,
@@ -94,7 +97,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                                 return new BytesRestResponse(RestStatus.OK, builder);
                             }
                         }.onResponse(getMappingsResponse)));
-            }
-        });
+                }
+            });
     }
 }

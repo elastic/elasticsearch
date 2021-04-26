@@ -10,6 +10,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportService;
@@ -86,6 +87,24 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
                 }
             }
             fail("no task with prefix [" + actionPrefix + "] found");
+        });
+    }
+
+    protected void assertAllCancellableTasksAreCancelled(String actionName) throws Exception {
+        logger.info("--> checking that all tasks are marked as cancelled");
+        assertBusy(() -> {
+            boolean foundTask = false;
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                for (CancellableTask cancellableTask : transportService.getTaskManager().getCancellableTasks().values()) {
+                    if (cancellableTask.getAction().startsWith(actionName)) {
+                        foundTask = true;
+                        assertTrue(
+                            "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
+                            cancellableTask.isCancelled());
+                    }
+                }
+            }
+            assertTrue("found no cancellable tasks", foundTask);
         });
     }
 }

@@ -32,7 +32,7 @@ public class PemTrustConfigTests extends ESTestCase {
     private Path basePath;
 
     @Before
-    public void setUp() {
+    public void setupPath() {
         basePath = getDataPath("/certs");
     }
 
@@ -133,14 +133,14 @@ public class PemTrustConfigTests extends ESTestCase {
         if (inFipsJvm() && exception.getMessage().contains("failed to parse any certificates")) {
             return;
         }
-        assertThat(exception.getMessage(), Matchers.containsString("cannot create trust"));
-        assertThat(exception.getMessage(), Matchers.containsString("PEM"));
+        assertThat(exception.getMessage(), Matchers.containsString("cannot load"));
+        assertThat(exception.getMessage(), Matchers.containsString("PEM certificate"));
         assertThat(exception.getCause(), Matchers.instanceOf(GeneralSecurityException.class));
     }
 
     private void assertFileNotFound(PemTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
-        assertThat(exception.getMessage(), Matchers.containsString("files do not exist"));
+        assertThat(exception.getMessage(), Matchers.containsString("not exist"));
         assertThat(exception.getMessage(), Matchers.containsString("PEM"));
         assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getCause(), Matchers.instanceOf(NoSuchFileException.class));

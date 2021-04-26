@@ -10,6 +10,7 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -197,11 +198,8 @@ public class PemUtilsTests extends ESTestCase {
 
     public void testReadCorruptedKey() {
         final Path path = getDataPath("/certs/pem-utils/corrupted_key_pkcs8_plain.pem");
-        SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
-        assertThat(e.getMessage(), containsString("private key"));
-        assertThat(e.getMessage(), containsString("cannot be parsed"));
-        assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
-        assertThat(e.getCause().getMessage(), containsString("PEM footer is invalid or missing"));
+        IOException e = expectThrows(IOException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
+        assertThat(e.getMessage(), containsString("PEM footer is invalid or missing"));
     }
 
     public void testReadEmptyFile() {

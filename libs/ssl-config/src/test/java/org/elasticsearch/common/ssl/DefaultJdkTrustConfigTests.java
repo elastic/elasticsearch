@@ -49,7 +49,7 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
         assertHasTrustedIssuer(trustManager, "VeriSign");
         assertHasTrustedIssuer(trustManager, "GeoTrust");
         assertHasTrustedIssuer(trustManager, "DigiCert");
-        assertHasTrustedIssuer(trustManager, "thawte");
+        assertHasTrustedIssuer(trustManager, "Microsoft");
         assertHasTrustedIssuer(trustManager, "COMODO");
     }
 

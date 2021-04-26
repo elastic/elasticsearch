@@ -16,6 +16,7 @@ import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -26,7 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class StoreTrustConfigTests extends ESTestCase {
 
@@ -37,7 +38,7 @@ public class StoreTrustConfigTests extends ESTestCase {
     private Path configBasePath;
 
     @Before
-    public void setUp() {
+    public void setupPath() {
         configBasePath = getDataPath("/certs");
     }
 
@@ -138,18 +139,18 @@ public class StoreTrustConfigTests extends ESTestCase {
 
     private void assertInvalidFileFormat(StoreTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
-        assertThat(exception.getMessage(), Matchers.containsString("cannot read"));
-        assertThat(exception.getMessage(), Matchers.containsString("keystore"));
-        assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
+        assertThat(exception.getMessage(), containsString("cannot read"));
+        assertThat(exception.getMessage(), containsString("keystore"));
+        assertThat(exception.getMessage(), containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getCause(), Matchers.instanceOf(IOException.class));
     }
 
     private void assertFileNotFound(StoreTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
-        assertThat(exception.getMessage(), Matchers.containsString("file does not exist"));
-        assertThat(exception.getMessage(), Matchers.containsString("keystore"));
-        assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
-        assertThat(exception.getCause(), nullValue());
+        assertThat(exception.getMessage(), containsString("file does not exist"));
+        assertThat(exception.getMessage(), containsString("keystore"));
+        assertThat(exception.getMessage(), containsString(file.toAbsolutePath().toString()));
+        assertThat(exception.getCause(), instanceOf(NoSuchFileException.class));
     }
 
     private void assertPasswordIsIncorrect(StoreTrustConfig trustConfig, Path key) {
@@ -161,9 +162,9 @@ public class StoreTrustConfigTests extends ESTestCase {
 
     private void assertNoCertificateEntries(StoreTrustConfig trustConfig, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, trustConfig::createTrustManager);
-        assertThat(exception.getMessage(), Matchers.containsString("does not contain any trusted certificate entries"));
-        assertThat(exception.getMessage(), Matchers.containsString("truststore"));
-        assertThat(exception.getMessage(), Matchers.containsString(file.toAbsolutePath().toString()));
+        assertThat(exception.getMessage(), containsString("does not contain any trusted certificate entries"));
+        assertThat(exception.getMessage(), containsString("truststore"));
+        assertThat(exception.getMessage(), containsString(file.toAbsolutePath().toString()));
     }
 
 }

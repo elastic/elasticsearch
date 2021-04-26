@@ -38,7 +38,7 @@ public class PemKeyConfigTests extends ESTestCase {
     private Path configBasePath;
 
     @Before
-    public void setUp(){
+    public void setupPath(){
         configBasePath = getDataPath(".");
     }
 
@@ -147,14 +147,14 @@ public class PemKeyConfigTests extends ESTestCase {
 
     private void assertPasswordIsIncorrect(PemKeyConfig keyConfig, Path key) {
         final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
-        assertThat(exception.getMessage(), containsString("private key file"));
+        assertThat(exception.getMessage(), containsString("PEM private key"));
         assertThat(exception.getMessage(), containsString(key.toAbsolutePath().toString()));
         assertThat(exception.getCause(), instanceOf(GeneralSecurityException.class));
     }
 
     private void assertFileNotFound(PemKeyConfig keyConfig, String type, Path file) {
         final SslConfigException exception = expectThrows(SslConfigException.class, keyConfig::createKeyManager);
-        assertThat(exception.getMessage(), containsString(type + " file"));
+        assertThat(exception.getMessage(), containsString(type + " ["));
         assertThat(exception.getMessage(), containsString(file.toAbsolutePath().toString()));
         assertThat(exception.getMessage(), containsString("does not exist"));
         assertThat(exception.getCause(), instanceOf(NoSuchFileException.class));

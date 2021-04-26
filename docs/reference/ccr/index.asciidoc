@@ -118,10 +118,16 @@ comes online, replication resumes between the clusters.
 
 image::images/ccr-arch-bi-directional.png[Bi-directional configuration where each cluster contains both a leader index and follower indices]
 
-NOTE: This configuration is useful for index-only workloads, where no updates
+This configuration is useful for index-only workloads, where no updates
 to document values occur. In this configuration, documents indexed by {es} are
 immutable. Clients are located in each datacenter alongside the {es}
 cluster, and do not communicate with clusters in different datacenters.
+
+NOTE: Follower indices will reject writes in a bi-directional configuration.
+For example, you index a document named `doc_1` in Datacenter A, which
+replicates to Datacenter B. If a client connects to Datacenter B and attempts
+to update `doc_1`, the request fails. To update `doc_1`, the client must
+connect to Datacenter A and update the document in the leader index.
 
 [discrete]
 [[ccr-data-locality]]

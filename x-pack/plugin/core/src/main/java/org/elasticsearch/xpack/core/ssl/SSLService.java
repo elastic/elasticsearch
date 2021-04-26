@@ -424,8 +424,8 @@ public class SSLService {
         }
 
         if (supportedCiphersList.isEmpty()) {
-            throw new IllegalArgumentException("none of the ciphers " + Arrays.toString(requestedCiphers.toArray())
-                + " are supported by this JVM");
+            throw new SslConfigException(
+                "none of the ciphers " + Arrays.toString(requestedCiphers.toArray()) + " are supported by this JVM");
         }
 
         if (log && unsupportedCiphers.isEmpty() == false) {

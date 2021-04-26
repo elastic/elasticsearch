@@ -87,6 +87,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyListOf;
 import static org.mockito.Mockito.mock;
@@ -225,7 +226,7 @@ public class SSLServiceTests extends ESTestCase {
             sslService.createSSLEngine(configuration, null, -1);
             fail("expected an exception");
         } catch (ElasticsearchException e) {
-            assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+            assertThat(e, throwableWithMessage(startsWith("failed to load SSL configuration [xpack.security.transport.ssl] - ")));
             assertThat(e.getCause(), throwableWithMessage(containsString("cannot load [jks] keystore")));
         }
     }
@@ -412,7 +413,7 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         ElasticsearchException e =
             expectThrows(ElasticsearchException.class, () -> new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings))));
-        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e, throwableWithMessage(startsWith("failed to load SSL configuration [xpack.security.transport.ssl] - ")));
         assertThat(e.getCause(), throwableWithMessage(containsString("password was incorrect")));
     }
 
@@ -424,7 +425,7 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         ElasticsearchException e =
             expectThrows(ElasticsearchException.class, () -> new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings))));
-        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e, throwableWithMessage(startsWith("failed to load SSL configuration [xpack.security.transport.ssl] - ")));
         assertThat(e.getCause(), throwableWithMessage(containsString("password was incorrect")));
     }
 
@@ -461,7 +462,8 @@ public class SSLServiceTests extends ESTestCase {
             .build();
         ElasticsearchException e =
             expectThrows(ElasticsearchException.class, () -> new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings))));
-        assertThat(e, throwableWithMessage("failed to load SSL configuration [xpack.security.transport.ssl]"));
+        assertThat(e, throwableWithMessage(
+            "failed to load SSL configuration [xpack.security.transport.ssl] - none of the ciphers [foo, bar] are supported by this JVM"));
         assertThat(e.getCause(), throwableWithMessage("none of the ciphers [foo, bar] are supported by this JVM"));
     }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -34,15 +35,20 @@ import java.util.function.Function;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
     public void testGetMappingsCancellation() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+
         createIndex("test");
         ensureGreen("test");
         final String actionName = GetMappingsAction.NAME;
         // Add a retryable cluster block that would block the request execution
-        transformClusterState(currentState -> {
+        updateClusterState(currentState -> {
             ClusterBlock clusterBlock = new ClusterBlock(1000,
-                "",
+                "Get mappings cancellation test cluster block",
                 true,
                 false,
                 false,
@@ -73,20 +79,20 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
         awaitTaskWithPrefix(actionName);
 
         cancellable.cancel();
+        assertAllCancellableTasksAreCancelled(actionName);
 
         // Remove the cluster block
-        transformClusterState(currentState -> ClusterState.builder(currentState).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build());
+        updateClusterState(currentState -> ClusterState.builder(currentState).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build());
 
         expectThrows(CancellationException.class, future::actionGet);
 
-        assertAllCancellableTasksAreCancelled(actionName);
         assertBusy(() -> {
             final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
             assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(actionName)));
         });
     }
 
-    private void transformClusterState(Function<ClusterState, ClusterState> transformationFn) {
+    private void updateClusterState(Function<ClusterState, ClusterState> transformationFn) {
         final TimeValue timeout = TimeValue.timeValueSeconds(10);
 
         final AckedRequest ackedRequest = new AckedRequest() {

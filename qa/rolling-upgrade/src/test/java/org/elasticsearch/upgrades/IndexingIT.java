@@ -46,7 +46,6 @@ import static org.junit.Assume.assumeTrue;
  */
 public class IndexingIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72012")
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:

@@ -41,6 +41,8 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
 
     public void testNodesCachesStats() throws Exception {
         final String[] nodeNames = internalCluster().getNodeNames();
+        // here to ensure no shard relocations after the snapshot is mounted,
+        // since this test verifies the cache stats on specific nodes
         ensureStableCluster(nodeNames.length);
 
         final String index = getTestName().toLowerCase(Locale.ROOT);

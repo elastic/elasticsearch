@@ -9,13 +9,19 @@
 package org.elasticsearch.client.feature;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * This class represents the response of the Feature State Reset API. It is a
+ * list containing the response of every feature whose state was reset.
+ */
 public class ResetFeaturesResponse {
     private final List<ResetFeatureStateStatus> features;
 
@@ -23,7 +29,7 @@ public class ResetFeaturesResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResetFeaturesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshottable_features_response", true,
+        "features_reset_status_response", true,
         (a, ctx) -> new ResetFeaturesResponse((List<ResetFeatureStateStatus>) a[0])
     );
 
@@ -33,11 +39,18 @@ public class ResetFeaturesResponse {
             ResetFeaturesResponse.ResetFeatureStateStatus::parse, FEATURES);
     }
 
+    /**
+     * Create a new ResetFeaturesResponse
+     * @param features A full list of status responses from individual feature reset operations.
+     */
     public ResetFeaturesResponse(List<ResetFeatureStateStatus> features) {
         this.features = features;
     }
 
-    public List<ResetFeatureStateStatus> getFeatures() {
+    /**
+     * @return List containing a reset status for each feature that we have tried to reset.
+     */
+    public List<ResetFeatureStateStatus> getFeatureResetStatuses() {
         return features;
     }
 
@@ -45,6 +58,12 @@ public class ResetFeaturesResponse {
         return PARSER.apply(parser, null);
     }
 
+    /**
+     * A class representing the status of an attempt to reset a feature's state.
+     * The attempt to reset either succeeds and we return the name of the
+     * feature and a success flag; or it fails and we return the name of the feature,
+     * a status flag, and the exception thrown during the attempt to reset the feature.
+     */
     public static class ResetFeatureStateStatus {
         private final String featureName;
         private final String status;
@@ -68,9 +87,18 @@ public class ResetFeaturesResponse {
                 (p, c) -> ElasticsearchException.failureFromXContent(p), EXCEPTION);
         }
 
-        ResetFeatureStateStatus(String featureName, String status, Exception exception) {
+        /**
+         * Create a ResetFeatureStateStatus.
+         * @param featureName Name of the feature whose status has been reset.
+         * @param status Whether the reset attempt succeeded or failed.
+         * @param exception If the reset attempt failed, the exception that caused the
+         *                  failure. Must be null when status is "SUCCESS".
+         */
+        ResetFeatureStateStatus(String featureName, String status, @Nullable Exception exception) {
             this.featureName = featureName;
+            assert "SUCCESS".equals(status) || "FAILURE".equals(status);
             this.status = status;
+            assert "FAILURE".equals(status) ? Objects.nonNull(exception) : Objects.isNull(exception);
             this.exception = exception;
         }
 
@@ -78,14 +106,24 @@ public class ResetFeaturesResponse {
             return PARSER.apply(parser, ctx);
         }
 
+        /**
+         * @return Name of the feature that we tried to reset
+         */
         public String getFeatureName() {
             return featureName;
         }
 
+        /**
+         * @return "SUCCESS" if the reset attempt succeeded, "FAILURE" otherwise.
+         */
         public String getStatus() {
             return status;
         }
 
+        /**
+         * @return The exception that caused the reset attempt to fail.
+         */
+        @Nullable
         public Exception getException() {
             return exception;
         }

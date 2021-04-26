@@ -50,12 +50,12 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
             adminHighLevelClient.features()::resetFeaturesAsync);
 
         assertThat(response, notNullValue());
-        assertThat(response.getFeatures(), notNullValue());
-        assertThat(response.getFeatures().size(), greaterThan(1));
-        assertTrue(response.getFeatures().stream().anyMatch(
+        assertThat(response.getFeatureResetStatuses(), notNullValue());
+        assertThat(response.getFeatureResetStatuses().size(), greaterThan(1));
+        assertTrue(response.getFeatureResetStatuses().stream().anyMatch(
             feature -> "tasks".equals(feature.getFeatureName()) && "SUCCESS".equals(feature.getStatus())));
 
-        Set<String> statuses = response.getFeatures().stream()
+        Set<String> statuses = response.getFeatureResetStatuses().stream()
             .map(ResetFeaturesResponse.ResetFeatureStateStatus::getStatus)
             .collect(Collectors.toSet());
 

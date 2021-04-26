@@ -126,7 +126,7 @@ See <<filtered>> for an example.
 `is_hidden`::
 (Optional, Boolean)
 If `true`, the alias will be excluded from wildcard expressions by default,
-unless overriden in the request using the `expand_wildcards` parameter,
+unless overridden in the request using the `expand_wildcards` parameter,
 similar to <<index-hidden,hidden indices>>. This property must be set to the
 same value on all indices that share an alias. Defaults to `false`.
 

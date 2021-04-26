@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.enrollment;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.settings.Setting;
 
 /**
  * ActionType for creating an enrollment new token

@@ -22,6 +22,8 @@ import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
@@ -1094,6 +1096,39 @@ public final class SecurityClient {
                                          final ActionListener<CreateApiKeyResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::grantApiKey, options,
             CreateApiKeyResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create a service account token.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-service-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create a service account token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create service account token call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateServiceAccountTokenResponse createServiceAccountToken(final CreateServiceAccountTokenRequest request,
+                                                                       final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::createServiceAccountToken, options,
+            CreateServiceAccountTokenResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously creates a service account token.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-create-service-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to create a service account token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable createServiceAccountTokenAsync(final CreateServiceAccountTokenRequest request,
+                                                      final RequestOptions options,
+                                                      final ActionListener<CreateServiceAccountTokenResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createServiceAccountToken, options,
+            CreateServiceAccountTokenResponse::fromXContent, listener, emptySet());
     }
 
     /**

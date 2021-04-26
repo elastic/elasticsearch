@@ -30,6 +30,8 @@ import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequestTests;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
@@ -2487,6 +2489,61 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
         }
 
+    }
+
+    public void testCreateServiceAccountToken() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::create-service-account-token-request
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+            // end::create-service-account-token-request
+
+            // tag::create-service-account-token-execute
+            CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
+                client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+            // end::create-service-account-token-execute
+
+            // tag::create-service-account-token-response
+            final String tokenName = createServiceAccountTokenResponse.getName(); // <1>
+            final SecureString tokenValue = createServiceAccountTokenResponse.getValue(); // <2>
+            // end::create-service-account-token-response
+            assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+            assertNotNull(tokenValue);
+        }
+
+        {
+            // tag::create-service-account-token-request-auto-name
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server");
+            // end::create-service-account-token-request-auto-name
+
+            ActionListener<CreateServiceAccountTokenResponse> listener;
+            // tag::create-service-account-token-execute-listener
+            listener = new ActionListener<CreateServiceAccountTokenResponse>() {
+                @Override
+                public void onResponse(CreateServiceAccountTokenResponse createServiceAccountTokenResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::create-service-account-token-execute-listener
+
+            final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::create-service-account-token-execute-async
+            client.security().createServiceAccountTokenAsync(createServiceAccountTokenRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::create-service-account-token-execute-async
+
+            assertNotNull(future.actionGet());
+            assertNotNull(future.actionGet().getName());
+            assertNotNull(future.actionGet().getValue());
+        }
     }
 
     public void testDelegatePkiAuthentication() throws Exception {

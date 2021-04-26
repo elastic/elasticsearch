@@ -15,6 +15,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.security.ChangePasswordRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequestTests;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
@@ -498,5 +499,22 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
         assertEquals("/_security/api_key", request.getEndpoint());
         assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
+    }
+
+    public void testCreateServiceAccountToken() throws IOException {
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String service = randomAlphaOfLengthBetween(3, 8);
+        final String tokenName = randomBoolean() ? randomAlphaOfLengthBetween(3, 8) : null;
+        final RefreshPolicy refreshPolicy = randomBoolean() ? randomFrom(RefreshPolicy.values()) : null;
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+            new CreateServiceAccountTokenRequest(namespace, service, tokenName, refreshPolicy);
+        final Request request = SecurityRequestConverters.createServiceAccountToken(createServiceAccountTokenRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        final String url =
+            "/_security/service/" + namespace + "/" + service + "/credential/token" + (tokenName == null ? "" : "/" + tokenName);
+        assertEquals(url, request.getEndpoint());
+        if (refreshPolicy != null && refreshPolicy != RefreshPolicy.NONE) {
+            assertEquals(refreshPolicy.getValue(), request.getParameters().get("refresh"));
+        }
     }
  }

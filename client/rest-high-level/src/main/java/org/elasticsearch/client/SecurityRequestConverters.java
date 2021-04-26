@@ -18,6 +18,7 @@ import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
@@ -327,6 +328,23 @@ final class SecurityRequestConverters {
     static Request invalidateApiKey(final InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
         request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request createServiceAccountToken(final CreateServiceAccountTokenRequest createServiceAccountTokenRequest) throws IOException {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service")
+            .addPathPart(createServiceAccountTokenRequest.getNamespace(), createServiceAccountTokenRequest.getServiceName())
+            .addPathPartAsIs("credential/token");
+        if (createServiceAccountTokenRequest.getTokenName() != null) {
+            endpointBuilder.addPathPart(createServiceAccountTokenRequest.getTokenName());
+        }
+        final Request request = new Request(HttpPost.METHOD_NAME, endpointBuilder.build());
+        final RequestConverters.Params params = new RequestConverters.Params();
+        if (createServiceAccountTokenRequest.getRefreshPolicy() != null) {
+            params.withRefreshPolicy(createServiceAccountTokenRequest.getRefreshPolicy());
+        }
+        request.addParameters(params.asMap());
         return request;
     }
 }

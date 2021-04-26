@@ -11,6 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.ql.TestUtils;
+import org.hamcrest.Matcher;
+
+import java.util.List;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -22,21 +26,23 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
+public class QueryTranslatorSpecTests extends AbstractQueryTranslatorTestCase {
 
+    private final String filename;
     private final String name;
     private final String query;
-    private final Object expect;
+    private final List<Matcher<String>> matchers;
 
-    public QueryFolderOkTests(String name, String query, Object expect) {
+    public QueryTranslatorSpecTests(String filename, String name, String query, List<Matcher<String>> matchers) {
+        this.filename = filename;
         this.name = name;
         this.query = query;
-        this.expect = expect;
+        this.matchers = matchers;
     }
 
-    @ParametersFactory(shuffle = false, argumentFormatting = "%1$s")
+    @ParametersFactory(shuffle = false, argumentFormatting = "%2$s")
     public static Iterable<Object[]> parameters() throws Exception {
-        return QueriesUtils.readSpec("/queryfolder_tests.txt");
+        return TestUtils.readSpec(QueryTranslatorSpecTests.class, "/querytranslator_tests.txt");
     }
 
     public static Iterable<Object[]> readSpec(String url) throws Exception {
@@ -117,15 +123,7 @@ public class QueryFolderOkTests extends AbstractQueryFolderTestCase {
         final String query = eqe.queryContainer().toString().replaceAll("\\s+", "");
 
         // test query term
-        if (expect != null) {
-            if (expect instanceof Object[]) {
-                for (Object item : (Object[]) expect) {
-                    assertThat(query, containsString((String) item));
-                }
-            } else {
-                assertThat(query, containsString((String) expect));
-            }
-        }
+        matchers.forEach(m -> assertThat(query, m));
 
         // test common term
         assertThat(query, containsString("\"term\":{\"event.category\":{\"value\":\"process\""));

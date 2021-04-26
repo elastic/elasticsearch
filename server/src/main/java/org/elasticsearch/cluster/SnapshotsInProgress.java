@@ -569,9 +569,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             } else {
                 final Map<String, IndexId> idx = new HashMap<>(indexCount);
                 for (int i = 0; i < indexCount; i++) {
-                    final String name = in.readString();
-                    final String id = in.readString();
-                    idx.put(name, new IndexId(name, id));
+                    final IndexId indexId = new IndexId(in);
+                    idx.put(indexId.getName(), indexId);
                 }
                 indices = Collections.unmodifiableMap(idx);
             }

@@ -561,7 +561,7 @@ public final class RepositoryData {
             final IndexId indexId = resolveIndexId(indexName);
             resolvedIndices.put(indexId.getName(), indexId);
         }
-        return resolvedIndices;
+        return Collections.unmodifiableMap(resolvedIndices);
     }
 
     /**
@@ -583,7 +583,7 @@ public final class RepositoryData {
             }
             snapshotIndices.put(indexId.getName(), indexId);
         }
-        return snapshotIndices;
+        return Collections.unmodifiableMap(snapshotIndices);
     }
 
     private static final String SHARD_GENERATIONS = "shard_generations";

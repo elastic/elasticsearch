@@ -123,7 +123,7 @@ GET _cat/indices?bytes=b&s=store.size:desc,index:asc&v=true
 ----
 // TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]
-// TEST[s/s=store\.size\:desc,index\:asc/s=index:asc/]
+// TEST[s/s=store\.size:desc,index:asc/s=index:asc/]
 
 The API returns the following response:
 

@@ -15,6 +15,7 @@ import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
+import org.elasticsearch.client.ml.inference.TrainedModelLocation;
 import org.elasticsearch.client.ml.inference.TrainedModelType;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
@@ -22,7 +23,6 @@ import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
-import org.elasticsearch.client.ml.inference.trainedmodel.pytorch.PyTorchModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,7 +53,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -252,33 +251,17 @@ public class TrainedModelIT extends ESRestTestCase {
     public void testPyTorchModelConfig() throws IOException {
         String modelId = "pytorch1";
         String pytorchModelId = "pytorch_model";
-        putPyTorchModel(modelId, pytorchModelId);
+        String index = "pytorch_index";
+        putPyTorchModel(modelId, pytorchModelId, index);
         Response getModel = client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "trained_models/" + modelId));
 
         try (XContentParser parser = createParser(XContentType.JSON.xContent(), getModel.getEntity().getContent())) {
             GetTrainedModelsResponse response = GetTrainedModelsResponse.fromXContent(parser);
             TrainedModelConfig model = response.getTrainedModels().get(0);
             assertThat(model.getModelType(), equalTo(TrainedModelType.PYTORCH));
+            assertThat(model.getLocation().getModelId(), equalTo(modelId));
+            assertThat(model.getLocation().getIndex(), equalTo(index));
             assertThat(model.getEstimatedOperations(), equalTo(0L));
-        }
-    }
-
-    public void testPyTorchModelDefinition() throws IOException {
-        String modelId = "pytorch1";
-        String pytorchModelId = "pytorch_model";
-        putPyTorchModel(modelId, pytorchModelId);
-        Response getModel = client().performRequest(
-            new Request("GET", MachineLearning.BASE_PATH + "trained_models/" + modelId
-                + "?include=definition&decompress_definition=true"));
-
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), getModel.getEntity().getContent())) {
-            GetTrainedModelsResponse response = GetTrainedModelsResponse.fromXContent(parser);
-            TrainedModelConfig model = response.getTrainedModels().get(0);
-            assertThat(model.getModelType(), equalTo(TrainedModelType.PYTORCH));
-            TrainedModelDefinition definition = model.getDefinition();
-            assertThat(definition.getTrainedModel(), instanceOf(PyTorchModel.class));
-            PyTorchModel pyTorchModel = (PyTorchModel)definition.getTrainedModel();
-            assertThat(pyTorchModel.getModelId(), equalTo(pytorchModelId));
         }
     }
 
@@ -299,13 +282,10 @@ public class TrainedModelIT extends ESRestTestCase {
         }
     }
 
-    private void putPyTorchModel(String modelId, String pytorchModelId) throws IOException {
+    private void putPyTorchModel(String modelId, String pytorchModelId, String index) throws IOException {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            TrainedModelDefinition.Builder definition = new TrainedModelDefinition.Builder()
-                .setPreProcessors(Collections.emptyList())
-                .setTrainedModel(buildPyTorch(pytorchModelId));
             TrainedModelConfig.builder()
-                .setDefinition(definition)
+                .setLocation(new TrainedModelLocation(pytorchModelId, index))
                 .setInferenceConfig(new ClassificationConfig())
                 .setModelId(modelId)
                 .setInput(new TrainedModelInput(Collections.singletonList("text")))
@@ -314,10 +294,6 @@ public class TrainedModelIT extends ESRestTestCase {
             model.setJsonEntity(XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON));
             assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
         }
-    }
-
-    private static TrainedModel buildPyTorch(String pytorchModelId) {
-        return new PyTorchModel(pytorchModelId, TargetType.CLASSIFICATION);
     }
 
     private static TrainedModel buildRegression() {

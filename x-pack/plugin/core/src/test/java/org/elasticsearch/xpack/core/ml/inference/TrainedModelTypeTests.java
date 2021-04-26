@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetworkTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.PyTorchModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 
 public class TrainedModelTypeTests extends ESTestCase {
@@ -22,10 +21,6 @@ public class TrainedModelTypeTests extends ESTestCase {
             TrainedModel tm = randomFrom(TreeTests.createRandom(TargetType.CLASSIFICATION),
                 EnsembleTests.createRandom(TargetType.CLASSIFICATION));
             assertEquals(TrainedModelType.TREE_ENSEMBLE, TrainedModelType.typeFromTrainedModel(tm));
-        }
-        {
-            TrainedModel tm = new PyTorchModel("foo", TargetType.CLASSIFICATION);
-            assertEquals(TrainedModelType.PYTORCH, TrainedModelType.typeFromTrainedModel(tm));
         }
         {
             TrainedModel tm = LangIdentNeuralNetworkTests.createRandom();

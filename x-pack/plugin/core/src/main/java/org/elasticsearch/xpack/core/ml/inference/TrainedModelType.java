@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.pytorch.PyTorchModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 
 import java.util.Locale;
@@ -39,8 +38,6 @@ public enum TrainedModelType {
     public static TrainedModelType typeFromTrainedModel(TrainedModel model) {
         if (model instanceof Ensemble || model instanceof Tree) {
             return TrainedModelType.TREE_ENSEMBLE;
-        } else if (model instanceof PyTorchModel) {
-            return TrainedModelType.PYTORCH;
         } else if (model instanceof LangIdentNeuralNetwork) {
             return TrainedModelType.LANG_IDENT;
         } else {

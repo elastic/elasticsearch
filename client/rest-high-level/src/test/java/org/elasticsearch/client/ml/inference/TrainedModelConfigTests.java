@@ -54,7 +54,8 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
             targetType.equals(TargetType.CLASSIFICATION) ?
                 ClassificationConfigTests.randomClassificationConfig() :
-                RegressionConfigTests.randomRegressionConfig());
+                RegressionConfigTests.randomRegressionConfig(),
+            randomBoolean() ? null : TrainedModelLocationTests.randomInstance());
     }
 
     @Override

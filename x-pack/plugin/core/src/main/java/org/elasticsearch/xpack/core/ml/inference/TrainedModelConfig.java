@@ -416,7 +416,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             Objects.equals(licenseLevel, that.licenseLevel) &&
             Objects.equals(defaultFieldMap, that.defaultFieldMap) &&
             Objects.equals(inferenceConfig, that.inferenceConfig) &&
-            Objects.equals(metadata, that.metadata);
+            Objects.equals(metadata, that.metadata) &&
+            Objects.equals(location, that.location);
     }
 
     @Override
@@ -435,7 +436,8 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             input,
             licenseLevel,
             inferenceConfig,
-            defaultFieldMap);
+            defaultFieldMap,
+            location);
     }
 
     public static class Builder {

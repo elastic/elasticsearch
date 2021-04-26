@@ -8,7 +8,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -17,6 +16,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -32,7 +32,6 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72012")
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Collection<RestClient> twoClients = null;
@@ -79,6 +78,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 template.endObject();
                 Request createTemplate = new Request("PUT", "/_template/gen-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
+                createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                 client().performRequest(createTemplate);
             }
         }
@@ -123,6 +123,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 template.endObject();
                 Request createTemplate = new Request("PUT", "/_template/refresh-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
+                createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                 client().performRequest(createTemplate);
             }
         }
@@ -168,6 +169,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 template.endObject();
                 Request createTemplate = new Request("PUT", "/_template/invalid-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
+                createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                 client().performRequest(createTemplate);
             }
         }

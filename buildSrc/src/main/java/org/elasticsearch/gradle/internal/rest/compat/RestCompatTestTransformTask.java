@@ -31,7 +31,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllo
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
-import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceLength;
+import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceLength;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;

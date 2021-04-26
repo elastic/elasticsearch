@@ -6,8 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.test.rest.transform.match;
+package org.elasticsearch.gradle.internal.test.rest.transform.length;
 
+import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
 import org.gradle.api.tasks.Internal;
 
 /**

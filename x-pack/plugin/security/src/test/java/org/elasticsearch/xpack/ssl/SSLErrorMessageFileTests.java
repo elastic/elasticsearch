@@ -238,13 +238,13 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String key = prefix + "." + configKey;
         settings.put(key, fileName);
 
+        final String fileErrorMessage = "cannot read configured " + fileType + " [" + fileName + "] because the file does not exist";
         Throwable exception = expectFailure(settings);
-        assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "]"));
+        assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "] - " + fileErrorMessage));
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage(
-            "cannot read configured " + fileType + " [" + fileName + "] because the file does not exist"));
+        assertThat(exception, throwableWithMessage(fileErrorMessage));
         assertThat(exception, instanceOf(SslConfigException.class));
 
         exception = exception.getCause();
@@ -262,12 +262,14 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String key = prefix + "." + configKey;
         settings.put(key, fileName);
 
+        final String fileErrorMessage = "not permitted to read the " + fileType + " file [" + fileName + "]";
+
         Throwable exception = expectFailure(settings);
-        assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "]"));
+        assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "] - " + fileErrorMessage));
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage("not permitted to read the " + fileType + " file [" + fileName + "]"));
+        assertThat(exception, throwableWithMessage(fileErrorMessage));
         assertThat(exception, instanceOf(SslConfigException.class));
 
         exception = exception.getCause();
@@ -285,14 +287,16 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String key = prefix + "." + configKey;
         settings.put(key, fileName);
 
+        final String fileErrorMessage = "cannot read configured " + fileType + " [" + fileName
+            + "] because access to read the file is blocked; SSL resources should be placed in the ["
+            + env.configFile().toAbsolutePath().toString() + "] directory";
+
         Throwable exception = expectFailure(settings);
-        assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "]"));
+        assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "] - " + fileErrorMessage));
         assertThat(exception, instanceOf(ElasticsearchSecurityException.class));
 
         exception = exception.getCause();
-        assertThat(exception, throwableWithMessage("cannot read configured " + fileType
-            + " [" + fileName + "] because access to read the file is blocked; SSL resources should be placed in the ["
-            + env.configFile().toAbsolutePath().toString() + "] directory"));
+        assertThat(exception, throwableWithMessage(fileErrorMessage));
         assertThat(exception, instanceOf(SslConfigException.class));
 
         exception = exception.getCause();

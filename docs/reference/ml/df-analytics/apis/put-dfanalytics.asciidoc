@@ -20,7 +20,7 @@ Instantiates a {dfanalytics-job}.
 == {api-prereq-title}
 
 
-It is required to have the following privileges to use this API:
+Requires the following privileges:
 
 * cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
   privilege)

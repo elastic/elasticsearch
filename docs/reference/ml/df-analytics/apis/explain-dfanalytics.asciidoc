@@ -26,7 +26,7 @@ Explains a {dataframe-analytics-config}.
 [[ml-explain-dfanalytics-prereq]]
 == {api-prereq-title}
 
-It is required to have the following privileges to use this API:
+Requires the following privileges:
 
 * cluster: `monitor_ml` (the `machine_learning_user` built-in role grants this 
   privilege)

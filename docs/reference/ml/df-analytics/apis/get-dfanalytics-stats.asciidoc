@@ -27,9 +27,8 @@ Retrieves usage information for {dfanalytics-jobs}.
 [[ml-get-dfanalytics-stats-prereq]]
 == {api-prereq-title}
 
-It is required to have the `monitor_ml` cluster privilege to use this API. The 
-required cluster privilege is included in the `machine_learning_user` built-in 
-role.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 
 [[ml-get-dfanalytics-stats-path-params]]

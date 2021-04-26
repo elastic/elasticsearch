@@ -272,9 +272,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         if (fieldNamesFieldMapper != null) {
             FieldNamesFieldType fieldNamesFieldType = fieldNamesFieldMapper.fieldType();
             if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
-                for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
-                }
+                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldType().name(), FieldNamesFieldMapper.Defaults.FIELD_TYPE));
             }
         }
     }

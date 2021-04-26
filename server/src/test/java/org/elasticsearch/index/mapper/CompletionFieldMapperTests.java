@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -24,6 +25,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -304,6 +306,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 contextSuggestField("timmy"),
                 contextSuggestField("starbucks")
             ));
+            try (TokenStream ts = indexableFields.getFields("field.subsuggest")[0].tokenStream(Lucene.WHITESPACE_ANALYZER, null)) {
+                ts.reset();
+                while (ts.incrementToken()) {}
+                ts.end();
+            }
             //unable to assert about context, covered in a REST test
         }
 

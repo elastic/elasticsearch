@@ -38,6 +38,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -500,7 +501,12 @@ public class CompletionFieldMapper extends FieldMapper {
             map.put("input", input);
             map.put("weight", weight);
             if (contexts.isEmpty() == false) {
-                map.put("contexts", contexts);
+                Map<String, List<String>> contextsAsList = new HashMap<>();
+                contexts.forEach((k, v) -> {
+                    List<String> l = new ArrayList<>(v);
+                    contextsAsList.put(k, l);
+                });
+                map.put("contexts", contextsAsList);
             }
             return map;
         }

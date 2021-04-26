@@ -1,7 +1,7 @@
 
 apply plugin: 'elasticsearch.java-rest-test'
 
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))

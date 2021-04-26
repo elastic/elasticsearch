@@ -300,9 +300,9 @@ public abstract class SslConfigurationLoader {
         return new SslConfiguration(isExplicitlyConfigured, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
     }
 
-    private SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
+    protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
         final List<Path> certificateAuthorities = resolveListSetting(CERTIFICATE_AUTHORITIES, basePath::resolve, null);
-        final Path trustStorePath = resolveSetting(TRUSTSTORE_PATH, basePath::resolve, null);
+        final Path trustStorePath = resolvePath(TRUSTSTORE_PATH, basePath);
 
         if (certificateAuthorities != null && trustStorePath != null) {
             throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" +
@@ -333,9 +333,9 @@ public abstract class SslConfigurationLoader {
     }
 
     private SslKeyConfig buildKeyConfig(Path basePath) {
-        final Path certificatePath = resolveSetting(CERTIFICATE, basePath::resolve, null);
-        final Path keyPath = resolveSetting(KEY, basePath::resolve, null);
-        final Path keyStorePath = resolveSetting(KEYSTORE_PATH, basePath::resolve, null);
+        final Path certificatePath = resolvePath(CERTIFICATE, basePath);
+        final Path keyPath = resolvePath(KEY, basePath);
+        final Path keyStorePath = resolvePath(KEYSTORE_PATH, basePath);
 
         if (certificatePath != null && keyStorePath != null) {
             throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE + "] and [" +
@@ -369,6 +369,14 @@ public abstract class SslConfigurationLoader {
         return defaultKeyConfig;
     }
 
+    protected Path resolvePath(String settingKey, Path basePath) {
+        return resolveSetting(settingKey, basePath::resolve, null);
+    }
+
+    private String expandSettingKey(String key) {
+        return settingPrefix + key;
+    }
+
     private char[] resolvePasswordSetting(String secureSettingKey, String legacySettingKey) {
         final char[] securePassword = resolveSecureSetting(secureSettingKey, null);
         final String legacyPassword = resolveSetting(legacySettingKey, Function.identity(), null);
@@ -390,7 +398,7 @@ public abstract class SslConfigurationLoader {
 
     private <V> V resolveSetting(String key, Function<String, V> parser, V defaultValue) {
         try {
-            String setting = getSettingAsString(settingPrefix + key);
+            String setting = getSettingAsString(expandSettingKey(key));
             if (setting == null || setting.isEmpty()) {
                 return defaultValue;
             }
@@ -404,7 +412,7 @@ public abstract class SslConfigurationLoader {
 
     private char[] resolveSecureSetting(String key, char[] defaultValue) {
         try {
-            char[] setting = getSecureSetting(settingPrefix + key);
+            char[] setting = getSecureSetting(expandSettingKey(key));
             if (setting == null || setting.length == 0) {
                 return defaultValue;
             }
@@ -419,7 +427,7 @@ public abstract class SslConfigurationLoader {
 
     private <V> List<V> resolveListSetting(String key, Function<String, V> parser, List<V> defaultValue) {
         try {
-            final List<String> list = getSettingAsList(settingPrefix + key);
+            final List<String> list = getSettingAsList(expandSettingKey(key));
             if (list == null || list.isEmpty()) {
                 return defaultValue;
             }

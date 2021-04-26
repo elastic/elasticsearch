@@ -13,8 +13,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslConfigurationLoader;
+import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.Environment;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -61,6 +65,16 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     @Override
     protected List<String> getSettingAsList(String key) throws Exception {
         return settings.getAsList(key);
+    }
+
+    @Override
+    protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
+        final SslTrustConfig trustConfig = super.buildTrustConfig(basePath, verificationMode, keyConfig);
+        final Path trustRestrictions = super.resolvePath("trust_restrictions.path", basePath);
+        if (trustRestrictions == null) {
+            return trustConfig;
+        }
+        return new RestrictedTrustConfig(trustRestrictions, trustConfig);
     }
 
     public SslConfiguration load(Environment env) {

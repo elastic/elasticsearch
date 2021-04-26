@@ -162,9 +162,7 @@ public final class SSLConfiguration {
 
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig) {
         final TrustConfig trustConfig = createCertChainTrustConfig(settings, keyConfig);
-        return SETTINGS_PARSER.trustRestrictionsPath.get(settings)
-                .map(path -> (TrustConfig) new RestrictedTrustConfig(path, trustConfig))
-                .orElse(trustConfig);
+        return trustConfig;
     }
 
     private static TrustConfig createCertChainTrustConfig(Settings settings, KeyConfig keyConfig) {

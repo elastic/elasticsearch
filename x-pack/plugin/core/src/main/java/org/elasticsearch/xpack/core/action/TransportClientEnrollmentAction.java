@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBu
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

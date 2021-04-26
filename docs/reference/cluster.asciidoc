@@ -78,7 +78,7 @@ GET /_nodes/ra*:2*
 
 include::cluster/allocation-explain.asciidoc[]
 
-include::cluster/enroll-node.asciidoc.asciidoc[]
+include::cluster/enroll-node.asciidoc[]
 
 include::cluster/get-settings.asciidoc[]
 

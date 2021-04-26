@@ -95,7 +95,7 @@ is the pre-calculation of the `latency` indicator values, which was done utilizi
 
 Since this example has 50 individual range buckets and 50 expectation values, they are elided for brevity.
 
-[source,console]
+[source,js]
 -------------------------------------------------
 GET apm-7.12.0-transaction-generated/_search
 {

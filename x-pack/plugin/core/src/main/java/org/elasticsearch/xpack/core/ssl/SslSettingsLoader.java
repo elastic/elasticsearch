@@ -55,7 +55,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         if (setting == null) {
             throw new IllegalArgumentException("The secure setting [" + key + "] is not registered");
         }
-        return setting.get(settings).getChars();
+        return setting.exists(settings) ? setting.get(settings).getChars() : null;
     }
 
     @Override

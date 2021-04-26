@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
+import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
@@ -520,7 +521,11 @@ public class SSLService {
                 // Drop trailing '.' so that any exception messages are consistent
                 key = key.substring(0, key.length() - 1);
             }
-            sslConfigurationMap.put(key, SslSettingsLoader.load(sslSettings, null, env));
+            try {
+                sslConfigurationMap.put(key, SslSettingsLoader.load(sslSettings, null, env));
+            } catch (SslConfigException e) {
+                throw new ElasticsearchSecurityException("failed to load SSL configuration [{}] - {}", e, key, e.getMessage());
+            }
         });
         return Collections.unmodifiableMap(sslConfigurationMap);
     }
@@ -545,8 +550,10 @@ public class SSLService {
         sslConfigurationMap.forEach((key, sslConfiguration) -> {
             try {
                 sslContextHolders.computeIfAbsent(sslConfiguration, this::createSslContext);
+            } catch (SslConfigException e) {
+                throw new ElasticsearchSecurityException("failed to load SSL configuration [{}] - {}", e, key, e.getMessage());
             } catch (Exception e) {
-                throw new ElasticsearchSecurityException("failed to load SSL configuration [{}]", e, key);
+                throw new ElasticsearchSecurityException("failed to load SSL configuration [{}] - {}", e, key, e);
             }
         });
 

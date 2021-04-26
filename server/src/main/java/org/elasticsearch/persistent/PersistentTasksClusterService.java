@@ -323,6 +323,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         return assignment;
     }
 
+    /**
+     * Returns true if the given node is marked as shutting down with any
+     * shutdown type.
+     */
     static boolean isNodeShuttingDown(final ClusterState state, final String nodeId) {
         // Right now we make no distinction between the type of shutdown, but maybe in the future we might?
         return NodesShutdownMetadata.getShutdowns(state)

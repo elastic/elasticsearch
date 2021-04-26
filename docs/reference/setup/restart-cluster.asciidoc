@@ -173,6 +173,8 @@ the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 
 include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=disable_shard_alloc]
 
+This step is only necessary for <<data-node,data nodes>>.
+
 include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=stop_indexing]
 
 include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=stop_ml]

@@ -87,7 +87,7 @@ members of the {es} cluster.
 --------------------------------------------------
 POST /_cluster/enroll_client
 {
-  "client_type" : "generic_client",            <1>
+  "client_type" : "generic_client"            <1>
 }
 --------------------------------------------------
 

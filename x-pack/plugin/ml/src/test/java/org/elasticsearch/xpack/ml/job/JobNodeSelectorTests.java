@@ -26,9 +26,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests;
-import org.elasticsearch.xpack.ml.action.TransportStartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
@@ -643,6 +643,44 @@ public class JobNodeSelectorTests extends ESTestCase {
             isMemoryTrackerRecentlyRefreshed,
             false);
         assertNotNull(result.getExecutorNode());
+    }
+
+    public void testSelectMlNodeOnlyOutOfCandidates() {
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "10");
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, "1000000000");
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("_node_name1", "_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
+                nodeAttr, Collections.emptySet(), Version.CURRENT))
+            .add(new DiscoveryNode("_node_name2", "_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9301),
+                nodeAttr, Collections.emptySet(), Version.CURRENT))
+            .build();
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        OpenJobPersistentTasksExecutorTests.addJobTask("job_with_rules", "_node_id1", null, tasksBuilder);
+        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+
+        ClusterState.Builder cs = ClusterState.builder(new ClusterName("_name"));
+        Metadata.Builder metadata = Metadata.builder();
+        cs.nodes(nodes);
+        metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
+        cs.metadata(metadata);
+
+        DiscoveryNode candidate = nodes.getNodes().get(randomBoolean() ? "_node_id1" : "_node_id2");
+
+        Job job = jobWithRules("job_with_rules");
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(),
+            Collections.singletonList(candidate),
+            job.getId(), MlTasks.JOB_TASK_NAME,
+            memoryTracker, 0, node -> nodeFilter(node, job));
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
+        assertNotNull(result.getExecutorNode());
+        assertThat(result.getExecutorNode(), equalTo(candidate.getId()));
     }
 
     public void testConsiderLazyAssignmentWithNoLazyNodes() {

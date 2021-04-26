@@ -21,8 +21,8 @@ retrieving data.
 [discrete]
 [[search-fields-param]]
 === The `fields` option
-// tag::fields-param-desc[]
 To retrieve specific fields in the search response, use the `fields` parameter.
+// tag::fields-param-desc[]
 Because it consults the index mappings, the `fields` parameter provides several
 advantages over referencing the `_source` directly. Specifically, the `fields`
 parameter:
@@ -81,12 +81,15 @@ POST my-index-000001/_search
 // TEST[setup:my_index]
 // TEST[s/_search/_search\?filter_path=hits/]
 
+// tag::fields-param-callouts[]
 <1> Both full field names and wildcard patterns are accepted.
 <2> Use the `format` parameter to apply a custom format for the field's values.
+// end::fields-param-callouts[]
 
 [discrete]
 [[search-fields-response]]
 ==== Response always returns an array
+
 The `fields` response always returns an array of values for each field,
 even when there is a single value in the `_source`. This is because {es} has
 no dedicated array type, and any field could contain multiple values. The

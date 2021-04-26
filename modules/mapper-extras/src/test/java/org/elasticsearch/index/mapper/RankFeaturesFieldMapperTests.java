@@ -145,4 +145,9 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         assumeFalse("Test implemented in a follow up", true);
         return null;
     }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;       // TODO should this allow null values?
+    }
 }

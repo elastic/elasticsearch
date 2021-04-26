@@ -390,4 +390,14 @@ class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue checkDataPathsList(Settings nodeSettings, PluginsAndModules plugins) {
+        if (Environment.dataPathUsesList(nodeSettings)) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "[path.data] in a list is deprecated, use a string value",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
+                "Configuring [path.data] with a list is deprecated. Instead specify as a string value.");
+        }
+        return null;
+    }
+
 }

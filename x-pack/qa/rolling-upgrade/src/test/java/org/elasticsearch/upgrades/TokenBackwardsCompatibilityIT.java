@@ -8,6 +8,7 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpHost;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -32,6 +33,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72012")
 public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     private Collection<RestClient> twoClients = null;

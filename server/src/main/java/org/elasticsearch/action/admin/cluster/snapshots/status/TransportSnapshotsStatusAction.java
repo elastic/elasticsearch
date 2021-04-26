@@ -283,7 +283,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 }
             }
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
-        }, listener::onFailure), threadPool.generic(), null);
+        }, listener::onFailure), threadPool.generic());
     }
 
     /**

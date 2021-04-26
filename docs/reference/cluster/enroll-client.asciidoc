@@ -90,5 +90,4 @@ POST /_cluster/enroll_client
   "client_type" : "generic_client"            <1>
 }
 --------------------------------------------------
-// TEST[skip:until we enable security for the docs cluster]
 <1> Indicates that this is a generic client instance enrolling

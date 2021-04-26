@@ -35,8 +35,8 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -232,6 +232,11 @@ public abstract class MappedFieldType {
     public Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
                                boolean caseInsensitve, SearchExecutionContext context) {
+        throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
+            + "] which is of type [" + typeName() + "]");
+    }
+
+    public Query normalizedWildcardQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }

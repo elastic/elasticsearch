@@ -83,7 +83,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public void setUpManager() {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // Build a mock client that always accepts put mappings requests
         final Client client = new NoOpClient(threadPool) {

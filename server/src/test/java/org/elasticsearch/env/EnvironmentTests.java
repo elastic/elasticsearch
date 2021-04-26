@@ -23,6 +23,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Simple unit-tests for Environment.java
@@ -155,6 +156,23 @@ public class EnvironmentTests extends ESTestCase {
 
         final String pidFile = Environment.NODE_PIDFILE_SETTING.get(environment.settings());
         assertPath(pidFile, home.resolve("pidfile"));
+    }
+
+    public void testSingleDataPathListCheck() {
+        {
+            final Settings settings = Settings.builder().build();
+            assertThat(Environment.dataPathUsesList(settings), is(false));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
     }
 
     private void assertPath(final String actual, final Path expected) {

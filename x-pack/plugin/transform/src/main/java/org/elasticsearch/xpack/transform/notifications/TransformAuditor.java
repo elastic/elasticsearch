@@ -14,6 +14,7 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -70,6 +71,13 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
                 isResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();
             }
         });
+    }
+
+    @Override
+    protected void indexDoc(ToXContent toXContent) {
+        if (isResetMode == false) {
+            super.indexDoc(toXContent);
+        }
     }
 
     @Override

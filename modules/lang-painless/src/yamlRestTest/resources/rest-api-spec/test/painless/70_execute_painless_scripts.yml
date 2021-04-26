@@ -193,8 +193,9 @@ setup:
             document:
               point: "30.0,40.0"
             index: "my-index"
-  - close_to: { result.0.lat: { value: 31.0, error: 0.00001 } }
-  - close_to: { result.0.lon: { value: 39.0, error: 0.00001 } }
+  - close_to: { result.0.coordinates.0: { value: 39.0, error: 0.00001 } }
+  - close_to: { result.0.coordinates.1: { value: 31.0, error: 0.00001 } }
+  - match: { result.0.type: "Point" }
 
 ---
 "Execute with geo point field context (multi-value)":
@@ -211,10 +212,12 @@ setup:
               p0: "30.0,40.0"
               p1: "40.0,30.0"
             index: "my-index"
-  - close_to: { result.0.lat: { value: 31.0, error: 0.00001 } }
-  - close_to: { result.0.lon: { value: 39.0, error: 0.00001 } }
-  - close_to: { result.1.lat: { value: 41.0, error: 0.00001 } }
-  - close_to: { result.1.lon: { value: 29.0, error: 0.00001 } }
+  - close_to: { result.0.coordinates.0: { value: 39.0, error: 0.00001 } }
+  - close_to: { result.0.coordinates.1: { value: 31.0, error: 0.00001 } }
+  - match: { result.0.type: "Point" }
+  - close_to: { result.1.coordinates.0: { value: 29.0, error: 0.00001 } }
+  - close_to: { result.1.coordinates.1: { value: 41.0, error: 0.00001 } }
+  - match: { result.1.type: "Point" }
 
 ---
 "Execute with ip field context (single-value)":

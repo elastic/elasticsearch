@@ -8,7 +8,6 @@
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
@@ -199,9 +198,10 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(doc['test_point'].value.lat, doc['test_point'].value.lon)", emptyMap()),
                 "geo_point_field", contextSetup);
         Response response = innerShardOperation(request, scriptService, indexService);
-        List<GeoPoint> points = (List<GeoPoint>)response.getResult();
-        assertEquals(30.0, points.get(0).getLat(), 0.00001);
-        assertEquals(40.0, points.get(0).getLon(), 0.00001);
+        List<Map<String, Object>> points = (List<Map<String, Object>>)response.getResult();
+        assertEquals(40.0, (double)((List<Object>)points.get(0).get("coordinates")).get(0), 0.00001);
+        assertEquals(30.0, (double)((List<Object>)points.get(0).get("coordinates")).get(1), 0.00001);
+        assertEquals("Point", points.get(0).get("type"));
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
@@ -209,11 +209,13 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
                 "emit(78.96, 12.12); emit(13.45, 56.78);",
                 emptyMap()), "geo_point_field", contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
-        points = (List<GeoPoint>)response.getResult();
-        assertEquals(78.96, points.get(0).getLat(), 0.00001);
-        assertEquals(12.12, points.get(0).getLon(), 0.00001);
-        assertEquals(13.45, points.get(1).getLat(), 0.00001);
-        assertEquals(56.78, points.get(1).getLon(), 0.00001);
+        points = (List<Map<String, Object>>)response.getResult();
+        assertEquals(12.12, (double)((List<Object>)points.get(0).get("coordinates")).get(0), 0.00001);
+        assertEquals(78.96, (double)((List<Object>)points.get(0).get("coordinates")).get(1), 0.00001);
+        assertEquals("Point", points.get(0).get("type"));
+        assertEquals(56.78, (double)((List<Object>)points.get(1).get("coordinates")).get(0), 0.00001);
+        assertEquals(13.45, (double)((List<Object>)points.get(1).get("coordinates")).get(1), 0.00001);
+        assertEquals("Point", points.get(1).get("type"));
     }
 
     public void testIpFieldExecutionContext() throws IOException {

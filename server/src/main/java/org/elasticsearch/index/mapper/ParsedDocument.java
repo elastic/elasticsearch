@@ -9,10 +9,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.util.List;
 
@@ -34,6 +37,37 @@ public class ParsedDocument {
     private XContentType xContentType;
 
     private Mapping dynamicMappingsUpdate;
+
+    public static ParsedDocument noopTombstone(String index, String reason) {
+        ParsedDocument doc = deleteTombstone(index, null);
+        // Store the reason of a noop as a raw string in the _source field
+        final BytesRef byteRef = new BytesRef(reason);
+        doc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
+        return doc;
+    }
+
+    public static ParsedDocument deleteTombstone(String index, String id) {
+        SourceToParse source = new SourceToParse(index, id == null ? "" : id, new BytesArray("{}"), XContentType.JSON);
+        ParseContext.InternalParseContext context = new ParseContext.InternalParseContext(null, 1,null, source, null);
+        if (id != null) {
+            IdFieldMapper.NO_FIELDDATA_INSTANCE.preParse(context);
+        }
+        VersionFieldMapper.INSTANCE.preParse(context);
+        SeqNoFieldMapper.INSTANCE.preParse(context);
+        ParsedDocument doc = new ParsedDocument(
+            context.version(),
+            context.seqID(),
+            context.sourceToParse().id(),
+            source.routing(),
+            context.docs(),
+            context.sourceToParse().source(),
+            context.sourceToParse().getXContentType(),
+            null
+        );
+        doc.seqID.tombstoneField.setLongValue(1);
+        doc.rootDoc().add(doc.seqID.tombstoneField);
+        return doc;
+    }
 
     public ParsedDocument(Field version,
                           SeqNoFieldMapper.SequenceIDFields seqID,
@@ -65,17 +99,6 @@ public class ParsedDocument {
         this.seqID.seqNo.setLongValue(sequenceNumber);
         this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
         this.seqID.primaryTerm.setLongValue(primaryTerm);
-    }
-
-    /**
-     * Makes the processing document as a tombstone document rather than a regular document.
-     * Tombstone documents are stored in Lucene index to represent delete operations or Noops.
-     */
-    ParsedDocument toTombstone() {
-        assert docs().size() == 1 : "Tombstone should have a single doc [" + docs() + "]";
-        this.seqID.tombstoneField.setLongValue(1);
-        rootDoc().add(this.seqID.tombstoneField);
-        return this;
     }
 
     public String routing() {

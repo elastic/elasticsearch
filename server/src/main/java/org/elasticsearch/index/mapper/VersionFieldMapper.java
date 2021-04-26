@@ -76,4 +76,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    public static final VersionFieldMapper INSTANCE = new VersionFieldMapper();
 }

@@ -259,4 +259,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    public static final IdFieldMapper NO_FIELDDATA_INSTANCE = new IdFieldMapper(() -> false);
 }

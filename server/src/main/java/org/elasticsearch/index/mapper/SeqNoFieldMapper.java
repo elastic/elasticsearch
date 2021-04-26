@@ -195,4 +195,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
+    public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
+
 }

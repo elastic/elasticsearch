@@ -6,6 +6,14 @@
 
 Provides an explanation for the allocation of a shard in the cluster.
 
+//////
+[source,console]
+--------------------------------------------------
+PUT /my-index-000001
+--------------------------------------------------
+// TESTSETUP
+//////
+
 [source,console]
 --------------------------------------------------
 GET /_cluster/allocation/explain
@@ -79,15 +87,6 @@ it finds by sending an empty body for the request.
 
 [[cluster-allocation-explain-api-examples]]
 ==== {api-examples-title}
-
-
-//////
-[source,console]
---------------------------------------------------	
-PUT /my-index-000001	
---------------------------------------------------	
-// TESTSETUP
-//////
 
 [source,console]
 --------------------------------------------------

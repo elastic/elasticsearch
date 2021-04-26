@@ -90,7 +90,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             @Override
             public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
-                final boolean requireAuth = shouldRequireExistingAuthentication();
+                final boolean requireAuth = XPackSettings.SECURITY_ENABLED.get(settings);
                 // the transport in core normally does this check, BUT since we are serializing to a string header we need to do it
                 // ourselves otherwise we wind up using a version newer than what we can actually send
                 final Version minVersion = Version.min(connection.getVersion(), Version.CURRENT);
@@ -117,22 +117,6 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                 }
             }
         };
-    }
-
-    /**
-     * Based on the current cluster state &amp; license, should we require that all outgoing actions have an authentication header
-     * of some sort?
-     */
-    private boolean shouldRequireExistingAuthentication() {
-        // If the license state is MISSING, then auth is not allowed.
-        // However this makes it difficult to installing a valid license, because that might implicitly turn on security.
-        // When security is enabled on the master node it will then reject any actions that do not have authentication headers
-        // but there may be in-flight internal actions (that will not have authentication headers) such as "cluster/shard/started"
-        // which we don't want to reject.
-        // So, we always send authentication headers for actions that have an implied user (system-user or explicit-origin)
-        // and then for other (user originated) actions we enforce that there is an authentication header that we can send, iff the
-        // current license allows authentication.
-        return licenseState.isSecurityEnabled() && isStateNotRecovered == false;
     }
 
     private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
@@ -162,7 +146,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                                                                                     boolean forceExecution,
                                                                                     TransportRequestHandler<T> actualHandler) {
         return new ProfileSecuredRequestHandler<>(logger, action, forceExecution, executor, actualHandler, profileFilters,
-                licenseState, threadPool);
+                settings, threadPool);
     }
 
     private Map<String, ServerTransportFilter> initializeProfileFilters(DestructiveOperations destructiveOperations) {
@@ -176,7 +160,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             final SSLConfiguration profileConfiguration = entry.getValue();
             final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
             profileFilters.put(entry.getKey(), new ServerTransportFilter(authcService, authzService, threadPool.getThreadContext(),
-                extractClientCert, destructiveOperations, securityContext, licenseState));
+                extractClientCert, destructiveOperations, securityContext, settings));
         }
 
         return Collections.unmodifiableMap(profileFilters);
@@ -187,7 +171,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         private final String action;
         private final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
-        private final XPackLicenseState licenseState;
+        private final Settings settings;
         private final ThreadContext threadContext;
         private final String executorName;
         private final ThreadPool threadPool;
@@ -196,13 +180,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
 
         ProfileSecuredRequestHandler(Logger logger, String action, boolean forceExecution, String executorName,
                                      TransportRequestHandler<T> handler, Map<String, ServerTransportFilter> profileFilters,
-                                     XPackLicenseState licenseState, ThreadPool threadPool) {
+                                     Settings settings, ThreadPool threadPool) {
             this.logger = logger;
             this.action = action;
             this.executorName = executorName;
             this.handler = handler;
             this.profileFilters = profileFilters;
-            this.licenseState = licenseState;
+            this.settings = settings;
             this.threadContext = threadPool.getThreadContext();
             this.threadPool = threadPool;
             this.forceExecution = forceExecution;
@@ -251,7 +235,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext(true)) {
-                if (licenseState.isSecurityEnabled()) {
+                if (XPackSettings.SECURITY_ENABLED.get(settings)) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

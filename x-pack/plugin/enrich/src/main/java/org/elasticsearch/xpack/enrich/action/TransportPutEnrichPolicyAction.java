@@ -35,9 +35,9 @@ import org.elasticsearch.xpack.enrich.EnrichStore;
 
 public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterNodeAction<PutEnrichPolicyAction.Request> {
 
-    private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final Client client;
+    private final Settings settings;
 
     @Inject
     public TransportPutEnrichPolicyAction(
@@ -60,7 +60,7 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        this.licenseState = licenseState;
+        this.settings = settings;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -75,7 +75,7 @@ public class TransportPutEnrichPolicyAction extends AcknowledgedTransportMasterN
         ActionListener<AcknowledgedResponse> listener
     ) {
 
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             RoleDescriptor.IndicesPrivileges privileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(request.getPolicy().getIndices())
                 .privileges("read")

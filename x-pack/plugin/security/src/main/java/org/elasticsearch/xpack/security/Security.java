@@ -282,7 +282,6 @@ import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.support.SecurityStatusChangeListener;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -438,7 +437,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
                 ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
                 : Collections.emptyList();
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState());
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrails, getLicenseState(), settings);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -532,7 +531,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
         // minimal
         getLicenseState().addListener(allRolesStore::invalidateAll);
-        getLicenseState().addListener(new SecurityStatusChangeListener(getLicenseState()));
 
         final AuthenticationFailureHandler failureHandler = createAuthenticationFailureHandler(realms, extensionComponents);
         final OperatorPrivilegesService operatorPrivilegesService;
@@ -556,7 +554,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             requestInterceptors.addAll(Arrays.asList(
                 new SearchRequestInterceptor(threadPool, getLicenseState()),
                 new UpdateRequestInterceptor(threadPool, getLicenseState()),
-                new BulkShardRequestInterceptor(threadPool, getLicenseState())
+                new BulkShardRequestInterceptor(threadPool, getLicenseState(), settings)
             ));
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
@@ -581,7 +579,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
         securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, auditTrailService, getLicenseState(),
-            threadPool, securityContext.get(), destructiveOperations));
+            threadPool, securityContext.get(), settings,  destructiveOperations));
 
         components.add(new SecurityUsageServices(realms, allRolesStore, nativeRoleMappingStore, ipFilter.get()));
 
@@ -808,17 +806,18 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                 dlsBitsetCache.get(),
                                 securityContext.get(),
                                 getLicenseState(),
-                                indexService.getScriptService()));
+                                indexService.getScriptService(),
+                                settings));
                 /*
                  * We need to forcefully overwrite the query cache implementation to use security's opt-out query cache implementation. This
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully
                  * overwrite the query cache implementation to prevent data leakage to unauthorized users.
                  */
                 module.forceQueryCacheProvider(
-                        (settings, cache) -> {
+                        (indexSettings, cache) -> {
                             final OptOutQueryCache queryCache =
-                                    new OptOutQueryCache(settings, cache, threadContext.get(), getLicenseState());
-                            queryCache.listenForLicenseStateChanges();
+                                    new OptOutQueryCache(indexSettings, cache, threadContext.get(), settings);
+
                             return queryCache;
                         });
             }
@@ -827,7 +826,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             // attaches information to the scroll context so that we can validate the user that created the scroll against
             // the user that is executing a scroll operation
             module.addSearchOperationListener(
-                    new SecuritySearchOperationListener(securityContext.get(), getLicenseState(), auditTrailService.get()));
+                    new SecuritySearchOperationListener(securityContext.get(), settings, auditTrailService.get()));
         }
     }
 
@@ -955,7 +954,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Collections.singletonMap(SetSecurityUserProcessor.TYPE,
-            new SetSecurityUserProcessor.Factory(securityContext::get, this::getLicenseState));
+            new SetSecurityUserProcessor.Factory(securityContext::get, settings));
     }
 
     /**
@@ -1120,7 +1119,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final boolean ssl = HTTP_SSL_ENABLED.get(settings);
         final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
         boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
-        return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), secondayAuthc.get(),
+        return handler -> new SecurityRestFilter(settings, threadContext, authcService.get(), secondayAuthc.get(),
             handler, extractClientCertificate);
     }
 
@@ -1153,7 +1152,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled) {
             return index -> {
                 XPackLicenseState licenseState = getLicenseState();
-                if (licenseState.isSecurityEnabled() == false) {
+                if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
                     return MapperPlugin.NOOP_FIELD_PREDICATE;
                 }
                 IndicesAccessControl indicesAccessControl = threadContext.get().getTransient(

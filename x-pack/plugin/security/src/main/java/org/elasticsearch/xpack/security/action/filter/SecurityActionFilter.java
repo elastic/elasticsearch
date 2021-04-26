@@ -22,12 +22,14 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
@@ -56,16 +58,18 @@ public class SecurityActionFilter implements ActionFilter {
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
+    private final Settings settings;
 
     public SecurityActionFilter(AuthenticationService authcService, AuthorizationService authzService,
                                 AuditTrailService auditTrailService, XPackLicenseState licenseState, ThreadPool threadPool,
-                                SecurityContext securityContext, DestructiveOperations destructiveOperations) {
+                                SecurityContext securityContext, Settings settings, DestructiveOperations destructiveOperations) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.auditTrailService = auditTrailService;
         this.licenseState = licenseState;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = securityContext;
+        this.settings = settings;
         this.destructiveOperations = destructiveOperations;
     }
 
@@ -88,7 +92,7 @@ public class SecurityActionFilter implements ActionFilter {
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             final ActionListener<Response> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
             final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
@@ -110,8 +114,8 @@ public class SecurityActionFilter implements ActionFilter {
                 listener.onFailure(e);
             }
         } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (licenseState.isSecurityEnabled() == false) {
-                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a [" +
+            if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
+                listener.onFailure(new ElasticsearchException("Security must be enabled when using a [" +
                         licenseState.getOperationMode().description() + "] license. " +
                         "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
                         "and restart the node."));
@@ -162,7 +166,7 @@ public class SecurityActionFilter implements ActionFilter {
                                             response);
                                     l.onResponse(response);
                                 }))));
-                    } else if (licenseState.isSecurityEnabled() == false) {
+                    } else if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
                         listener.onResponse(null);
                     } else {
                         listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

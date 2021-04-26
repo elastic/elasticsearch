@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -58,9 +59,8 @@ public class AuditTrailServiceTests extends ESTestCase {
         }
         auditTrails = unmodifiableList(auditTrailsBuilder);
         licenseState = mock(XPackLicenseState.class);
-        service = new AuditTrailService(auditTrails, licenseState);
+        service = new AuditTrailService(auditTrails, licenseState, Settings.EMPTY);
         isAuditingAllowed = randomBoolean();
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(isAuditingAllowed);
         token = mock(AuthenticationToken.class);
         request = mock(TransportRequest.class);

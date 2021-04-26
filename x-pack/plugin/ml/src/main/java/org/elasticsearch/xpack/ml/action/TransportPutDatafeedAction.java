@@ -72,6 +72,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final JobConfigProvider jobConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
+    private final Settings settings;
 
     @Inject
     public TransportPutDatafeedAction(Settings settings, TransportService transportService,
@@ -88,6 +89,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.xContentRegistry = xContentRegistry;
+        this.settings = settings;
     }
 
     @Override
@@ -95,7 +97,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                    ActionListener<PutDatafeedAction.Response> listener) {
         // If security is enabled only create the datafeed if the user requesting creation has
         // permission to read the indices the datafeed is going to read from
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String[] indices = request.getDatafeed().getIndices().toArray(new String[0]);
 

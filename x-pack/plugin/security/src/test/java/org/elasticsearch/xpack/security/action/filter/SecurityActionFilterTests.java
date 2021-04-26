@@ -82,7 +82,6 @@ public class SecurityActionFilterTests extends ESTestCase {
         when(auditTrailService.get()).thenReturn(auditTrail);
         chain = mock(ActionFilterChain.class);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -100,7 +99,7 @@ public class SecurityActionFilterTests extends ESTestCase {
 
         SecurityContext securityContext = new SecurityContext(settings, threadContext);
         filter = new SecurityActionFilter(authcService, authzService, auditTrailService, licenseState, threadPool,
-                securityContext, destructiveOperations);
+                securityContext, settings, destructiveOperations);
     }
 
     public void testApply() throws Exception {
@@ -276,7 +275,6 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionListener listener = mock(ActionListener.class);
         ActionFilterChain chain = mock(ActionFilterChain.class);
         Task task = mock(Task.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
         filter.apply(task, "_action", request, listener, chain);
         verifyZeroInteractions(authcService);
         verifyZeroInteractions(authzService);

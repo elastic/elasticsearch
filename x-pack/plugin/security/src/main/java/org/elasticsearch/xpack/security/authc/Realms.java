@@ -18,6 +18,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -111,7 +112,7 @@ public class Realms implements Iterable<Realm> {
     public List<Realm> getUnlicensedRealms() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
         // If auth is not allowed, then everything is unlicensed
-        if (licenseStateSnapshot.isSecurityEnabled() == false) {
+        if ( XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return Collections.unmodifiableList(realms);
         }
 
@@ -137,7 +138,7 @@ public class Realms implements Iterable<Realm> {
 
     public List<Realm> asList() {
         final XPackLicenseState licenseStateSnapshot = licenseState.copyCurrentLicenseState();
-        if (licenseStateSnapshot.isSecurityEnabled() == false) {
+        if ( XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             return Collections.emptyList();
         }
         if (licenseStateSnapshot.checkFeature(Feature.SECURITY_ALL_REALMS)) {

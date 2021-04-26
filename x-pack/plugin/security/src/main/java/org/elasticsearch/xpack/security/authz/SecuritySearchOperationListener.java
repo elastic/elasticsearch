@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.license.XPackLicenseState;
@@ -16,6 +17,7 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -40,12 +42,12 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
 public final class SecuritySearchOperationListener implements SearchOperationListener {
 
     private final SecurityContext securityContext;
-    private final XPackLicenseState licenseState;
     private final AuditTrailService auditTrailService;
+    private final Settings settings;
 
-    public SecuritySearchOperationListener(SecurityContext securityContext, XPackLicenseState licenseState, AuditTrailService auditTrail) {
+    public SecuritySearchOperationListener(SecurityContext securityContext, Settings settings, AuditTrailService auditTrail) {
         this.securityContext = securityContext;
-        this.licenseState = licenseState;
+        this.settings = settings;
         this.auditTrailService = auditTrail;
     }
 
@@ -54,7 +56,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void onNewScrollContext(ReaderContext readerContext) {
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             readerContext.putInContext(AuthenticationField.AUTHENTICATION_KEY, securityContext.getAuthentication());
             // store the DLS and FLS permissions of the initial search request that created the scroll
             // this is then used to assert the DLS/FLS permission for the scroll search action
@@ -71,7 +73,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
      */
     @Override
     public void validateReaderContext(ReaderContext readerContext, TransportRequest request) {
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             if (readerContext.scrollContext() != null) {
                 final Authentication originalAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
                 final Authentication current = securityContext.getAuthentication();
@@ -103,7 +105,7 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     }
 
     void ensureIndicesAccessControlForScrollThreadContext(SearchContext searchContext) {
-        if (licenseState.isSecurityEnabled() && searchContext.readerContext().scrollContext() != null) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings) && searchContext.readerContext().scrollContext() != null) {
             IndicesAccessControl threadIndicesAccessControl =
                     securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             if (null == threadIndicesAccessControl) {

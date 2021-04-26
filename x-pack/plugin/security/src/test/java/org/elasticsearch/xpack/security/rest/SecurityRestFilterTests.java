@@ -75,12 +75,10 @@ public class SecurityRestFilterTests extends ESTestCase {
     public void init() throws Exception {
         authcService = mock(AuthenticationService.class);
         channel = mock(RestChannel.class);
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         restHandler = mock(RestHandler.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         secondaryAuthenticator = new SecondaryAuthenticator(Settings.EMPTY, threadContext, authcService);
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(Settings.EMPTY, threadContext, authcService, secondaryAuthenticator, restHandler, false);
     }
 
     public void testProcess() throws Exception {
@@ -140,19 +138,8 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertThat(secondaryAuthRef.get().getAuthentication(), sameInstance(secondaryAuthentication));
     }
 
-    public void testProcessBasicLicense() throws Exception {
-        RestRequest request = mock(RestRequest.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
-        filter.handleRequest(request, channel, null);
-        assertWarnings("Elasticsearch built-in security features are not enabled. Without authentication, your cluster " +
-            "could be accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-            Version.CURRENT.minor + "/security-minimal-setup.html to enable security.");
-        verify(restHandler).handleRequest(request, channel, null);
-        verifyZeroInteractions(channel, authcService);
-    }
-
     public void testProcessAuthenticationFailedNoTrace() throws Exception {
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(Settings.EMPTY, threadContext, authcService, secondaryAuthenticator, restHandler, false);
         testProcessAuthenticationFailed(randomBoolean() ? authenticationError("failed authn") : authenticationError("failed authn with " +
                 "cause", new ElasticsearchException("cause")), RestStatus.UNAUTHORIZED, true, true, false);
         testProcessAuthenticationFailed(randomBoolean() ? authenticationError("failed authn") : authenticationError("failed authn with " +
@@ -234,7 +221,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), any(ActionListener.class));
-        filter = new SecurityRestFilter(licenseState, threadContext, authcService, secondaryAuthenticator, restHandler, false);
+        filter = new SecurityRestFilter(Settings.EMPTY, threadContext, authcService, secondaryAuthenticator, restHandler, false);
 
         filter.handleRequest(restRequest, channel, null);
 

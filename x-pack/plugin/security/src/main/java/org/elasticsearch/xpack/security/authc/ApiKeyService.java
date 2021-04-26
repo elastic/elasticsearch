@@ -749,11 +749,11 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isSecurityEnabled();
+        return enabled && XPackSettings.SECURITY_ENABLED.get(settings);
     }
 
     public void ensureEnabled() {
-        if (licenseState.isSecurityEnabled() == false) {
+        if ( XPackSettings.SECURITY_ENABLED.get(settings) == false) {
             throw LicenseUtils.newComplianceException("security is not enabled");
         }
         if (enabled == false) {

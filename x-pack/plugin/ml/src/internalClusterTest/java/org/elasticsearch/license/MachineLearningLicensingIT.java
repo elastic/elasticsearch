@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License.OperationMode;
@@ -699,12 +700,13 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
         termsAgg.subAggregation(avgAgg);
 
         XPackLicenseState licenseState = internalCluster().getInstance(XPackLicenseState.class);
+        Settings settings = internalCluster().getInstance(Settings.class);
         ModelLoadingService modelLoading = internalCluster().getInstance(ModelLoadingService.class);
 
         Map<String, String> bucketPaths = new HashMap<>();
         bucketPaths.put("feature1", "avg_feature1");
         InferencePipelineAggregationBuilder inferenceAgg =
-            new InferencePipelineAggregationBuilder("infer_agg", new SetOnce<>(modelLoading), licenseState, bucketPaths);
+            new InferencePipelineAggregationBuilder("infer_agg", new SetOnce<>(modelLoading), licenseState, settings, bucketPaths);
         inferenceAgg.setModelId(modelId);
 
         termsAgg.subAggregation(inferenceAgg);

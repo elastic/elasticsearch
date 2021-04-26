@@ -24,6 +24,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -66,7 +67,6 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
         IndexShard indexShard = mock(IndexShard.class);
@@ -88,7 +88,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testDefaultMetaFields() throws Exception {
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService) {
+                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService, Settings.EMPTY) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
@@ -118,7 +118,7 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(false);
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService);
+                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, scriptService, Settings.EMPTY);
         DirectoryReader reader = securityIndexReaderWrapper.apply(esIn);
         assertThat(reader, sameInstance(esIn));
     }
@@ -152,7 +152,8 @@ public class SecurityIndexReaderWrapperUnitTests extends ESTestCase {
 
     public void testFieldPermissionsWithFieldExceptions() throws Exception {
         securityIndexReaderWrapper =
-                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, null);
+                new SecurityIndexReaderWrapper(null, null, securityContext, licenseState, null,
+                    Settings.EMPTY);
         String[] grantedFields = new String[]{};
         String[] deniedFields;
         Set<String> expected = new HashSet<>(META_FIELDS);

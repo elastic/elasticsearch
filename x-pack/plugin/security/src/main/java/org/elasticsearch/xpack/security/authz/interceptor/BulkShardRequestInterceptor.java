@@ -14,11 +14,13 @@ import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.MemoizedSupplier;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
@@ -34,16 +36,18 @@ public class BulkShardRequestInterceptor implements RequestInterceptor {
 
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
+    private final Settings settings;
 
-    public BulkShardRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
+    public BulkShardRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, Settings settings) {
         this.threadContext = threadPool.getThreadContext();
         this.licenseState = licenseState;
+        this.settings = settings;
     }
 
     @Override
     public void intercept(RequestInfo requestInfo, AuthorizationEngine authzEngine, AuthorizationInfo authorizationInfo,
                           ActionListener<Void> listener) {
-        boolean shouldIntercept = licenseState.isSecurityEnabled();
+        boolean shouldIntercept = XPackSettings.SECURITY_ENABLED.get(settings);
         var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
         if (requestInfo.getRequest() instanceof BulkShardRequest && shouldIntercept) {
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);

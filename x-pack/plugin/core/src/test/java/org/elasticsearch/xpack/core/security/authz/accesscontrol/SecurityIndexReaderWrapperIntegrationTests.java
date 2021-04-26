@@ -45,6 +45,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -93,7 +94,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
 
         Directory directory = newDirectory();
@@ -146,7 +146,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 FieldPermissions(),
                 DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery))));
             SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> searchExecutionContext,
-                bitsetCache, securityContext, licenseState, scriptService) {
+                bitsetCache, securityContext, licenseState, scriptService, Settings.EMPTY) {
 
                 @Override
                 protected IndicesAccessControl getIndicesAccessControl() {
@@ -223,10 +223,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_DLS_FLS)).thenReturn(true);
         SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> searchExecutionContext,
-                bitsetCache, securityContext, licenseState, scriptService) {
+                bitsetCache, securityContext, licenseState, scriptService, Settings.EMPTY) {
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {

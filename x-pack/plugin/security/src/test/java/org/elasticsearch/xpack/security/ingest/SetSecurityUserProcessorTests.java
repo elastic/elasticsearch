@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -39,14 +40,11 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
     private ThreadContext threadContext;
     private SecurityContext securityContext;
-    private XPackLicenseState licenseState;
 
     @Before
     public void setupObjects() {
         threadContext = new ThreadContext(Settings.EMPTY);
         securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        licenseState = Mockito.mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
     }
 
     public void testProcessorWithData() throws Exception {
@@ -55,7 +53,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
@@ -96,7 +94,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
         // Still holds data for realm and authentication type
@@ -109,17 +107,17 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
     public void testNoCurrentUser() throws Exception {
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(),
             equalTo("There is no authenticated user - the [set_security_user] processor requires an authenticated user"));
     }
 
     public void testSecurityDisabled() throws Exception {
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
+        Settings securityDisabledSettings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, securityDisabledSettings, "_field", EnumSet.allOf(Property.class));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> processor.execute(ingestDocument));
         assertThat(e.getMessage(), equalTo("Security (authentication) is not enabled on this cluster, so there is no active user" +
             " - the [set_security_user] processor cannot be used without security"));
@@ -131,7 +129,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.USERNAME));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.USERNAME));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -146,7 +144,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.ROLES));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.ROLES));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -165,7 +163,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor
-            = new SetSecurityUserProcessor("_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.FULL_NAME));
+            = new SetSecurityUserProcessor("_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.FULL_NAME));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -180,7 +178,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.EMAIL));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.EMAIL));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -199,7 +197,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.METADATA));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.METADATA));
         processor.execute(ingestDocument);
 
         @SuppressWarnings("unchecked")
@@ -217,7 +215,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         authentication.writeToContext(threadContext);
 
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.of(Property.USERNAME));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.of(Property.USERNAME));
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         ingestDocument.setFieldValue("_field", "test");
@@ -257,7 +255,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
@@ -288,7 +286,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             "_field", Map.of("api_key", Map.of("version", 42), "realm", Map.of("id", 7))
         )), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);
@@ -311,7 +309,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
         SetSecurityUserProcessor processor = new SetSecurityUserProcessor(
-            "_tag", null, securityContext, licenseState, "_field", EnumSet.allOf(Property.class));
+            "_tag", null, securityContext, Settings.EMPTY, "_field", EnumSet.allOf(Property.class));
         processor.execute(ingestDocument);
 
         Map<String, Object> result = ingestDocument.getFieldValue("_field", Map.class);

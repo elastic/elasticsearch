@@ -15,8 +15,8 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -25,6 +25,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.transport.nio.NioTcpChannel;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -47,18 +48,18 @@ final class ServerTransportFilter {
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
-    private final XPackLicenseState licenseState;
+    private final Settings settings;
 
     ServerTransportFilter(AuthenticationService authcService, AuthorizationService authzService,
                 ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                SecurityContext securityContext, XPackLicenseState licenseState) {
+                SecurityContext securityContext, Settings settings) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.threadContext = threadContext;
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
-        this.licenseState = licenseState;
+        this.settings = settings;
     }
 
     /**
@@ -111,7 +112,7 @@ final class ServerTransportFilter {
                 } else {
                     authzService.authorize(authentication, securityAction, request, listener);
                 }
-            } else if (licenseState.isSecurityEnabled() == false) {
+            } else if (XPackSettings.SECURITY_ENABLED.get(settings) == false) {
                 listener.onResponse(null);
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));

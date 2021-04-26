@@ -47,7 +47,7 @@ public final class TransformAggregations {
      *
      * Created a new aggs?
      *
-     * Please add it to the list (sorted) together with a comment containing a link to the created github issue.
+     * Please add it to the list (sorted) together with a comment containing a link to the created GitHub issue.
      */
     private static final List<String> UNSUPPORTED_AGGS = Arrays.asList(
         "adjacency_matrix",

@@ -26,6 +26,7 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
 
     private static final BiFunction<String, String, String> EMPTY_SYSTEM_PROPERTIES = (key, defaultValue) -> defaultValue;
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71717")
     public void testGetSystemTrustStoreWithNoSystemProperties() throws Exception {
         final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig((key, defaultValue) -> defaultValue);
         assertThat(trustConfig.getDependentFiles(), emptyIterable());
@@ -33,6 +34,7 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
         assertStandardIssuers(trustManager);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71717")
     public void testGetNonPKCS11TrustStoreWithPasswordSet() throws Exception {
         final DefaultJdkTrustConfig trustConfig = new DefaultJdkTrustConfig(EMPTY_SYSTEM_PROPERTIES, "fakepassword".toCharArray());
         assertThat(trustConfig.getDependentFiles(), emptyIterable());

@@ -129,7 +129,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
@@ -233,8 +232,6 @@ public final class InternalTestCluster extends TestCluster {
 
     private final boolean forbidPrivateIndexSettings;
 
-    private final int numDataPaths;
-
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -272,8 +269,7 @@ public final class InternalTestCluster extends TestCluster {
                 nodePrefix,
                 mockPlugins,
                 clientWrapper,
-                true,
-                false);
+                true);
     }
 
     public InternalTestCluster(
@@ -289,8 +285,7 @@ public final class InternalTestCluster extends TestCluster {
             final String nodePrefix,
             final Collection<Class<? extends Plugin>> mockPlugins,
             final Function<Client, Client> clientWrapper,
-            final boolean forbidPrivateIndexSettings,
-            final boolean forceSingleDataPath) {
+            final boolean forbidPrivateIndexSettings) {
         super(clusterSeed);
         this.autoManageMasterNodes = autoManageMasterNodes;
         this.clientWrapper = clientWrapper;
@@ -352,8 +347,6 @@ public final class InternalTestCluster extends TestCluster {
             numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes,
             autoManageMasterNodes ? "auto-managed" : "manual");
         this.nodeConfigurationSource = nodeConfigurationSource;
-        // use 1 data path if we are forced to, or 80% of the time that we are not, otherwise use between 2 and 4 data paths
-        numDataPaths = forceSingleDataPath || random.nextDouble() < 0.8 ? 1 : RandomNumbers.randomIntBetween(random, 2, 4);
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
@@ -631,14 +624,7 @@ public final class InternalTestCluster extends TestCluster {
         final Settings.Builder updatedSettings = Settings.builder();
 
         updatedSettings.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
-
-        if (numDataPaths > 1) {
-            updatedSettings.putList(Environment.PATH_DATA_SETTING.getKey(), IntStream.range(0, numDataPaths).mapToObj(i ->
-                baseDir.resolve(name).resolve("d" + i).toString()).collect(Collectors.toList()));
-        } else {
-            updatedSettings.put(Environment.PATH_DATA_SETTING.getKey(), baseDir.resolve(name));
-        }
-
+        updatedSettings.put(Environment.PATH_DATA_SETTING.getKey(), baseDir.resolve(name));
         updatedSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve(name + "-shared"));
 
         // allow overriding the above

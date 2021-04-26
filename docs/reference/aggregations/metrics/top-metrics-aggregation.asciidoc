@@ -334,8 +334,8 @@ Which returns:
 ===== Mixed sort types
 
 Sorting `top_metrics` by a field that has different types across different
-indices producs somewhat suprising results: floating point fields are
-always sorted independantly of whole numbered fields.
+indices producs somewhat surprising results: floating point fields are
+always sorted independently of whole numbered fields.
 
 [source,console,id=search-aggregations-metrics-top-metrics-mixed-sort]
 ----
@@ -374,7 +374,7 @@ Which returns:
 // TESTRESPONSE
 
 While this is better than an error it *probably* isn't what you were going for.
-While it does lose some precision, you can explictly cast the whole number
+While it does lose some precision, you can explicitly cast the whole number
 fields to floating points with something like:
 
 [source,console]

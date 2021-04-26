@@ -5,8 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.MavenFilteringHack
 
 import java.nio.file.Files
 import java.security.KeyPair

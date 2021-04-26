@@ -10,8 +10,9 @@ package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
-import org.elasticsearch.gradle.docker.DockerSupportPlugin;
-import org.elasticsearch.gradle.docker.DockerSupportService;
+import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
+import org.elasticsearch.gradle.internal.docker.DockerSupportService;
+import org.elasticsearch.gradle.internal.DistributionDependency;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.GradleUtils;

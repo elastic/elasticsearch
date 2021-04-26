@@ -112,6 +112,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
         try {
             // call get in a non-blocking fashion as we could be on a network thread
             // or another thread like the scheduler, which we should never block!
+            assert done;
             V value = FutureUtils.get(ListenableFuture.this, 0L, TimeUnit.NANOSECONDS);
             listener.onResponse(value);
         } catch (Exception e) {

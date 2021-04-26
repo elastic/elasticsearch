@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client.snapshots;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.feature.ResetFeaturesResponse;
@@ -34,7 +35,7 @@ public class ResetFeaturesResponseTests extends AbstractResponseTestCase<ResetFe
                 () -> randomBoolean()
                     ? ResetFeatureStateResponse.ResetFeatureStateStatus.success(randomAlphaOfLengthBetween(6, 10))
                     : ResetFeatureStateResponse.ResetFeatureStateStatus.failure(
-                        randomAlphaOfLengthBetween(6, 10), "something went wrong")
+                        randomAlphaOfLengthBetween(6, 10), new ElasticsearchException("something went wrong"))
             )
         );
     }
@@ -47,15 +48,15 @@ public class ResetFeaturesResponseTests extends AbstractResponseTestCase<ResetFe
     @Override
     protected void assertInstances(ResetFeatureStateResponse serverTestInstance, ResetFeaturesResponse clientInstance) {
 
-        assertNotNull(serverTestInstance.getFeatureStateResetStatusList());
+        assertNotNull(serverTestInstance.getFeatureStateResetStatuses());
         assertNotNull(clientInstance.getFeatureResetStatuses());
 
-        assertThat(clientInstance.getFeatureResetStatuses(), hasSize(serverTestInstance.getFeatureStateResetStatusList().size()));
+        assertThat(clientInstance.getFeatureResetStatuses(), hasSize(serverTestInstance.getFeatureStateResetStatuses().size()));
 
         Map<String, String> clientFeatures = clientInstance.getFeatureResetStatuses()
             .stream()
             .collect(Collectors.toMap(f -> f.getFeatureName(), f -> f.getStatus()));
-        Map<String, String> serverFeatures = serverTestInstance.getFeatureStateResetStatusList()
+        Map<String, String> serverFeatures = serverTestInstance.getFeatureStateResetStatuses()
             .stream()
             .collect(Collectors.toMap(f -> f.getFeatureName(), f -> f.getStatus().toString()));
 

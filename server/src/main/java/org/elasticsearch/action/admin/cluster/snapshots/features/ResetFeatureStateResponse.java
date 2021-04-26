@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.features;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -31,11 +33,11 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
      * Create a response showing which features have had state reset and success
      * or failure status.
      *
-     * @param statusList A list of status responses
+     * @param resetFeatureStateStatuses A list of status responses
      */
-    public ResetFeatureStateResponse(List<ResetFeatureStateStatus> statusList) {
+    public ResetFeatureStateResponse(List<ResetFeatureStateStatus> resetFeatureStateStatuses) {
         resetFeatureStateStatusList = new ArrayList<>();
-        resetFeatureStateStatusList.addAll(statusList);
+        resetFeatureStateStatusList.addAll(resetFeatureStateStatuses);
         resetFeatureStateStatusList.sort(Comparator.comparing(ResetFeatureStateStatus::getFeatureName));
     }
 
@@ -44,8 +46,11 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         this.resetFeatureStateStatusList = in.readList(ResetFeatureStateStatus::new);
     }
 
-    public List<ResetFeatureStateStatus> getFeatureStateResetStatusList() {
-        return this.resetFeatureStateStatusList;
+    /**
+     * @return List of statuses for individual reset operations, one per feature that we tried to reset
+     */
+    public List<ResetFeatureStateStatus> getFeatureStateResetStatuses() {
+        return Collections.unmodifiableList(this.resetFeatureStateStatusList);
     }
 
     @Override
@@ -96,15 +101,30 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
         private final Status status;
         private final Exception exception;
 
+        /**
+         * Success or failure enum. Not a boolean so that we can easily display
+         * "SUCCESS" or "FAILURE" when this object is serialized.
+         */
         public enum Status {
             SUCCESS,
             FAILURE
         }
 
+        /**
+         * Create a feature status for a successful reset operation
+         * @param featureName Name of the feature whose state was successfully reset
+         * @return Success status for a feature
+         */
         public static ResetFeatureStateStatus success(String featureName) {
             return new ResetFeatureStateStatus(featureName, Status.SUCCESS, null);
         }
 
+        /**
+         * Create a feature status for a failed reset operation
+         * @param featureName Name of the feature that failed
+         * @param exception The exception that caused or described the failure
+         * @return Failure status for a feature
+         */
         public static ResetFeatureStateStatus failure(String featureName, Exception exception) {
             return new ResetFeatureStateStatus(
                 featureName,
@@ -112,16 +132,10 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
                 exception);
         }
 
-        public static ResetFeatureStateStatus failure(String featureName, String exceptionMessage) {
-            return new ResetFeatureStateStatus(
-                featureName,
-                Status.FAILURE,
-                new ElasticsearchException(exceptionMessage));
-        }
-
-        private ResetFeatureStateStatus(String featureName, Status status, Exception exception) {
+        private ResetFeatureStateStatus(String featureName, Status status, @Nullable Exception exception) {
             this.featureName = featureName;
             this.status = status;
+            assert Status.FAILURE.equals(status) ? Objects.nonNull(exception) : Objects.isNull(exception);
             this.exception = exception;
         }
 
@@ -131,14 +145,24 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
             this.exception = in.readBoolean() ? in.readException() : null;
         }
 
+        /**
+         * @return Name of the feature we tried to reset
+         */
         public String getFeatureName() {
             return this.featureName;
         }
 
+        /**
+         * @return Success or failure for the reset operation
+         */
         public Status getStatus() {
             return this.status;
         }
 
+        /**
+         * @return For a failed reset operation, the exception that caused or describes the failure.
+         */
+        @Nullable
         public Exception getException() {
             return this.exception;
         }

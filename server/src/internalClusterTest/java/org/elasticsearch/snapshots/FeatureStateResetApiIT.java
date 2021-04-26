@@ -8,6 +8,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
@@ -69,7 +70,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
-        assertThat(apiResponse.getFeatureStateResetStatusList(), containsInAnyOrder(
+        assertThat(apiResponse.getFeatureStateResetStatuses(), containsInAnyOrder(
             ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
             ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
             ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
@@ -112,7 +113,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             ResetFeatureStateResponse resetFeatureStateResponse = client().execute(ResetFeatureStateAction.INSTANCE,
                 new ResetFeatureStateRequest()).get();
 
-            List<String> failedFeatures = resetFeatureStateResponse.getFeatureStateResetStatusList().stream()
+            List<String> failedFeatures = resetFeatureStateResponse.getFeatureStateResetStatuses().stream()
                 .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
                 .peek(status -> assertThat(status.getException(), notNullValue()))
                 .map(status -> {
@@ -210,7 +211,8 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
             Client client,
             ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
             if (isEvil()) {
-                listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(getFeatureName(), "problem!"));
+                listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(getFeatureName(),
+                    new ElasticsearchException("problem!")));
             } else {
                 listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.success(getFeatureName()));
             }

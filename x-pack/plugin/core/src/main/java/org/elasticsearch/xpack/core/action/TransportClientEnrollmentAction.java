@@ -86,7 +86,7 @@ public class TransportClientEnrollmentAction extends HandledTransportAction<Clie
                         listener.onResponse(new ClientEnrollmentResponse(httpCa, nodeList));
                     }
                 }, e -> {
-                    logger.debug("Failed to enroll client [{}]", request.getClientType(), e);
+                    logger.debug("Failed to enroll client [{}]. Error was [{}]", request.getClientType(), e.getMessage());
                     listener.onFailure(e);
                 }));
 

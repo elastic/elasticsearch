@@ -20,8 +20,8 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
         super(precision);
     }
 
-    /** check if the provided tile is in the solution space of this tiler */
-    protected abstract boolean validTile(String hash);
+    /** check if the provided hash is in the solution space of this tiler */
+    protected abstract boolean validHash(String hash);
 
     @Override
     public long encode(double x, double y) {
@@ -84,7 +84,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     }
 
     protected GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, String hash) {
-        return validTile(hash) ? geoValue.relate(Geohash.toBoundingBox(hash)) : GeoRelation.QUERY_DISJOINT;
+        return validHash(hash) ? geoValue.relate(Geohash.toBoundingBox(hash)) : GeoRelation.QUERY_DISJOINT;
     }
 
     protected int setValuesByRasterization(String hash, GeoShapeCellValues values, int valuesIndex,
@@ -117,7 +117,7 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
                                                  int valuesIndex, int targetPrecision) {
         String[] hashes = Geohash.getSubGeohashes(hash);
         for (int i = 0; i < hashes.length; i++) {
-            if (validTile(hashes[i])) {
+            if (validHash(hashes[i])) {
                 if (hashes[i].length() == targetPrecision) {
                     values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
                 } else {

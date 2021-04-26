@@ -25,7 +25,7 @@ public class BoundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
     }
 
     @Override
-    protected boolean validTile(String hash) {
+    protected boolean validHash(String hash) {
         Rectangle rectangle = Geohash.toBoundingBox(hash);
         if (bbox.top() >= rectangle.getMinY() && bbox.bottom() <= rectangle.getMaxY()) {
             if (crossesDateline) {

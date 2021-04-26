@@ -18,7 +18,7 @@ public class UnboundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
     }
 
     @Override
-    protected boolean validTile(String hash) {
+    protected boolean validHash(String hash) {
        return true;
     }
 }

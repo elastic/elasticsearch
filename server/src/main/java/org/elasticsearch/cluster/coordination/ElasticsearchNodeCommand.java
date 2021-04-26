@@ -101,14 +101,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         super(description);
     }
 
-    public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path[] dataPaths) throws IOException {
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
+    public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path dataPath) throws IOException {
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPath);
         if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
         }
 
         String nodeId = nodeMetadata.nodeId();
-        return new PersistedClusterStateService(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
+        return new PersistedClusterStateService(dataPath, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
     }
 
@@ -121,7 +121,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
     public static Tuple<Long, ClusterState> loadTermAndClusterState(PersistedClusterStateService psf,
                                                                     Environment env) throws IOException {
-        final PersistedClusterStateService.OnDiskState bestOnDiskState = psf.loadBestOnDiskState();
+        final PersistedClusterStateService.OnDiskState bestOnDiskState = psf.loadOnDiskState();
         if (bestOnDiskState.empty()) {
             throw new ElasticsearchException(CS_MISSING_MSG);
         }

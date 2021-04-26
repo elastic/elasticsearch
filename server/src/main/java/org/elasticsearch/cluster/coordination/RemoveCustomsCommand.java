@@ -51,7 +51,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
             throw new UserException(ExitCodes.USAGE, "Must supply at least one custom metadata name to remove");
         }
 
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths[0]);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);

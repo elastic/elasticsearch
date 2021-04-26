@@ -45,7 +45,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             nodePaths = nodeEnvironment.nodeDataPaths();
             nodeId = nodeEnvironment.nodeId();
 
-            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
+            try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths[0], nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L).createWriter()) {
                 writer.writeFullStateAndCommit(1L, ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
@@ -57,10 +57,10 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
 
     @After
     public void checkClusterStateIntact() throws IOException {
-        assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(nodePaths, nodeId,
+        assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(new PersistedClusterStateService(nodePaths[0], nodeId,
             xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L)
-            .loadBestOnDiskState().metadata.persistentSettings()));
+            .loadOnDiskState().metadata.persistentSettings()));
     }
 
     public void testFailsOnEmptyPath() {
@@ -101,7 +101,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             containsString(nodeVersion.toString())));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths[0]);
         assertThat(nodeMetadata.nodeVersion(), equalTo(nodeVersion));
     }
 
@@ -120,7 +120,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             containsString(nodeVersion.toString())));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths[0]);
         assertThat(nodeMetadata.nodeVersion(), equalTo(nodeVersion));
     }
 
@@ -139,7 +139,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths[0]);
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
     }
 
@@ -157,7 +157,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
             containsString(OverrideNodeVersionCommand.SUCCESS_MESSAGE)));
         expectThrows(IllegalStateException.class, () -> mockTerminal.readText(""));
 
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths);
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodePaths[0]);
         assertThat(nodeMetadata.nodeVersion(), equalTo(Version.CURRENT));
     }
 }

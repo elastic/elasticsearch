@@ -493,7 +493,7 @@ public final class NodeEnvironment  implements Closeable {
     private static NodeMetadata loadNodeMetadata(Settings settings, Logger logger,
                                                  NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
-        NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths);
+        NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(paths[0]);
         if (metadata == null) {
             // load legacy metadata
             final Set<String> nodeIds = new HashSet<>();

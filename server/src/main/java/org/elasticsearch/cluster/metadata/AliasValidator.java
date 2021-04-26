@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -97,9 +96,9 @@ public class AliasValidator {
         }
 
         IndexAbstraction other = indexLookup.apply(alias);
-        if (other != null) {
-            String message = "a resource of type [" + other.getType() + "] already exists using the name [" + alias + "]";
-            throw new ResourceAlreadyExistsException(message);
+        if (other != null && other.getType() != IndexAbstraction.Type.ALIAS) {
+            String message = "a data stream or index [" + other.getName() + "] already exists using the name as the alias";
+            throw new InvalidAliasNameException(alias, message);
         }
     }
 

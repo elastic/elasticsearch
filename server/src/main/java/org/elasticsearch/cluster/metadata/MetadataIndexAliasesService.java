@@ -33,7 +33,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
@@ -113,7 +112,7 @@ public class MetadataIndexAliasesService {
                     continue;
                 }
                 if (action.isDataStreamOperation()) {
-                    SortedMap<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
+                    Map<String, IndexAbstraction> lookup = currentState.metadata().getIndicesLookup();
                     NewAliasValidator newAliasValidator = (alias, indexRouting, filter, writeIndex) -> {
                         aliasValidator.validateAlias(alias, action.getIndex(), lookup::get);
                     };

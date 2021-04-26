@@ -1184,15 +1184,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (alias == null) {
                 alias = new DataStreamAlias(name, List.of(dataStream), isWriteDataStream != null && isWriteDataStream ? dataStream : null);
             } else {
-                List<String> dataStreams = new ArrayList<>(alias.getDataStreams());
+                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
                 dataStreams.add(dataStream);
                 String writeDataStream = alias.getWriteDataStream();
-                if (writeDataStream != null && isWriteDataStream != null && isWriteDataStream) {
-                    throw new IllegalArgumentException("data stream [" + writeDataStream + "] is already the write data stream");
-                } else if (isWriteDataStream != null && isWriteDataStream){
-                    writeDataStream = dataStream;
+                if (isWriteDataStream != null){
+                    if (isWriteDataStream) {
+                        writeDataStream = dataStream;
+                    } else {
+                        writeDataStream = null;
+                    }
                 }
-                alias = new DataStreamAlias(name, dataStreams, writeDataStream);
+                alias = new DataStreamAlias(name, List.copyOf(dataStreams), writeDataStream);
             }
             dataStreamAliases.put(name, alias);
 
@@ -1216,17 +1218,24 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
                     .orElse(new HashMap<>());
 
+            Set<String> aliasesToDelete = new HashSet<>();
             List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
             for (var alias : existingDataStreamAliases.values()) {
-                // TODO: alias#dataStreams should be a set...
-                if (alias.getDataStreams().contains(name)) {
-                    List<String> updatedDataStreams = new ArrayList<>(alias.getDataStreams());
-                    updatedDataStreams.remove(name);
-                    aliasesToUpdate.add(new DataStreamAlias(alias.getName(), updatedDataStreams, alias.getWriteDataStream()));
+                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
+                if (dataStreams.contains(name)) {
+                    dataStreams.remove(name);
+                    if (dataStreams.isEmpty()) {
+                        aliasesToDelete.add(alias.getName());
+                    } else {
+                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams), alias.getWriteDataStream()));
+                    }
                 }
             }
             for (DataStreamAlias alias : aliasesToUpdate) {
                 existingDataStreamAliases.put(alias.getName(), alias);
+            }
+            for (String aliasToDelete : aliasesToDelete) {
+                existingDataStreamAliases.remove(aliasToDelete);
             }
 
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));

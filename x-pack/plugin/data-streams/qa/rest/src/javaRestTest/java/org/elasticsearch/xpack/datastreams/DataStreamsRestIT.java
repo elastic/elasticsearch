@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
 
 public class DataStreamsRestIT extends ESRestTestCase {
 
@@ -191,7 +191,9 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         createDocRequest = new Request("POST", "/logs/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
-        assertOK(client().performRequest(createDocRequest));
+        Response createDocResponse = client().performRequest(createDocRequest);
+        assertOK(createDocResponse);
+        assertThat((String) entityAsMap(createDocResponse).get("_index"), startsWith(".ds-logs-emea"));
 
         updateAliasesRequest = new Request("POST", "/_aliases");
         updateAliasesRequest.setJsonEntity("{\"actions\":[" +
@@ -202,7 +204,17 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         createDocRequest = new Request("POST", "/logs/_doc?refresh=true");
         createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
-        assertOK(client().performRequest(createDocRequest));
+        createDocResponse = client().performRequest(createDocRequest);
+        assertOK(createDocResponse);
+        assertThat((String) entityAsMap(createDocResponse).get("_index"), startsWith(".ds-logs-nasa"));
+
+        getAliasesRequest = new Request("GET", "/_aliases");
+        getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(
+            Map.of("logs", Map.of("is_write_data_stream", true)),
+            XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)
+        );
     }
 
     public void testDataStreamAliasTemplate() throws Exception {
@@ -227,5 +239,41 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request searchRequest = new Request("GET", "/logs/_search");
         Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
         assertEquals(2, XContentMapValues.extractValue("hits.total.value", searchResponse));
+    }
+
+    public void testDeleteDataStreamApiWithAliasFails() throws IOException {
+        // Create a template
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\"logs-*\"], \"data_stream\": {}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/logs-emea/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        createDocRequest = new Request("POST", "/logs-nasa/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        Request updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity(
+            "{\"actions\":[{\"add\":{\"index\":\"logs-emea\",\"alias\":\"logs\"}}," +
+                "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"logs\"}}]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        Request getAliasesRequest = new Request("GET", "/logs-*/_alias");
+        Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+
+        Exception e = expectThrows(ResponseException.class, () -> client().performRequest(new Request("DELETE", "/_data_stream/logs")));
+        assertThat(e.getMessage(), containsString("The provided expression [logs] matches an alias, " +
+            "specify the corresponding concrete indices instead"));
+
+        assertOK(client().performRequest(new Request("DELETE", "/_data_stream/logs-emea")));
+        assertOK(client().performRequest(new Request("DELETE", "/_data_stream/logs-nasa")));
+
+        getAliasesRequest = new Request("GET", "/logs-*/_alias");
+        assertThat(entityAsMap(client().performRequest(getAliasesRequest)), equalTo(Map.of()));
     }
 }

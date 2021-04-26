@@ -83,7 +83,7 @@ only those columns to appear. For example:
 
 [source,console]
 ----
-GET /_cat/nodes?h=ip,port,heapPercent,name
+GET _cat/nodes?h=ip,port,heapPercent,name
 ----
 
 Responds with:
@@ -119,7 +119,7 @@ by shard storage descending order and then index name in ascending order.
 
 [source,console]
 ----
-GET /_cat/indices?bytes=b&s=store.size:desc,index:asc&v=true
+GET _cat/indices?bytes=b&s=store.size:desc,index:asc&v=true
 ----
 // TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]

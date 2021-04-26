@@ -721,7 +721,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::client-enrollment-generic-client-request
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest("languange-client", null);
+            ClientEnrollmentRequest request = new ClientEnrollmentRequest("generic_client", null);
             // end::client-enrollment-generic-client-request
 
             // tag::client-enrollment-generic-client-execute
@@ -733,7 +733,8 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             List<String> nodesAddresses = response.getNodesAddresses();
             // end::client-enrollment-generic-client-response
             assertThat(nodesAddresses.size(), equalTo(1)); // single-node cluster for docs tests
-            assertThat(httoCa, endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
+            assertThat(httoCa,
+                endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
         }
 
         {

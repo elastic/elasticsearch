@@ -24,15 +24,14 @@ public class ClientEnrollmentRequestTests extends ESTestCase {
         expectThrows(NullPointerException.class, () -> new ClientEnrollmentRequest(null, null));
 
         assertNull(new ClientEnrollmentRequest("kibana", null).validate());
-        assertNull(new ClientEnrollmentRequest(randomAlphaOfLengthBetween(5, 8), null).validate());
+        assertNull(new ClientEnrollmentRequest("generic_client", null).validate());
         assertNull(new ClientEnrollmentRequest("kibana", new SecureString(randomAlphaOfLengthBetween(8, 19).toCharArray())).validate());
 
-        final String clientType = randomAlphaOfLengthBetween(5, 8);
         ClientEnrollmentRequest r =
-            new ClientEnrollmentRequest(clientType, new SecureString(randomAlphaOfLengthBetween(8, 19).toCharArray()));
+            new ClientEnrollmentRequest("generic_client", new SecureString(randomAlphaOfLengthBetween(8, 19).toCharArray()));
         ActionRequestValidationException e = r.validate();
         assertNotNull(e);
-        assertThat(e.getMessage(), containsString("client_password cannot be set when client_type is " + clientType));
+        assertThat(e.getMessage(), containsString("client_password cannot be set when client_type is generic_client"));
     }
 
     public void testSerialization() throws IOException {

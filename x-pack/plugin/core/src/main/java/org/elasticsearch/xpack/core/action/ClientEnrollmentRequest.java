@@ -82,6 +82,8 @@ public final class ClientEnrollmentRequest extends ActionRequest {
                     .map(ClientType::getValue)
                     .collect(Collectors.joining(", ")) + "]", validationException);
             }
+        } else {
+            validationException = addValidationError("client_type needs to be set", validationException);
         }
         return validationException;
     }

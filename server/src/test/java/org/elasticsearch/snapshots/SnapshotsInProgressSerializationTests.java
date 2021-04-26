@@ -61,15 +61,16 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         boolean includeGlobalState = randomBoolean();
         boolean partial = randomBoolean();
         int numberOfIndices = randomIntBetween(0, 10);
-        List<IndexId> indices = new ArrayList<>();
+        Map<String, IndexId> indices = new HashMap<>();
         for (int i = 0; i < numberOfIndices; i++) {
-            indices.add(new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            final String name = randomAlphaOfLength(10);
+            indices.put(name, new IndexId(name, randomAlphaOfLength(10)));
         }
         long startTime = randomLong();
         long repositoryStateId = randomLong();
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
         final List<Index> esIndices =
-            indices.stream().map(i -> new Index(i.getName(), randomAlphaOfLength(10))).collect(Collectors.toList());
+            indices.keySet().stream().map(i -> new Index(i, randomAlphaOfLength(10))).collect(Collectors.toList());
         List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
@@ -195,10 +196,10 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                     entry.dataStreams(), entry.featureStates(), entry.startTime(), entry.repositoryStateId(), entry.shards(), failure,
                     entry.userMetadata(), entry.version());
             case 6:
-                List<IndexId> indices = entry.indices();
+                Map<String, IndexId> indices = new HashMap<>(entry.indices());
                 ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = entry.shards();
                 IndexId indexId = new IndexId(randomAlphaOfLength(10), randomAlphaOfLength(10));
-                indices.add(indexId);
+                indices.put(indexId. getName(), indexId);
                 ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder(shards);
                 Index index = new Index(indexId.getName(), randomAlphaOfLength(10));
                 int shardsCount = randomIntBetween(1, 10);
@@ -233,10 +234,11 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
     }
 
     public void testXContent() throws IOException {
+        final IndexId indexId = new IndexId("index", "uuid");
         SnapshotsInProgress sip =
             SnapshotsInProgress.of(Collections.singletonList(new Entry(
                 new Snapshot("repo", new SnapshotId("name", "uuid")), true, true, State.SUCCESS,
-                Collections.singletonList(new IndexId("index", "uuid")), Collections.emptyList(), Collections.emptyList(), 1234567, 0,
+                Collections.singletonMap(indexId.getName(), indexId), Collections.emptyList(), Collections.emptyList(), 1234567, 0,
                 ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder()
                     .fPut(new ShardId("index", "uuid", 0),
                         SnapshotsInProgress.ShardSnapshotStatus.success("nodeId",

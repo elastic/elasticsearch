@@ -9,16 +9,12 @@
 package org.elasticsearch.gradle
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.ObjectReader
-import com.fasterxml.jackson.databind.ObjectWriter
 import com.fasterxml.jackson.databind.SequenceWriter
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
-import org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin
+import org.elasticsearch.gradle.internal.VersionProperties
 import org.gradle.testkit.runner.TaskOutcome
-
-import java.nio.file.Path
 
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 

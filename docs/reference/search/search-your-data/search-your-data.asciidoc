@@ -232,12 +232,15 @@ results for a long-running search now and get complete results later.
 === Search timeout
 
 By default, search requests don't time out. The request waits for complete
-results before returning a response.
+results from each shard before returning a response.
 
 While <<async-search-intro,async search>> is designed for long-running
 searches, you can also use the `timeout` parameter to specify a duration you'd
-like to wait for a search to complete. If no response is received before this
-period ends, the request fails and returns an error.
+like to wait on each shard to complete. Each shard collects hits within the
+specified time period. If collection isn't finished when the period ends, {es}
+uses only the hits accumulated up to that point. The overall latency of a search
+request depends on the number of shards needed for the search and the number of
+concurrent shard requests.
 
 [source,console]
 ----

@@ -8,12 +8,12 @@
 
 
 import org.apache.tools.ant.filters.FixCrLfFilter
-import org.elasticsearch.gradle.ConcatFilesTask
-import org.elasticsearch.gradle.DependenciesInfoTask
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.internal.ConcatFilesTask
+import org.elasticsearch.gradle.internal.DependenciesInfoTask
+import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.NoticeTask
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
 import java.nio.file.Path

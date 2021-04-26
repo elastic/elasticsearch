@@ -37,6 +37,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -147,10 +149,16 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
         final RepositoryData modifiedRepositoryData = repositoryData
-                .withoutSnapshotVersion(fakeOldSnapshot.getUUID())
-                .withVersions(Collections.singletonMap(
+                .withoutUUIDs()
+                .withExtraDetails(Collections.singletonMap(
                         fakeOldSnapshot,
-                        SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
+                        new RepositoryData.SnapshotDetails(
+                                SnapshotState.SUCCESS,
+                                SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion(),
+                                0L, // -1 would refresh RepositoryData and find the real version
+                                0L, // -1 would refresh RepositoryData and find the real version
+                                emptyList() // null would refresh RepositoryData and find the real version
+                        )));
         final BytesReference serialized = BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(),
             SnapshotsService.OLD_SNAPSHOT_FORMAT));
         PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->

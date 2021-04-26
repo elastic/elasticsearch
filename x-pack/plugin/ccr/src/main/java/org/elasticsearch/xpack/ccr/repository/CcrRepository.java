@@ -253,7 +253,13 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 // Both the Snapshot name and UUID are set to _latest_
                 SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
                 copiedSnapshotIds.put(indexName, snapshotId);
-                snapshotsDetails.put(indexName, new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT));
+                final long nowMillis = threadPool.absoluteTimeInMillis();
+                snapshotsDetails.put(indexName, new RepositoryData.SnapshotDetails(
+                        SnapshotState.SUCCESS,
+                        Version.CURRENT,
+                        nowMillis,
+                        nowMillis,
+                        Collections.emptyList()));
                 Index index = remoteIndices.get(indexName).getIndex();
                 indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }

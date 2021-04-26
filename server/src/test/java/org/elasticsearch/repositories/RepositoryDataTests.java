@@ -106,7 +106,10 @@ public class RepositoryDataTests extends ESTestCase {
                 newSnapshot,
                 new RepositoryData.SnapshotDetails(
                         randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                        randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())),
+                        randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        Collections.emptyList()),
                 shardGenerations,
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));
@@ -129,10 +132,12 @@ public class RepositoryDataTests extends ESTestCase {
         for (int i = 0; i < numSnapshots; i++) {
             final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID());
             snapshotIds.put(snapshotId.getUUID(), snapshotId);
-            snapshotsDetails.put(snapshotId.getUUID(),
-                    new RepositoryData.SnapshotDetails(
-                            randomFrom(SnapshotState.values()),
-                            randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())));
+            snapshotsDetails.put(snapshotId.getUUID(), new RepositoryData.SnapshotDetails(
+                    randomFrom(SnapshotState.values()),
+                    randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    Collections.emptyList()));
         }
         RepositoryData repositoryData = new RepositoryData(
                 MISSING_UUID,
@@ -192,7 +197,12 @@ public class RepositoryDataTests extends ESTestCase {
         final SnapshotState state = randomFrom(SnapshotState.values());
         final RepositoryData repositoryData = RepositoryData.EMPTY.addSnapshot(
                 snapshotId,
-                new RepositoryData.SnapshotDetails(state, randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())),
+                new RepositoryData.SnapshotDetails(
+                        state,
+                        randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        Collections.emptyList()),
                 ShardGenerations.EMPTY,
                 Collections.emptyMap(),
                 Collections.emptyMap());
@@ -218,7 +228,11 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotIds.put(snapshotId.getUUID(), snapshotId);
             snapshotsDetails.put(snapshotId.getUUID(),
                     new RepositoryData.SnapshotDetails(
-                            parsedRepositoryData.getSnapshotState(snapshotId), parsedRepositoryData.getVersion(snapshotId)));
+                            parsedRepositoryData.getSnapshotState(snapshotId),
+                            parsedRepositoryData.getVersion(snapshotId),
+                            parsedRepositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis(),
+                            parsedRepositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis(),
+                            parsedRepositoryData.getSnapshotDetails(snapshotId).getPartialIndices()));
         }
 
         final IndexId corruptedIndexId = randomFrom(parsedRepositoryData.getIndices().values());
@@ -340,7 +354,12 @@ public class RepositoryDataTests extends ESTestCase {
         indexLookup.putAll(newIndices);
         final SnapshotId newSnapshot = new SnapshotId(randomAlphaOfLength(7), UUIDs.randomBase64UUID(random()));
 
-        final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT);
+        final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
+                SnapshotState.SUCCESS,
+                Version.CURRENT,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                Collections.emptyList());
         final RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot, details, shardGenerations, indexLookup, newIdentifiers);
         assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(newSnapshot)),
                 newIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
@@ -392,7 +411,10 @@ public class RepositoryDataTests extends ESTestCase {
                 snapshotId,
                 new RepositoryData.SnapshotDetails(
                         randomFrom(SnapshotState.values()),
-                        randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion())),
+                        randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        randomSubsetOf(indexLookup.keySet().stream().map(IndexId::getName).collect(Collectors.toUnmodifiableList()))),
                 builder.build(),
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));

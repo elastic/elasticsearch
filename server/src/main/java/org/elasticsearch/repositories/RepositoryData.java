@@ -185,23 +185,16 @@ public final class RepositoryData {
     }
 
     /**
-     * Creates a copy of this instance that contains updated version data.
-     * @param versions map of snapshot versions
+     * Creates a copy of this instance that contains additional details read from the per-snapshot metadata blobs
+     * @param extraDetails map of snapshot details
      * @return copy with updated version data
      */
-    public RepositoryData withVersions(Map<SnapshotId, Version> versions) {
-        if (versions.isEmpty()) {
+    public RepositoryData withExtraDetails(Map<SnapshotId, SnapshotDetails> extraDetails) {
+        if (extraDetails.isEmpty()) {
             return this;
         }
         final Map<String, SnapshotDetails> newDetails = new HashMap<>(snapshotsDetails);
-        versions.forEach((id, version) -> newDetails.compute(id.getUUID(), (uuid, existingDetails) -> {
-            if (existingDetails == null) {
-                return new SnapshotDetails(null, version);
-            } else {
-                assert existingDetails.getVersion() == null;
-                return new SnapshotDetails(existingDetails.getSnapshotState(), version);
-            }
-        }));
+        extraDetails.forEach((id, extraDetail) -> newDetails.put(id.getUUID(), extraDetail));
         return new RepositoryData(
                 uuid,
                 genId,
@@ -428,26 +421,6 @@ public final class RepositoryData {
                 MISSING_UUID);
     }
 
-    /**
-     * For test purposes, make a copy of this instance with the version field missing for the given snapshot UUID, as if from an
-     * older version. Also removes the UUIDs since these were missing from the older version in question, see {@link #withoutUUIDs}.
-     */
-    public RepositoryData withoutSnapshotVersion(String snapshotUuid) {
-        final Map<String, SnapshotDetails> newSnapshotsDetails = new HashMap<>(snapshotsDetails);
-        final SnapshotState snapshotState = newSnapshotsDetails.get(snapshotUuid).getSnapshotState();
-        newSnapshotsDetails.put(snapshotUuid, new SnapshotDetails(snapshotState, null));
-        return new RepositoryData(
-                MISSING_UUID,
-                genId,
-                snapshotIds,
-                newSnapshotsDetails,
-                indices,
-                indexSnapshots,
-                shardGenerations,
-                indexMetaDataGenerations,
-                MISSING_UUID);
-    }
-
     public RepositoryData withClusterUuid(String clusterUUID) {
         assert clusterUUID.equals(MISSING_UUID) == false;
         return new RepositoryData(
@@ -597,6 +570,9 @@ public final class RepositoryData {
     private static final String STATE = "state";
     private static final String VERSION = "version";
     private static final String MIN_VERSION = "min_version";
+    private static final String START_TIME_MILLIS = "start_time_millis";
+    private static final String END_TIME_MILLIS = "end_time_millis";
+    private static final String PARTIAL_INDICES = "partial_indices";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -678,6 +654,21 @@ public final class RepositoryData {
             if (version != null) {
                 builder.field(VERSION, version.toString());
             }
+
+            if (snapshotDetails.getStartTimeMillis() != -1) {
+                builder.field(START_TIME_MILLIS, snapshotDetails.getStartTimeMillis());
+            }
+            if (snapshotDetails.getEndTimeMillis() != -1) {
+                builder.field(END_TIME_MILLIS, snapshotDetails.getEndTimeMillis());
+            }
+            if (snapshotDetails.getPartialIndices() != null) {
+                builder.startArray(PARTIAL_INDICES);
+                for (String indexName : snapshotDetails.getPartialIndices()) {
+                    builder.value(indexName);
+                }
+                builder.endArray();
+            }
+
             builder.endObject();
         }
         builder.endArray();
@@ -840,6 +831,9 @@ public final class RepositoryData {
             SnapshotState state = null;
             Map<String, String> metaGenerations = null;
             Version version = null;
+            long startTimeMillis = -1;
+            long endTimeMillis = -1;
+            List<String> partialIndices = null;
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String currentFieldName = parser.currentName();
                 parser.nextToken();
@@ -859,11 +853,25 @@ public final class RepositoryData {
                     case VERSION:
                         version = Version.fromString(parser.text());
                         break;
+                    case START_TIME_MILLIS:
+                        assert startTimeMillis == -1;
+                        startTimeMillis = parser.longValue();
+                        break;
+                    case END_TIME_MILLIS:
+                        assert endTimeMillis == -1;
+                        endTimeMillis = parser.longValue();
+                        break;
+                    case PARTIAL_INDICES:
+                        assert partialIndices == null;
+                        partialIndices = parser.list().stream().map(s -> (String) s).collect(Collectors.toUnmodifiableList());
+                        break;
                 }
             }
+            assert (startTimeMillis == -1) == (endTimeMillis == -1) && (startTimeMillis == -1) == (partialIndices == null)
+                    : "unexpected: " + startTimeMillis + ", " + endTimeMillis + ", " + partialIndices;
             final SnapshotId snapshotId = new SnapshotId(name, uuid);
             if (state != null || version != null) {
-                snapshotsDetails.put(uuid, new SnapshotDetails(state, version));
+                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis, partialIndices));
             }
             snapshots.put(uuid, snapshotId);
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {
@@ -967,7 +975,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null);
+        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;
@@ -975,9 +983,26 @@ public final class RepositoryData {
         @Nullable // may be omitted if pre-7.6 nodes were involved somewhere
         private final Version version;
 
-        public SnapshotDetails(@Nullable SnapshotState snapshotState, @Nullable Version version) {
+        // May be -1 if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
+        private final long startTimeMillis;
+
+        // May be -1 if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
+        private final long endTimeMillis;
+
+        @Nullable // may be omitted if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
+        private final List<String> partialIndices;
+
+        public SnapshotDetails(
+                @Nullable SnapshotState snapshotState,
+                @Nullable Version version,
+                long startTimeMillis,
+                long endTimeMillis,
+                @Nullable List<String> partialIndices) {
             this.snapshotState = snapshotState;
             this.version = version;
+            this.startTimeMillis = startTimeMillis;
+            this.endTimeMillis = endTimeMillis;
+            this.partialIndices = partialIndices;
         }
 
         @Nullable
@@ -990,17 +1015,40 @@ public final class RepositoryData {
             return version;
         }
 
+        /**
+         * @return start time in millis since the epoch, or {@code -1} if unknown.
+         */
+        public long getStartTimeMillis() {
+            return startTimeMillis;
+        }
+
+        /**
+         * @return end time in millis since the epoch, or {@code -1} if unknown.
+         */
+        public long getEndTimeMillis() {
+            return endTimeMillis;
+        }
+
+        @Nullable // if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
+        public List<String> getPartialIndices() {
+            return partialIndices;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             SnapshotDetails that = (SnapshotDetails) o;
-            return snapshotState == that.snapshotState && Objects.equals(version, that.version);
+            return startTimeMillis == that.startTimeMillis
+                    && endTimeMillis == that.endTimeMillis
+                    && snapshotState == that.snapshotState
+                    && Objects.equals(version, that.version)
+                    && Objects.equals(partialIndices, that.partialIndices);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshotState, version);
+            return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis, partialIndices);
         }
 
     }

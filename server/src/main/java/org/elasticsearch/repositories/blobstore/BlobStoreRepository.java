@@ -26,6 +26,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
@@ -103,8 +105,8 @@ import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -112,7 +114,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.action.ResultDeduplicator;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -1114,7 +1115,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             final ActionListener<Void> allMetaListener = new GroupedActionListener<>(
                 ActionListener.wrap(v -> {
-                    final SnapshotDetails snapshotDetails = new SnapshotDetails(snapshotInfo.state(), Version.CURRENT);
+                    final SnapshotDetails snapshotDetails = new SnapshotDetails(
+                            snapshotInfo.state(),
+                            Version.CURRENT,
+                            snapshotInfo.startTime(),
+                            snapshotInfo.endTime(),
+                            snapshotInfo.shardFailures()
+                                    .stream()
+                                    .map(ShardOperationFailedException::index)
+                                    .distinct()
+                                    .collect(Collectors.toUnmodifiableList()));
                     final RepositoryData updatedRepositoryData = existingRepositoryData.addSnapshot(
                         snapshotId, snapshotDetails, shardGenerations, indexMetas, indexMetaIdentifiers);
                     writeIndexGen(updatedRepositoryData, repositoryStateId, repositoryMetaVersion, stateTransformer,
@@ -1793,31 +1803,47 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
         // Step 2: Write new index-N blob to repository and update index.latest
         setPendingStep.whenComplete(newGen -> threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
-            // BwC logic: Load snapshot version information if any snapshot is missing a version in RepositoryData so that the new
-            // RepositoryData contains a version for every snapshot
-            final List<SnapshotId> snapshotIdsWithoutVersion = repositoryData.getSnapshotIds().stream().filter(
-                snapshotId -> repositoryData.getVersion(snapshotId) == null).collect(Collectors.toList());
-            if (snapshotIdsWithoutVersion.isEmpty() == false) {
-                final Map<SnapshotId, Version> updatedVersionMap = new ConcurrentHashMap<>();
-                final GroupedActionListener<Void> loadAllVersionsListener = new GroupedActionListener<>(
+            // BwC logic: Load snapshot version information if any snapshot is missing details in RepositoryData so that the new
+            // RepositoryData contains full details for every snapshot
+            final List<SnapshotId> snapshotIdsWithoutAllDetails = repositoryData.getSnapshotIds().stream().filter(
+                snapshotId -> repositoryData.getVersion(snapshotId) == null
+                        || repositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis() == -1
+                        || repositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis() == -1
+                        || repositoryData.getSnapshotDetails(snapshotId).getPartialIndices() == null).collect(Collectors.toList());
+            if (snapshotIdsWithoutAllDetails.isEmpty() == false) {
+                final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
+                final GroupedActionListener<Void> loadExtraDetailsListener = new GroupedActionListener<>(
                     ActionListener.runAfter(
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Collection<Void> voids) {
-                                logger.info("Successfully loaded all snapshot's version information for {} from snapshot metadata",
+                                logger.info("Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
                                     AllocationService.firstListElementsToCommaDelimitedString(
-                                        snapshotIdsWithoutVersion, SnapshotId::toString, logger.isDebugEnabled()));
+                                        snapshotIdsWithoutAllDetails, SnapshotId::toString, logger.isDebugEnabled()));
                             }
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.warn("Failure when trying to load missing version information from snapshot metadata", e);
+                                logger.warn("Failure when trying to load missing details from snapshot metadata", e);
                             }
-                        }, () -> filterRepositoryDataStep.onResponse(repositoryData.withVersions(updatedVersionMap))),
-                    snapshotIdsWithoutVersion.size());
-                for (SnapshotId snapshotId : snapshotIdsWithoutVersion) {
-                    threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadAllVersionsListener, () ->
-                        updatedVersionMap.put(snapshotId, getSnapshotInfo(snapshotId).version())));
+                        }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap))),
+                        snapshotIdsWithoutAllDetails.size());
+                for (SnapshotId snapshotId : snapshotIdsWithoutAllDetails) {
+                    threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadExtraDetailsListener, () ->
+                    {
+                        final SnapshotInfo snapshotInfo = getSnapshotInfo(snapshotId);
+                        extraDetailsMap.put(snapshotId,
+                                new SnapshotDetails(
+                                        snapshotInfo.state(),
+                                        snapshotInfo.version(),
+                                        snapshotInfo.startTime(),
+                                        snapshotInfo.endTime(),
+                                        snapshotInfo.shardFailures()
+                                                .stream()
+                                                .map(ShardOperationFailedException::index)
+                                                .distinct()
+                                                .collect(Collectors.toUnmodifiableList())));
+                    }));
                 }
             } else {
                 filterRepositoryDataStep.onResponse(repositoryData);

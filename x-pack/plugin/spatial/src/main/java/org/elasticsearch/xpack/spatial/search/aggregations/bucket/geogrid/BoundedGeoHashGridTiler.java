@@ -20,7 +20,6 @@ public class BoundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
 
     public BoundedGeoHashGridTiler(int precision, GeoBoundingBox bbox) {
         super(precision);
-        // split geoBoundingBox into west and east boxes
         this.bbox = bbox;
         this.crossesDateline = bbox.right() < bbox.left();
     }

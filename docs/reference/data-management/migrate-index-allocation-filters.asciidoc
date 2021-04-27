@@ -96,8 +96,7 @@ that set the hot shard allocation attribute on all indices.
 DELETE _template/.cloud-hot-warm-allocation-0
 ----
 
-If you're using a custom index template, update it to remove the node attribute
-you used to assign new indices to the hot tier.
+If you're using a custom index template, update it to remove the <<shard-allocation-filtering, attribute-based allocation filters>> you used to assign new indices to the hot tier.
 
 [discrete]
 [[set-tier-preference]]

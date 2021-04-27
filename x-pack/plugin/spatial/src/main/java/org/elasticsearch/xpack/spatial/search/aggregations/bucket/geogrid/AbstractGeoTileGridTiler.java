@@ -173,18 +173,4 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         }
         return valuesIndex;
     }
-
-    /**
-     * Return the number of tiles contained in the provided bounding box at the given zoom level
-     */
-    protected static long numTilesFromPrecision(int zoom, double minX, double maxX, double minY, double maxY) {
-        final long tiles = 1L << zoom;
-        final double xDeltaPrecision = 360.0 / (10 * tiles);
-        final double yHalfPrecision = 180.0 / (10 * tiles);
-        final int minXTile = GeoTileUtils.getXTile(Math.max(-180, minX - xDeltaPrecision), tiles);
-        final int minYTile = GeoTileUtils.getYTile(maxY + yHalfPrecision, tiles);
-        final int maxXTile = GeoTileUtils.getXTile(Math.min(180, maxX + xDeltaPrecision), tiles);
-        final int maxYTile = GeoTileUtils.getYTile(minY - yHalfPrecision, tiles);
-        return (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
-    }
 }

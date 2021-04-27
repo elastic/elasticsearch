@@ -19,7 +19,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,28 +43,6 @@ public class LongFieldScriptTests extends FieldScriptTestCase<LongFieldScript.Fa
     @Override
     protected LongFieldScript.Factory dummyScript() {
         return DUMMY;
-    }
-
-    public void testAsDocValues() {
-        LongFieldScript script = new LongFieldScript(
-                "test",
-                Collections.emptyMap(),
-                new SearchLookup(field -> null, (ft, lookup) -> null),
-                null
-        ) {
-            @Override
-            public void execute() {
-                emit(3L);
-                emit(1L);
-                emit(20000000000L);
-                emit(10L);
-                emit(-1000L);
-                emit(0L);
-            }
-        };
-        script.execute();
-
-        assertArrayEquals(new long[] {-1000L, 0L, 1L, 3L, 10L, 20000000000L}, script.asDocValues());
     }
 
     public void testTooManyValues() throws IOException {

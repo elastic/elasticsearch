@@ -488,7 +488,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
         context.doc().addAll(fields);
         if (hasDocValues == false && (stored || indexed)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

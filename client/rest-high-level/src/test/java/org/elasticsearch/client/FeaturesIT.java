@@ -38,7 +38,7 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
      * This test assumes that at least one of our defined features should reset successfully.
      * Since plugins should be testing their own reset operations if they use something
      * other than the default, this test tolerates failures in the response from the
-     * feature reset API.
+     * feature reset API. We just need to check that we can reset the "tasks" system index.
      */
     public void testResetFeatures() throws IOException {
         ResetFeaturesRequest request = new ResetFeaturesRequest();

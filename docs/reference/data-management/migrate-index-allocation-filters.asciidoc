@@ -155,4 +155,4 @@ PUT my-index-000001/_settings
 }
 ----
 
-For an index already in the cold tier, include the cold, warm, and hot tiers.
+If an index is already in the cold phase, include the cold, warm, and hot tiers.

@@ -27,7 +27,7 @@ import java.util.Arrays;
 public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> implements ToXContentObject {
 
     public static int DEFAULT_SIZE = 10;
-    public static int DEFAULT_TIMEOUT_MILLIS = 1000;
+    public static TimeValue DEFAULT_TIMEOUT = new TimeValue(1000);
 
     private String field;
     private String string;
@@ -56,7 +56,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     public TermsEnumRequest(String... indices) {
         super(indices);
         indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
-        timeout(new TimeValue(DEFAULT_TIMEOUT_MILLIS));
+        timeout(DEFAULT_TIMEOUT);
     }
 
     @Override
@@ -64,6 +64,13 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         ActionRequestValidationException validationException = super.validate();
         if (field == null) {
             validationException = ValidateActions.addValidationError("field cannot be null", validationException);
+        }
+        if (timeout() == null) {
+            validationException = ValidateActions.addValidationError("Timeout cannot be null", validationException);
+        } else {
+            if (timeout().getSeconds() > 60) {
+                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute", validationException);                
+            }
         }
         return validationException;
     }
@@ -109,14 +116,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     public void size(int size) {
         this.size = size;
     }
-
-    /**
-     * TThe max time in milliseconds to spend gathering terms
-     */
-    public void timeoutInMillis(int timeout) {
-        timeout(new TimeValue(timeout));
-    }
-
+    
     /**
      * If case insensitive matching is required
      */

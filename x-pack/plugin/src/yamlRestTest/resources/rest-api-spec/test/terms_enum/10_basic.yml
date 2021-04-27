@@ -252,6 +252,20 @@ teardown:
         body:  {"field": "foo", "string":"b", "index_filter":{"range":{"timestamp":{"gte":"2021-01-01T01:01:01.000Z"}}}}
   - length: {terms: 1}
 ---
+"Test legal timeout":
+  - do:
+      termsenum:
+        index:  test_*
+        body:  {"field": "foo", "string":"b", "timeout": "1s"}
+  - length: {terms: 3}
+---
+"Test illegal timeout":
+  - do:
+      catch: /Timeout cannot be > 1 minute/
+      termsenum:
+        index:  test_*
+        body:  {"field": "foo", "string":"b", "timeout": "2m"}
+---
 "Test security":
 
   - do:

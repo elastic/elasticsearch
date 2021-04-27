@@ -79,8 +79,8 @@ How many matching terms to return. Defaults to 10
 
 [[terms-enum-timeout-param]]
 `timeout`::
-(Optional, integer)
-The maximum length of time in milliseconds to spend collecting results. Defaults to 1000.
+(Optional, <<time-units,time value>>)
+The maximum length of time to spend collecting results. Defaults to "1s" (one second).
 If the timeout is exceeded the `complete` flag set to false in the response and the results may
 be partial or empty.
 

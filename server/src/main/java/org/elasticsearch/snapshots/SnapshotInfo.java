@@ -19,13 +19,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -38,7 +38,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Information about a snapshot
@@ -88,6 +87,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         private List<String> indices = null;
         private List<String> dataStreams = null;
         private List<SnapshotFeatureInfo> featureStates = null;
+        private Map<String, IndexSnapshotDetails> indexSnapshotDetails = null;
         private long startTime = 0L;
         private long endTime = 0L;
         private ShardStatsBuilder shardStatsBuilder = null;
@@ -122,6 +122,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
         private void setFeatureStates(List<SnapshotFeatureInfo> featureStates) {
             this.featureStates = featureStates;
+        }
+
+        private void setIndexSnapshotDetails(Map<String, IndexSnapshotDetails> indexSnapshotDetails) {
+            this.indexSnapshotDetails = indexSnapshotDetails;
         }
 
         private void setStartTime(long startTime) {
@@ -167,6 +171,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                 featureStates = Collections.emptyList();
             }
 
+            if (indexSnapshotDetails == null) {
+                indexSnapshotDetails = Collections.emptyMap();
+            }
+
             SnapshotState snapshotState = state == null ? null : SnapshotState.valueOf(state);
             Version version = this.version == -1 ? Version.CURRENT : Version.fromId(this.version);
 
@@ -177,8 +185,22 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                 shardFailures = new ArrayList<>();
             }
 
-            return new SnapshotInfo(snapshotId, indices, dataStreams, featureStates, reason, version, startTime, endTime, totalShards,
-                successfulShards, shardFailures, includeGlobalState, userMetadata, snapshotState, Collections.emptyMap()
+            return new SnapshotInfo(
+                    snapshotId,
+                    indices,
+                    dataStreams,
+                    featureStates,
+                    reason,
+                    version,
+                    startTime,
+                    endTime,
+                    totalShards,
+                    successfulShards,
+                    shardFailures,
+                    includeGlobalState,
+                    userMetadata,
+                    snapshotState,
+                    indexSnapshotDetails
             );
         }
     }
@@ -219,6 +241,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareStringArray(SnapshotInfoBuilder::setDataStreams, new ParseField(DATA_STREAMS));
         SNAPSHOT_INFO_PARSER.declareObjectArray(SnapshotInfoBuilder::setFeatureStates, SnapshotFeatureInfo.SNAPSHOT_FEATURE_INFO_PARSER,
             new ParseField(FEATURE_STATES));
+        SNAPSHOT_INFO_PARSER.declareObject(
+                SnapshotInfoBuilder::setIndexSnapshotDetails,
+                (p, c) -> p.map(HashMap::new, p2 -> IndexSnapshotDetails.PARSER.parse(p2, c)),
+                new ParseField(INDEX_DETAILS));
         SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setStartTime, new ParseField(START_TIME_IN_MILLIS));
         SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setEndTime, new ParseField(END_TIME_IN_MILLIS));
         SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setShardStatsBuilder, SHARD_STATS_PARSER, new ParseField(SHARDS));
@@ -321,7 +347,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public SnapshotInfo(SnapshotsInProgress.Entry entry) {
         this(
                 entry.snapshot().getSnapshotId(),
-                entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                List.copyOf(entry.indices().keySet()),
                 entry.dataStreams(),
                 entry.featureStates(),
                 null,
@@ -837,7 +863,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                         if (USER_METADATA.equals(currentFieldName)) {
                             userMetadata = parser.map();
                         } else if (INDEX_DETAILS.equals(currentFieldName)) {
-                            indexSnapshotDetails = parser.map(HashMap::new, IndexSnapshotDetails::fromXContent);
+                            indexSnapshotDetails = parser.map(HashMap::new, p -> IndexSnapshotDetails.PARSER.parse(p, null));
                         } else {
                             // It was probably created by newer version - ignoring
                             parser.skipChildren();
@@ -945,6 +971,17 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
         public static final IndexSnapshotDetails SKIPPED = new IndexSnapshotDetails(0, ByteSizeValue.ZERO, 0);
 
+        public static final ConstructingObjectParser<IndexSnapshotDetails, Void> PARSER = new ConstructingObjectParser<>(
+                IndexSnapshotDetails.class.getName(),
+                true,
+                a -> new IndexSnapshotDetails((int)a[0], ByteSizeValue.ofBytes((long) a[1]), (int)a[2]));
+
+        static {
+            PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(SHARD_COUNT));
+            PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField(SIZE));
+            PARSER.declareInt(ConstructingObjectParser.constructorArg(), new ParseField(MAX_SEGMENTS_PER_SHARD));
+        }
+
         private final int shardCount;
         private final ByteSizeValue size;
         private final int maxSegmentsPerShard;
@@ -1010,42 +1047,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(MAX_SEGMENTS_PER_SHARD, maxSegmentsPerShard);
             builder.endObject();
             return builder;
-        }
-
-        public static IndexSnapshotDetails fromXContent(XContentParser parser) throws IOException {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-            int shardCount = -1;
-            ByteSizeValue size = null;
-            int maxSegmentsPerShard = -1;
-            String currentFieldName;
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-                currentFieldName = parser.currentName();
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.nextToken(), parser);
-                switch (currentFieldName) {
-                    case SHARD_COUNT:
-                        shardCount = parser.intValue();
-                        break;
-                    case SIZE:
-                        size = new ByteSizeValue(parser.longValue());
-                        break;
-                    case MAX_SEGMENTS_PER_SHARD:
-                        maxSegmentsPerShard = parser.intValue();
-                        break;
-                }
-            }
-
-            if (shardCount < 1) {
-                throw new IllegalArgumentException("field [" + SHARD_COUNT + "] missing or invalid: " + shardCount);
-            }
-            if (size == null) {
-                throw new IllegalArgumentException("field [" + SIZE + "] missing");
-            }
-            if (maxSegmentsPerShard < 0) {
-                throw new IllegalArgumentException("field [" + MAX_SEGMENTS_PER_SHARD + "] missing or invalid: " + maxSegmentsPerShard);
-            }
-
-            return new IndexSnapshotDetails(shardCount, size, maxSegmentsPerShard);
         }
     }
 

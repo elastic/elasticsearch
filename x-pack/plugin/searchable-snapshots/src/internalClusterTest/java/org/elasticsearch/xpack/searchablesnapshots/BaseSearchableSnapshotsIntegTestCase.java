@@ -19,7 +19,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -39,11 +39,13 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.junit.After;
@@ -56,6 +58,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
@@ -309,5 +312,19 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
                 }
             }
         }, 30L, TimeUnit.SECONDS);
+    }
+
+    protected DiscoveryNodes getDiscoveryNodes() {
+        return client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
+    }
+
+    protected void assertExecutorIsIdle(String executorName) throws Exception {
+        assertBusy(() -> {
+            for (ThreadPool threadPool : internalCluster().getInstances(ThreadPool.class)) {
+                ThreadPoolExecutor threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(executorName);
+                assertThat(threadPoolExecutor.getQueue().size(), equalTo(0));
+                assertThat(threadPoolExecutor.getActiveCount(), equalTo(0));
+            }
+        });
     }
 }

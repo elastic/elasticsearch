@@ -7,12 +7,12 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-integTest {
+tasks.named("integTest").configure {
   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

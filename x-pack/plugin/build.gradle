@@ -15,7 +15,7 @@ dependencies {
 }
 
 // let the yamlRestTest see the classpath of test
-GradleUtils.extendSourceSet(project, "test", "yamlRestTest", yamlRestTest)
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
 
 subprojects {
   afterEvaluate {

@@ -16,11 +16,11 @@ testClusters.all {
   setting 'xpack.security.enabled', 'false'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   nameCustomization = { null }
 }
 
-integTest {
+tasks.named("integTest").configure {
   nonInputProperties.systemProperty 'tests.logfile',
     "${-> testClusters.integTest.singleNode().getServerLog()}"
 }

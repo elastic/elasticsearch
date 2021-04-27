@@ -21,7 +21,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 3
     }
   }
-  testClusters.matching { it.name.startsWith("${baseName}-") }.all {
+  testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
     testDistribution = "DEFAULT"
     versions = [bwcVersion.toString(), project.version]
 

@@ -83,7 +83,8 @@ public class DeprecationChecks {
                         XPackSettings.TRANSFORM_ENABLED),
                     (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
                         XPackSettings.VECTORS_ENABLED),
-                    NodeDeprecationChecks::checkMultipleDataPaths
+                    NodeDeprecationChecks::checkMultipleDataPaths,
+                    NodeDeprecationChecks::checkDataPathsList
                 )
             ).collect(Collectors.toList());
         }

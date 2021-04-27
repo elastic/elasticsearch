@@ -58,8 +58,7 @@ public enum SearchType {
     public static SearchType fromId(byte id) {
         if (id == 0) {
             return DFS_QUERY_THEN_FETCH;
-        } else if (id == 1
-            || id == 3) { // TODO this bwc layer can be removed once this is back-ported to 5.3 QUERY_AND_FETCH is removed now
+        } else if (id == 1) {
             return QUERY_THEN_FETCH;
         } else {
             throw new IllegalArgumentException("No search type for [" + id + "]");
@@ -68,8 +67,7 @@ public enum SearchType {
 
     /**
      * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
-     * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
-     * "query_then_fetch"/"queryThenFetch" and "query_and_fetch"/"queryAndFetch".
+     * one of "dfs_query_then_fetch" or "query_then_fetch".
      */
     public static SearchType fromString(String searchType) {
         if (searchType == null) {

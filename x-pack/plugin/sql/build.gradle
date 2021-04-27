@@ -1,7 +1,7 @@
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 esplugin {
   name 'x-pack-sql'

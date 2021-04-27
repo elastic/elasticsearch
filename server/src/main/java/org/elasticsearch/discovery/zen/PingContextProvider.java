@@ -6,11 +6,7 @@
  * Side Public License, v 1.
  */
 
-<<<<<<< HEAD:server/src/main/java/org/elasticsearch/discovery/zen/PingContextProvider.java
 package org.elasticsearch.discovery.zen;
-=======
-package org.elasticsearch.gradle.internal.test.rest.transform.text;
->>>>>>> 5bcd02cb4d2... Restructure build tools java packages (#72030):buildSrc/src/main/java/org/elasticsearch/gradle/internal/test/rest/transform/text/ReplaceIsTrue.java
 
 import org.elasticsearch.cluster.ClusterState;
 

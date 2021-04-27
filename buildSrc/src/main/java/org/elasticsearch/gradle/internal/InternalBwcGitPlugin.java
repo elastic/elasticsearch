@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal;
 
 import org.apache.commons.io.FileUtils;
-import org.elasticsearch.gradle.internal.LoggedExec;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;

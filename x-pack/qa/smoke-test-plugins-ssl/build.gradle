@@ -1,12 +1,8 @@
-<<<<<<< HEAD
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.http.WaitForHttpResource
-import org.elasticsearch.gradle.info.BuildParams
-=======
 import org.elasticsearch.gradle.internal.MavenFilteringHack
-
+import org.elasticsearch.gradle.testclusters.WaitForHttpResource
 import org.elasticsearch.gradle.internal.info.BuildParams
->>>>>>> 5bcd02cb4d2... Restructure build tools java packages (#72030)
+import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'

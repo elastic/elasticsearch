@@ -1,6 +1,8 @@
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.internal.jvm.Jvm
 import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.LoggedExec
+
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.yaml-rest-test'

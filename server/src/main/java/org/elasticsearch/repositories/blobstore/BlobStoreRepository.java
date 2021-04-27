@@ -1820,6 +1820,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap))),
                         snapshotIdsWithMissingDetails.size());
                 for (SnapshotId snapshotId : snapshotIdsWithMissingDetails) {
+                    // Just spawn all the download jobs at the same time: this is pretty important, executes only rarely (typically once
+                    // after an upgrade) and each job is only a small download so this shouldn't block other SNAPSHOT activities for long.
                     threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadExtraDetailsListener, () ->
                     {
                         final SnapshotInfo snapshotInfo = getSnapshotInfo(snapshotId);

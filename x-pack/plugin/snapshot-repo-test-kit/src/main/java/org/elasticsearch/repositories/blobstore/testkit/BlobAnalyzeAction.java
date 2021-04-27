@@ -675,7 +675,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
                 abortWrite = in.readBoolean();
             } else {
                 abortWrite = false;
@@ -695,7 +695,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
             out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
                 out.writeBoolean(abortWrite);
             } else if (abortWrite) {
                 throw new IllegalStateException("cannot send abortWrite request to node of version [" + out.getVersion() + "]");

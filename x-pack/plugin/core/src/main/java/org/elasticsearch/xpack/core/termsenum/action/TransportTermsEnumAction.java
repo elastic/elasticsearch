@@ -30,6 +30,7 @@ import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
@@ -272,7 +273,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         String error = null;
 
         long timeout_millis = request.timeout();
-        long scheduledEnd = request.shardStartedTimeMillis() + timeout_millis;
+        long scheduledEnd = request.nodeStartedTimeMillis() + timeout_millis;
 
         ArrayList<TermsEnum> shardTermsEnums = new ArrayList<>();
         ArrayList<Closeable> openedResources = new ArrayList<>();
@@ -291,7 +292,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     shardId.id(),
                     0,
                     searcher,
-                    request::shardStartedTimeMillis,
+                    request::nodeStartedTimeMillis,
                     null,
                     Collections.emptyMap()
                 );
@@ -364,7 +365,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                         shardId.id(),
                         0,
                         null,
-                        request::shardStartedTimeMillis,
+                        request::nodeStartedTimeMillis,
                         null,
                         Collections.emptyMap()
                     );
@@ -396,7 +397,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }
-        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, req.shardStartedTimeMillis(), AliasFilter.EMPTY);
+        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, req.nodeStartedTimeMillis(), AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
         return searchService.canMatch(searchRequest).canMatch();
     }
@@ -591,8 +592,15 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (request.shardIds().size() == 0) {
             listener.onResponse(new NodeTermsEnumResponse(request.nodeId(), Collections.emptyList(), null, true));
         } else {
+            // Use the search threadpool if its queue is empty            
+            assert transportService.getThreadPool()
+                .executor(
+                    ThreadPool.Names.SEARCH
+                ) instanceof EsThreadPoolExecutor : "SEARCH threadpool must be an instance of ThreadPoolExecutor";
+            EsThreadPoolExecutor ex = (EsThreadPoolExecutor) transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+            final String executorName = ex.getQueue().size() == 0 ? ThreadPool.Names.SEARCH : shardExecutor;            
             transportService.getThreadPool()
-                .executor(shardExecutor)
+                .executor(executorName)
                 .execute(ActionRunnable.supply(listener, () -> dataNodeOperation(request, task)));
         }
     }

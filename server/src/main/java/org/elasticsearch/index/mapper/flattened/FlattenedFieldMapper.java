@@ -306,7 +306,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
     
     
     // Wraps a raw Lucene TermsEnum to strip values of fieldnames
-    static class TranslatingTermsEnum extends TermsEnum{
+    static class TranslatingTermsEnum extends TermsEnum {
         TermsEnum delegate;
 
         TranslatingTermsEnum(TermsEnum delegate) {
@@ -317,7 +317,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public BytesRef next() throws IOException {
             // Strip the term of the fieldname value
             BytesRef result = delegate.next();
-            if(result != null) {
+            if (result != null) {
                 result = FlattenedFieldParser.extractValue(result);
             }
             return result;
@@ -327,7 +327,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public BytesRef term() throws IOException {
             // Strip the term of the fieldname value
             BytesRef result = delegate.term();
-            if(result != null) {
+            if (result != null) {
                 result = FlattenedFieldParser.extractValue(result);
             }
             return result;

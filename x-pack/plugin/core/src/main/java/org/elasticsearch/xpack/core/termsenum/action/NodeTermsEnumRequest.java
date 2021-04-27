@@ -84,10 +84,10 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     }
     
     /** 
-     * The time this request was materialized on a shard
+     * The time this request was materialized on a node
      * (defaults to "now" if serialization was not used e.g. a local request).
      */
-    public long shardStartedTimeMillis() {
+    public long nodeStartedTimeMillis() {
         if (nodeStartedTimeMillis == 0) {
             nodeStartedTimeMillis = System.currentTimeMillis();
         }
@@ -122,8 +122,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         out.writeVInt(size);
         // Adjust the amount of permitted time the shard has remaining to gather terms. 
         long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;
-        assert timeSpentSoFarInCoordinatingNode >= 0;
-        int remainingTimeForShardToUse = (int) (timeout - timeSpentSoFarInCoordinatingNode);
+        long remainingTimeForShardToUse =  (timeout - timeSpentSoFarInCoordinatingNode);
         // TODO - if already timed out can we shortcut the trip somehow? Throw exception if remaining time < 0?
         out.writeVLong(remainingTimeForShardToUse);
         out.writeVLong(taskStartedTimeMillis);

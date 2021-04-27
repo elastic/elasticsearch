@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class TermCount implements Writeable, ToXContentFragment {
 
@@ -31,11 +31,11 @@ public class TermCount implements Writeable, ToXContentFragment {
         a -> { return new TermCount((String) a[0], (long) a[1]); }
     );
     static {
-        PARSER.declareString(optionalConstructorArg(), new ParseField(TERM_FIELD));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField(DOC_COUNT_FIELD));
+        PARSER.declareString(constructorArg(), new ParseField(TERM_FIELD));
+        PARSER.declareLong(constructorArg(), new ParseField(DOC_COUNT_FIELD));
     }
 
-    private String term;
+    private final String term;
 
     private long docCount;
 
@@ -89,14 +89,6 @@ public class TermCount implements Writeable, ToXContentFragment {
 
     void addToDocCount(long extra) {
         docCount += extra;
-    }
-
-    void setTerm(String term) {
-        this.term = term;
-    }
-
-    void setDocCount(long docCount) {
-        this.docCount = docCount;
     }
 
     @Override

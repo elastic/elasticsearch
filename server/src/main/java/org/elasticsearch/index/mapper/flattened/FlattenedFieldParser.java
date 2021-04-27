@@ -166,6 +166,7 @@ class FlattenedFieldParser {
         }
         return new BytesRef(keyedValue.bytes, keyedValue.offset, length);
     }
+
     static BytesRef extractValue(BytesRef keyedValue) {
         int length;
         for (length = 0; length < keyedValue.length; length++){

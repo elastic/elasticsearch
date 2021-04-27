@@ -55,13 +55,11 @@ public class TermsEnumResponse extends BroadcastResponse {
     private final List<String> terms;
 
     private boolean complete;
-    private int skippedShards;
 
     TermsEnumResponse(StreamInput in) throws IOException {
         super(in);
         terms = in.readStringList();
         complete = in.readBoolean();
-        skippedShards = in.readVInt();
     }
 
     public TermsEnumResponse(
@@ -82,20 +80,12 @@ public class TermsEnumResponse extends BroadcastResponse {
     public List<String> getTerms() {
         return terms;
     }
-    
-    /**
-     * The number of shards skipped by the index filter
-     */
-    public int getSkippedShards() {
-        return skippedShards;
-    }    
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringCollection(terms);
         out.writeBoolean(complete);
-        out.writeVInt(skippedShards);
     }
 
     @Override

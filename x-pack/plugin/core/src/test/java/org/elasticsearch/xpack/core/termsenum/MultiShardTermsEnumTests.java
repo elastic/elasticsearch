@@ -86,7 +86,7 @@ public class MultiShardTermsEnumTests extends ESTestCase {
                 for (DirectoryReader reader : readers) {
                     Terms terms = MultiTerms.getTerms(reader, fieldName);
                     TermsEnum te = automaton.getTermsEnum(terms);
-                    if(randomBoolean()) {
+                    if (randomBoolean()) {
                         // Simulate fields like constant-keyword which use a SimpleTermCountEnum to present results
                         // rather than the raw TermsEnum from Lucene.
                         ArrayList<TermCount> termCounts = new ArrayList<>();

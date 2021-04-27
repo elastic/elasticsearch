@@ -23,13 +23,13 @@ import java.util.Comparator;
  * {@link MappedFieldType#getTerms(boolean, String, org.elasticsearch.index.query.SearchExecutionContext)}
  * but can't return a raw Lucene TermsEnum.
  */
-public class SimpleTermCountEnum extends TermsEnum{
+public class SimpleTermCountEnum extends TermsEnum {
     int index =-1;
     TermCount[] sortedTerms;
     TermCount current = null;
     
     public SimpleTermCountEnum(TermCount[] terms) {
-        sortedTerms = terms;
+        sortedTerms = Arrays.copyOf(terms, terms.length);
         Arrays.sort(sortedTerms, Comparator.comparing(TermCount::getTerm));
     }
     
@@ -49,7 +49,7 @@ public class SimpleTermCountEnum extends TermsEnum{
     @Override
     public BytesRef next() throws IOException {
         index++;
-        if(index >= sortedTerms.length) {
+        if (index >= sortedTerms.length) {
             current = null;
         } else {
             current = sortedTerms[index];

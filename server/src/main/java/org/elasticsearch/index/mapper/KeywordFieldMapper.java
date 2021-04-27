@@ -257,8 +257,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
         }
-        
-        
 
         @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext) throws IOException {

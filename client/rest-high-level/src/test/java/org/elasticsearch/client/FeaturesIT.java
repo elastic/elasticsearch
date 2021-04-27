@@ -59,11 +59,5 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getFeatureResetStatuses().size(), greaterThan(1));
         assertTrue(response.getFeatureResetStatuses().stream().anyMatch(
             feature -> "tasks".equals(feature.getFeatureName()) && "SUCCESS".equals(feature.getStatus())));
-
-        Set<String> statuses = response.getFeatureResetStatuses().stream()
-            .map(ResetFeaturesResponse.ResetFeatureStateStatus::getStatus)
-            .collect(Collectors.toSet());
-
-        assertTrue("At least one feature should have been successfully reset", statuses.contains("SUCCESS"));
     }
 }

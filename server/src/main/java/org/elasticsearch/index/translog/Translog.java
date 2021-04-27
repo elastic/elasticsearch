@@ -1556,13 +1556,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         final BufferedChecksumStreamOutput checksumStreamOutput = new BufferedChecksumStreamOutput(out);
         for (Operation op : toWrite) {
             out.reset();
-            out.skip(Integer.BYTES);
             writeOperationNoSize(checksumStreamOutput, op);
-            long end = out.position();
-            int operationSize = (int) (out.position() - Integer.BYTES);
-            out.seek(0);
-            out.writeInt(operationSize);
-            out.seek(end);
+            outStream.writeInt(Math.toIntExact(out.position()));
             out.bytes().writeTo(outStream);
         }
     }

@@ -17,8 +17,6 @@ import org.elasticsearch.search.SearchModule;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;

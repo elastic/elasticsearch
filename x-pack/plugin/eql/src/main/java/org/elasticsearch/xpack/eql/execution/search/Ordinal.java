@@ -13,10 +13,12 @@ public class Ordinal implements Comparable<Ordinal> {
 
     private final long timestamp;
     private final Comparable<Object> tiebreaker;
+    private final long implicitTiebreaker; // _shard_doc tiebreaker automatically added by ES PIT
 
-    public Ordinal(long timestamp, Comparable<Object> tiebreaker) {
+    public Ordinal(long timestamp, Comparable<Object> tiebreaker, long implicitTiebreaker) {
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
+        this.implicitTiebreaker = implicitTiebreaker;
     }
 
     public long timestamp() {
@@ -27,9 +29,13 @@ public class Ordinal implements Comparable<Ordinal> {
         return tiebreaker;
     }
 
+    public long implicitTiebreaker() {
+        return implicitTiebreaker;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, tiebreaker);
+        return Objects.hash(timestamp, tiebreaker, implicitTiebreaker);
     }
 
     @Override
@@ -44,12 +50,13 @@ public class Ordinal implements Comparable<Ordinal> {
 
         Ordinal other = (Ordinal) obj;
         return Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tiebreaker, other.tiebreaker);
+                && Objects.equals(tiebreaker, other.tiebreaker)
+                && Objects.equals(implicitTiebreaker, other.implicitTiebreaker);
     }
 
     @Override
     public String toString() {
-        return "[" + timestamp + "][" + (tiebreaker != null ? tiebreaker.toString() : "") + "]";
+        return "[" + timestamp + "][" + (tiebreaker != null ? tiebreaker.toString() : "") + "][" + implicitTiebreaker + "]";
     }
 
     @Override
@@ -59,8 +66,14 @@ public class Ordinal implements Comparable<Ordinal> {
         }
         if (timestamp == o.timestamp) {
             if (tiebreaker != null) {
-                // if the other tiebreaker is null, it is higher (nulls are last)
-                return o.tiebreaker != null ? tiebreaker.compareTo(o.tiebreaker) : -1;
+                if (o.tiebreaker != null) {
+                    if (tiebreaker.compareTo(o.tiebreaker) == 0) {
+                        return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
+                    }
+                    return tiebreaker.compareTo(o.tiebreaker);
+                } else {
+                    return -1;
+                }
             }
             // this tiebreaker is null
             else {
@@ -68,7 +81,7 @@ public class Ordinal implements Comparable<Ordinal> {
                 // this ordinal is greater (after) then the other tiebreaker
                 // so fall through to 1
                 if (o.tiebreaker == null) {
-                    return 0;
+                    return Long.compare(implicitTiebreaker, o.implicitTiebreaker);
                 }
             }
         }
@@ -97,6 +110,8 @@ public class Ordinal implements Comparable<Ordinal> {
     }
 
     public Object[] toArray() {
-        return tiebreaker != null ? new Object[] { timestamp, tiebreaker } : new Object[] { timestamp };
+        return tiebreaker != null ?
+            new Object[] { timestamp, tiebreaker, implicitTiebreaker } 
+            : new Object[] { timestamp, implicitTiebreaker };
     }
 }

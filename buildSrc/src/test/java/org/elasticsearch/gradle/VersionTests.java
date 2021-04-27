@@ -8,7 +8,7 @@ package org.elasticsearch.gradle;
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 

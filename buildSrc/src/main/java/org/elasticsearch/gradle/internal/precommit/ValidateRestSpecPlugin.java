@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.internal.InternalPlugin;
-import org.elasticsearch.gradle.util.Util;
+import org.elasticsearch.gradle.internal.util.Util;
 import org.gradle.api.Project;
 import org.gradle.api.provider.Provider;
 

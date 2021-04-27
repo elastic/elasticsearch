@@ -15,10 +15,6 @@ import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 public class BaseFrozenSearchableSnapshotsIntegTestCase extends BaseSearchableSnapshotsIntegTestCase {
-    @Override
-    protected boolean forceSingleDataPath() {
-        return true;
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

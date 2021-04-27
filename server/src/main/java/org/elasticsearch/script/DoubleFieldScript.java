@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.DoubleConsumer;
 
@@ -64,17 +63,6 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
      */
     public final double[] values() {
         return values;
-    }
-
-    /**
-     * Reorders the values from the last time {@link #values()} was called to
-     * how this would appear in doc-values order. Truncates garbage values
-     * based on {@link #count()}.
-     */
-    public final double[] asDocValues() {
-        double[] truncated = Arrays.copyOf(values, count());
-        Arrays.sort(truncated);
-        return truncated;
     }
 
     /**

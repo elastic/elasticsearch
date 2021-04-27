@@ -195,27 +195,24 @@ public final class NodeEnvironment  implements Closeable {
                         final Environment environment,
                         final CheckedFunction<Path, Boolean, IOException> pathFunction,
                         final Function<Path, Path> subPathMapping) throws IOException {
-            nodePaths = new NodePath[environment.dataFiles().length];
-            locks = new Lock[nodePaths.length];
+            nodePaths = new NodePath[1];
+            locks = new Lock[1];
             try {
-                final Path[] dataPaths = environment.dataFiles();
-                for (int dirIndex = 0; dirIndex < dataPaths.length; dirIndex++) {
-                    Path dataDir = dataPaths[dirIndex];
-                    Path dir = subPathMapping.apply(dataDir);
-                    if (pathFunction.apply(dir) == false) {
-                        continue;
-                    }
-                    try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                        logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
-                        locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
-                        nodePaths[dirIndex] = new NodePath(dir);
-                    } catch (IOException e) {
-                        logger.trace(() -> new ParameterizedMessage(
-                            "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
-                        // release all the ones that were obtained up until now
-                        throw (e instanceof LockObtainFailedException ? e
-                            : new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e));
-                    }
+                Path dataDir = environment.dataFile();
+                Path dir = subPathMapping.apply(dataDir);
+                if (pathFunction.apply(dir) == false) {
+                    return;
+                }
+                try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
+                    logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                    locks[0] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
+                    nodePaths[0] = new NodePath(dir);
+                } catch (IOException e) {
+                    logger.trace(() -> new ParameterizedMessage(
+                        "failed to obtain node lock on {}", dir.toAbsolutePath()), e);
+                    // release all the ones that were obtained up until now
+                    throw (e instanceof LockObtainFailedException ? e
+                        : new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e));
                 }
             } catch (IOException e) {
                 close();
@@ -247,10 +244,7 @@ public final class NodeEnvironment  implements Closeable {
 
         try {
             sharedDataPath = environment.sharedDataFile();
-
-            for (Path path : environment.dataFiles()) {
-                Files.createDirectories(path);
-            }
+            Files.createDirectories(environment.dataFile());
 
             final NodeLock nodeLock;
             try {
@@ -259,8 +253,8 @@ public final class NodeEnvironment  implements Closeable {
                 final String message = String.format(
                     Locale.ROOT,
                     "failed to obtain node locks, tried %s;" +
-                        " maybe these locations are not writable or multiple nodes were started on the same data path?",
-                    Arrays.toString(environment.dataFiles()));
+                        " maybe this location is not writable or multiple nodes were started on the same data path?",
+                    environment.dataFile());
                 throw new IllegalStateException(message, e);
             }
 
@@ -308,33 +302,31 @@ public final class NodeEnvironment  implements Closeable {
         boolean upgradeNeeded = false;
 
         // check if we can do an auto-upgrade
-        for (Path path : environment.dataFiles()) {
-            final Path nodesFolderPath = path.resolve("nodes");
-            if (Files.isDirectory(nodesFolderPath)) {
-                final List<Integer> nodeLockIds = new ArrayList<>();
+        final Path nodesFolderPath = environment.dataFile().resolve("nodes");
+        if (Files.isDirectory(nodesFolderPath)) {
+            final List<Integer> nodeLockIds = new ArrayList<>();
 
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodesFolderPath)) {
-                    for (Path nodeLockIdPath : stream) {
-                        String fileName = nodeLockIdPath.getFileName().toString();
-                        if (Files.isDirectory(nodeLockIdPath) && fileName.chars().allMatch(Character::isDigit)) {
-                            int nodeLockId = Integer.parseInt(fileName);
-                            nodeLockIds.add(nodeLockId);
-                        } else if (FileSystemUtils.isDesktopServicesStore(nodeLockIdPath) == false) {
-                            throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
-                                nodeLockIdPath);
-                        }
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(nodesFolderPath)) {
+                for (Path nodeLockIdPath : stream) {
+                    String fileName = nodeLockIdPath.getFileName().toString();
+                    if (Files.isDirectory(nodeLockIdPath) && fileName.chars().allMatch(Character::isDigit)) {
+                        int nodeLockId = Integer.parseInt(fileName);
+                        nodeLockIds.add(nodeLockId);
+                    } else if (FileSystemUtils.isDesktopServicesStore(nodeLockIdPath) == false) {
+                        throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
+                            nodeLockIdPath);
                     }
                 }
+            }
 
-                if (nodeLockIds.isEmpty() == false) {
-                    upgradeNeeded = true;
+            if (nodeLockIds.isEmpty() == false) {
+                upgradeNeeded = true;
 
-                    if (nodeLockIds.equals(Arrays.asList(0)) == false) {
-                        throw new IllegalStateException("data path " + nodesFolderPath + " cannot be upgraded automatically because it " +
-                            "contains data from nodes with ordinals " + nodeLockIds + ", due to previous use of the now obsolete " +
-                            "[node.max_local_storage_nodes] setting. Please check the breaking changes docs for the current version of " +
-                            "Elasticsearch to find an upgrade path");
-                    }
+                if (nodeLockIds.equals(Arrays.asList(0)) == false) {
+                    throw new IllegalStateException("data path " + nodesFolderPath + " cannot be upgraded automatically because it " +
+                        "contains data from nodes with ordinals " + nodeLockIds + ", due to previous use of the now obsolete " +
+                        "[node.max_local_storage_nodes] setting. Please check the breaking changes docs for the current version of " +
+                        "Elasticsearch to find an upgrade path");
                 }
             }
         }
@@ -344,7 +336,7 @@ public final class NodeEnvironment  implements Closeable {
             return false;
         }
 
-        logger.info("upgrading legacy data folders: {}", Arrays.toString(environment.dataFiles()));
+        logger.info("upgrading legacy data folder: {}", environment.dataFile());
 
         // acquire locks on legacy path for duration of upgrade (to ensure there is no older ES version running on this path)
         final NodeLock legacyNodeLock;
@@ -354,8 +346,8 @@ public final class NodeEnvironment  implements Closeable {
             final String message = String.format(
                 Locale.ROOT,
                 "failed to obtain legacy node locks, tried %s;" +
-                    " maybe these locations are not writable or multiple nodes were started on the same data path?",
-                Arrays.toString(environment.dataFiles()));
+                    " maybe this location is not writable or multiple nodes were started on the same data path?",
+                environment.dataFile());
             throw new IllegalStateException(message, e);
         }
 
@@ -429,7 +421,7 @@ public final class NodeEnvironment  implements Closeable {
         }
 
         // upgrade successfully completed, remove legacy nodes folders
-        IOUtils.rm(Stream.of(environment.dataFiles()).map(path -> path.resolve("nodes")).toArray(Path[]::new));
+        IOUtils.rm(environment.dataFile().resolve("nodes"));
 
         return true;
     }

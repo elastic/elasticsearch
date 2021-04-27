@@ -73,6 +73,9 @@ setup:
 
 ---
 one source - first page:
+  - skip:
+      version: " - 6.99.99"
+      reason: Format added in 7.0.0
   - do:
       search:
         index: sorted
@@ -96,6 +99,9 @@ one source - first page:
 
 ---
 one source - second page:
+  - skip:
+      version: " - 6.99.99"
+      reason: Format added in 7.0.0
   - do:
       search:
         index: sorted
@@ -121,6 +127,9 @@ one source - second page:
 
 ---
 two sources - first page:
+  - skip:
+      version: " - 6.99.99"
+      reason: Format added in 7.0.0
   - do:
       search:
         index: sorted
@@ -149,6 +158,9 @@ two sources - first page:
 
 ---
 two sources - second page:
+  - skip:
+      version: " - 6.99.99"
+      reason: Format added in 7.0.0
   - do:
       search:
         index: sorted

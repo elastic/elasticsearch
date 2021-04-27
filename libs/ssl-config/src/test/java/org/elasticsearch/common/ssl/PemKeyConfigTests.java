@@ -22,6 +22,7 @@ import java.security.PrivateKey;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -39,46 +40,46 @@ public class PemKeyConfigTests extends ESTestCase {
 
     @Before
     public void setupPath(){
-        configBasePath = getDataPath(".");
+        configBasePath = getDataPath("/certs");
     }
 
     public void testBuildKeyConfigFromPkcs1PemFilesWithoutPassword() throws Exception {
-        final Path cert = getDataPath("/certs/cert1/cert1.crt");
-        final Path key = getDataPath("/certs/cert1/cert1.key");
+        final String cert = "cert1/cert1.crt";
+        final String key = "cert1/cert1.key";
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0], configBasePath);
-        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(resolve(cert, key)));
         assertCertificateAndKey(keyConfig, "CN=cert1");
     }
 
     public void testBuildKeyConfigFromPkcs1PemFilesWithPassword() throws Exception {
-        final Path cert = getDataPath("/certs/cert2/cert2.crt");
-        final Path key = getDataPath("/certs/cert2/cert2.key");
+        final String cert = "cert2/cert2.crt";
+        final String key = "cert2/cert2.key";
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray(), configBasePath);
-        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(resolve(cert, key)));
         assertCertificateAndKey(keyConfig, "CN=cert2");
     }
 
     public void testBuildKeyConfigFromPkcs8PemFilesWithoutPassword() throws Exception {
-        final Path cert = getDataPath("/certs/cert1/cert1.crt");
-        final Path key = getDataPath("/certs/cert1/cert1-pkcs8.key");
+        final String cert = "cert1/cert1.crt";
+        final String key = "cert1/cert1-pkcs8.key";
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0], configBasePath);
-        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(resolve(cert, key)));
         assertCertificateAndKey(keyConfig, "CN=cert1");
     }
 
     public void testBuildKeyConfigFromPkcs8PemFilesWithPassword() throws Exception {
         assumeFalse("Can't run in a FIPS JVM, PBE KeySpec is not available", inFipsJvm());
-        final Path cert = getDataPath("/certs/cert2/cert2.crt");
-        final Path key = getDataPath("/certs/cert2/cert2-pkcs8.key");
+        final String cert = "cert2/cert2.crt";
+        final String key = "cert2/cert2-pkcs8.key";
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray(), configBasePath);
-        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(cert, key));
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(resolve(cert, key)));
         assertCertificateAndKey(keyConfig, "CN=cert2");
     }
 
     public void testKeyManagerFailsWithIncorrectPassword() throws Exception {
         final Path cert = getDataPath("/certs/cert2/cert2.crt");
         final Path key = getDataPath("/certs/cert2/cert2.key");
-        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "wrong-password".toCharArray(), configBasePath);
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert.toString(), key.toString(), "wrong-password".toCharArray(), configBasePath);
         assertPasswordIsIncorrect(keyConfig, key);
     }
 
@@ -86,7 +87,7 @@ public class PemKeyConfigTests extends ESTestCase {
         final Path key = getDataPath("/certs/cert1/cert1.key");
         final Path cert = key.getParent().resolve("dne.crt");
 
-        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0], configBasePath);
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert.toString(), key.toString(), new char[0], configBasePath);
         assertFileNotFound(keyConfig, "certificate", cert);
     }
 
@@ -94,7 +95,7 @@ public class PemKeyConfigTests extends ESTestCase {
         final Path cert = getDataPath("/certs/cert1/cert1.crt");
         final Path key = cert.getParent().resolve("dne.key");
 
-        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0], configBasePath);
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert.toString(), key.toString(), new char[0], configBasePath);
         assertFileNotFound(keyConfig, "private key", key);
     }
 
@@ -106,7 +107,7 @@ public class PemKeyConfigTests extends ESTestCase {
         final Path cert = createTempFile("cert", ".crt");
         final Path key = createTempFile("cert", ".key");
 
-        final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, new char[0], configBasePath);
+        final PemKeyConfig keyConfig = new PemKeyConfig(cert.toString(), key.toString(), new char[0], configBasePath);
 
         Files.copy(cert1, cert, StandardCopyOption.REPLACE_EXISTING);
         Files.copy(key1, key, StandardCopyOption.REPLACE_EXISTING);
@@ -122,6 +123,10 @@ public class PemKeyConfigTests extends ESTestCase {
 
         Files.delete(cert);
         assertFileNotFound(keyConfig, "certificate", cert);
+    }
+
+    private Path[] resolve(String ... names) {
+        return Stream.of(names).map(configBasePath::resolve).toArray(Path[]::new);
     }
 
     private void assertCertificateAndKey(PemKeyConfig keyConfig, String expectedDN) throws CertificateParsingException {

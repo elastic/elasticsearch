@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.ssl;
 
-import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 
 /**
@@ -18,12 +17,12 @@ import java.security.cert.X509Certificate;
 public class StoredCertificate {
 
     private final X509Certificate certificate;
-    private final Path path;
+    private final String path;
     private final String format;
     private final String alias;
     private final boolean hasPrivateKey;
 
-    public StoredCertificate(X509Certificate certificate, Path path, String format, String alias, boolean hasPrivateKey) {
+    public StoredCertificate(X509Certificate certificate, String path, String format, String alias, boolean hasPrivateKey) {
         this.certificate = certificate;
         this.path = path;
         this.format = format;
@@ -35,7 +34,7 @@ public class StoredCertificate {
         return certificate;
     }
 
-    public Path getPath() {
+    public String getPath() {
         return path;
     }
 

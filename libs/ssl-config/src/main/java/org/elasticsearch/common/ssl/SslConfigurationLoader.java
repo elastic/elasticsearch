@@ -301,8 +301,8 @@ public abstract class SslConfigurationLoader {
     }
 
     protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
-        final List<Path> certificateAuthorities = resolveListSetting(CERTIFICATE_AUTHORITIES, basePath::resolve, null);
-        final Path trustStorePath = resolvePath(TRUSTSTORE_PATH, basePath);
+        final List<String> certificateAuthorities = resolveListSetting(CERTIFICATE_AUTHORITIES, Function.identity(), null);
+        final String trustStorePath = resolveSetting(TRUSTSTORE_PATH, Function.identity(), null);
 
         if (certificateAuthorities != null && trustStorePath != null) {
             throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE_AUTHORITIES + "] and [" +
@@ -316,7 +316,7 @@ public abstract class SslConfigurationLoader {
         }
         if (trustStorePath != null) {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
-            final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath));
+            final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath.toString()));
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
             return new StoreTrustConfig(trustStorePath, password, storeType, algorithm, true, basePath);
         }
@@ -333,9 +333,9 @@ public abstract class SslConfigurationLoader {
     }
 
     private SslKeyConfig buildKeyConfig(Path basePath) {
-        final Path certificatePath = resolvePath(CERTIFICATE, basePath);
-        final Path keyPath = resolvePath(KEY, basePath);
-        final Path keyStorePath = resolvePath(KEYSTORE_PATH, basePath);
+        final String certificatePath = stringSetting(CERTIFICATE);
+        final String keyPath = stringSetting(KEY);
+        final String keyStorePath = stringSetting(KEYSTORE_PATH);
 
         if (certificatePath != null && keyStorePath != null) {
             throw new SslConfigException("cannot specify both [" + settingPrefix + CERTIFICATE + "] and [" +
@@ -379,7 +379,7 @@ public abstract class SslConfigurationLoader {
 
     private char[] resolvePasswordSetting(String secureSettingKey, String legacySettingKey) {
         final char[] securePassword = resolveSecureSetting(secureSettingKey, null);
-        final String legacyPassword = resolveSetting(legacySettingKey, Function.identity(), null);
+        final String legacyPassword = stringSetting(legacySettingKey);
         if (securePassword == null) {
             if (legacyPassword == null) {
                 return EMPTY_PASSWORD;
@@ -394,6 +394,10 @@ public abstract class SslConfigurationLoader {
                 return securePassword;
             }
         }
+    }
+
+    private String stringSetting(String key) {
+        return resolveSetting(key, Function.identity(), null);
     }
 
     private <V> V resolveSetting(String key, Function<String, V> parser, V defaultValue) {

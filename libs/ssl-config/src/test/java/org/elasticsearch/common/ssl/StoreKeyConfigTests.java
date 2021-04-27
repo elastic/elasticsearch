@@ -67,20 +67,21 @@ public class StoreKeyConfigTests extends ESTestCase {
 
     public void testLoadMultipleKeyJksWithSeparateKeyPassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Path jks = getDataPath("/certs/cert-all/certs.jks");
+        final String jks = "cert-all/certs.jks";
         final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, JKS_PASS, "jks", "key-pass".toCharArray(),
             KeyManagerFactory.getDefaultAlgorithm(), configBasePath);
-        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(jks));
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(configBasePath.resolve(jks)));
         assertKeysLoaded(keyConfig, "cert1", "cert2");
     }
 
     public void testKeyManagerFailsWithIncorrectStorePassword() throws Exception {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Path jks = getDataPath("/certs/cert-all/certs.jks");
+        final String jks = "cert-all/certs.jks";
         final StoreKeyConfig keyConfig = new StoreKeyConfig(jks, P12_PASS, "jks", "key-pass".toCharArray(),
             KeyManagerFactory.getDefaultAlgorithm(), configBasePath);
-        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(jks));
-        assertPasswordIsIncorrect(keyConfig, jks);
+        final Path path = configBasePath.resolve(jks);
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(path));
+        assertPasswordIsIncorrect(keyConfig, path);
     }
 
     public void testKeyManagerFailsWithIncorrectKeyPassword() throws Exception {
@@ -145,7 +146,7 @@ public class StoreKeyConfigTests extends ESTestCase {
     }
 
     private StoreKeyConfig config(Path path, char[] password, String type) {
-        return new StoreKeyConfig(path, password, type, password, KeyManagerFactory.getDefaultAlgorithm(), configBasePath);
+        return new StoreKeyConfig(path.toString(), password, type, password, KeyManagerFactory.getDefaultAlgorithm(), configBasePath);
     }
 
     private void assertKeysLoaded(StoreKeyConfig keyConfig, String... names) throws CertificateParsingException {

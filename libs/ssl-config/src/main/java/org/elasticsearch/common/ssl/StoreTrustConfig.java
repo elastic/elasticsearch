@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
  * A {@link SslTrustConfig} that builds a Trust Manager from a keystore file.
  */
 final class StoreTrustConfig implements SslTrustConfig {
-    private final Path path;
+    private final String truststorePath;
     private final char[] password;
     private final String type;
     private final String algorithm;
@@ -38,13 +38,13 @@ final class StoreTrustConfig implements SslTrustConfig {
      * @param path      The path to the keystore file
      * @param password  The password for the keystore
      * @param type      The {@link KeyStore#getType() type} of the keystore (typically "PKCS12" or "jks").
- *                  See {@link KeyStoreUtil#inferKeyStoreType(Path)}.
+ *                  See {@link KeyStoreUtil#inferKeyStoreType}.
      * @param algorithm The algorithm to use for the Trust Manager (see {@link javax.net.ssl.TrustManagerFactory#getAlgorithm()}).
      * @param requireTrustAnchors If true, the truststore will be checked to ensure that it contains at least one valid trust anchor.
      * @param configBasePath The base path for the configuration directory
      */
-    StoreTrustConfig(Path path, char[] password, String type, String algorithm, boolean requireTrustAnchors, Path configBasePath) {
-        this.path = Objects.requireNonNull(path, "Truststore path cannot be null");
+    StoreTrustConfig(String path, char[] password, String type, String algorithm, boolean requireTrustAnchors, Path configBasePath) {
+        this.truststorePath = Objects.requireNonNull(path, "Truststore path cannot be null");
         this.type = Objects.requireNonNull(type, "Truststore type cannot be null");
         this.algorithm = Objects.requireNonNull(algorithm, "Truststore algorithm cannot be null");
         this.password = Objects.requireNonNull(password, "Truststore password cannot be null (but may be empty)");
@@ -54,48 +54,54 @@ final class StoreTrustConfig implements SslTrustConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
-        return List.of(path);
+        return List.of(resolvePath());
+    }
+
+    private Path resolvePath() {
+        return configBasePath.resolve(this.truststorePath);
     }
 
     @Override
     public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        final Path path = resolvePath();
         try {
-            final KeyStore trustStore = readKeyStore();
+            final KeyStore trustStore = readKeyStore(path);
             return KeyStoreUtil.stream(trustStore)
                 .map(entry -> {
                     try {
                         final X509Certificate certificate = entry.getX509Certificate();
                         if (certificate != null) {
                             final boolean hasKey = entry.isKeyEntry();
-                            return new StoredCertificate(certificate, this.path, this.type, entry.getAlias(), hasKey);
+                            return new StoredCertificate(certificate, this.truststorePath, this.type, entry.getAlias(), hasKey);
                         } else {
                             return null;
                         }
                     } catch (KeyStoreException ex) {
-                        throw keystoreException(ex);
+                        throw keystoreException(path, ex);
                     }
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toUnmodifiableList());
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e);
+            throw keystoreException(path, e);
         }
     }
 
     @Override
     public X509ExtendedTrustManager createTrustManager() {
+        final Path path = resolvePath();
         try {
-            final KeyStore store = readKeyStore();
+            final KeyStore store = readKeyStore(path);
             if (requireTrustAnchors) {
-                checkTrustStore(store);
+                checkTrustStore(store, path);
             }
             return KeyStoreUtil.createTrustManager(store, algorithm);
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e);
+            throw keystoreException(path, e);
         }
     }
 
-    private KeyStore readKeyStore() {
+    private KeyStore readKeyStore(Path path) {
         try {
             return KeyStoreUtil.readKeyStore(path, type, password);
         } catch (AccessControlException e) {
@@ -103,11 +109,11 @@ final class StoreTrustConfig implements SslTrustConfig {
         } catch (IOException e) {
             throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e);
         } catch (GeneralSecurityException e) {
-            throw keystoreException(e);
+            throw keystoreException(path, e);
         }
     }
 
-    private SslConfigException keystoreException(GeneralSecurityException e) {
+    private SslConfigException keystoreException(Path path, GeneralSecurityException e) {
          final String extra;
         if (password.length == 0) {
              extra = "(no password was provided)";
@@ -124,7 +130,7 @@ final class StoreTrustConfig implements SslTrustConfig {
     /**
      * Verifies that the keystore contains at least 1 trusted certificate entry.
      */
-    private void checkTrustStore(KeyStore store) throws GeneralSecurityException {
+    private void checkTrustStore(KeyStore store, Path path) throws GeneralSecurityException {
         Enumeration<String> aliases = store.aliases();
         while (aliases.hasMoreElements()) {
             String alias = aliases.nextElement();
@@ -140,7 +146,7 @@ final class StoreTrustConfig implements SslTrustConfig {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         StoreTrustConfig that = (StoreTrustConfig) o;
-        return path.equals(that.path)
+        return truststorePath.equals(that.truststorePath)
             && Arrays.equals(password, that.password)
             && type.equals(that.type)
             && algorithm.equals(that.algorithm);
@@ -148,7 +154,7 @@ final class StoreTrustConfig implements SslTrustConfig {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(path, type, algorithm);
+        int result = Objects.hash(truststorePath, type, algorithm);
         result = 31 * result + Arrays.hashCode(password);
         return result;
     }
@@ -156,7 +162,7 @@ final class StoreTrustConfig implements SslTrustConfig {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("StoreTrustConfig{");
-        sb.append("path=").append(path);
+        sb.append("path=").append(truststorePath);
         sb.append(", password=").append(password.length == 0 ? "<empty>" : "<non-empty>");
         sb.append(", type=").append(type);
         sb.append(", algorithm=").append(algorithm);

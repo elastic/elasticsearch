@@ -28,7 +28,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;

@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.startsWith;

@@ -24,9 +24,6 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
-
 @SuppressForbidden(reason = "modifies system properties and attempts to create symbolic links intentionally")
 public class EvilSecurityTests extends ESTestCase {
 

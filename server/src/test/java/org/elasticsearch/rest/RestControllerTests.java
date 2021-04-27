@@ -780,7 +780,11 @@ public class RestControllerTests extends ESTestCase {
 
         @Override
         public void sendResponse(RestResponse response) {
-            throw new IllegalStateException("always throwing an exception for testing");
+            try {
+                throw new IllegalStateException("always throwing an exception for testing");
+            } finally {
+                releaseOutputBuffer();
+            }
         }
     }
 

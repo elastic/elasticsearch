@@ -166,7 +166,9 @@ Machine Learning::
 * Adding support for composite aggregations in anomaly detection {es-pull}69970[#69970]
 * Allow datafeed and job configs for datafeed preview API {es-pull}70836[#70836] (issue: {es-issue}70264[#70264])
 * Improve messages related to assigning machine learning jobs {es-pull}69752[#69752]
-* Add put and delete trained model alias APIs to rest high-level client {es-pull}69214[#69214]
+* Add put and delete trained model alias APIs to high-level REST client {es-pull}69214[#69214]
+* Speed up training of regression and classification models for data sets with many features {ml-pull}1746[#1746]
+* Adjust the syscall filter to allow mremap and avoid spurious audit logging {ml-pull}1819[#1819]
 
 Mapping::
 * Add calculated numeric fields {es-pull}69531[#69531]
@@ -261,11 +263,16 @@ Infra/Scripting::
 
 Machine Learning::
 * Consider `xpack.ml.max_ml_node_size` in `effective_model_memory_limit` {es-pull}70473[#70473] (issue: {es-issue}70069[#70069])
-* Do not create ML annotations index in upgrade mode {es-pull}71175[#71175]
-* Do not track ML usage when collecting monitoring {es-pull}71314[#71314]
+* Do not create machine learning annotations index in upgrade mode {es-pull}71175[#71175]
+* Do not track machine learning usage when collecting monitoring {es-pull}71314[#71314]
 * Ensure `auc_roc` curve is monotonic {es-pull}70628[#70628]
 * Exclude nested fields in data frame analytics {es-pull}71400[#71400]
 * Improve readability of messages written when assigning machine learning jobs to nodes {es-pull}69629[#69629] (issue: {es-issue}59602[#59602])
+* Ensure the same hyperparameters are chosen if classification or regression training
+is stopped and restarted, for example, if the node fails {ml-pull}1848[#1848]
+* Fail gracefully if insufficient data is supplied for classification or regression training {ml-pull}1855[#1855]
+* Fail gracefully on encountering unexpected state in restore from snapshot for anomaly detection {ml-pull}1872[#1872]
+
 
 Mapping::
 * Fix binary `docvalue_fields` with padding {es-pull}70826[#70826] (issue: {es-issue}70244[#70244])

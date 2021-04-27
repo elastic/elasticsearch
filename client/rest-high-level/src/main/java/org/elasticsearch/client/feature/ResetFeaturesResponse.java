@@ -20,7 +20,9 @@ import java.util.Objects;
 
 /**
  * This class represents the response of the Feature State Reset API. It is a
- * list containing the response of every feature whose state was reset.
+ * list containing the response of every feature whose state can be reset. The
+ * response from each feature will indicate success or failure. In the case of a
+ * failure, the cause will be returned as well.
  */
 public class ResetFeaturesResponse {
     private final List<ResetFeatureStateStatus> features;

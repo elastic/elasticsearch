@@ -69,7 +69,8 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
             validationException = ValidateActions.addValidationError("Timeout cannot be null", validationException);
         } else {
             if (timeout().getSeconds() > 60) {
-                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute", validationException);                
+                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute", 
+                    validationException);
             }
         }
         return validationException;

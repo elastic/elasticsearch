@@ -306,7 +306,7 @@ public class DeterministicTaskQueue {
 
             @Override
             public ExecutorService executor(String name) {
-                return Names.SAME.equals(name) ? EsExecutors.newDirectExecutorService() : forkingExecutor;
+                return Names.SAME.equals(name) ? EsExecutors.DIRECT_EXECUTOR_SERVICE : forkingExecutor;
             }
 
             @Override

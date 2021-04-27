@@ -43,6 +43,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -147,6 +148,22 @@ public class GatewayMetaState implements Closeable {
             final long currentTerm = 0L;
             final ClusterState clusterState = prepareInitialClusterState(transportService, clusterService,
                     ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.get(settings)).build());
+            // write empty cluster state just so that we have a persistent node id. There is no need to write out global metadata with
+            // cluster uuid as coordinating-only nodes do not snap into a cluster as they carry no state
+            try (PersistedClusterStateService.Writer persistenceWriter = persistedClusterStateService.createWriter()) {
+                persistenceWriter.writeFullStateAndCommit(currentTerm, clusterState);
+            } catch (IOException e) {
+                throw new ElasticsearchException("failed to load metadata", e);
+            }
+            try {
+                // delete legacy cluster state files
+                metaStateService.deleteAll();
+                // write legacy node metadata to prevent downgrades from spawning empty cluster state
+                NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                    persistedClusterStateService.getDataPath());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             persistedState.set(new InMemoryPersistedState(currentTerm, clusterState));
         }
     }

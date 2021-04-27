@@ -74,8 +74,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntPredicate;
 import java.util.function.LongSupplier;
@@ -319,6 +321,9 @@ public class PersistedClusterStateService {
             final Metadata metadata = Metadata.Builder.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found global metadata with last-accepted term [{}]", metadata.coordinationMetadata().term());
+            if (builderReference.get() != null) {
+                throw new IllegalStateException("duplicate global metadata found in [" + dataPath + "]");
+            }
             builderReference.set(Metadata.builder(metadata));
         });
 
@@ -328,11 +333,15 @@ public class PersistedClusterStateService {
         }
 
         logger.trace("got global metadata, now reading index metadata");
+        final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
         {
             final IndexMetadata indexMetadata = IndexMetadata.fromXContent(XContentFactory.xContent(XContentType.SMILE)
                 .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytes.bytes, bytes.offset, bytes.length));
             logger.trace("found index metadata for {}", indexMetadata.getIndex());
+            if (indexUUIDs.add(indexMetadata.getIndexUUID()) == false) {
+                throw new IllegalStateException("duplicate metadata found for " + indexMetadata.getIndex() + " in [" + dataPath + "]");
+            }
             builder.put(indexMetadata, false);
         });
 

@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 
 import java.io.IOException;
@@ -26,6 +25,10 @@ import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.CLIENT_
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.ID;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.MODE;
 import static org.elasticsearch.xpack.sql.action.AbstractSqlQueryRequest.VERSION;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 
 /**
  * Request to manage (status fetching or delete) the SQL asyc resources associated with the id
@@ -37,7 +40,7 @@ public class SqlManageAsyncRequest extends AbstractSqlRequest {
     private static final ConstructingObjectParser<SqlManageAsyncRequest, Void> PARSER =
         // here the position in "objects" is the same as the fields parser declarations below
         new ConstructingObjectParser<>(NAME, objects -> {
-            RequestInfo requestInfo = new RequestInfo(Mode.fromString((String) objects[1]), (String) objects[2]);
+            RequestInfo requestInfo = new RequestInfo(Mode.fromString((String) objects[1]), (String) objects[2], (String) objects[3]);
             return new SqlManageAsyncRequest(requestInfo, (String) objects[0]);
         });
 
@@ -48,10 +51,7 @@ public class SqlManageAsyncRequest extends AbstractSqlRequest {
         PARSER.declareString(optionalConstructorArg(), VERSION);
     }
 
-    private String id;
-
-    public SqlManageAsyncRequest() {
-    }
+    private final String id;
 
     public SqlManageAsyncRequest(RequestInfo requestInfo, String id) {
         super(requestInfo);
@@ -61,8 +61,8 @@ public class SqlManageAsyncRequest extends AbstractSqlRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (id() == null) {
-            validationException = addValidationError("[" + Protocol.ID_NAME + "] is required", validationException);
+        if (id == null) {
+            validationException = addValidationError("[" + ID_NAME + "] is required", validationException);
         }
         return validationException;
     }
@@ -71,14 +71,9 @@ public class SqlManageAsyncRequest extends AbstractSqlRequest {
         return id;
     }
 
-    public SqlManageAsyncRequest id(String id) {
-        this.id = id;
-        return this;
-    }
-
     @Override
     public String getDescription() {
-        return "SQL manage async " + Protocol.ID_NAME + " [" + id() + "]";
+        return "SQL manage async " + ID_NAME + " [" + id() + "]";
     }
 
     public SqlManageAsyncRequest(StreamInput in) throws IOException {
@@ -108,16 +103,20 @@ public class SqlManageAsyncRequest extends AbstractSqlRequest {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Protocol.ID_NAME, id);
-        if (mode() != null) {
-            builder.field(Protocol.MODE_NAME, mode().toString());
+        builder.startObject();
+        {
+            builder.field(ID_NAME, id);
+            if (mode() != null) {
+                builder.field(MODE_NAME, mode().toString());
+            }
+            if (clientId() != null) {
+                builder.field(CLIENT_ID_NAME, clientId());
+            }
+            if (version() != null) {
+                builder.field(VERSION_NAME, version().toString());
+            }
         }
-        if (clientId() != null) {
-            builder.field(Protocol.CLIENT_ID_NAME, clientId());
-        }
-        if (version() != null) {
-            builder.field(Protocol.VERSION_NAME, version().toString());
-        }
+        builder.endObject();
         return builder;
     }
 

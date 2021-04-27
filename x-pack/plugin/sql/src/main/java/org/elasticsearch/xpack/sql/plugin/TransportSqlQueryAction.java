@@ -105,7 +105,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
         if (Strings.hasText(request.id())) {
-            doAsyncExecute(request, listener);
+            asyncOperation(request, listener);
         } else if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
             asyncTaskManagementService.asyncExecute(request, request.waitForCompletionTimeout(), request.keepAlive(),
                 request.keepOnCompletion(), listener);
@@ -225,7 +225,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         return new SqlQueryResponse(inputStream);
     }
 
-    protected void doAsyncExecute(SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
+    protected void asyncOperation(SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         DiscoveryNode node = asyncResultsService.getNode(request.id());
         if (node == null || asyncResultsService.isLocalNode(node)) {
             asyncResultsService.retrieveResult(new GetAsyncResultRequest(request.id()), ActionListener.wrap(

@@ -192,7 +192,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
-            if (asyncExecutionId != null) {
+            if (Strings.hasText(asyncExecutionId)) {
                 builder.field(Protocol.ID_NAME, asyncExecutionId);
                 builder.field(Protocol.IS_PARTIAL_NAME, isPartial);
                 builder.field(Protocol.IS_RUNNING_NAME, isRunning);

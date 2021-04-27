@@ -299,6 +299,7 @@ public class Constants {
         "cluster:monitor/xpack/searchable_snapshots/stats",
         "cluster:monitor/xpack/security/saml/metadata",
         "cluster:monitor/xpack/spatial/stats",
+        "cluster:monitor/xpack/sql/async/status",
         "cluster:monitor/xpack/sql/stats/dist",
         "cluster:monitor/xpack/ssl/certificates/get",
         "cluster:monitor/xpack/usage",

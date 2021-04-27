@@ -39,13 +39,13 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.DEFAULT_KEEP_ALIVE;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.INDEX_INCLUDE_FROZEN_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ALIVE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.KEEP_ON_COMPLETION_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.MIN_KEEP_ALIVE;
 import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
@@ -83,12 +83,10 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
 
     @Override
     protected SqlQueryRequest createTestInstance() {
-        TimeValue keepAlive = randomTV();
-        keepAlive = keepAlive.millis() < DEFAULT_KEEP_ALIVE.millis() ? DEFAULT_KEEP_ALIVE : keepAlive;
         return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
                 randomRuntimeMappings(), randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
                 randomTV(), randomBoolean(), randomAlphaOfLength(10), requestInfo,
-                randomBoolean(), randomBoolean(), randomTV(), randomBoolean(), keepAlive
+                randomBoolean(), randomBoolean(), randomTV(), randomBoolean(), randomTVGreaterThan(MIN_KEEP_ALIVE)
         );
     }
 
@@ -109,8 +107,11 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
                 request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
                 request -> request.filter(randomValueOtherThan(request.filter(),
                         () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
-                request -> request.columnar(randomValueOtherThan(request.columnar(), () -> randomBoolean())),
-                request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor))
+                request -> request.columnar(randomValueOtherThan(request.columnar(), ESTestCase::randomBoolean)),
+                request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor)),
+                request -> request.waitForCompletionTimeout(randomValueOtherThan(request.waitForCompletionTimeout(), this::randomTV)),
+                request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
+                request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE)))
         );
         SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(), instance.runtimeMappings(),
                 instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.columnar(),
@@ -160,6 +161,14 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
 
     private TimeValue randomTV() {
         return TimeValue.parseTimeValue(randomTimeValue(), null, "test");
+    }
+
+    private TimeValue randomTVGreaterThan(TimeValue min) {
+        TimeValue value;
+        do {
+            value = randomTV();
+        } while (value.getMillis() < min.getMillis());
+        return value;
     }
 
     public List<SqlTypedParamValue> randomParameters() {

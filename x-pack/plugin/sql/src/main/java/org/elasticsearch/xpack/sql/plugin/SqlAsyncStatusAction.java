@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 public class SqlAsyncStatusAction extends ActionType<QlStatusResponse> {
     public static final SqlAsyncStatusAction INSTANCE = new SqlAsyncStatusAction();
-    public static final String NAME = "cluster:monitor/sql/async/status";
+    public static final String NAME = "cluster:monitor/xpack/sql/async/status";
 
     private SqlAsyncStatusAction() {
         super(NAME, QlStatusResponse::new);

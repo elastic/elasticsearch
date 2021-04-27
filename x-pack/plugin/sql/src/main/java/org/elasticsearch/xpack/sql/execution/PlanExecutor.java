@@ -126,7 +126,7 @@ public class PlanExecutor {
         return writableRegistry;
     }
 
-        public Metrics metrics() {
+    public Metrics metrics() {
         return this.metrics;
     }
 }

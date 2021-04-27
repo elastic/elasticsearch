@@ -1,0 +1,46 @@
+[[migrating-7.14]]
+== Migrating to 7.14
+++++
+<titleabbrev>7.14</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.14.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+// * <<breaking_714_blah_changes>>
+// * <<breaking_714_blah_changes>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+
+[discrete]
+[[breaking-changes-7.14]]
+=== Breaking changes
+
+The following changes in {es} 7.14 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.13, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[breaking_714_security_changes]]
+==== Security deprecations
+
+[[implicitly-disabled-security]]
+Currently, security features are disabled when operating on a basic or trial
+license when `xpack.security.enabled` has not been explicitly set.
+
+This behavior is now deprecated. In version 8.0.0, security features will be
+enabled by default for all licenses, unless explicitly disabled (by setting
+`xpack.security.enabled: false`).

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,10 +33,11 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     NodesDeprecationCheckAction.NodeResponse> {
 
     private final Settings settings;
+    private final XPackLicenseState licenseState;
     private final PluginsService pluginsService;
 
     @Inject
-    public TransportNodeDeprecationCheckAction(Settings settings, ThreadPool threadPool,
+    public TransportNodeDeprecationCheckAction(Settings settings, ThreadPool threadPool, XPackLicenseState licenseState,
                                                ClusterService clusterService, TransportService transportService,
                                                PluginsService pluginsService, ActionFilters actionFilters) {
         super(NodesDeprecationCheckAction.NAME, threadPool, clusterService, transportService, actionFilters,
@@ -45,6 +47,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
             NodesDeprecationCheckAction.NodeResponse.class);
         this.settings = settings;
         this.pluginsService = pluginsService;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -67,7 +70,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request) {
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-            (c) -> c.apply(settings, pluginsService.info()));
+            (c) -> c.apply(settings, pluginsService.info(), licenseState));
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }

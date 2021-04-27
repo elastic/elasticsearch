@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -18,11 +19,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -40,7 +44,8 @@ import java.util.stream.Collectors;
 
 class NodeDeprecationChecks {
 
-    static DeprecationIssue checkPidfile(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    static DeprecationIssue checkPidfile(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                         XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -49,7 +54,8 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-pidfile");
     }
 
-    static DeprecationIssue checkProcessors(final Settings settings , final PluginsAndModules pluginsAndModules) {
+    static DeprecationIssue checkProcessors(final Settings settings , final PluginsAndModules pluginsAndModules,
+                                            final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -58,7 +64,8 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-processors");
     }
 
-    static DeprecationIssue checkMissingRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    static DeprecationIssue checkMissingRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                    final XPackLicenseState licenseState) {
         final Set<String> orderNotConfiguredRealms = RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
                 .filter(e -> false == e.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY))
@@ -82,7 +89,8 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkUniqueRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    static DeprecationIssue checkUniqueRealmOrders(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                   final XPackLicenseState licenseState) {
         final Map<String, List<String>> orderToRealmSettings =
             RealmSettings.getRealmSettings(settings).entrySet()
                 .stream()
@@ -115,7 +123,28 @@ class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkImplicitlyDisabledBasicRealms(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    static DeprecationIssue checkImplicitlyDisabledSecurityOnBasicAndTrial(final Settings settings,
+                                                                           final PluginsAndModules pluginsAndModules,
+                                                                           final XPackLicenseState licenseState) {
+        if ( settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
+            && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
+            || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
+          String details = "The behavior where the value of [xpack.security.enabled] setting is false for " +
+              licenseState.getOperationMode() + " licenses is deprecated and will be changed in a future version." +
+              "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+              Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by " +
+              "setting [xpack.security.enabled] to false in elasticsearch.yml";
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Security is enabled by default for all licenses in the next major version.",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#implicitly-disabled-security",
+                details);
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkImplicitlyDisabledBasicRealms(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                               final XPackLicenseState licenseState) {
         final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
         if (realmSettings.isEmpty()) {
             return null;
@@ -185,7 +214,8 @@ class NodeDeprecationChecks {
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool");
     }
 
-    public static DeprecationIssue checkClusterRemoteConnectSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    public static DeprecationIssue checkClusterRemoteConnectSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                                    final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -199,7 +229,8 @@ class NodeDeprecationChecks {
         );
     }
 
-    public static DeprecationIssue checkNodeLocalStorageSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    public static DeprecationIssue checkNodeLocalStorageSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                                final XPackLicenseState licenseState) {
         return checkRemovedSetting(
             settings,
             Node.NODE_LOCAL_STORAGE_SETTING,
@@ -215,7 +246,8 @@ class NodeDeprecationChecks {
         );
     }
 
-    public static DeprecationIssue checkGeneralScriptSizeSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    public static DeprecationIssue checkGeneralScriptSizeSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                                 final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -226,7 +258,8 @@ class NodeDeprecationChecks {
         );
     }
 
-    public static DeprecationIssue checkGeneralScriptExpireSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    public static DeprecationIssue checkGeneralScriptExpireSetting(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                                   final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -237,7 +270,8 @@ class NodeDeprecationChecks {
         );
     }
 
-    public static DeprecationIssue checkGeneralScriptCompileSettings(final Settings settings, final PluginsAndModules pluginsAndModules) {
+    public static DeprecationIssue checkGeneralScriptCompileSettings(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                                     final XPackLicenseState licenseState) {
         return checkDeprecatedSetting(
             settings,
             pluginsAndModules,
@@ -365,7 +399,7 @@ class NodeDeprecationChecks {
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 
-    static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins) {
+    static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins, final XPackLicenseState licenseState) {
         final JavaVersion javaVersion = JavaVersion.current();
 
         if (javaVersion.compareTo(JavaVersion.parse("11")) < 0) {
@@ -379,7 +413,8 @@ class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkMultipleDataPaths(Settings nodeSettings, PluginsAndModules plugins) {
+    static DeprecationIssue checkMultipleDataPaths(final Settings nodeSettings, final PluginsAndModules pluginsAndModules,
+                                                   final XPackLicenseState licenseState) {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
         if (dataPaths.size() > 1) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
@@ -390,7 +425,8 @@ class NodeDeprecationChecks {
         return null;
     }
 
-    static DeprecationIssue checkDataPathsList(Settings nodeSettings, PluginsAndModules plugins) {
+    static DeprecationIssue checkDataPathsList(final Settings nodeSettings, final PluginsAndModules pluginsAndModules,
+                                               final XPackLicenseState licenseState) {
         if (Environment.dataPathUsesList(nodeSettings)) {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "[path.data] in a list is deprecated, use a string value",

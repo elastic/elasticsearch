@@ -810,6 +810,12 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 .value(agg, Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long"), ""),
             equalTo(Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
         );
+
+        assertThat(
+            AggregationResultUtils.getExtractor(agg)
+                .value(agg, Map.of("filter.mv_metric.approx_answer", "double", "filter.mv_metric.exact_answer", "long"), "filter"),
+            equalTo(Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
+        );
     }
 
     private ScriptedMetric createScriptedMetric(Object returnValue) {

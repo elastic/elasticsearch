@@ -194,6 +194,9 @@ public final class TransformAggregations {
      * Both mappings can contain _multiple_ entries, e.g. due to sub aggregations or because of aggregations creating multiple
      * values(e.g. percentiles)
      *
+     * Note about order: aggregation can hit in multiple places (e.g. a multi value agg implement {@link ValuesSourceAggregationBuilder})
+     * Be careful changing the order in this method
+     *
      * @param agg the aggregation builder
      * @return a tuple with 2 mappings that maps the used field(s) and aggregation type(s)
      */
@@ -214,7 +217,6 @@ public final class TransformAggregations {
             );
         }
 
-        // Note: order is important
         // does the agg specify output field names
         Optional<Set<String>> outputFieldNames = agg.getOutputFieldNames();
         if (outputFieldNames.isPresent()) {
@@ -224,7 +226,7 @@ public final class TransformAggregations {
                     .collect(
                         Collectors.toMap(
                             outputField -> agg.getName() + "." + outputField,
-                            outputField -> { return outputField; },
+                            outputField -> outputField,
                             (v1, v2) -> v1
                         )
                     ),
@@ -233,7 +235,7 @@ public final class TransformAggregations {
                     .collect(
                         Collectors.toMap(
                             outputField -> agg.getName() + "." + outputField,
-                            outputField -> { return agg.getType(); },
+                            outputField -> agg.getType(),
                             (v1, v2) -> v1
                         )
                     )

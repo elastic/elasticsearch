@@ -118,10 +118,22 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
     }
 
+    /**
+     * A transformation to replace the key in a length assertion.
+     * @see ReplaceLength
+     * @param oldKeyName   the key name directly under length to replace.
+     * @param newKeyName   the new key name directly under length.
+     */
     public void replaceKeyInLength(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceLength(oldKeyName, newKeyName, null));
     }
 
+    /**
+     * A transformation to replace the key in a match assertion.
+     * @see ReplaceKeyInMatch
+     * @param oldKeyName   the key name directly under match to replace.
+     * @param newKeyName   the new key name directly under match.
+     */
     public void replaceKeyInMatch(String oldKeyName, String newKeyName) {
         transformations.add(new ReplaceKeyInMatch(oldKeyName, newKeyName, null));
     }

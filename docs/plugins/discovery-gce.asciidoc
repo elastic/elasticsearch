@@ -432,9 +432,9 @@ Ensure the following flags are set:
 Creating with console (web)::
 +
 --
-When creating an instance using the web portal, click _Show advanced options_.
+When creating an instance using the web console, scroll down to _Identity and API access_.
 
-At the bottom of the page, under `PROJECT ACCESS`, choose `>> Compute >> Read Write`.
+Select a service-account with the correct permissions or choose "Compute Engine default service account" and select "Allow default access" for the _Access scopes_.
 --
 
 Creating with knife google::
@@ -450,7 +450,7 @@ knife google server create www1 \
     -Z us-central1-a \
     -i ~/.ssh/id_rsa \
     -x jdoe \
-    --gce-service-account-scopes https://www.googleapis.com/auth/compute.full_control
+    --gce-service-account-scopes https://www.googleapis.com/auth/compute
 --------------------------------------------------
 
 Or, you may use the alias:

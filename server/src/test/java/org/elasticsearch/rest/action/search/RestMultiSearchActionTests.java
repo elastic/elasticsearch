@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -19,6 +20,8 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 
 public class RestMultiSearchActionTests extends RestActionTestCase {
+
+    private static final MultiSearchResponse DUMMY_RESPONSE = new MultiSearchResponse(new MultiSearchResponse.Item[0], 0L);
 
     @Before
     public void setUpAction() {
@@ -36,7 +39,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
+        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> DUMMY_RESPONSE);
 
         dispatchRequest(request);
         assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
@@ -53,7 +56,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
+        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> DUMMY_RESPONSE);
 
         dispatchRequest(request);
         assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);

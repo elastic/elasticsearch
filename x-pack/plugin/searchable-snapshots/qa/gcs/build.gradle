@@ -94,7 +94,7 @@ tasks.named("integTest").configure {
   }
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 

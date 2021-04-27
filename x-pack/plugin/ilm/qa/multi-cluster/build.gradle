@@ -62,4 +62,3 @@ tasks.named("test").configure { enabled = false }
 tasks.withType(Test).configureEach {
   onlyIf { BuildParams.inFipsJvm == false}
 }
-

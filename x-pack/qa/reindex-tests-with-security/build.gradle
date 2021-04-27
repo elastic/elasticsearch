@@ -20,7 +20,7 @@ tasks.named("forbiddenPatterns").configure {
 
 File caFile = project.file('src/test/resources/ssl/ca.crt')
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   // Whitelist reindexing from the local node so we can test it.
   extraConfigFile 'http.key', file('src/test/resources/ssl/http.key')

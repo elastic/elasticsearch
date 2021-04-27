@@ -7,7 +7,7 @@ dependencies {
   testImplementation project(path: xpackProject('transport-client').path)
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest"}.configureEach {
   testDistribution = "DEFAULT"
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -22,7 +22,8 @@ testClusters.integTest {
   }
 }
 
-integTest {
+
+tasks.matching { it.name.equals('integTest')}.configureEach {integTestTask ->
   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
 }
 

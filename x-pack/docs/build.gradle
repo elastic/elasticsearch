@@ -27,7 +27,7 @@ restResources {
   }
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
   extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
   extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")

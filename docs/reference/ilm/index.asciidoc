@@ -12,6 +12,9 @@ For example, you could use {ilm-init} to:
 * Spin up a new index when an index reaches a certain size or number of documents
 * Create a new index each day, week, or month and archive previous ones
 * Delete stale indices to enforce data retention standards
+
+{ilm-init} makes it easier to manage indices in hot-warm-cold architectures,
+which are common when you're working with time series data such as logs and metrics.
  
 You can create and manage index lifecycle policies through {kib} Management or the {ilm-init} APIs.
 When you enable {ilm} for {beats} or the {ls} {es} output plugin, 
@@ -24,23 +27,14 @@ image:images/ilm/index-lifecycle-policies.png[]
 To automatically back up your indices and manage snapshots, 
 use <<getting-started-snapshot-lifecycle-management,snapshot lifecycle policies>>.
 
-* <<overview-index-lifecycle-management>>
-* <<ilm-concepts>>
-* <<getting-started-index-lifecycle-management>>
-* <<example-using-index-lifecycle-policy>>
-* <<set-up-lifecycle-policy>>
-* <<index-lifecycle-error-handling>>
-* <<start-stop-ilm>>
-* <<ilm-with-existing-indices>>
-* <<skipping-rollover>>
-* <<index-lifecycle-and-snapshots>>
-* <<index-lifecycle-management-api>>
-* <<ilm-actions>>
+Related reference: <<index-lifecycle-management-api, {ilm-init} API>>, <<ilm-settings, {ilm-init} settings>>
+
+include::ilm-overview.asciidoc[]
+include::ilm-index-lifecycle.asciidoc[leveloffset=+1]
+include::index-rollover.asciidoc[leveloffset=+1]
+include::update-lifecycle-policy.asciidoc[leveloffset=+1]
 
 --
-include::ilm-overview.asciidoc[]
-
-include::ilm-concepts.asciidoc[]
 
 include::ilm-tutorial.asciidoc[]
 

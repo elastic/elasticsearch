@@ -10,6 +10,8 @@ Retrieves the current lifecycle status for one or more indices. For data
 streams, the API retrieves the current lifecycle status for the stream's backing
 indices.
 
+Related guide: <<index-lifecycle-management>>.
+
 [[ilm-explain-lifecycle-request]]
 ==== {api-request-title}
 

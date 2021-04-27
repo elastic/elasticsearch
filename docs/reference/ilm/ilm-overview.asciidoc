@@ -1,14 +1,6 @@
-[role="xpack"]
-[testenv="basic"]
+[discrete]
 [[overview-index-lifecycle-management]]
-== {ilm-init} overview
-
-++++
-<titleabbrev>Overview</titleabbrev>
-++++
-
-You can create and apply {ilm-cap} ({ilm-init}) policies to automatically manage your indices 
-according to your performance, resiliency, and retention requirements. 
+== How does {ilm-init} work?
 
 Index lifecycle policies can trigger actions such as:
 
@@ -21,9 +13,6 @@ include::../glossary.asciidoc[tag=force-merge-def-short]
 * **Freeze**:
 include::../glossary.asciidoc[tag=freeze-def-short]
 * **Delete**: Permanently remove an index, including all of its data and metadata.
-
-{ilm-init} makes it easier to manage indices in hot-warm-cold architectures,
-which are common when you're working with time series data such as logs and metrics.
 
 You can specify:
 

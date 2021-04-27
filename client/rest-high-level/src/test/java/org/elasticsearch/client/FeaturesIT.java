@@ -44,7 +44,7 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient adminHighLevelClient = new RestHighLevelClient(
             adminClient(),
             (client) -> {},
-            new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+            new SearchModule(Settings.EMPTY, true, Collections.emptyList()).getNamedXContents());
         ResetFeaturesResponse response = execute(request,
             adminHighLevelClient.features()::resetFeatures,
             adminHighLevelClient.features()::resetFeaturesAsync);

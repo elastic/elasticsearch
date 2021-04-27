@@ -45,7 +45,7 @@ public class RestResetFeatureStateAction extends BaseRestHandler {
         return restChannel -> client.execute(
             ResetFeatureStateAction.INSTANCE,
             req,
-            new RestToXContentListener<>(restChannel) {
+            new RestToXContentListener<ResetFeatureStateResponse>(restChannel) {
                 @Override
                 protected RestStatus getStatus(ResetFeatureStateResponse response) {
                     long failures = response.getFeatureStateResetStatuses().stream()

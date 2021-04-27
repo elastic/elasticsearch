@@ -303,7 +303,10 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + "     \"affiliate_missing\": {"
             + "       \"missing\": {"
             + "         \"field\": \"affiliate_id\""
-
+            + " } },"
+            + "     \"stats\": {"
+            + "       \"stats\": {"
+            + "         \"field\": \"stars\""
             + " } } } },"
             + "\"frequency\":\"1s\""
             + "}";

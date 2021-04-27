@@ -347,30 +347,31 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
         return Math.floor((key - emptyBucketInfo.offset) / emptyBucketInfo.interval) * emptyBucketInfo.interval + emptyBucketInfo.offset;
     }
 
+    /**
+     * When we pre-count the empty buckets we report them periodically
+     * because you can configure the histogram to create more buckets than
+     * there are atoms in the universe. It'd take a while to count that high
+     * only to abort. So we report every couple thousand buckets. It's be
+     * simpler to report every single bucket we plan to allocate one at a time
+     * but that'd cause needless overhead on the circuit breakers. Counting a
+     * couple thousand buckets is plenty fast to fail this quickly in
+     * pathological cases and plenty large to keep the overhead minimal.
+     */
+    private static final int REPORT_EMPTY_EVERY = 10_000;
+
     private void addEmptyBuckets(List<Bucket> list, ReduceContext reduceContext) {
         /*
          * Make sure we have space for the empty buckets we're going to add by
          * counting all of the empties we plan to add and firing them into
          * consumeBucketsAndMaybeBreak.
-         *
-         * We don't count all of the buckets we plan to allocate and then report
-         * them all at once because we you can configure the histogram to create
-         * more buckets than there are hydrogen atoms in the universe. It'd take
-         * a while to count that high only to abort. So we report every couple
-         * thousand buckets. It's be simpler to report every single bucket we plan
-         * to allocate one at a time but that'd cause needless overhead on the
-         * circuit breakers. Counting a couple thousand buckets is plenty fast
-         * to fail this quickly in pathological cases and plenty large to keep
-         * the overhead minimal.
          */
-        int reportEmptyEvery = 10000;
         class Counter implements DoubleConsumer {
             private int size = list.size();
 
             @Override
             public void accept(double key) {
                 size++;
-                if (size >= reportEmptyEvery) {
+                if (size >= REPORT_EMPTY_EVERY) {
                     reduceContext.consumeBucketsAndMaybeBreak(size);
                     size = 0;
                 }

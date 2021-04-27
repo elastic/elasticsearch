@@ -56,7 +56,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
         assertThat(channel.capturedResponse(), notNullValue());
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
         assertThat(channel.capturedResponse().content().utf8ToString(),
-            containsString("Security must be explicitly enabled when using a [basic] license"));
+            containsString("Security is not enabled but a security rest handler is registered"));
     }
 
     public void testBuildResponse() throws Exception {

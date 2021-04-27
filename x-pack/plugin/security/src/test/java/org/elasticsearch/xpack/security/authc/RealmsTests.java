@@ -486,9 +486,6 @@ public class RealmsTests extends ESTestCase {
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
         Realms realms = new Realms(settings, env, factories, licenseState, threadContext, reservedRealm);
-
-        assertThat(realms.iterator().hasNext(), is(true));
-
         assertThat(realms.iterator().hasNext(), is(false));
     }
 

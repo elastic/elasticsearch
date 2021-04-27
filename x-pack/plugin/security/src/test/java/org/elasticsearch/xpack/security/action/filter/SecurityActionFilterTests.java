@@ -30,6 +30,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -70,6 +71,7 @@ public class SecurityActionFilterTests extends ESTestCase {
     private ActionFilterChain chain;
     private XPackLicenseState licenseState;
     private SecurityActionFilter filter;
+    private SecurityActionFilter filterWithSecurityDisabled;
     private ThreadContext threadContext;
     private boolean failDestructiveOperations;
 
@@ -88,6 +90,9 @@ public class SecurityActionFilterTests extends ESTestCase {
         failDestructiveOperations = randomBoolean();
         Settings settings = Settings.builder()
                 .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), failDestructiveOperations).build();
+        Settings disabledSecurity = Settings.builder()
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), failDestructiveOperations).build();
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings,
                 new ClusterSettings(settings, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING)));
         ClusterState state = mock(ClusterState.class);
@@ -100,6 +105,8 @@ public class SecurityActionFilterTests extends ESTestCase {
         SecurityContext securityContext = new SecurityContext(settings, threadContext);
         filter = new SecurityActionFilter(authcService, authzService, auditTrailService, licenseState, threadPool,
                 securityContext, settings, destructiveOperations);
+        filterWithSecurityDisabled = new SecurityActionFilter(authcService, authzService, auditTrailService, licenseState, threadPool,
+            securityContext, disabledSecurity, destructiveOperations);
     }
 
     public void testApply() throws Exception {
@@ -275,7 +282,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionListener listener = mock(ActionListener.class);
         ActionFilterChain chain = mock(ActionFilterChain.class);
         Task task = mock(Task.class);
-        filter.apply(task, "_action", request, listener, chain);
+        filterWithSecurityDisabled.apply(task, "_action", request, listener, chain);
         verifyZeroInteractions(authcService);
         verifyZeroInteractions(authzService);
         verify(chain).proceed(eq(task), eq("_action"), eq(request), eq(listener));

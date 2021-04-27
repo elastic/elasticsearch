@@ -6,14 +6,10 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;

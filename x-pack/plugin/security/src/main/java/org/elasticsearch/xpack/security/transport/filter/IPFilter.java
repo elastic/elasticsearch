@@ -248,7 +248,7 @@ public class IPFilter {
     }
 
     public boolean accept(String profile, InetSocketAddress peerAddress) {
-        if (XPackSettings.SECURITY_ENABLED.get(settings) ||
+        if (XPackSettings.SECURITY_ENABLED.get(settings) == false ||
             licenseState.checkFeature(Feature.SECURITY_IP_FILTERING) == false) {
             return true;
         }

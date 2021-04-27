@@ -25,6 +25,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -36,7 +37,6 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.Collections;
 
@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -75,9 +74,9 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
             final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
             AuditTrailService auditTrailService = mock(AuditTrailService.class);
             SearchContext searchContext = mock(SearchContext.class);
-
+            Settings disabledSecurity = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
             SecuritySearchOperationListener listener =
-                new SecuritySearchOperationListener(securityContext, Settings.EMPTY, auditTrailService);
+                new SecuritySearchOperationListener(securityContext, disabledSecurity, auditTrailService);
             listener.onNewScrollContext(readerContext);
             listener.validateReaderContext(readerContext, Empty.INSTANCE);
             verifyZeroInteractions(auditTrailService, searchContext);

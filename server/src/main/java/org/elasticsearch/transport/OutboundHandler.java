@@ -203,11 +203,14 @@ final class OutboundHandler {
         }
 
         private void maybeLogSlowMessage() {
-            final long took = threadPool.relativeTimeInMillis() - startTime;
             final long logThreshold = slowLogThresholdMs;
-            if (logThreshold > 0 && took > logThreshold) {
-                logger.warn("sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                        messageSupplier, messageSize, channel, took, logThreshold);
+            if (logThreshold > 0 && messageSize >= 0) {
+                final long took = threadPool.relativeTimeInMillis() - startTime;
+                if (took > logThreshold) {
+                    logger.warn(
+                            "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                            messageSupplier, messageSize, channel, took, logThreshold);
+                }
             }
         }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -44,10 +45,10 @@ public class AsyncActionBranchingStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                              Listener listener) {
-        stepToExecute.performAction(indexMetadata, currentClusterState, observer, new Listener() {
+                              ActionListener<Boolean> listener) {
+        stepToExecute.performAction(indexMetadata, currentClusterState, observer, new ActionListener<>() {
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 onResponseResult.set(complete);
                 listener.onResponse(complete);
             }

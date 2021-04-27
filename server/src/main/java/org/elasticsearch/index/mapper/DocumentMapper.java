@@ -10,10 +10,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -49,13 +47,7 @@ public class DocumentMapper {
         this.type = mapping.getRoot().name();
         this.documentParser = documentParser;
         this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
-
-        try {
-            mappingSource = new CompressedXContent(mapping, XContentType.JSON, ToXContent.EMPTY_PARAMS);
-        } catch (Exception e) {
-            throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
-        }
-
+        this.mappingSource = mapping.toCompressedXContent();
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
             SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
         this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.getSortedMetadataMappers())

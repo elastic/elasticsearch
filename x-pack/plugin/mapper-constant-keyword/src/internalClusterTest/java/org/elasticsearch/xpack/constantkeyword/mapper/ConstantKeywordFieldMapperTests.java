@@ -172,4 +172,9 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "constant_keyword").field("value", randomAlphaOfLengthBetween(1, 10));
     }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;   // null is an error for constant keyword
+    }
 }

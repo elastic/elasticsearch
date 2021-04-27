@@ -68,9 +68,9 @@ public abstract class AbstractStepMasterTimeoutTestCase<T extends AsyncActionSte
                 }
             }
         };
-        createRandomInstance().performAction(indexMetadata, currentClusterState, null, new AsyncActionStep.Listener() {
+        createRandomInstance().performAction(indexMetadata, currentClusterState, null, new ActionListener<>() {
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
 
             }
 

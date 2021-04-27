@@ -124,9 +124,9 @@ and set the `_tier_preference` to `data_hot`.
 ////
 [source,console]
 ----
-PUT /my-index-000001
+PUT /my-index
 
-PUT /my-index-000001/_settings
+PUT /my-index/_settings
 {
   "index.routing.allocation.require.data": "hot"
 }
@@ -135,7 +135,7 @@ PUT /my-index-000001/_settings
 
 [source,console]
 ----
-PUT my-index-000001/_settings
+PUT my-index/_settings
 {
   "index.routing.allocation.require.data": null,
   "index.routing.allocation.include._tier_preference": "data_hot"
@@ -151,7 +151,7 @@ already in the warm phase.
 
 [source,console]
 ----
-PUT my-index-000001/_settings
+PUT my-index/_settings
 {
   "index.routing.allocation.require.data": null,
   "index.routing.allocation.include._tier_preference": "data_warm,data_hot"

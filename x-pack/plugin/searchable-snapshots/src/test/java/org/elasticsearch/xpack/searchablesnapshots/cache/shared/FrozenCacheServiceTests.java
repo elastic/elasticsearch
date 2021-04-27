@@ -232,30 +232,6 @@ public class FrozenCacheServiceTests extends ESTestCase {
         );
     }
 
-    public void testMultipleDataPathsRejectedOnFrozenNodes() {
-        final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(size(500)).getStringRep())
-            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
-            .putList(Environment.PATH_DATA_SETTING.getKey(), List.of("a", "b"))
-            .build();
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings)
-        );
-        assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause(), instanceOf(SettingsException.class));
-        assertThat(
-            e.getCause().getMessage(),
-            is(
-                "setting ["
-                    + FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey()
-                    + "="
-                    + new ByteSizeValue(size(500)).getStringRep()
-                    + "] is not permitted on nodes with multiple data paths [a,b]"
-            )
-        );
-    }
-
     public void testDedicateFrozenCacheSizeDefaults() {
         final Settings settings = Settings.builder()
             .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())

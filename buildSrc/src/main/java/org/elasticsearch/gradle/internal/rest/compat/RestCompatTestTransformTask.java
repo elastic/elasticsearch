@@ -150,7 +150,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
     }
 
     /**
-     * Replaces all the values of a is_true assertion for all project REST tests.
+     * Replaces all the values of a is_false assertion for all project REST tests.
      * For example "is_false": "value_to_replace" to "is_false": "value_replaced"
      *
      * @param oldValue the value that has to match and will be replaced
@@ -160,6 +160,14 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
     }
 
+    /**
+     * Replaces all the values of a is_false assertion for given REST test.
+     * For example "is_false": "value_to_replace" to "is_false": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+      @param testName the testName to apply replacement
+     */
     public void replaceIsFalse(String oldValue, Object newValue, String testName) {
         transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
     }

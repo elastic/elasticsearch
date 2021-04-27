@@ -63,7 +63,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         final int maxYTile = GeoTileUtils.getYTile(bounds.minY(), tiles);
         final long count = (long) (maxXTile - minXTile + 1) * (maxYTile - minYTile + 1);
         if (count == 1) {
-            return setValue(values, geoValue, minXTile, minYTile);
+            return setValue(values, minXTile, minYTile);
         } else if (count <= precision) {
             return setValuesByBruteForceScan(values, geoValue, minXTile, minYTile, maxXTile, maxYTile);
         } else {
@@ -77,10 +77,9 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     }
 
     /**
-     * Sets a singular doc-value for the {@link GeoShapeValues.GeoShapeValue}. To be overriden by {@link BoundedGeoTileGridTiler}
-     * to account for {@link org.elasticsearch.common.geo.GeoBoundingBox} conditions
+     * Sets a singular doc-value with the provided x/y.
      */
-    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile) {
+    protected int setValue(GeoShapeCellValues docValues, int xTile, int yTile) {
         if (validTile(xTile, yTile, precision)) {
             docValues.resizeCell(1);
             docValues.add(0, GeoTileUtils.longEncodeTiles(precision, xTile, yTile));

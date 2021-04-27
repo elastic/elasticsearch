@@ -177,7 +177,7 @@ different addresses for publishing and binding.
 The network address that clients and other nodes can use to contact this node.
 Accepts an IP address, a hostname, or a <<network-interface-values,special
 value>>. Defaults to the address given by `network.host`. Use this setting only
-if bindiing to multiple addresses or using different addresses for publishing
+if binding to multiple addresses or using different addresses for publishing
 and binding.
 
 NOTE: You can specify a list of addresses for `network.host` and

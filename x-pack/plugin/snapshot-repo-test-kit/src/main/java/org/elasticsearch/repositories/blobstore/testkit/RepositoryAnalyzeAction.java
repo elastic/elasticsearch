@@ -702,7 +702,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize = new ByteSizeValue(in);
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
                 abortWritePermitted = in.readBoolean();
             } else {
                 abortWritePermitted = false;
@@ -729,7 +729,7 @@ public class RepositoryAnalyzeAction extends ActionType<RepositoryAnalyzeAction.
             maxTotalDataSize.writeTo(out);
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
                 out.writeBoolean(abortWritePermitted);
             } else if (abortWritePermitted) {
                 throw new IllegalStateException("cannot send abortWritePermitted request to node of version [" + out.getVersion() + "]");

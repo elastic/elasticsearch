@@ -33,10 +33,13 @@ public class ReplaceTextualTests extends TransformTests {
         String test_transformed = "/rest/transform/text/text_replace_transformed.yml";
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
-        TextNode replacementNode = MAPPER.convertValue("_replaced_value", TextNode.class);
         List<ObjectNode> transformedTests = transformTests(
             new LinkedList<>(tests),
-            Collections.singletonList(new ReplaceTextual("key_to_replace", "value_to_replace", replacementNode, null))
+            List.of(
+                new ReplaceTextual("key_to_replace", "value_to_replace", MAPPER.convertValue("_replaced_value", TextNode.class), null),
+                new ReplaceIsTrue("is_true_to_replace", MAPPER.convertValue("is_true_replaced", TextNode.class)),
+                new ReplaceIsFalse("is_false_to_replace", MAPPER.convertValue("is_false_replaced", TextNode.class))
+            )
         );
 
         AssertObjectNodes.areEqual(transformedTests, expectedTransformation);

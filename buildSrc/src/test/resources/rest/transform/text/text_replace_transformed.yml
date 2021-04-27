@@ -42,6 +42,8 @@ First test:
   - key_not_to_replace:
       _below_is_target_for_tests: 0
   - key_to_replace: "_replaced_value"
+  - is_true: is_true_replaced
+  - is_false: is_false_replaced
 ---
 Also has key_value to replace:
   - do:

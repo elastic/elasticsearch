@@ -111,7 +111,7 @@ documentation].
 [[faster-terms-aggregations]]
 === Faster `terms` aggregations
 
-We've improved the speed of the `terms` aggregation by up to 92% when:
+We've significantly improved the speed of the `terms` aggregation when:
 
 * It has no parent or child aggregations.
 * Target indices have no deleted documents or were recently merged.

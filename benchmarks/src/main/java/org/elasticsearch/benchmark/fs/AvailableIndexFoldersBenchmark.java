@@ -44,7 +44,6 @@ public class AvailableIndexFoldersBenchmark {
     @Setup
     public void setup() throws IOException {
         Path path = Files.createTempDirectory("test");
-        String[] paths = new String[] { path.toString() };
         nodePath = new NodeEnvironment.NodePath(path);
 
         LogConfigurator.setNodeName("test");

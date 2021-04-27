@@ -1,17 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -20,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
@@ -28,6 +40,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
             IllegalArgumentException.class,
             () -> new AutoscalingDeciderResults(
                 new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
+                randomNodes(),
                 new TreeMap<>()
             )
         );
@@ -61,6 +74,48 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         verifySingleMetricLarger(node, large, largerMemory, autoscalingCapacities, largerMemory);
     }
 
+    public void testToXContent() {
+        AutoscalingDeciderResults results = randomAutoscalingDeciderResults();
+        Map<String, Object> map = toMap(results);
+        boolean hasRequiredCapacity = results.requiredCapacity() != null;
+        Set<String> roots = hasRequiredCapacity
+            ? Set.of("current_capacity", "current_nodes", "deciders", "required_capacity")
+            : Set.of("current_capacity", "current_nodes", "deciders");
+        assertThat(map.keySet(), equalTo(roots));
+        assertThat(map.get("current_nodes"), instanceOf(List.class));
+        List<?> expectedNodes = results.currentNodes().stream().map(dn -> Map.of("name", dn.getName())).collect(Collectors.toList());
+        assertThat(map.get("current_nodes"), equalTo(expectedNodes));
+        if (hasRequiredCapacity) {
+            assertThat(map.get("required_capacity"), equalTo(toMap(results.requiredCapacity())));
+        }
+
+        assertThat(map.get("current_capacity"), equalTo(toMap(results.currentCapacity())));
+        assertThat(
+            map.get("deciders"),
+            equalTo(results.results().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> toMap(e.getValue()))))
+        );
+    }
+
+    public Map<String, Object> toMap(ToXContent tox) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            if (tox.isFragment()) {
+                builder.startObject();
+            }
+            tox.toXContent(builder, null);
+            if (tox.isFragment()) {
+                builder.endObject();
+            }
+            try (
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+            ) {
+                return parser.map();
+            }
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private void verifySingleMetricLarger(
         boolean node,
         AutoscalingCapacity expectedStorage,
@@ -72,7 +127,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         autoscalingCapacities.add(larger);
         Randomness.shuffle(autoscalingCapacities);
         AutoscalingCapacity.Builder expectedBuilder = AutoscalingCapacity.builder()
-            .total(expectedStorage.tier().storage(), expectedMemory.tier().memory());
+            .total(expectedStorage.total().storage(), expectedMemory.total().memory());
         if (node) {
             expectedBuilder.node(expectedStorage.node().storage(), expectedMemory.node().memory());
         }
@@ -91,7 +146,10 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
                     TreeMap::new
                 )
             );
-        assertThat(new AutoscalingDeciderResults(randomAutoscalingCapacity(), results).requiredCapacity(), equalTo(expected));
+        assertThat(
+            new AutoscalingDeciderResults(randomAutoscalingCapacity(), randomNodes(), results).requiredCapacity(),
+            equalTo(expected)
+        );
     }
 
     private AutoscalingCapacity randomCapacity(boolean node, boolean storage, boolean memory, int lower, int upper) {

@@ -1,23 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis.phonetic;
+
+import org.apache.commons.codec.EncoderException;
+import org.apache.commons.codec.StringEncoder;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,9 +19,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.apache.commons.codec.EncoderException;
-import org.apache.commons.codec.StringEncoder;
 
 /**
  * K&ouml;lner Phonetik
@@ -141,14 +130,14 @@ public class KoelnerPhonetik implements StringEncoder {
         String primaryForm = str;
         List<String> parts = new ArrayList<>();
         parts.add(primaryForm.replaceAll("[^\\p{L}\\p{N}]", ""));
-        if (!primary) {
+        if (primary == false) {
             List<String> tmpParts = new ArrayList<>(Arrays.asList(str.split("[\\p{Z}\\p{C}\\p{P}]")));
             int numberOfParts = tmpParts.size();
             while (tmpParts.size() > 0) {
                 StringBuilder part = new StringBuilder();
                 for (int i = 0; i < tmpParts.size(); i++) {
                     part.append(tmpParts.get(i));
-                    if (!(i + 1 == numberOfParts)) {
+                    if ((i + 1 == numberOfParts) == false) {
                         parts.add(part.toString());
                     }
                 }
@@ -251,7 +240,7 @@ public class KoelnerPhonetik implements StringEncoder {
                     }
                     break;
                 case 'X':
-                    sb.append(i < 1 || !ckq.contains(prev) ? "48" : '8');
+                    sb.append(i < 1 || ckq.contains(prev) == false ? "48" : '8');
                     break;
                 case 'L':
                     sb.append('5');

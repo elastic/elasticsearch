@@ -4,10 +4,8 @@
 <titleabbrev>Simulate template</titleabbrev>
 ++++
 
-experimental[]
-
 Returns the index configuration that would be applied by a particular 
-<<indices-templates, index template>>.
+<<index-templates, index template>>.
 
 ////
 [source,console]
@@ -49,7 +47,6 @@ PUT _index_template/template_1
 [source,console]
 --------------------------------------------------
 DELETE _index_template/*
-DELETE _component_template/*
 --------------------------------------------------
 // TEARDOWN
 ////
@@ -64,6 +61,12 @@ POST /_index_template/_simulate/template_1
 
 `POST /_index_template/_simulate/<index-template>`
 
+[[simulate-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[simulate-template-api-path-params]]
 ==== {api-path-parms-title}
@@ -82,7 +85,7 @@ omit this parameter and specify the template configuration in the request body.
 ////
 
 `create`::
-(Optional, boolean) If `true`, the template passed in the body is 
+(Optional, Boolean) If `true`, the template passed in the body is 
 only used if no existing templates match the same index patterns. 
 If `false`, the simulation uses the template with the highest priority.
 Note that the template is not permanently added or updated in either case;

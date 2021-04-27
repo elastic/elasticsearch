@@ -1,12 +1,15 @@
 [[indices-add-alias]]
-=== Add index alias API
+=== Create or update index alias API
 ++++
-<titleabbrev>Add index alias</titleabbrev>
+<titleabbrev>Create or update index alias</titleabbrev>
 ++++
 
 Creates or updates an index alias.
 
-include::{es-repo-dir}/glossary.asciidoc[tag=index-alias-desc]
+//tag::index-alias-desc[]
+An index alias is a secondary name for one or more indices. Most {es} APIs
+accept an index alias in place of an index name.
+//end::index-alias-desc[]
 
 [source,console]
 ----
@@ -26,6 +29,11 @@ PUT /my-index-000001/_alias/alias1
 
 `POST /<index>/_aliases/<alias>`
 
+[[add-alias-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for both the index and index alias.
 
 [[add-alias-api-path-params]]
 ==== {api-path-parms-title}
@@ -42,7 +50,8 @@ NOTE: You cannot add <<data-streams,data streams>> to an index alias.
 
 `<alias>`::
 (Required, string)
-Name of the index alias to create or update.
+Name of the index alias to create or update. Supports
+<<date-math-index-names,date math>>.
 
 
 [[add-alias-api-query-params]]
@@ -62,6 +71,18 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
 
 [[add-alias-api-example]]
 ==== {api-examples-title}
+
+[[alias-date-math-support]]
+===== Date math support
+
+Index alias names support <<date-math-index-names,date math>>.
+
+[source,console]
+----
+# POST /logs/_alias/<logs_{now/M}>
+POST /logs/_alias/%3Clogs_%7Bnow%2FM%7D%3E
+----
+// TEST[s/^/PUT logs\n/]
 
 [[alias-adding]]
 ===== Add a time-based alias
@@ -134,3 +155,16 @@ PUT /logs_20302801
   }
 }
 --------------------------------------------------
+
+The create index API also supports <<date-math-index-names,date math>> in index
+alias names.
+
+[source,console]
+----
+PUT /logs
+{
+  "aliases": {
+    "<logs_{now/M}>": {}
+  }
+}
+----

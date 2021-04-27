@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
@@ -11,6 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -121,7 +123,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                 builder.field(TransformField.COUNT.getPreferredName(), invalidTransforms.size());
                 builder.field(TransformField.TRANSFORMS.getPreferredName(), invalidTransforms);
                 builder.endObject();
-                deprecationLogger.deprecate("invalid_transforms", INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
+                deprecationLogger.deprecate(DeprecationCategory.OTHER, "invalid_transforms",
+                    INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
             }
 
             builder.endObject();

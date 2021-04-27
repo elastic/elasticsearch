@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.persistence;
 
@@ -253,7 +254,7 @@ public class DataFrameAnalyticsConfigProvider {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            new ActionListener<SearchResponse>() {
+            new ActionListener.Delegating<SearchResponse, List<DataFrameAnalyticsConfig>>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     SearchHit[] hits = searchResponse.getHits().getHits();
@@ -265,7 +266,7 @@ public class DataFrameAnalyticsConfigProvider {
                                  xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                             configs.add(DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build());
                         } catch (IOException e) {
-                            listener.onFailure(e);
+                            delegate.onFailure(e);
                         }
                     }
 
@@ -275,14 +276,8 @@ public class DataFrameAnalyticsConfigProvider {
                     if (tasksWithoutConfigs.isEmpty() == false) {
                         logger.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
                     }
-                    listener.onResponse(configs);
+                    delegate.onResponse(configs);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            },
-            client::search);
+            }, client::search);
     }
 }

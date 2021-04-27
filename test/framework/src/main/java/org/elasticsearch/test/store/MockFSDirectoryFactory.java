@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test.store;
@@ -74,7 +63,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
             logger.info("start check index");
             try {
                 Directory dir = store.directory();
-                if (!Lucene.indexExists(dir)) {
+                if (Lucene.indexExists(dir) == false) {
                     return;
                 }
                 try {
@@ -82,7 +71,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                     PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                     CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
-                    if (!status.clean) {
+                    if (status.clean == false) {
                         IOException failure = new IOException("failed to check index for shard " + shardId +
                             ";index files [" + Arrays.toString(dir.listAll()) + "] os [" + os.bytes().utf8ToString() + "]");
                         ESTestCase.checkIndexFailures.add(failure);

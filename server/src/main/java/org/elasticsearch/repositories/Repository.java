@@ -1,24 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,7 +18,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -110,6 +97,8 @@ public interface Repository extends LifecycleComponent {
      * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
      * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
      * if there was an error in reading the data.
+     * @param listener listener that may be resolved on different kinds of threads including transport and cluster state applier threads
+     *                 and therefore must fork to a new thread for executing any long running actions
      */
     void getRepositoryData(ActionListener<RepositoryData> listener);
 
@@ -191,29 +180,16 @@ public interface Repository extends LifecycleComponent {
     boolean isReadOnly();
 
     /**
-     * Creates a snapshot of the shard based on the index commit point.
+     * Creates a snapshot of the shard referenced by the given {@link SnapshotShardContext}.
      * <p>
-     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#acquireLastIndexCommit} method.
-     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
-     * <p>
-     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
-     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store                 store to be snapshotted
-     * @param mapperService         the shards mapper service
-     * @param snapshotId            snapshot id
-     * @param indexId               id for the index being snapshotted
-     * @param snapshotIndexCommit   commit point
-     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
-     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
-     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
-     * @param snapshotStatus        snapshot status
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * @param listener              listener invoked on completion
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object returned by
+     * {@link SnapshotShardContext#status()} and check its {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process
+     * should be aborted.
+     *
+     * @param snapshotShardContext snapshot shard context that must be completed via {@link SnapshotShardContext#onResponse} or
+     *                             {@link SnapshotShardContext#onFailure}
      */
-    void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit,
-                       @Nullable String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus, Version repositoryMetaVersion,
-                       Map<String, Object> userMetadata, ActionListener<String> listener);
+    void snapshotShard(SnapshotShardContext snapshotShardContext);
 
     /**
      * Restores snapshot of the shard.
@@ -271,8 +247,12 @@ public interface Repository extends LifecycleComponent {
      * @param shardGeneration shard generation in repo
      * @param listener        listener to complete with new shard generation once clone has completed
      */
-    void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, @Nullable String shardGeneration,
-                            ActionListener<String> listener);
+    void cloneShardSnapshot(
+            SnapshotId source,
+            SnapshotId target,
+            RepositoryShardId shardId,
+            @Nullable String shardGeneration,
+            ActionListener<ShardSnapshotResult> listener);
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

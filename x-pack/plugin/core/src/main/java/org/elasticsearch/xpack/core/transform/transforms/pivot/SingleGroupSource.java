@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
@@ -187,13 +188,4 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         return null;
     }
 
-    /**
-     * This will transform a composite aggregation bucket key into the desired format for indexing.
-     *
-     * @param key The bucket key for this group source
-     * @return the transformed bucket key for indexing
-     */
-    public Object transformBucketKey(Object key) {
-        return key;
-    }
 }

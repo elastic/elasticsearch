@@ -1,24 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gradle.util;
 
-import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -26,12 +15,15 @@ import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.ModuleDependency;
+import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
 import org.gradle.api.services.BuildServiceRegistry;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
@@ -82,11 +74,7 @@ public abstract class GradleUtils {
         Class<? extends T> type,
         Action<? super T> config
     ) {
-        tasks.withType(type).configureEach(task -> {
-            if (task.getName().equals(name)) {
-                config.execute(task);
-            }
-        });
+        tasks.withType(type).matching((Spec<T>) t -> t.getName().equals(name)).configureEach(task -> { config.execute(task); });
     }
 
     public static TaskProvider<?> findByName(TaskContainer tasks, String name) {
@@ -174,9 +162,8 @@ public abstract class GradleUtils {
      */
     public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName) {
         final List<Function<SourceSet, String>> configNameFunctions = Arrays.asList(
-            SourceSet::getCompileConfigurationName,
+            SourceSet::getCompileOnlyConfigurationName,
             SourceSet::getImplementationConfigurationName,
-            SourceSet::getRuntimeConfigurationName,
             SourceSet::getRuntimeOnlyConfigurationName
         );
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
@@ -200,12 +187,14 @@ public abstract class GradleUtils {
      * Extends one configuration from another and refreshes the classpath of a provided Test.
      * The Test parameter is only needed for eagerly defined test tasks.
      */
-    public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName, Test test) {
+    public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName, TaskProvider<Test> test) {
         extendSourceSet(project, parentSourceSetName, childSourceSetName);
         if (test != null) {
-            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-            SourceSet child = sourceSets.getByName(childSourceSetName);
-            test.setClasspath(child.getRuntimeClasspath());
+            test.configure(t -> {
+                SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+                SourceSet child = sourceSets.getByName(childSourceSetName);
+                t.setClasspath(child.getRuntimeClasspath());
+            });
         }
     }
 
@@ -226,5 +215,21 @@ public abstract class GradleUtils {
     public static String getProjectPathFromTask(String taskPath) {
         int lastDelimiterIndex = taskPath.lastIndexOf(":");
         return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
+    }
+
+    public static boolean isModuleProject(String projectPath) {
+        return projectPath.contains("modules:")
+            || projectPath.startsWith(":x-pack:plugin")
+            || projectPath.startsWith(":x-pack:quota-aware-fs");
+    }
+
+    public static void disableTransitiveDependencies(Configuration config) {
+        config.getDependencies().all(dep -> {
+            if (dep instanceof ModuleDependency
+                && dep instanceof ProjectDependency == false
+                && dep.getGroup().startsWith("org.elasticsearch") == false) {
+                ((ModuleDependency) dep).setTransitive(false);
+            }
+        });
     }
 }

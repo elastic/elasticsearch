@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.collector;
 
@@ -73,10 +74,6 @@ public abstract class Collector {
      * @param isElectedMaster true if the current local node is the elected master node
      */
     protected boolean shouldCollect(final boolean isElectedMaster) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MONITORING) == false) {
-            logger.trace("collector [{}] can not collect data due to invalid license", name());
-            return false;
-        }
         return true;
     }
 
@@ -88,7 +85,7 @@ public abstract class Collector {
                 return doCollect(convertNode(timestamp, clusterService.localNode()), interval, clusterState);
             }
         } catch (ElasticsearchTimeoutException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] timed out when collecting data", name()));
+            logger.error("collector [{}] timed out when collecting data: {}", name(), e.getMessage());
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] failed to collect data", name()), e);
         }

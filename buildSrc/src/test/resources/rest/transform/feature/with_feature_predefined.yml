@@ -1,0 +1,11 @@
+---
+setup:
+  - skip:
+      features: headers
+---
+"Test without with single feature setup":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+

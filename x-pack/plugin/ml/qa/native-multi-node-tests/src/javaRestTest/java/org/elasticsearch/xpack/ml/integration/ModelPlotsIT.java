@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -73,11 +74,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testPartitionFieldWithoutTerms() throws Exception {
         Job.Builder job = jobWithPartitionUser("model-plots-it-test-partition-field-without-terms");
         job.setModelPlotConfig(new ModelPlotConfig());
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
@@ -95,11 +94,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testPartitionFieldWithTerms() throws Exception {
         Job.Builder job = jobWithPartitionUser("model-plots-it-test-partition-field-with-terms");
         job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3", false));
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
@@ -117,11 +114,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testByFieldWithTerms() throws Exception {
         Job.Builder job = jobWithByUser("model-plots-it-test-by-field-with-terms");
         job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3", false));
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());

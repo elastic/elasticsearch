@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -49,12 +50,12 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    public IndexLifecycleFeatureSetUsage(boolean available) {
-        this(available, null);
+    public IndexLifecycleFeatureSetUsage() {
+        this((List<PolicyStats>)null);
     }
 
-    public IndexLifecycleFeatureSetUsage(boolean available, List<PolicyStats> policyStats) {
-        super(XPackField.INDEX_LIFECYCLE, available, true);
+    public IndexLifecycleFeatureSetUsage(List<PolicyStats> policyStats) {
+        super(XPackField.INDEX_LIFECYCLE, true, true);
         this.policyStats = policyStats;
     }
 

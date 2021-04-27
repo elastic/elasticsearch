@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -743,6 +743,7 @@ public class RestClient implements Closeable {
         InternalRequest(Request request) {
             this.request = request;
             Map<String, String> params = new HashMap<>(request.getParameters());
+            params.putAll(request.getOptions().getParameters());
             //ignore is a special parameter supported by the clients, shouldn't be sent to es
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
@@ -849,6 +850,7 @@ public class RestClient implements Closeable {
      */
     private static Exception extractAndWrapCause(Exception exception) {
         if (exception instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
             throw new RuntimeException("thread waiting for the response was interrupted", exception);
         }
         if (exception instanceof ExecutionException) {

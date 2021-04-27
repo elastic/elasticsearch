@@ -1,9 +1,8 @@
 /*
- *
- *  Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- *  or more contributor license agreements. Licensed under the Elastic License;
- *  you may not use this file except in compliance with the Elastic License.
- *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.permission;
@@ -16,12 +15,15 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
@@ -228,6 +230,33 @@ public class ClusterPermissionTests extends ESTestCase {
             ClusterPrivilegeResolver.MANAGE_ILM.buildPermission(ClusterPermission.builder()).build();
 
         assertThat(allClusterPermission.implies(otherClusterPermission), is(true));
+    }
+
+    public void testImpliesOnSecurityPrivilegeHierarchy() {
+        final List<ClusterPermission> highToLow = List.of(
+            ClusterPrivilegeResolver.ALL.permission(),
+            ClusterPrivilegeResolver.MANAGE_SECURITY.permission(),
+            ClusterPrivilegeResolver.MANAGE_API_KEY.permission(),
+            ClusterPrivilegeResolver.MANAGE_OWN_API_KEY.permission()
+        );
+
+        for (int i = 0; i < highToLow.size(); i++) {
+            ClusterPermission high = highToLow.get(i);
+            for (int j = i; j < highToLow.size(); j++) {
+                ClusterPermission low = highToLow.get(j);
+                assertThat("Permission " + name(high) + " should imply " + name(low), high.implies(low), is(true));
+            }
+        }
+    }
+
+    private String name(ClusterPermission permission) {
+        return permission.privileges().stream().map(priv -> {
+            if (priv instanceof NamedClusterPrivilege) {
+                return ((NamedClusterPrivilege) priv).name();
+            } else {
+                return priv.toString();
+            }
+        }).collect(Collectors.joining(","));
     }
 
     private static class MockConfigurableClusterPrivilege implements ConfigurableClusterPrivilege {

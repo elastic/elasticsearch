@@ -1,8 +1,9 @@
 /*
  *
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  *
  */
 
@@ -94,7 +95,7 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final TransportRequest invalidateApiKeyRequest = randomFrom(
             InvalidateApiKeyRequest.usingRealmAndUserName("realm1", randomAlphaOfLength(7)),
             InvalidateApiKeyRequest.usingRealmAndUserName(randomAlphaOfLength(5), "joe"),
-            new InvalidateApiKeyRequest(randomAlphaOfLength(5), randomAlphaOfLength(7), null, null, false));
+            new InvalidateApiKeyRequest(randomAlphaOfLength(5), randomAlphaOfLength(7), null, false, null));
 
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));

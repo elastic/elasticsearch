@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -65,6 +66,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
                 .putNull("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output")
+                .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService")
                 .build()).get();
         cleanUp();
     }
@@ -102,10 +104,8 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         long twoDaysAgo = now - 2 * DAY;
         startDatafeed(datafeedConfig.getId(), 0L, twoDaysAgo);
@@ -121,6 +121,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             .setTransientSettings(Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister", "TRACE")
+                .put("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output", "TRACE")
                 .put("xpack.ml.persist_results_max_retries", "15")
                 .build()).get();

@@ -109,6 +109,10 @@ description = "Test the `endsWith` function with case insensitivity"
     expression = 'endsWith("FooBarBaz", "baz")'
     expected = false
 
+    [[endswith_insensitive.fold.tests]]
+    expression = 'endsWith~("FooBarBaz", "baz")'
+    expected = true
+
 
 [endswith_sensitive]
 description = "Test the `endsWith` function with case sensitivity"
@@ -116,6 +120,10 @@ description = "Test the `endsWith` function with case sensitivity"
     [[endswith_sensitive.fold.tests]]
     expression = 'endsWith("FooBarBaz", "baz")'
     expected = false
+
+    [[endswith_sensitive.fold.tests]]
+    expression = 'endsWith~("FooBarBaz", "baz")'
+    expected = true
 
 
 [indexof]
@@ -302,19 +310,19 @@ description = "Test the `startsWith` function with case-sensitive matching"
 description = "Test the `startsWith` function with case-insensitive matching"
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = '''startsWith("FooBar", "Foo")'''
+    expression = '''startsWith~("FooBar", "Foo")'''
     expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = '''startsWith("FooBar", "FOO")'''
-    expected = false
+    expression = '''startsWith~("FooBar", "FOO")'''
+    expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = '''startsWith("FooBar", "foo")'''
-    expected = false
+    expression = '''startsWith~("FooBar", "foo")'''
+    expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = '''startsWith("FooBar", "Bar")'''
+    expression = '''startsWith~("FooBar", "Bar")'''
     expected = false
 
 

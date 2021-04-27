@@ -1,29 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
@@ -33,6 +24,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.IntConsumer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalHistogramTests extends InternalMultiBucketAggregationTestCase<InternalHistogram> {
 
@@ -108,6 +102,37 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
                 InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction());
     }
 
+    public void testLargeReduce() {
+        InternalHistogram histo = new InternalHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),
+            DocValueFormat.RAW,
+            false,
+            null
+        );
+        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            new IntConsumer() {
+                int buckets;
+
+                @Override
+                public void accept(int value) {
+                    buckets += value;
+                    if (buckets > 100000) {
+                        throw new IllegalArgumentException("too big!");
+                    }
+                }
+            },
+            PipelineTree.EMPTY
+        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> histo.reduce(List.of(histo), reduceContext));
+        assertThat(e.getMessage(), equalTo("too big!"));
+    }
+
     @Override
     protected void assertReduced(InternalHistogram reduced, List<InternalHistogram> inputs) {
         TreeMap<Double, Long> expectedCounts = new TreeMap<>();
@@ -149,7 +174,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedHistogram> implementationClass() {
         return ParsedHistogram.class;
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -11,16 +12,13 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-
-import java.util.stream.Collectors;
 
 public class TransportGetModelSnapshotsAction extends HandledTransportAction<GetModelSnapshotsAction.Request,
         GetModelSnapshotsAction.Response> {
@@ -53,25 +51,26 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
                 request.getSort(),
                 request.getDescOrder()));
 
+        if (Strings.isAllOrWildcard(request.getJobId())) {
+            getModelSnapshots(request, listener);
+            return;
+        }
         jobManager.jobExists(request.getJobId(), ActionListener.wrap(
-                ok -> {
-                    jobResultsProvider.modelSnapshots(request.getJobId(), request.getPageParams().getFrom(),
-                            request.getPageParams().getSize(), request.getStart(), request.getEnd(), request.getSort(),
-                            request.getDescOrder(), request.getSnapshotId(),
-                            page -> {
-                                listener.onResponse(new GetModelSnapshotsAction.Response(clearQuantiles(page)));
-                            }, listener::onFailure);
-                },
-                listener::onFailure
+            ok -> getModelSnapshots(request, listener),
+            listener::onFailure
         ));
     }
 
-    public static QueryPage<ModelSnapshot> clearQuantiles(QueryPage<ModelSnapshot> page) {
-        if (page.results() == null) {
-            return page;
-        }
-        return new QueryPage<>(page.results().stream().map(snapshot ->
-                new ModelSnapshot.Builder(snapshot).setQuantiles(null).build())
-                .collect(Collectors.toList()), page.count(), page.getResultsField());
+    private void getModelSnapshots(GetModelSnapshotsAction.Request request, ActionListener<GetModelSnapshotsAction.Response> listener) {
+        jobResultsProvider.modelSnapshots(request.getJobId(),
+            request.getPageParams().getFrom(),
+            request.getPageParams().getSize(),
+            request.getStart(),
+            request.getEnd(),
+            request.getSort(),
+            request.getDescOrder(),
+            request.getSnapshotId(),
+            page -> listener.onResponse(new GetModelSnapshotsAction.Response(page)),
+            listener::onFailure);
     }
 }

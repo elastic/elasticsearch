@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
@@ -53,26 +54,27 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     @Override
     public synchronized void start(Collection<Watch> jobs) {
-        Map<String, Watch> newWatches = new ConcurrentHashMap<>();
-        jobs.forEach((watch) -> newWatches.put(watch.id(), watch));
-        watches.set(newWatches);
+        logger.info("starting scheduler");
+        jobs.forEach((watch) -> watches.get().put(watch.id(), watch));
         paused.set(false);
     }
 
     @Override
     public void stop() {
+        logger.info("stopping scheduler and clearing queue");
         watches.set(new ConcurrentHashMap<>());
     }
 
     @Override
     public synchronized void add(Watch watch) {
-        logger.debug("adding watch [{}]", watch.id());
+        logger.info("adding watch [{}]", watch.id());
         watches.get().put(watch.id(), watch);
     }
 
     @Override
     public void pauseExecution() {
         paused.set(true);
+        watches.get().clear();
     }
 
     @Override
@@ -86,6 +88,7 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
     public boolean trigger(String jobName, int times, TimeValue interval) {
         if (watches.get().containsKey(jobName) == false) {
+            logger.info("not executing watch [{}] on this scheduler because it is not found", jobName);
             return false;
         }
         if (paused.get()) {

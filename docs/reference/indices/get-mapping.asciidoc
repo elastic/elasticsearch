@@ -20,6 +20,12 @@ GET /my-index-000001/_mapping
 
 `GET /<target>/_mapping`
 
+[[get-mapping-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or index alias.
 
 [[get-mapping-api-path-params]]
 ==== {api-path-parms-title}

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.proto;
@@ -13,10 +14,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
@@ -30,6 +33,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.RUNTIME_MAPPINGS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 
@@ -51,11 +55,13 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     private final boolean fieldMultiValueLeniency;
     private final boolean indexIncludeFrozen;
     private final Boolean binaryCommunication;
+    @Nullable
+    private final Map<String, Object> runtimeMappings;
 
     public SqlQueryRequest(String query, List<SqlTypedParamValue> params, ZoneId zoneId, int fetchSize,
                            TimeValue requestTimeout, TimeValue pageTimeout, ToXContent filter, Boolean columnar,
                            String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen,
-                           Boolean binaryCommunication) {
+                           Boolean binaryCommunication, Map<String, Object> runtimeMappings) {
         super(requestInfo);
         this.query = query;
         this.params = params;
@@ -69,12 +75,13 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         this.fieldMultiValueLeniency = fieldMultiValueLeniency;
         this.indexIncludeFrozen = indexIncludeFrozen;
         this.binaryCommunication = binaryCommunication;
+        this.runtimeMappings = runtimeMappings;
     }
 
     public SqlQueryRequest(String cursor, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo,
                            boolean binaryCommunication) {
-        this("", Collections.emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout,
-                null, false, cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication);
+        this("", emptyList(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE, requestTimeout, pageTimeout, null, false,
+                cursor, requestInfo, Protocol.FIELD_MULTI_VALUE_LENIENCY, Protocol.INDEX_INCLUDE_FROZEN, binaryCommunication, emptyMap());
     }
 
     /**
@@ -134,7 +141,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public ToXContent filter() {
         return filter;
     }
-    
+
     /**
      * Optional setting for returning the result values in a columnar fashion (as opposed to rows of values).
      * Each column will have all its values in a list. Defaults to false.
@@ -146,15 +153,19 @@ public class SqlQueryRequest extends AbstractSqlRequest {
     public boolean fieldMultiValueLeniency() {
         return fieldMultiValueLeniency;
     }
-    
+
     public boolean indexIncludeFrozen() {
         return indexIncludeFrozen;
     }
-    
+
     public Boolean binaryCommunication() {
         return binaryCommunication;
     }
-    
+
+    public Map<String, Object> runtimeMappings() {
+        return runtimeMappings;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -163,7 +174,7 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         SqlQueryRequest that = (SqlQueryRequest) o;
@@ -178,13 +189,14 @@ public class SqlQueryRequest extends AbstractSqlRequest {
                 && Objects.equals(cursor, that.cursor)
                 && fieldMultiValueLeniency == that.fieldMultiValueLeniency
                 && indexIncludeFrozen == that.indexIncludeFrozen
-                && Objects.equals(binaryCommunication,  that.binaryCommunication);
+                && Objects.equals(binaryCommunication,  that.binaryCommunication)
+                && Objects.equals(runtimeMappings, that.runtimeMappings);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), query, zoneId, fetchSize, requestTimeout, pageTimeout,
-                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication);
+                filter, columnar, cursor, fieldMultiValueLeniency, indexIncludeFrozen, binaryCommunication, runtimeMappings);
     }
 
     @Override
@@ -236,6 +248,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         if (cursor != null) {
             builder.field(CURSOR_NAME, cursor);
+        }
+        if (runtimeMappings.isEmpty() == false) {
+            builder.field(RUNTIME_MAPPINGS_NAME, runtimeMappings);
         }
         return builder;
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -24,24 +13,17 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
-import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
-
-import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.DEFAULT_MAX_BUCKETS;
 
 public class BucketsAggregatorTests extends AggregatorTestCase{
 
@@ -56,18 +38,13 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-                SearchContext searchContext = createSearchContext(
+                AggregationContext context = createAggregationContext(
                     indexSearcher,
-                    createIndexSettings(),
                     null,
-                    new MultiBucketConsumerService.MultiBucketConsumer(
-                        DEFAULT_MAX_BUCKETS,
-                        new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                    ),
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );
 
-                return new BucketsAggregator("test", AggregatorFactories.EMPTY, searchContext, null, null, null) {
+                return new BucketsAggregator("test", AggregatorFactories.EMPTY, context, null, null, null) {
                     @Override
                     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
                         return null;
@@ -95,7 +72,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
             mergeAggregator.incrementBucketDocCount(i, i);
         }
 
-        mergeAggregator.mergeBuckets(10, bucket -> bucket % 5);
+        mergeAggregator.rewriteBuckets(10, bucket -> bucket % 5);
 
         for(int i=0; i<5; i++) {
             // The i'th bucket should now have all docs whose index % 5 = i
@@ -121,7 +98,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
         }
 
         // Put the buckets in indices 5 ... 14 into bucket 5, and delete the rest of the buckets
-        mergeAggregator.mergeBuckets(10, bucket -> (5 <= bucket && bucket < 15) ? 5 : -1);
+        mergeAggregator.rewriteBuckets(10, bucket -> (5 <= bucket && bucket < 15) ? 5 : -1);
 
         assertEquals(mergeAggregator.getDocCounts().size(), 10); // Confirm that the 10 other buckets were deleted
         for(int i=0; i<10; i++){

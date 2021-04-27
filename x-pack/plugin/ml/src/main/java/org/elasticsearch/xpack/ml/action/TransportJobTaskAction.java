@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.JobTaskRequest;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.util.List;
 
@@ -30,7 +32,7 @@ import java.util.List;
 // redirects to a single node only
 public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Request>,
         Response extends BaseTasksResponse & Writeable>
-        extends TransportTasksAction<TransportOpenJobAction.JobTask, Request, Response, Response> {
+        extends TransportTasksAction<JobTask, Request, Response, Response> {
 
     protected final AutodetectProcessManager processManager;
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
@@ -83,6 +84,9 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
         indexRequest.index(getField(actionId, ctx.id().watchId(), "index", data, INDEX_FIELD, action.index));
         indexRequest.id(getField(actionId, ctx.id().watchId(), "id",data, ID_FIELD, action.docId));
+        if (action.opType != null) {
+            indexRequest.opType(action.opType);
+        }
 
         data = addTimestampToDocument(data, ctx.executionTime());
         BytesReference bytesReference;
@@ -95,6 +99,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
                 action.refreshPolicy, new XContentSource(indexRequest.source(), XContentType.JSON));
         }
 
+        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         IndexResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.index(indexRequest).actionGet(indexDefaultTimeout));
         try (XContentBuilder builder = jsonBuilder()) {
@@ -115,7 +120,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         }
 
         for (Object item : list) {
-            if (!(item instanceof Map)) {
+            if ((item instanceof Map) == false) {
                 throw illegalState("could not execute action [{}] of watch [{}]. failed to index payload data. " +
                         "[_data] field must either hold a Map or an List/Array of Maps", actionId, ctx.watch().id());
             }
@@ -128,6 +133,9 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             IndexRequest indexRequest = new IndexRequest();
             indexRequest.index(getField(actionId, ctx.id().watchId(), "index", doc, INDEX_FIELD, action.index));
             indexRequest.id(getField(actionId, ctx.id().watchId(), "id",doc, ID_FIELD, action.docId));
+            if (action.opType != null) {
+                indexRequest.opType(action.opType);
+            }
 
             doc = addTimestampToDocument(doc, ctx.executionTime());
             try (XContentBuilder builder = jsonBuilder()) {
@@ -135,6 +143,7 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             }
             bulkRequest.add(indexRequest);
         }
+        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         BulkResponse bulkResponse = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN, client,
                 () -> client.bulk(bulkRequest).actionGet(bulkDefaultTimeout));
         try (XContentBuilder jsonBuilder = jsonBuilder().startArray()) {

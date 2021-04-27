@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -118,6 +119,12 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
         createAirlineDataRequest.setJsonEntity("{"
                 + "  \"mappings\": {"
+                + "    \"runtime\": {"
+                + "      \"airline_lowercase_rt\": { "
+                + "        \"type\":\"keyword\","
+                + "        \"script\" : { \"source\": \"emit(params._source.airline.toLowerCase())\" }"
+                + "      }"
+                + "    },"
                 + "    \"properties\": {"
                 + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
                 + "      \"airline\": {"
@@ -127,11 +134,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 + "          \"keyword\":{\"type\":\"keyword\"}"
                 + "         }"
                 + "       },"
-                + "      \"airline_lowercase_rt\": { "
-                + "        \"type\":\"runtime\","
-                + "        \"runtime_type\": \"keyword\","
-                + "        \"script\" : { \"source\": \"emit(params._source.airline.toLowerCase())\" }"
-                + "      },"
                 + "      \"responsetime\": { \"type\":\"float\"}"
                 + "    }"
                 + "  }"
@@ -817,7 +819,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
-                "action [indices:data/read/search] is unauthorized for user [ml_admin_plus_data] on indices [network-data]"));
+                "action [indices:data/read/search] is unauthorized" +
+                " for user [ml_admin_plus_data]" +
+                " with roles [machine_learning_admin,test_data_access]" +
+                " on indices [network-data]"));
     }
 
     public void testLookbackWithPipelineBucketAgg() throws Exception {
@@ -965,8 +970,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             new Request("GET", NotificationsIndex.NOTIFICATIONS_INDEX + "/_search?size=1000&q=job_id:" + jobId));
         String notificationsResponseAsString = EntityUtils.toString(notificationsResponse.getEntity());
         assertThat(notificationsResponseAsString, containsString("\"message\":\"Datafeed is encountering errors extracting data: " +
-            "action [indices:data/read/xpack/rollup/search] is unauthorized for user [ml_admin_plus_data] " +
-            "on indices [airline-data-aggs-rollup]"));
+            "action [indices:data/read/xpack/rollup/search] is unauthorized" +
+            " for user [ml_admin_plus_data]" +
+            " with roles [machine_learning_admin,test_data_access]" +
+            " on indices [airline-data-aggs-rollup]"));
     }
 
     public void testLookbackWithSingleBucketAgg() throws Exception {
@@ -1225,10 +1232,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public void clearMlState() throws Exception {
         new MlRestTestStateCleaner(logger, adminClient()).clearMlMetadata();
         // Don't check rollup jobs because we clear them in the superclass.
-        // Don't check analytics jobs as they are independent of anomaly detection jobs and should not be created by this test.
-        waitForPendingTasks(
-            adminClient(),
-            taskName -> taskName.startsWith(RollupJob.NAME) || taskName.contains(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME));
+        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(RollupJob.NAME));
     }
 
     private static class DatafeedBuilder {

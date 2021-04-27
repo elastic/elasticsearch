@@ -31,7 +31,7 @@ indices.
 . <<ilm-gs-check-progress, Verify indices are moving through the lifecycle phases>>
 as expected.
 
-For an introduction to rolling indices, see <<index-rollover>>. 
+For an introduction to rolling indices, see <<index-rollover>>.
 
 IMPORTANT: When you enable {ilm} for {beats} or the {ls} {es} output plugin,
 lifecycle policies are set up automatically.
@@ -45,23 +45,23 @@ or the {ilm-init} APIs.
 === Create a lifecycle policy
 
 A lifecycle policy specifies the phases in the index lifecycle
-and the actions to perform in each phase. A lifecycle can have up to four phases:
-`hot`, `warm`, `cold`, and `delete`. 
+and the actions to perform in each phase. A lifecycle can have up to five phases:
+`hot`, `warm`, `cold`, `frozen`, and `delete`.
 
 For example, you might define a `timeseries_policy` that has two phases:
- 
-* A `hot` phase that defines a rollover action to specify that an index rolls over when it 
-reaches either a `max_size` of 50 gigabytes or a `max_age` of 30 days.
-* A `delete` phase that sets `min_age` to remove the index 90 days after rollover.
-Note that this value is relative to the rollover time, not the index creation time. 
 
-You can create the policy through {kib} or with the 
-<<ilm-put-lifecycle, put policy>> API. 
+* A `hot` phase that defines a rollover action to specify that an index rolls over when it
+reaches either a `max_primary_shard_size` of 50 gigabytes or a `max_age` of 30 days.
+* A `delete` phase that sets `min_age` to remove the index 90 days after rollover.
+Note that this value is relative to the rollover time, not the index creation time.
+
+You can create the policy through {kib} or with the
+<<ilm-put-lifecycle,create or update policy>> API.
 To create the policy from {kib}, open the menu and go to *Stack Management >
-Index Lifecycle Policies*. Click *Index Lifecycle Policies*.
+Index Lifecycle Policies*. Click *Create policy*.
 
 [role="screenshot"]
-image:images/ilm/create-policy.png[]
+image::images/ilm/create-policy.png[Create policy page]
 
 .API example
 [%collapsible]
@@ -72,18 +72,18 @@ PUT _ilm/policy/timeseries_policy
 {
   "policy": {
     "phases": {
-      "hot": {                      <1>
+      "hot": {                                <1>
         "actions": {
           "rollover": {
-            "max_size": "50GB",     <2>
+            "max_primary_shard_size": "50GB", <2>
             "max_age": "30d"
           }
         }
       },
       "delete": {
-        "min_age": "90d",           <3>
+        "min_age": "90d",                     <3>
         "actions": {
-          "delete": {}              <4>
+          "delete": {}                        <4>
         }
       }
     }
@@ -116,8 +116,8 @@ Templates* tab, click *Create template*.
 
 image::images/data-streams/create-index-template.png[Create template page]
 
-This wizard invokes the <<indices-put-template,put index template API>> to create
-the index template with the options you specify.
+This wizard invokes the <<indices-put-template,create or update index template
+API>> to create the index template with the options you specify.
 
 .API example
 [%collapsible]
@@ -148,14 +148,14 @@ PUT _index_template/timeseries_template
 === Create the data stream
 
 To get things started, index a document into the name or wildcard pattern defined
-in the `index_patterns` of the <<indices-templates,index template>>. As long
+in the `index_patterns` of the <<index-templates,index template>>. As long
 as an existing data stream, index, or index alias does not already use the name, the index
 request automatically creates a corresponding data stream with a single backing index.
 {es} automatically indexes the request's documents into this backing index, which also
 acts as the stream's <<data-stream-write-index,write index>>.
 
-For example, the following request creates the `timeseries` data stream and the first generation
-backing index called `.ds-timeseries-000001`.
+For example, the following request creates the `timeseries` data stream and the
+first generation backing index called `.ds-timeseries-2099.03.08-000001`.
 
 [source,console]
 -----------------------
@@ -170,10 +170,13 @@ POST timeseries/_doc
 
 When a rollover condition in the lifecycle policy is met, the `rollover` action:
 
-* Creates the second generation backing index, named `.ds-timeseries-000002`.
-Because it is a backing index of the `timeseries` data stream, the configuration from the `timeseries_template` index template is applied to the new index.
-* As it is the latest generation index of the `timeseries` data stream, the newly created
-backing index `.ds-timeseries-000002` becomes the data stream's write index.
+* Creates the second generation backing index, named
+`.ds-timeseries-2099.03.08-000002`. Because it is a backing index of the
+`timeseries` data stream, the configuration from the `timeseries_template` index
+template is applied to the new index.
+* As it is the latest generation index of the `timeseries` data stream, the
+newly created backing index `.ds-timeseries-2099.03.08-000002` becomes the data
+stream's write index.
 
 This process repeats each time a rollover condition is met.
 You can search across all of the data stream's backing indices, managed by the `timeseries_policy`,
@@ -211,8 +214,8 @@ is met.
 --------------------------------------------------
 {
   "indices": {
-    ".ds-timeseries-000001": {
-      "index": ".ds-timeseries-000001",
+    ".ds-timeseries-2099.03.07-000001": {
+      "index": ".ds-timeseries-2099.03.07-000001",
       "managed": true,
       "policy": "timeseries_policy",             <1>
       "lifecycle_date_millis": 1538475653281,
@@ -229,7 +232,7 @@ is met.
           "min_age": "0ms",
           "actions": {
             "rollover": {
-              "max_size": "50gb",
+              "max_primary_shard_size": "50gb",
               "max_age": "30d"
             }
           }
@@ -311,7 +314,7 @@ when the rollover action is triggered for an index.
 
 You can use the {kib} Create template wizard to add the template. To access the
 wizard, open the menu and go to *Stack Management > Index Management*. In the
-the *Index Templates* tab, click *Create template*.
+*Index Templates* tab, click *Create template*.
 
 [role="screenshot"]
 image:images/ilm/create-template-wizard.png[Create template page]

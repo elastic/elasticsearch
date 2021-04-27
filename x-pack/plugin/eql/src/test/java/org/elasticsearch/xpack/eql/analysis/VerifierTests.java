@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.analysis;
 
@@ -69,6 +70,16 @@ public class VerifierTests extends ESTestCase {
 
     public void testBasicQuery() {
         accept("foo where true");
+    }
+
+    public void testQueryCondition() {
+        accept("any where bool");
+        assertEquals("1:11: Condition expression needs to be boolean, found [LONG]", error("any where pid"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [DATETIME]", error("any where @timestamp"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where command_line"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [TEXT]", error("any where hostname"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where constant_keyword"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [IP]", error("any where source_address"));
     }
 
     public void testQueryStartsWithNumber() {
@@ -214,9 +225,10 @@ public class VerifierTests extends ESTestCase {
         accept(idxr, "foo where date_with_multi_format == \"20200241\"");
         accept(idxr, "foo where date_with_multi_format == \"11:12:13\"");
 
-        // Test query against unsupported field type date_nanos
-        assertEquals("1:11: Cannot use field [date_nanos_field] with unsupported type [date_nanos]",
-                error(idxr, "foo where date_nanos_field == \"\""));
+        accept(idxr, "foo where date_nanos_field == \"\"");
+        accept(idxr, "foo where date_nanos_field == \"2020-02-02\"");
+        accept(idxr, "foo where date_nanos_field == \"2020-02-41\"");
+        accept(idxr, "foo where date_nanos_field == \"20200241\"");
     }
 
     public void testBoolean() {
@@ -336,6 +348,26 @@ public class VerifierTests extends ESTestCase {
         final IndexResolution idxr = loadIndexResolution("mapping-default.json");
         assertEquals("1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
             error(idxr, "foo where pid : 123"));
+    }
+
+    public void testKeysWithDifferentTypes() throws Exception {
+        assertEquals("1:62: Sequence key [md5] type [keyword] is incompatible with key [pid] type [long]",
+            error(index, "sequence " +
+                "[process where true] by pid " +
+                "[process where true] by md5"));
+    }
+
+    public void testKeysWithDifferentButCompatibleTypes() throws Exception {
+        accept(index, "sequence " +
+                "[process where true] by hostname " +
+                "[process where true] by user_domain");
+    }
+
+    public void testKeysWithSimilarYetDifferentTypes() throws Exception {
+        assertEquals("1:69: Sequence key [opcode] type [long] is incompatible with key [@timestamp] type [date]",
+            error(index, "sequence " +
+                "[process where true] by @timestamp " +
+                "[process where true] by opcode"));
     }
 
 }

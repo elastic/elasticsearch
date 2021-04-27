@@ -14,9 +14,11 @@ IMPORTANT: {ccs-cap} requires <<modules-remote-clusters, remote clusters>>.
 The following APIs support {ccs}:
 
 * <<search-search,Search>>
+* <<async-search,Async search>>
 * <<search-multi-search,Multi search>>
 * <<search-template,Search template>>
 * <<multi-search-template,Multi search template>>
+* <<search-field-caps,Field capabilities>>
 
 [discrete]
 [[ccs-example]]
@@ -27,6 +29,10 @@ The following APIs support {ccs}:
 ==== Remote cluster setup
 
 To perform a {ccs}, you must have at least one remote cluster configured.
+
+TIP: If you want to search across clusters in the cloud, you can
+link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. Then, you
+can search across clusters and <<ccr-getting-started,set up {ccr}>>.
 
 The following <<cluster-update-settings,cluster update settings>> API request
 adds three remote clusters:`cluster_one`, `cluster_two`, and `cluster_three`.
@@ -416,3 +422,7 @@ cluster.
 
 WARNING: Running multiple versions of {es} in the same cluster beyond the
 duration of an upgrade is not supported.
+
+Only features that exist across all searched clusters are supported. Using
+a recent feature with a remote cluster where the feature is not supported
+will result in undefined behavior.

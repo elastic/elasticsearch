@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -9,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -27,6 +28,7 @@ final class ProcessContext {
     private final JobTask jobTask;
     private volatile AutodetectCommunicator autodetectCommunicator;
     private volatile ProcessState state;
+    private volatile KillBuilder latestKillRequest = null;
 
     ProcessContext(JobTask jobTask) {
         this.jobTask = jobTask;
@@ -43,6 +45,17 @@ final class ProcessContext {
 
     private void setAutodetectCommunicator(AutodetectCommunicator autodetectCommunicator) {
         this.autodetectCommunicator = autodetectCommunicator;
+    }
+
+    boolean shouldBeKilled() {
+        return latestKillRequest != null;
+    }
+
+    void killIt() {
+        if (latestKillRequest == null) {
+            throw new IllegalArgumentException("Unable to kill job as previous request is not completed");
+        }
+        latestKillRequest.kill();
     }
 
     ProcessStateName getState() {
@@ -116,6 +129,7 @@ final class ProcessContext {
 
         void kill() {
             if (autodetectCommunicator == null) {
+                latestKillRequest = this;
                 return;
             }
             String jobId = jobTask.getJobId();

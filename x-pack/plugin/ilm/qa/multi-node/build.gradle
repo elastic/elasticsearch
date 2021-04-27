@@ -1,20 +1,22 @@
 import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  javaRestTestImplementation project(path: xpackProject('plugin').path, configuration: 'testArtifacts')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 // let the javaRestTest see the classpath of main
-GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
 
 
 File repoDir = file("$buildDir/testclusters/repo")
 
-javaRestTest {
+tasks.named("javaRestTest").configure {
   /* To support taking index snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }
 
 testClusters.all {
@@ -22,6 +24,7 @@ testClusters.all {
   numberOfNodes = 4
 
   setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
@@ -29,4 +32,10 @@ testClusters.all {
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
   setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

@@ -150,7 +150,7 @@ break.
 --
 
 `ignore_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, stop word matching is case insensitive. For example, if `true`, a
 stop word of `the` matches and removes `The`, `THE`, or `the`. Defaults to
 `false`.
@@ -158,7 +158,7 @@ stop word of `the` matches and removes `The`, `THE`, or `the`. Defaults to
 `remove_trailing`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the last token of a stream is removed if it's a stop word. Defaults
 to `true`.
 
@@ -282,11 +282,11 @@ parameter and a link to their predefined stop words in Lucene.
 
 [[english-stop-words]]
 `_english_`::
-https://github.com/apache/lucene-solr/blob/master/lucene/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java#L46[English stop words]
+{lucene-gh-main-link}/analysis/common/src/java/org/apache/lucene/analysis/en/EnglishAnalyzer.java#L48[English stop words]
 
 [[estonian-stop-words]]
 `_estonian_`::
-https://github.com/apache/lucene-solr/blob/master/lucene/analysis/common/src/resources/org/apache/lucene/analysis/et/stopwords.txt[Estonian stop words]
+{lucene-stop-word-link}/et/stopwords.txt[Estonian stop words]
 
 [[finnish-stop-words]]
 `_finnish_`::

@@ -9,32 +9,17 @@
 package org.elasticsearch.gradle.internal.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.gradle.api.Named;
-import org.gradle.api.tasks.Input;
 
 /**
  * A single instruction to transforms a REST test.
  */
-public interface RestTestTransform<T extends JsonNode> extends Named {
+public interface RestTestTransform<T extends JsonNode> {
 
     /**
      * Transform the Json structure per the given {@link RestTestTransform}
-     * Implementations are expected to mutate the parent to satisfy the transformation.
+     * Implementations are expected to mutate the node (and/or it's parent) to satisfy the transformation.
      *
-     * @param parent The parent of the node to transform.
+     * @param node The node to transform. This may also be the logical parent of the node that should be transformed.
      */
-    void transformTest(T parent);
-
-    /**
-     * @return true if the transformation should be applied, false otherwise.
-     */
-    default boolean shouldApply(RestTestContext testContext) {
-        return true;
-    }
-
-    @Override
-    @Input
-    default String getName() {
-        return this.getClass().getCanonicalName();
-    }
+    void transformTest(T node);
 }

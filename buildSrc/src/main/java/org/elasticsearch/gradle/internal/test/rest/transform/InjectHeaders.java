@@ -6,34 +6,59 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.test.rest.transform.feature;
+package org.elasticsearch.gradle.internal.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformGlobalSetup;
-import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformGlobalTeardown;
-import org.gradle.api.tasks.Internal;
 
 import javax.annotation.Nullable;
 import java.util.Iterator;
+import java.util.Map;
 
 /**
- * A parent class for transformations that are backed by a feature. This will inject the necessary "feature" into the
- * global setup and teardown section. See also org.elasticsearch.test.rest.yaml.Features for a list of possible features.
+ * A {@link RestTestTransform} that injects HTTP headers into a REST test. This includes adding the necessary values to the "do" section
+ * as well as adding headers as a features to the "setup" and "teardown" sections.
  */
-public abstract class FeatureInjector implements RestTestTransformGlobalSetup, RestTestTransformGlobalTeardown {
+public class InjectHeaders implements RestTestTransformByObjectKey, RestTestTransformGlobalSetup, RestTestTransformGlobalTeardown {
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
+
+    private final Map<String, String> headers;
+
+    /**
+     * @param headers The headers to inject
+     */
+    public InjectHeaders(Map<String, String> headers) {
+        this.headers = headers;
+    }
+
+    @Override
+    public void transformTest(ObjectNode doNodeParent) {
+        ObjectNode doNodeValue = (ObjectNode) doNodeParent.get(getKeyToFind());
+        ObjectNode headersNode = (ObjectNode) doNodeValue.get("headers");
+        if (headersNode == null) {
+            headersNode = new ObjectNode(jsonNodeFactory);
+        }
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            headersNode.set(entry.getKey(), TextNode.valueOf(entry.getValue()));
+        }
+        doNodeValue.set("headers", headersNode);
+    }
+
+    @Override
+    public String getKeyToFind() {
+        return "do";
+    }
 
     @Override
     public ObjectNode transformSetup(ObjectNode setupNodeParent) {
         // check to ensure that headers feature does not already exist
         if (setupNodeParent != null) {
             ArrayNode setupNode = (ArrayNode) setupNodeParent.get("setup");
-            if (hasFeature(setupNode)) {
+            if (hasHeadersFeature(setupNode)) {
                 return setupNodeParent;
             }
         }
@@ -56,7 +81,7 @@ public abstract class FeatureInjector implements RestTestTransformGlobalSetup, R
             // only transform an existing teardown section since a teardown does not inherit from setup but still needs the skip section
             if (teardownNode != null) {
                 // check to ensure that headers feature does not already exist
-                if (hasFeature(teardownNode)) {
+                if (hasHeadersFeature(teardownNode)) {
                     return teardownNodeParent;
                 }
                 addSkip(teardownNode);
@@ -66,30 +91,19 @@ public abstract class FeatureInjector implements RestTestTransformGlobalSetup, R
         return teardownNodeParent;
     }
 
-    /**
-     * The name of the feature to skip. These are defined in org.elasticsearch.test.rest.yaml.Features and found in the tests at
-     * as the value of skip.feature. For example this method should return "allowed_warnings" :
-     * <pre>
-     * skip:
-     *       features: allowed_warnings
-     * </pre>
-     */
-    @Internal
-    public abstract String getSkipFeatureName();
-
-    private boolean hasFeature(ArrayNode skipParent) {
+    private boolean hasHeadersFeature(ArrayNode skipParent) {
         JsonNode features = skipParent.at("/0/skip/features");
         if (features != null) {
             if (features.isArray()) {
                 ArrayNode featuresArray = (ArrayNode) features;
                 Iterator<JsonNode> it = featuresArray.elements();
                 while (it.hasNext()) {
-                    if (getSkipFeatureName().equals(it.next().asText())) {
+                    if ("headers".equals(it.next().asText())) {
                         return true;
                     }
                 }
             } else {
-                if (getSkipFeatureName().equals(features.asText())) {
+                if ("headers".equals(features.asText())) {
                     return true;
                 }
             }
@@ -109,15 +123,16 @@ public abstract class FeatureInjector implements RestTestTransformGlobalSetup, R
                     foundSkipNode = true;
                     JsonNode featuresNode = skipNode.get("features");
                     if (featuresNode == null) {
-                        skipNode.set("features", TextNode.valueOf(getSkipFeatureName()));
+                        ObjectNode featuresNodeObject = new ObjectNode(jsonNodeFactory);
+                        skipNode.set("features", TextNode.valueOf("headers"));
                     } else if (featuresNode.isArray()) {
                         ArrayNode featuresNodeArray = (ArrayNode) featuresNode;
-                        featuresNodeArray.add(getSkipFeatureName());
+                        featuresNodeArray.add("headers");
                     } else if (featuresNode.isTextual()) {
                         // convert to an array
                         ArrayNode featuresNodeArray = new ArrayNode(jsonNodeFactory);
                         featuresNodeArray.add(featuresNode.asText());
-                        featuresNodeArray.add(getSkipFeatureName());
+                        featuresNodeArray.add("headers");
                         // overwrite the features object
                         skipNode.set("features", featuresNodeArray);
                     }
@@ -128,7 +143,7 @@ public abstract class FeatureInjector implements RestTestTransformGlobalSetup, R
             ObjectNode skipNode = new ObjectNode(jsonNodeFactory);
             ObjectNode featuresNode = new ObjectNode(jsonNodeFactory);
             skipParent.insert(0, skipNode);
-            featuresNode.set("features", TextNode.valueOf(getSkipFeatureName()));
+            featuresNode.set("features", TextNode.valueOf("headers"));
             skipNode.set("skip", featuresNode);
         }
     }

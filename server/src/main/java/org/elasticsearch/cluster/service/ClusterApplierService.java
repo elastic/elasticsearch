@@ -323,7 +323,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.markAsSystemContext();
             final UpdateTask updateTask = new UpdateTask(config.priority(), source,
-                new SafeClusterApplyListener(listener, supplier, logger), executor);
+                new SafeClusterApplyListener(listener, supplier), executor);
             if (config.timeout() != null) {
                 threadPoolExecutor.execute(updateTask, config.timeout(),
                     () -> threadPool.generic().execute(
@@ -517,12 +517,10 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     private static class SafeClusterApplyListener implements ClusterApplyListener {
         private final ClusterApplyListener listener;
         protected final Supplier<ThreadContext.StoredContext> context;
-        private final Logger logger;
 
-        SafeClusterApplyListener(ClusterApplyListener listener, Supplier<ThreadContext.StoredContext> context, Logger logger) {
+        SafeClusterApplyListener(ClusterApplyListener listener, Supplier<ThreadContext.StoredContext> context) {
             this.listener = listener;
             this.context = context;
-            this.logger = logger;
         }
 
         @Override

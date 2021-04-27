@@ -107,7 +107,7 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
-        taskBatcher = new Batcher(logger, threadPoolExecutor);
+        taskBatcher = new Batcher(threadPoolExecutor);
     }
 
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
@@ -119,9 +119,9 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     @SuppressWarnings("unchecked")
-    class Batcher extends TaskBatcher {
+    private final class Batcher extends TaskBatcher {
 
-        Batcher(Logger logger, PrioritizedEsThreadPoolExecutor threadExecutor) {
+        Batcher(PrioritizedEsThreadPoolExecutor threadExecutor) {
             super(logger, threadExecutor);
         }
 
@@ -474,21 +474,19 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private SafeClusterStateTaskListener safe(ClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> contextSupplier) {
         if (listener instanceof AckedClusterStateTaskListener) {
-            return new SafeAckedClusterStateTaskListener((AckedClusterStateTaskListener) listener, contextSupplier, logger);
+            return new SafeAckedClusterStateTaskListener((AckedClusterStateTaskListener) listener, contextSupplier);
         } else {
-            return new SafeClusterStateTaskListener(listener, contextSupplier, logger);
+            return new SafeClusterStateTaskListener(listener, contextSupplier);
         }
     }
 
     private static class SafeClusterStateTaskListener implements ClusterStateTaskListener {
         private final ClusterStateTaskListener listener;
         protected final Supplier<ThreadContext.StoredContext> context;
-        private final Logger logger;
 
-        SafeClusterStateTaskListener(ClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context, Logger logger) {
+        SafeClusterStateTaskListener(ClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
             this.listener = listener;
             this.context = context;
-            this.logger = logger;
         }
 
         @Override
@@ -526,13 +524,10 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private static class SafeAckedClusterStateTaskListener extends SafeClusterStateTaskListener implements AckedClusterStateTaskListener {
         private final AckedClusterStateTaskListener listener;
-        private final Logger logger;
 
-        SafeAckedClusterStateTaskListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context,
-                                          Logger logger) {
-            super(listener, context, logger);
+        SafeAckedClusterStateTaskListener(AckedClusterStateTaskListener listener, Supplier<ThreadContext.StoredContext> context) {
+            super(listener, context);
             this.listener = listener;
-            this.logger = logger;
         }
 
         @Override

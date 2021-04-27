@@ -19,11 +19,11 @@ import java.io.IOException;
 
 public class PendingClusterTask implements Writeable {
 
-    private long insertOrder;
-    private Priority priority;
-    private Text source;
-    private long timeInQueue;
-    private boolean executing;
+    private final long insertOrder;
+    private final Priority priority;
+    private final Text source;
+    private final long timeInQueue;
+    private final boolean executing;
 
     public PendingClusterTask(StreamInput in) throws IOException {
         insertOrder = in.readVLong();

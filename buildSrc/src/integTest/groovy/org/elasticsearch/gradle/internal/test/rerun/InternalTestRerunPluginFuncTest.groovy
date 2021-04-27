@@ -156,13 +156,14 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
         createSystemExitTest("JdkKillingTest", 5)
         then:
         def result = gradleRunner("test").buildAndFail()
-        result.output.contains("JdkKillingTest total executions: 4")
+        result.output.contains("JdkKillingTest total executions: 5")
         result.output.contains("Max retries(4) hit")
         and: 'Tracing is provided'
         normalized(result.output).contains("Test jvm system exit trace (run: 1)")
         normalized(result.output).contains("Test jvm system exit trace (run: 2)")
         normalized(result.output).contains("Test jvm system exit trace (run: 3)")
         normalized(result.output).contains("Test jvm system exit trace (run: 4)")
+        normalized(result.output).contains("Test jvm system exit trace (run: 5)")
     }
 
     private String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {

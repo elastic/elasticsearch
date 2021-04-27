@@ -37,4 +37,11 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Re
     public void close() {
         Releasables.close(bytes);
     }
+
+    @Override
+    public void reset() {
+        assert false;
+        // not supported, close and create a new instance instead
+        throw new UnsupportedOperationException("must not reuse a pooled bytes backed stream");
+    }
 }

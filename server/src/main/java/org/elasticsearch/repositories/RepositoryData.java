@@ -573,7 +573,6 @@ public final class RepositoryData {
     private static final String MIN_VERSION = "min_version";
     private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String END_TIME_MILLIS = "end_time_millis";
-    private static final String PARTIAL_INDICES = "partial_indices";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.

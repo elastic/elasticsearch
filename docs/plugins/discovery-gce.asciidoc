@@ -17,10 +17,10 @@ automatic discovery of seed hosts. Here is a simple sample configuration:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: <your-google-project-id>
-      zone: <your-zone>
+    project_id: <your-google-project-id>
+    zone: <your-zone>
 discovery:
-      seed_providers: gce
+  seed_providers: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:
@@ -322,10 +322,10 @@ To enable discovery across more than one zone, just enter add your zone list to 
 --------------------------------------------------
 cloud:
   gce:
-      project_id: <your-google-project-id>
-      zone: ["<your-zone1>", "<your-zone2>"]
+    project_id: <your-google-project-id>
+    zone: ["<your-zone1>", "<your-zone2>"]
 discovery:
-      seed_providers: gce
+  seed_providers: gce
 --------------------------------------------------
 
 
@@ -357,12 +357,12 @@ Then, define it in `elasticsearch.yml`:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
-      zone: europe-west1-a
+    project_id: es-cloud
+    zone: europe-west1-a
 discovery:
-      seed_providers: gce
-      gce:
-            tags: elasticsearch, dev
+  seed_providers: gce
+    gce:
+      tags: elasticsearch, dev
 --------------------------------------------------
 
 [[discovery-gce-usage-port]]

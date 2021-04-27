@@ -8,8 +8,8 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.util.ports.AvailablePortAllocator;
-import org.elasticsearch.gradle.util.ports.ReservedPortRange;
+import org.elasticsearch.gradle.internal.util.ports.AvailablePortAllocator;
+import org.elasticsearch.gradle.internal.util.ports.ReservedPortRange;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 

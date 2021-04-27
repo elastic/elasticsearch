@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.EmptyDirTask;
-import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
@@ -23,7 +21,7 @@ import org.gradle.api.tasks.bundling.Zip;
 
 import java.io.File;
 
-import static org.elasticsearch.gradle.util.Util.capitalize;
+import static org.elasticsearch.gradle.internal.util.Util.capitalize;
 import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT;
 
 /**

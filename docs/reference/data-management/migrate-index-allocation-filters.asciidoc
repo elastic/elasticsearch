@@ -4,9 +4,10 @@
 
 If you currently use custom node attributes and
 <<shard-allocation-filtering, attribute-based allocation filters>> to
-move indices through <<data-tiers, data tiers>> in a hot-warm-cold architecture,
+move indices through <<data-tiers, data tiers>> in a
+https://www.elastic.co/blog/implementing-hot-warm-cold-in-elasticsearch-with-index-lifecycle-management[hot-warm-cold architecture],
 we recommend that you switch to using the built-in node roles
-and automatic <<data-tier-shard-filtering, data tier allocation>>.
+and automatic <<data-tier-allocation, data tier allocation>>.
 Using node roles enables {ilm-init} to automatically
 move indices between data tiers.
 
@@ -65,19 +66,22 @@ node.roles [ data_hot, data_content ]
 
 [discrete]
 [[remove-custom-allocation-settings]]
-=== Remove custom allocation settings from your {ilm-init} policy
+=== Remove custom allocation settings from existing {ilm-init} policies
 
-Update the allocate action for each phase to remove the attribute-based
-allocation settings. If the allocate action does not set the number of replicas,
+Update the allocate action for each lifecycle phase to remove the attribute-based
+allocation settings. This enables {ilm-init} to inject the
+<<ilm-migrate,migrate>> action into each phase
+to automatically transition the indices through the data tiers.
+
+If the allocate action does not set the number of replicas,
 remove the allocate action entirely. (An empty allocate action is invalid.)
 
 IMPORTANT: The policy must specify the corresponding phase for each data tier in
-your architecture.
-For example, if you enable the warm and cold data tiers for a deployment, your
-policy must include the hot, warm, and cold phases.
-This is necessary for {ilm-init} to automatically inject the <<ilm-migrate,
-migrate>> action to move indices through the data tiers,
-even if you don't need to perform any other actions and the phase is empty.
+your architecture. Each phase must be present so {ilm-init} can inject the
+migrate action to move indices through the data tiers.
+If you don't need to perform any other actions, the phase can be empty.
+For example, if you enable the warm and cold data tiers for a deployment,
+your policy must include the hot, warm, and cold phases.
 
 [discrete]
 [[stop-setting-custom-hot-attribute]]
@@ -110,7 +114,7 @@ To enable {ilm-init} to move an _existing_ managed index
 through the data tiers, update the index settings to:
 
 . Remove the custom allocation filter by setting it to `null`.
-. Set the `_tier_preference`.
+. Set the <<data-tier-shard-filtering,tier preference>>.
 
 For example, if your old template set the `data` attribute to `hot`
 to allocate shards to the hot tier, set the `data` attribute to `null`
@@ -134,3 +138,21 @@ PUT my-index-000001/_settings
   "index.routing.allocation.include._tier_preference": "data_hot"
 }
 ----
+
+For indices that have already transitioned out of the hot phase,
+the tier preference should include the appropriate fallback tiers
+to ensure index shards can be allocated if the preferred tier
+is unavailable.
+For example, specify the hot tier as the fallback for indices
+already in the warm phase.
+
+[source,console]
+----
+PUT my-index-000001/_settings
+{
+  "index.routing.allocation.require.data": null,
+  "index.routing.allocation.include._tier_preference": "data_warm,data_hot"
+}
+----
+
+For an index already in the cold tier, include the cold, warm, and hot tiers.

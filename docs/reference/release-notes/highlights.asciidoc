@@ -39,50 +39,88 @@ Other versions:
 //
 // Description.
 
-tag::notable-highlights[]
+// tag::notable-highlights[]
+
 [discrete]
+[[frozen-tier-ga]]
 === Frozen tier is now GA
 
-The frozen tier and partially mounted indices (partial searchable
-snapshots) that were introduced as a technical preview feature in 7.12 are
-now generally available.
+The frozen tier and shared-cache searchable snapshots are now generally
+available. These features were introduced as technical previews in 7.12. See
+the
+{ref-bare}/7.12/release-highlights.html#frozen-tier-shared-snapshot-cache[7.12
+announcement].
 
-See the
-{ref}/release-highlights.html#frozen-tier-shared-snapshot-cache[original
-announcement for 7.12] for more information.
+[discrete]
+[[index-runtime-fields]]
+=== Index runtime fields
 
-[discete]
-=== Allow fields calculated by scripting at index time
+Runtime fields let you dynamically create fields from other fields and document
+properties at query time. These query-time runtime fields optimize for
+flexibility over speed, letting you change them at any time.
 
-Runtime fields allow you to create a synthetic field derived from the
-values of other document properties at query time, which prioritises
-flexibility (you can change these fields at any time) over speed. In
-{minor-version} you can now generate these synthetic fields at index time,
-trading off some of that flexibility for better query performance.
+With {minor-version}, you can now also create index-time runtime fields, trading
+flexibility for better query performance. See {ref}/runtime-indexed.html[Index a
+runtime field].
 
-Scripted mappings are supported on the following field types by defining
-the `script` field in the mappings: `long`, `double`, `keyword`,
-`geo_point`, `ip`, `date`, and `boolean`.
-
-[discete]
+[discrete]
+[[match-ipv4-ipv6-addresses-against-cidr-ranges-painless]]
 === Match IPv4 and IPv6 addresses against CIDR ranges in Painless
 
-You can now match IPv4 and IPv6 address against CI ranges in Painless
-expression. This is useful for e.g. classifying and grouping IP addresses
-which in security and monitoring use-cases. This feature is available to
-all contexts, including runtime fields, ingest, search and aggregations.
+Painless expressions can now match IPv4 and IPv6 addresses against CIDR ranges.
+This is useful for classifying and grouping IP addresses in security and
+monitoring use cases. This feature is available in all contexts, including
+runtime fields, ingest, search, and aggregations.
 
-Here's an example:
+For example:
 
-----
 [source,painless]
-CIDR c = new CIDR('10.1.1.0/25');
-c.contains('10.1.1.127'); // true
-c.contains('10.1.1.129'); // false
+----
+CIDR myCidrRange = new CIDR('10.1.1.0/25');
+myCidrRange.contains('10.1.1.127'); // true
+myCidrRange.contains('10.1.1.129'); // false
 
-c = new CIDR('2001:0db8:85a3::/64');
-c.contains('2001:0db8:85a3:0000:0000:8a2e:0370:7334'); // true
-c.contains('2001:0db8:85a3:0001:0000:8a2e:0370:7334'); // false
+myCidrRange = new CIDR('2001:0db8:85a3::/64');
+myCidrRange.contains('2001:0db8:85a3:0000:0000:8a2e:0370:7334'); // true
+myCidrRange.contains('2001:0db8:85a3:0001:0000:8a2e:0370:7334'); // false
 ----
 
-end::notable-highlights[]
+[discrete]
+[[automatic-updates-geoip-processor]]
+=== Automatic updates for the GeoIP processor
+
+By default, {es} now automatically downloads GeoIP2 database updates for the
+`geoip` processor from the Elastic GeoIP endpoint:
+https://geoip.elastic.co/v1/database. You can use the new
+{ref}/geoip-stats-api.html[GeoIP stats API] to get download stats for these
+updates. For more information, see the updated
+{ref}/geoip-processor.html[`geoip` processor documentation].
+
+[discrete]
+[[new-combined-fields-query-type]]
+=== New `combined_fields` query type
+
+7.13 introduces the `combined_fields` query, new a Query DSL query type for
+searching multiple `text` fields as a combined field. You can use the
+`combined_fields` query as a simpler alternative to the `multi_match` query's
+`cross_fields` type option. See the
+{ref}/query-dsl-combined-fields-query.html[`combined_fields` query
+documentation].
+
+[discrete]
+[[faster-terms-aggregations]]
+=== Faster `terms` aggregations
+
+We've improved the speed of the `terms` aggregation by up to 92% when:
+
+* It has no parent or child aggregations.
+* Target indices have no deleted documents or were recently merged.
+* You don't use document-level security.
+* There's no top-level query.
+* The field has global ordinals, such as a `keyword` or `ip` field.
+* There are fewer than a thousand distinct terms.
+
+Many time series use cases are likely to meet these criteria, particularly for
+data in the cold or frozen tier.
+
+// end::notable-highlights[]

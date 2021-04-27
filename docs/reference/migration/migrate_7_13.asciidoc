@@ -38,7 +38,7 @@ enable <<deprecation-logging, deprecation logging>>.
 ==== Mapping changes
 
 [[geo-mappers-external-values]]
-.Geo mappers no longer accept external values from multifields
+.Geo mappers no longer accept external values from multifields.
 [%collapsible]
 ====
 *Details* +
@@ -50,7 +50,7 @@ so it has been removed.
 ====
 
 [[geo-point-geohash-subfields]]
-.Geopoint mappers pass geohashes to subfields one-by-one
+.Geopoint mappers pass geohashes to subfields one-by-one.
 [%collapsible]
 ====
 *Details* +
@@ -76,6 +76,54 @@ To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
 [discrete]
+[[breaking_713_agg_deprecations]]
+==== Aggregation deprecations
+
+[discrete]
+[[breaking_713_boolean-field-support-deprecated-date-aggs]]
+.Date aggregations on `boolean` fields are deprecated.
+[%collapsible]
+====
+*Details* +
+Support for auto-interval date histogram, date histogram, and date range
+aggregations on `boolean` fields is now deprecated. On `boolean` fields, these
+aggregations are rarely useful and often unintended.
+====
+
+[discrete]
+[[breaking_713_infra_core_deprecations]]
+==== Core deprecations
+
+[[multiple-data-path-support-deprecated]]
+.Multiple data path support is deprecated.
+[%collapsible]
+====
+*Details* +
+Support for multiple paths in the `path.data` setting is now deprecated. We
+introduced this option as a way to support multi-disk setups. It has since been
+a source of user complaints due to confusing and unintuitive behavior.
+
+*Impact* +
+Specify a single path in `path.data`. To use multiple disks, use a RAID
+hardware configuration or similar hardware solution.
+====
+
+[[action-destructive-defaults-to-true]]
+.The `action.destructive_requires_name` setting will default to `true` in 8.0.0.
+[%collapsible]
+====
+*Details* +
+In 8.0.0, the `action.destructive_requires_name` setting will default to `true`.
+Currently, the setting defaults to `false`.
+
+*Impact* +
+If you use a wildcard (`*`) or `_all` to delete indices or perform other
+destructive actions, use the {ref}/cluster-update-settings.html[update cluster
+settings API] to set `action.destructive_requires_name` to `false` to avoid
+errors in 8.0.0.
+====
+
+[discrete]
 [[breaking_713_eql_deprecations]]
 ==== EQL deprecations
 
@@ -93,49 +141,20 @@ Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or
 ==== Security deprecations
 
 [[implicitly-disabled-basic-realms]]
-Currently, the file and native realms have following implicit behaviours:
+.Implicit enablement of the file and native realms is deprecated.
+[%collapsible]
+====
+*Details* +
+Currently, the file and native realms have the following implicit behaviors:
 
 * If file and native realms are not configured, they are implicitly disabled
 if there are other explicitly configured realms.
-* If no realm is available due to either unconfigured, explicitly disabled
-or disallowed by the license, the file and native realms are always enabled
-even when they are explicitly disabled.
+* If no realm is available because realms are unconfigured, explicitly
+disabled, or not allowed by your license, the file and native realms are always
+enabled, even if explicitly disabled.
 
-Both of the above behaviours are deprecated. In version 8.0, the file and
+*Impact* +
+Both of the above behaviors are deprecated. In 8.0.0, the file and
 native realms will always be enabled unless explicitly disabled. If they are
 explicitly disabled, they remain disabled at all times.
-
-[discrete]
-[[breaking_713_infra_core_changes]]
-==== Core changes
-
-[[multiple-data-paths]]
-Multiple Data Paths (MDP) is a pseudo-software-RAID-0 feature within
-{es} that allows multiple paths to be specified in the `path.data` setting
-(which usually point to different disks). Although it has been used in the
-past as a simple way to fully utilize multi-disk setups, it has long been a
-source of user complaints due to confusing or unintuitive behavior.
-Additionally, the implementation is complex, and not well-tested nor
-maintained, with practically no benefit over simply using RAID. This option
-is now deprecated.
-
-[discrete]
-[[breaking_713_default_value_action_destructive_requires_name]]
-=== Default value of `action.destructive_requires_name` will change in 8.0
-
-The default value of the `action.destructive_requires_name` setting will
-change in the next major release of {es}, from `false` to `true`. If you
-currently perform descructive actions, such as deleting indices, using a
-wildcard (`*` or `_all`) instead of specifying the indices' names, then you
-should explicitly set `action.destructive_requires_name` to `false` in
-order to avoid a change in behavior in future.
-
-[discrete]
-[[breaking_713_aggregations_on_booleans]]
-=== Changes to permitted aggregations on boolean fields
-
-It is currently possible to run a date range, date histogram, or auto date
-histogram over a boolean field, however this is unlikely to be intentional
-since a histogram over the values [0, 1] is not terribly useful. This
-behaviour is now deprecated, and running such an aggregation will cause a
-warning to be logged.
+====

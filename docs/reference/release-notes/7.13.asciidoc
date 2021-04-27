@@ -11,7 +11,7 @@ Aggregations::
 * Deprecate date aggregations on boolean fields {es-pull}70030[#70030] (issue: {es-issue}59255[#59255])
 
 Authentication::
-* Deprecate the behaviour of implicitly disabling file/native realm {es-pull}69320[#69320] (issue: {es-issue}50892[#50892])
+* Deprecate the behavior of implicitly disabling file/native realm {es-pull}69320[#69320] (issue: {es-issue}50892[#50892])
 
 Features/Indices APIs::
 * Deprecate legacy index template API endpoints {es-pull}71309[#71309] (issue: {es-issue}71307[#71307])
@@ -32,7 +32,7 @@ Infra/Settings::
 === New features
 
 EQL::
-* Adds "fields" request field to the EQL request {es-pull}68962[#68962] (issue: {es-issue}68115[#68115])
+* Adds `fields` request field to the EQL request {es-pull}68962[#68962] (issue: {es-issue}68115[#68115])
 
 Features/ILM+SLM::
 * Make all the shrink action steps retryable {es-pull}70107[#70107] (issue: {es-issue}48183[#48183])
@@ -40,7 +40,7 @@ Features/ILM+SLM::
 Features/Ingest::
 * Add tool for preparing local `GeoIp` database service {es-pull}71018[#71018] (issue: {es-issue}68920[#68920])
 * Add support for validating IPv4/IPv6 addresses to Convert processor {es-pull}69989[#69989] (issue: {es-issue}36145[#36145])
-* Add Registered domain processor {es-pull}67611[#67611]
+* Add registered domain processor {es-pull}67611[#67611]
 
 Infra/Core::
 * Add API for resetting state of a `SystemIndexPlugin` {es-pull}69469[#69469]
@@ -200,7 +200,7 @@ Search::
 * Allow format sort values of date fields {es-pull}70357[#70357] (issue: {es-issue}69192[#69192])
 * Cancel searches earlier {es-pull}69795[#69795]
 * Close search contexts on reassigned shard {es-pull}68539[#68539]
-* Improve lookup for "include_unmapped" field pattern {es-pull}69984[#69984] (issue: {es-issue}69983[#69983])
+* Improve lookup for `include_unmapped` field pattern {es-pull}69984[#69984] (issue: {es-issue}69983[#69983])
 * Support fetching `_tier` field value {es-pull}71379[#71379] (issues: {es-issue}63569[#63569], {es-issue}68135[#68135])
 
 Security::

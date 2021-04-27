@@ -293,7 +293,7 @@ public class BooleanFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
-            context.addFieldExistsField(fieldType().name());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

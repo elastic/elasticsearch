@@ -294,13 +294,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addFieldExistsField(String field) {
-            in.addFieldExistsField(field);
+        public void addToFieldNames(String field) {
+            in.addToFieldNames(field);
         }
 
         @Override
-        public Collection<String> getFieldExistsFields() {
-            return in.getFieldExistsFields();
+        public Collection<String> getFieldNames() {
+            return in.getFieldNames();
         }
     }
 
@@ -503,12 +503,12 @@ public abstract class ParseContext {
         }
 
         @Override
-        public void addFieldExistsField(String field) {
+        public void addToFieldNames(String field) {
             fieldNameFields.add(field);
         }
 
         @Override
-        public Collection<String> getFieldExistsFields() {
+        public Collection<String> getFieldNames() {
             return Collections.unmodifiableCollection(fieldNameFields);
         }
     }
@@ -531,17 +531,17 @@ public abstract class ParseContext {
     public abstract Collection<String> getIgnoredFields();
 
     /**
-     * Add the given {@code field} to the _fieldnames field
+     * Add the given {@code field} to the _field_names field
      *
      * Use this if an exists query run against the field cannot use docvalues
      * or norms.
      */
-    public abstract void addFieldExistsField(String field);
+    public abstract void addToFieldNames(String field);
 
     /**
-     * Return the collection of fields to be added to the _fieldnames field
+     * Return the collection of fields to be added to the _field_names field
      */
-    public abstract Collection<String> getFieldExistsFields();
+    public abstract Collection<String> getFieldNames();
 
     public abstract Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter);
 

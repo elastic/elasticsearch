@@ -365,7 +365,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (indexed || stored)) {
-            context.addFieldExistsField(fieldType().name());
+            context.addToFieldNames(fieldType().name());
         }
     }
 

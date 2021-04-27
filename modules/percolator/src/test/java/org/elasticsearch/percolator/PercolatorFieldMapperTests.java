@@ -691,8 +691,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type1")
             .startObject("properties").startObject("").field("type", "percolator").endObject().endObject()
             .endObject().endObject());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> mapperService.parse("type1", new CompressedXContent(mapping))
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> mapperService.parseMapping("type1", new CompressedXContent(mapping))
         );
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }

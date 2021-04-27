@@ -161,9 +161,15 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         if (enabled.value() == false) {
             return;
         }
-        for (String field : context.getFieldExistsFields()) {
+        for (String field : context.getFieldNames()) {
+            assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
             context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
         }
+    }
+
+    private static boolean noDocValues(String field, ParseContext context) {
+        MappedFieldType ft = context.mappingLookup().getFieldType(field);
+        return ft == null || ft.hasDocValues() == false;
     }
 
     @Override

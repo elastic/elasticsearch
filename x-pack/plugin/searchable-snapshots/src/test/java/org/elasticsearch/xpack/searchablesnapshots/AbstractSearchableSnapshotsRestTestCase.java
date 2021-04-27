@@ -38,6 +38,7 @@ import java.util.function.Function;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -260,7 +261,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             assertBusy(() -> {
                 final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-                assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+                assertThat(bytesInCacheAfterSearch, greaterThanOrEqualTo(bytesInCacheBeforeClear));
             });
         });
     }

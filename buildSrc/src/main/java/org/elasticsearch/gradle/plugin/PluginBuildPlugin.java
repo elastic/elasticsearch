@@ -12,19 +12,19 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.lang.Closure;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.BuildPlugin;
+import org.elasticsearch.gradle.internal.BuildPlugin;
 import org.elasticsearch.gradle.NoticeTask;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
-import org.elasticsearch.gradle.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.util.Util;
+import org.elasticsearch.gradle.internal.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
@@ -70,18 +70,13 @@ public class PluginBuildPlugin implements Plugin<Project> {
         final var bundleTask = createBundleTasks(project, extension);
 
         project.afterEvaluate(project1 -> {
-            project1.getExtensions()
-                .getByType(PluginPropertiesExtension.class)
-                .getExtendedPlugins()
-                .forEach(
-                    pluginName -> {
-                        // Auto add dependent modules to the test cluster
-                        if (project1.findProject(":modules:" + pluginName) != null) {
-                            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
-                            testClusters.all(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
-                        }
-                    }
-                );
+            project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
+                // Auto add dependent modules to the test cluster
+                if (project1.findProject(":modules:" + pluginName) != null) {
+                    NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, "testClusters");
+                    testClusters.all(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
+                }
+            });
             final var extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
             configurePublishing(project1, extension1);
             var name = extension1.getName();
@@ -258,14 +253,11 @@ public class PluginBuildPlugin implements Plugin<Project> {
         // create the actual bundle task, which zips up all the files for the plugin
         final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> {
             zip.from(buildProperties);
-            zip.from(
-                pluginMetadata,
-                copySpec -> {
-                    // metadata (eg custom security policy)
-                    // the codebases properties file is only for tests and not needed in production
-                    copySpec.exclude("plugin-security.codebases");
-                }
-            );
+            zip.from(pluginMetadata, copySpec -> {
+                // metadata (eg custom security policy)
+                // the codebases properties file is only for tests and not needed in production
+                copySpec.exclude("plugin-security.codebases");
+            });
 
             /*
              * If the plugin is using the shadow plugin then we need to bundle

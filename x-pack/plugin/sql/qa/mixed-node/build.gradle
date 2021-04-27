@@ -4,14 +4,18 @@ apply from : "$rootDir/gradle/bwc-test.gradle"
 apply plugin: 'elasticsearch.rest-test'
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
   testImplementation project(':x-pack:qa')
   testImplementation(project(xpackModule('ql:test-fixtures')))
-  testImplementation project(path: xpackModule('sql'), configuration: 'default')
+  testImplementation project(xpackModule('sql'))
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("integTest").configure{ enabled = false}

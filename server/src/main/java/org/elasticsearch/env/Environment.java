@@ -143,7 +143,12 @@ public class Environment {
 
         final Settings.Builder finalSettings = Settings.builder().put(settings);
         if (PATH_DATA_SETTING.exists(settings)) {
-            finalSettings.putList(PATH_DATA_SETTING.getKey(), Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
+            if (dataFiles.length == 1) {
+                finalSettings.put(PATH_DATA_SETTING.getKey(), dataFiles[0].toString());
+            } else {
+                finalSettings.putList(PATH_DATA_SETTING.getKey(),
+                    Arrays.stream(dataFiles).map(Path::toString).collect(Collectors.toList()));
+            }
         }
         finalSettings.put(PATH_HOME_SETTING.getKey(), homeFile);
         finalSettings.put(PATH_LOGS_SETTING.getKey(), logsFile.toString());
@@ -294,6 +299,15 @@ public class Environment {
         if (Files.isDirectory(tmpFile) == false) {
             throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
         }
+    }
+
+    /** Returns true if the data path is a list, false otherwise */
+    public static boolean dataPathUsesList(Settings settings) {
+        if (settings.hasValue(PATH_DATA_SETTING.getKey()) == false) {
+            return false;
+        }
+        String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
+        return rawDataPath.startsWith("[");
     }
 
     public static FileStore getFileStore(final Path path) throws IOException {

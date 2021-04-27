@@ -255,17 +255,17 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
 
     public void testPhraseQueryIsError() {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
-        assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().phraseQuery(null, 1, false));
+        assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().phraseQuery(null, 1, false, null));
     }
 
     public void testPhrasePrefixQueryIsError() {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
-        assertQueryOnlyOnText("phrase prefix", () -> simpleMappedFieldType().phrasePrefixQuery(null, 1, 1));
+        assertQueryOnlyOnText("phrase prefix", () -> simpleMappedFieldType().phrasePrefixQuery(null, 1, 1, null));
     }
 
     public void testMultiPhraseQueryIsError() {
         assumeTrue("Impl does not support term queries", supportsTermQueries());
-        assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().multiPhraseQuery(null, 1, false));
+        assertQueryOnlyOnText("phrase", () -> simpleMappedFieldType().multiPhraseQuery(null, 1, false, null));
     }
 
     public void testSpanPrefixQueryIsError() {
@@ -310,6 +310,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == BooleanFieldScript.CONTEXT) {
             return (T) BooleanFieldScriptTests.DUMMY;

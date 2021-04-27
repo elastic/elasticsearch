@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.internal.BuildPlugin
 
 /*
  * This script plugin configures formatting for Java source using Spotless
@@ -163,7 +163,7 @@ subprojects {
         java {
           // Normally this isn't necessary, but we have Java sources in
           // non-standard places
-          target '**/*.java'
+          target 'src/**/*.java'
 
           removeUnusedImports()
           eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')

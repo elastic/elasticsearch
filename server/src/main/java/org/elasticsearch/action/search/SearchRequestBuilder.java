@@ -60,8 +60,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     /**
      * The a string representation search type to execute, defaults to {@link SearchType#DEFAULT}. Can be
-     * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
-     * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
+     * one of "dfs_query_then_fetch" or "query_then_fetch".
      */
     public SearchRequestBuilder setSearchType(String searchType) {
         request.searchType(searchType);

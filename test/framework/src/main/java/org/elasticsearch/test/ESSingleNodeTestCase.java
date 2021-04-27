@@ -41,6 +41,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportSettings;
@@ -117,6 +118,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         logger.trace("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
         ensureNoInitializingShards();
+        SearchService searchService = getInstanceFromNode(SearchService.class);
+        assertThat(searchService.getActiveContexts(), equalTo(0));
+        assertThat(searchService.getOpenScrollContexts(), equalTo(0));
         super.tearDown();
         assertAcked(
             client().admin().indices().prepareDelete("*")

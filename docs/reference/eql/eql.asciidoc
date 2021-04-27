@@ -46,9 +46,7 @@ default.
 === Run an EQL search
 
 Use the <<eql-search-api,EQL search API>> to run a <<eql-basic-syntax,basic EQL
-query>>. If the {es} {security-features} are enabled, you must have the `read`
-<<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias.
+query>>.
 
 ////
 [source,console]
@@ -145,170 +143,6 @@ GET /my-data-stream/_eql/search
 }
 ----
 // TEST[setup:sec_logs]
-
-[discrete]
-[[retrieve-selected-fields]]
-=== Retrieve selected fields
-
-By default, each hit in the search response includes the document `_source`,
-which is the entire JSON object that was provided when indexing the document.
-
-You can use the <<common-options-response-filtering,`filter_path`>> query
-parameter to filter the API response. For example, the following search returns
-only the timestamp and PID from the `_source` of each matching event.
-
-[source,console]
-----
-GET /my-data-stream/_eql/search?filter_path=hits.events._source.@timestamp,hits.events._source.process.pid
-{
-  "query": """
-    process where process.name == "regsvr32.exe"
-  """
-}
-----
-// TEST[setup:sec_logs]
-
-The API returns the following response.
-
-[source,console-result]
-----
-{
-  "hits": {
-    "events": [
-      {
-        "_source": {
-          "@timestamp": "2099-12-07T11:07:09.000Z",
-          "process": {
-            "pid": 2012
-          }
-        }
-      },
-      {
-        "_source": {
-          "@timestamp": "2099-12-07T11:07:10.000Z",
-          "process": {
-            "pid": 2012
-          }
-        }
-      }
-    ]
-  }
-}
-----
-
-You can also use the `fields` parameter to retrieve and format specific fields
-in the response. This field is identical to the search API's
-<<search-fields,`fields` parameter>>.
-
-
-include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-desc]
-
-The following EQL search uses the `fields` parameter to retrieve values for the
-`event.type` field, all fields starting with `process.`, and the `@timestamp`
-field. The request also uses the `filter_path` query parameter to exclude the
-`_source` of each hit.
-
-[source,console]
-----
-GET /my-data-stream/_eql/search?filter_path=-hits.events._source
-{
-  "query": """
-    process where process.name == "regsvr32.exe"
-  """,
-  "fields": [
-    "event.type",
-    "process.*",                <1>
-    {
-      "field": "@timestamp",    <2>
-      "format": "epoch_millis"  
-    }
-  ]
-}
-----
-// TEST[setup:sec_logs]
-
-include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-callouts]
-
-The values are returned as a flat list in the `fields` section of each hit:
-
-[source,console-result]
-----
-{
-  "is_partial": false,
-  "is_running": false,
-  "took": 60,
-  "timed_out": false,
-  "hits": {
-    "total": {
-      "value": 2,
-      "relation": "eq"
-    },
-    "events": [
-      {
-        "_index": ".ds-my-data-stream-2099.12.07-000001",
-        "_id": "OQmfCaduce8zoHT93o4H",
-        "fields": {
-          "process.name": [
-            "regsvr32.exe"
-          ],
-          "process.name.keyword": [
-            "regsvr32.exe"
-          ],
-          "@timestamp": [
-            "4100324829000"
-          ],
-          "process.command_line": [
-            "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll"
-          ],
-          "process.command_line.keyword": [
-            "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll"
-          ],
-          "process.executable.keyword": [
-            "C:\\Windows\\System32\\regsvr32.exe"
-          ],
-          "process.pid": [
-            2012
-          ],
-          "process.executable": [
-            "C:\\Windows\\System32\\regsvr32.exe"
-          ]
-        }
-      },
-      {
-        "_index": ".ds-my-data-stream-2099.12.07-000001",
-        "_id": "xLkCaj4EujzdNSxfYLbO",
-        "fields": {
-          "process.name": [
-            "regsvr32.exe"
-          ],
-          "process.name.keyword": [
-            "regsvr32.exe"
-          ],
-          "@timestamp": [
-            "4100324830000"
-          ],
-          "event.type": [
-            "termination"
-          ],
-          "process.executable.keyword": [
-            "C:\\Windows\\System32\\regsvr32.exe"
-          ],
-          "process.pid": [
-            2012
-          ],
-          "process.executable": [
-            "C:\\Windows\\System32\\regsvr32.exe"
-          ]
-        }
-      }
-    ]
-  }
-}
-----
-// TESTRESPONSE[s/"took": 60/"took": $body.took/]
-// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
-// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
-// TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
 
 [discrete]
 [[eql-search-sequence]]
@@ -535,6 +369,239 @@ GET /my-data-stream/_eql/search
 // TEST[setup:sec_logs]
 
 [discrete]
+[[retrieve-selected-fields]]
+=== Retrieve selected fields
+
+By default, each hit in the search response includes the document `_source`,
+which is the entire JSON object that was provided when indexing the document.
+
+You can use the <<common-options-response-filtering,`filter_path`>> query
+parameter to filter the API response. For example, the following search returns
+only the timestamp and PID from the `_source` of each matching event.
+
+[source,console]
+----
+GET /my-data-stream/_eql/search?filter_path=hits.events._source.@timestamp,hits.events._source.process.pid
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """
+}
+----
+// TEST[setup:sec_logs]
+
+The API returns the following response.
+
+[source,console-result]
+----
+{
+  "hits": {
+    "events": [
+      {
+        "_source": {
+          "@timestamp": "2099-12-07T11:07:09.000Z",
+          "process": {
+            "pid": 2012
+          }
+        }
+      },
+      {
+        "_source": {
+          "@timestamp": "2099-12-07T11:07:10.000Z",
+          "process": {
+            "pid": 2012
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+You can also use the `fields` parameter to retrieve and format specific fields
+in the response. This field is identical to the search API's
+<<search-fields,`fields` parameter>>.
+
+include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-desc]
+
+The following search request uses the `fields` parameter to retrieve values for
+the `event.type` field, all fields starting with `process.`, and the
+`@timestamp` field. The request also uses the `filter_path` query parameter to
+exclude the `_source` of each hit.
+
+[source,console]
+----
+GET /my-data-stream/_eql/search?filter_path=-hits.events._source
+{
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """,
+  "fields": [
+    "event.type",
+    "process.*",                <1>
+    {
+      "field": "@timestamp",
+      "format": "epoch_millis"  <2>
+    }
+  ]
+}
+----
+// TEST[setup:sec_logs]
+
+include::{es-repo-dir}/search/search-your-data/retrieve-selected-fields.asciidoc[tag=fields-param-callouts]
+
+The response includes values as a flat list in the `fields` section for each
+hit.
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
+        "_id": "OQmfCaduce8zoHT93o4H",
+        "fields": {
+          "process.name": [
+            "regsvr32.exe"
+          ],
+          "process.name.keyword": [
+            "regsvr32.exe"
+          ],
+          "@timestamp": [
+            "4100324829000"
+          ],
+          "process.command_line": [
+            "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll"
+          ],
+          "process.command_line.keyword": [
+            "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll"
+          ],
+          "process.executable.keyword": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ],
+          "process.pid": [
+            2012
+          ],
+          "process.executable": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ]
+        }
+      },
+      {
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
+        "_id": "xLkCaj4EujzdNSxfYLbO",
+        "fields": {
+          "process.name": [
+            "regsvr32.exe"
+          ],
+          "process.name.keyword": [
+            "regsvr32.exe"
+          ],
+          "@timestamp": [
+            "4100324830000"
+          ],
+          "event.type": [
+            "termination"
+          ],
+          "process.executable.keyword": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ],
+          "process.pid": [
+            2012
+          ],
+          "process.executable": [
+            "C:\\Windows\\System32\\regsvr32.exe"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
+
+[discrete]
+[[eql-use-runtime-fields]]
+=== Use runtime fields
+
+Use the `runtime_mappings` parameter to extract and create <<runtime,runtime
+fields>> during a search. Use the `fields` parameter to include runtime fields
+in the response.
+
+The following search creates a `day_of_week` runtime field from the `@timestamp`
+and returns it in the response.
+
+[source,console]
+----
+GET /my-data-stream/_eql/search?filter_path=-hits.events._source
+{
+  "runtime_mappings": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": "emit(doc['@timestamp'].value.dayOfWeekEnum.toString())"
+    }
+  },
+  "query": """
+    process where process.name == "regsvr32.exe"
+  """,
+  "fields": [
+    "@timestamp",
+    "day_of_week"
+  ]
+}
+----
+// TEST[setup:sec_logs]
+
+The API returns:
+
+[source,console-result]
+----
+{
+  "is_partial": false,
+  "is_running": false,
+  "took": 60,
+  "timed_out": false,
+  "hits": {
+    "total": {
+      "value": 2,
+      "relation": "eq"
+    },
+    "events": [
+      {
+        "_index": ".ds-my-data-stream-2099.12.07-000001",
+        "_id": "OQmfCaduce8zoHT93o4H",
+        "fields": {
+          "@timestamp": [
+            "2099-12-07T11:07:09.000Z"
+          ],
+          "day_of_week": [
+            "MONDAY"
+          ]
+        }
+      },
+      ...
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
+// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
+// TESTRESPONSE[s/\.\.\./$body.hits.events.1/]
+
+[discrete]
 [[specify-a-timestamp-or-event-category-field]]
 === Specify a timestamp or event category field
 
@@ -669,10 +736,7 @@ requests.
 
 To check the progress of an async search, use the <<get-async-eql-search-api,get
 async EQL search API>> with the search ID. Specify how long you'd like for
-complete results in the `wait_for_completion_timeout` parameter. If the {es}
-{security-features} are enabled, only the user who first submitted the EQL
-search can retrieve the search using this API.
-
+complete results in the `wait_for_completion_timeout` parameter.
 [source,console]
 ----
 GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?wait_for_completion_timeout=2s
@@ -753,9 +817,7 @@ GET /_eql/search/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTo
 
 Use the <<delete-async-eql-search-api,delete async EQL search API>> to
 manually delete an async EQL search before the `keep_alive` period ends. If the
-search is still ongoing, {es} cancels the search request. If the {es}
-{security-features} are enabled, only the user who first submitted the EQL
-search can delete the search using this API.
+search is still ongoing, {es} cancels the search request.
 
 [source,console]
 ----

@@ -91,7 +91,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution());
+        installation = Docker.runContainer(distribution(), builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false")));
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));
@@ -269,7 +269,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
+        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password, "ingest.geoip.downloader.enabled", "false");
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
@@ -297,7 +297,12 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             // restart ES with password and mounted keystore
             Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore, tempDir, Path.of("/run/secrets"));
-            Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+            Map<String, String> envVars = Map.of(
+                "KEYSTORE_PASSWORD_FILE",
+                "/run/secrets/" + passwordFilename,
+                "ingest.geoip.downloader.enabled",
+                "false"
+            );
 
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 

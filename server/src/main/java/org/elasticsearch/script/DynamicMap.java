@@ -94,4 +94,9 @@ public final class DynamicMap implements Map<String, Object> {
     public Set<Entry<String, Object>> entrySet() {
         return delegate.entrySet();
     }
+
+    @Override
+    public String toString() {
+        return delegate.toString();
+    }
 }

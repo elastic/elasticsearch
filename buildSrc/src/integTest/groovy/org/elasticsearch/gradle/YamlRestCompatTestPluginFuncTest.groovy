@@ -9,16 +9,12 @@
 package org.elasticsearch.gradle
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.ObjectReader
-import com.fasterxml.jackson.databind.ObjectWriter
 import com.fasterxml.jackson.databind.SequenceWriter
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
-import org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin
+import org.elasticsearch.gradle.internal.VersionProperties
 import org.gradle.testkit.runner.TaskOutcome
-
-import java.nio.file.Path
 
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
@@ -210,6 +206,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.addAllowedWarning("added allowed warning")
               task.addAllowedWarningRegex("added allowed warning regex .* [0-9]")
               task.removeWarning("one", "warning to remove")
+              task.replaceIsTrue("value_to_replace", "replaced_value")
+              task.replaceIsFalse("value_to_replace", "replaced_value")
             })
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
@@ -229,6 +227,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - match: { _type: "_foo" }
           - match: { _source.blah: 1234 }
           - match: { _source.junk: true }
+          - is_true: "value_to_replace"
+          - is_false: "value_to_replace"
+          - is_true: "value_not_to_replace"
+          - is_false: "value_not_to_replace"
         ---
         "two":
           - do:
@@ -239,6 +241,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - match: { _type: "_foo" }
           - match: { _source.blah: 1234 }
           - match: { _source.junk: true }
+          - is_true: "value_to_replace"
+          - is_false: "value_to_replace"
+          - is_true: "value_not_to_replace"
+          - is_false: "value_not_to_replace"
 
         """.stripIndent()
         when:
@@ -288,6 +294,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - match: {}
         - match:
             _source.junk: true
+        - is_true: "replaced_value"
+        - is_false: "replaced_value"
+        - is_true: "value_not_to_replace"
+        - is_false: "value_not_to_replace"
         - match:
             _source.added:
               name: "jake"
@@ -314,6 +324,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             _type: "_doc"
         - match: {}
         - match: {}
+        - is_true: "replaced_value"
+        - is_false: "replaced_value"
+        - is_true: "value_not_to_replace"
+        - is_false: "value_not_to_replace"
         """.stripIndent()).readAll()
 
         expectedAll.eachWithIndex{ ObjectNode expected, int i ->

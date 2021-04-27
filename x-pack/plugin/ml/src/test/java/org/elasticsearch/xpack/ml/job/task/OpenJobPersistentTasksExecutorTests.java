@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -66,7 +67,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.validateJobAndId;
@@ -85,8 +85,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         ThreadPool tp = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(tp.generic()).thenReturn(executorService);
+        when(tp.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         Settings settings = Settings.builder().put("node.name", "OpenJobPersistentTasksExecutorTests").build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
@@ -179,6 +178,23 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         assertNotNull(assignment);
         assertNull(assignment.getExecutorNode());
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), assignment.getExplanation());
+    }
+
+    public void testGetAssignment_GivenResetInProgress() {
+        ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
+        Metadata.Builder metadata = Metadata.builder();
+        MlMetadata mlMetadata = new MlMetadata.Builder().isResetMode(true).build();
+        csBuilder.metadata(metadata.putCustom(MlMetadata.TYPE, mlMetadata));
+
+        OpenJobPersistentTasksExecutor executor = createExecutor(Settings.EMPTY);
+
+        Job job = mock(Job.class);
+        OpenJobAction.JobParams params = new OpenJobAction.JobParams("job_during_reset");
+        params.setJob(job);
+        PersistentTasksCustomMetadata.Assignment assignment = executor.getAssignment(params, csBuilder.build());
+        assertNotNull(assignment);
+        assertNull(assignment.getExecutorNode());
+        assertEquals(MlTasks.RESET_IN_PROGRESS.getExplanation(), assignment.getExplanation());
     }
 
     public static void addJobTask(String jobId, String nodeId, JobState jobState, PersistentTasksCustomMetadata.Builder builder) {

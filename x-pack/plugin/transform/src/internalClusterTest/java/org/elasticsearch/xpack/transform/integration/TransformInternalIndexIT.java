@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
-import org.junit.After;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -36,14 +35,6 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
 
     private static final String CURRENT_INDEX = TransformInternalIndexConstants.LATEST_INDEX_NAME;
     private static final String OLD_INDEX = TransformInternalIndexConstants.INDEX_PATTERN + "001";
-
-    @After
-    public void preCleanup() throws Exception {
-        // Updating a transform will leave indexing an audit message in-flight, so
-        // we need to wait for that to complete or it could interfere with deleting
-        // all the indices
-        waitForPendingTasks();
-    }
 
     public void testUpdateDeletesOldTransformConfig() throws Exception {
 

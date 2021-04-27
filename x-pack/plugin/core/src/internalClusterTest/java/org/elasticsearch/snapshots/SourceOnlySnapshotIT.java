@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -41,6 +42,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -147,6 +151,38 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get());
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, true);
+    }
+
+    public void testSnapshotWithDanglingLocalSegment() throws Exception {
+        logger.info("-->  starting a master node and a data node");
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String repo = "test-repo";
+        createRepository(repo, "source",
+            Settings.builder().put("location", randomRepoPath()).put("delegate_type", "fs").put("compress", randomBoolean()));
+
+        final String indexName = "test-idx";
+        createIndex(indexName);
+        client().prepareIndex(indexName).setSource("foo", "bar").get();
+        assertSuccessful(startFullSnapshot(repo, "snapshot-1"));
+
+        client().prepareIndex(indexName).setSource("foo", "baz").get();
+        assertSuccessful(startFullSnapshot(repo, "snapshot-2"));
+
+        logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
+        Path snapshotShardPath = internalCluster().getInstance(IndicesService.class, dataNode).indexService(
+                clusterService().state().metadata().index(indexName).getIndex()).getShard(0).shardPath().getDataPath()
+                .resolve("_snapshot");
+        try (DirectoryStream<Path> localFiles = Files.newDirectoryStream(snapshotShardPath)) {
+            for (Path localFile : localFiles) {
+                if (randomBoolean()) {
+                    Files.delete(localFile);
+                }
+            }
+        }
+
+        assertSuccessful(startFullSnapshot(repo, "snapshot-3"));
     }
 
     private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) {

@@ -242,6 +242,18 @@ public final class RepositoryData {
     }
 
     /**
+     * @return whether some of the {@link SnapshotDetails} of the given snapshot are missing, due to BwC, so that they must be loaded from
+     * the {@link SnapshotInfo} blob instead.
+     */
+    public boolean hasMissingDetails(SnapshotId snapshotId) {
+        final SnapshotDetails snapshotDetails = getSnapshotDetails(snapshotId);
+        return snapshotDetails == null
+                || snapshotDetails.getVersion() == null
+                || snapshotDetails.getStartTimeMillis() == -1
+                || snapshotDetails.getEndTimeMillis() == -1;
+    }
+
+    /**
      * Returns the {@link SnapshotDetails} for the given snapshot. Returns {@code null} if there are no details for the snapshot.
      */
     @Nullable

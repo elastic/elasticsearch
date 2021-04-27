@@ -1799,11 +1799,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         setPendingStep.whenComplete(newGen -> threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
             // BwC logic: Load snapshot version information if any snapshot is missing details in RepositoryData so that the new
             // RepositoryData contains full details for every snapshot
-            final List<SnapshotId> snapshotIdsWithoutAllDetails = repositoryData.getSnapshotIds().stream().filter(
-                snapshotId -> repositoryData.getVersion(snapshotId) == null
-                        || repositoryData.getSnapshotDetails(snapshotId).getStartTimeMillis() == -1
-                        || repositoryData.getSnapshotDetails(snapshotId).getEndTimeMillis() == -1).collect(Collectors.toList());
-            if (snapshotIdsWithoutAllDetails.isEmpty() == false) {
+            final List<SnapshotId> snapshotIdsWithMissingDetails = repositoryData.getSnapshotIds()
+                    .stream().filter(repositoryData::hasMissingDetails).collect(Collectors.toList());
+            if (snapshotIdsWithMissingDetails.isEmpty() == false) {
                 final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
                 final GroupedActionListener<Void> loadExtraDetailsListener = new GroupedActionListener<>(
                     ActionListener.runAfter(
@@ -1812,7 +1810,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             public void onResponse(Collection<Void> voids) {
                                 logger.info("Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
                                     AllocationService.firstListElementsToCommaDelimitedString(
-                                        snapshotIdsWithoutAllDetails, SnapshotId::toString, logger.isDebugEnabled()));
+                                        snapshotIdsWithMissingDetails, SnapshotId::toString, logger.isDebugEnabled()));
                             }
 
                             @Override
@@ -1820,8 +1818,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 logger.warn("Failure when trying to load missing details from snapshot metadata", e);
                             }
                         }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap))),
-                        snapshotIdsWithoutAllDetails.size());
-                for (SnapshotId snapshotId : snapshotIdsWithoutAllDetails) {
+                        snapshotIdsWithMissingDetails.size());
+                for (SnapshotId snapshotId : snapshotIdsWithMissingDetails) {
                     threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadExtraDetailsListener, () ->
                     {
                         final SnapshotInfo snapshotInfo = getSnapshotInfo(snapshotId);

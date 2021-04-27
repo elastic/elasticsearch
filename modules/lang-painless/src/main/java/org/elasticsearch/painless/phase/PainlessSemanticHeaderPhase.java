@@ -23,7 +23,7 @@ public class PainlessSemanticHeaderPhase extends DefaultSemanticHeaderPhase {
     public void visitFunction(SFunction userFunctionNode, ScriptScope scriptScope) {
         String functionName = userFunctionNode.getFunctionName();
 
-        if ("execute".equals(functionName)) {
+        if (ScriptClassInfo.MAIN_METHOD.equals(functionName)) {
             ScriptClassInfo scriptClassInfo = scriptScope.getScriptClassInfo();
 
             FunctionTable functionTable = scriptScope.getFunctionTable();

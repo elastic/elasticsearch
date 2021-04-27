@@ -39,6 +39,8 @@ public class ScriptClassInfo {
     public final List<FunctionTable.LocalFunction> converters;
     public final FunctionTable.LocalFunction defConverter;
 
+    public static final String MAIN_METHOD = "execute";
+
     public ScriptClassInfo(PainlessLookup painlessLookup, Class<?> baseClass) {
         this.baseClass = baseClass;
 
@@ -53,7 +55,7 @@ public class ScriptClassInfo {
             if (m.isDefault()) {
                 continue;
             }
-            if (m.getName().equals("execute")) {
+            if (m.getName().equals(MAIN_METHOD)) {
                 if (executeMethod == null) {
                     executeMethod = m;
                     returnType = m.getReturnType();

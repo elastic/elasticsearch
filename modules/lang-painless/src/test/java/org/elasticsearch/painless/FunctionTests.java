@@ -39,7 +39,7 @@ public class FunctionTests extends ScriptTestCase {
 
     public void testEmpty() {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("void test(int x) {} test()");
+            exec("void test(int x) {} test(1234)");
         });
         assertThat(expected.getMessage(), containsString(
                 "invalid function definition: found no statements for function [test] with [1] parameters"));

@@ -175,6 +175,18 @@ public class Decorations {
 
     }
 
+    public static class GlobalMember implements Decoration {
+        private final boolean isLocalMember;
+
+        public GlobalMember(boolean isLocalMember) {
+            this.isLocalMember = isLocalMember;
+        }
+
+        public boolean isLocalMember() {
+            return isLocalMember;
+        }
+    }
+
     public static class ExpressionPainlessCast implements Decoration {
 
         private final PainlessCast expressionPainlessCast;

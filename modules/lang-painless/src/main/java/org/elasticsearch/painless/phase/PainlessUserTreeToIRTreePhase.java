@@ -80,7 +80,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         // to convert get methods into local variables for those
         // that are used and adds additional sandboxing by wrapping
         // the main "execute" block with several exceptions.
-        if ("execute".equals(functionName)) {
+        if (ScriptClassInfo.MAIN_METHOD.equals(functionName)) {
             ScriptClassInfo scriptClassInfo = scriptScope.getScriptClassInfo();
             LocalFunction localFunction =
                     scriptScope.getFunctionTable().getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
@@ -137,7 +137,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             FunctionNode irFunctionNode = new FunctionNode(userFunctionNode.getLocation());
             irFunctionNode.setBlockNode(irBlockNode);
-            irFunctionNode.attachDecoration(new IRDName("execute"));
+            irFunctionNode.attachDecoration(new IRDName(ScriptClassInfo.MAIN_METHOD));
             irFunctionNode.attachDecoration(new IRDReturnType(returnType));
             irFunctionNode.attachDecoration(new IRDTypeParameters(new ArrayList<>(localFunction.getTypeParameters())));
             irFunctionNode.attachDecoration(new IRDParameterNames(new ArrayList<>(parameterNames)));

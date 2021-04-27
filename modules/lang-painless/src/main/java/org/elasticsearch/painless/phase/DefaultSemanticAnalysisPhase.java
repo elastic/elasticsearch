@@ -13,6 +13,7 @@ import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -205,8 +206,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      * Visits a class.
      */
     public void visitClass(SClass userClassNode, ScriptScope scriptScope) {
+        SemanticScope.ClassScope classScope = new SemanticScope.ClassScope(scriptScope);
         for (SFunction userFunctionNode : userClassNode.getFunctionNodes()) {
-            visitFunction(userFunctionNode, scriptScope);
+            visitFunction(userFunctionNode, classScope);
         }
     }
 
@@ -214,13 +216,14 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      * Visits a function and defines variables for each parameter.
      * Checks: control flow, type validation
      */
-    public void visitFunction(SFunction userFunctionNode, ScriptScope scriptScope) {
+    public void visitFunction(SFunction userFunctionNode, SemanticScope.ClassScope classScope) {
         String functionName = userFunctionNode.getFunctionName();
+        ScriptScope scriptScope = classScope.getScriptScope();
         LocalFunction localFunction =
                 scriptScope.getFunctionTable().getFunction(functionName, userFunctionNode.getCanonicalTypeNameParameters().size());
         Class<?> returnType = localFunction.getReturnType();
         List<Class<?>> typeParameters = localFunction.getTypeParameters();
-        FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
+        FunctionScope functionScope = newFunctionScope(classScope, localFunction);
 
         for (int index = 0; index < localFunction.getTypeParameters().size(); ++index) {
             Class<?> typeParameter = localFunction.getTypeParameters().get(index);
@@ -2403,6 +2406,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
             Class<?> valueType = variable.getType();
             semanticScope.putDecoration(userSymbolNode, new ValueType(valueType));
+            semanticScope.putDecoration(userSymbolNode, new Decorations.GlobalMember(
+                ScriptClassInfo.MAIN_METHOD.equals(semanticScope.getLocalFunction().getFunctionName()))
+            );
         } else {
             semanticScope.putDecoration(userSymbolNode, new PartialCanonicalTypeName(symbol));
         }

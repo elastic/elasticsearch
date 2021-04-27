@@ -13,6 +13,7 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.node.ANode;
 import org.elasticsearch.painless.symbol.Decorator.Condition;
 import org.elasticsearch.painless.symbol.Decorator.Decoration;
+import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -43,11 +44,13 @@ public abstract class SemanticScope {
         protected final Class<?> type;
         protected final String name;
         protected final boolean isFinal;
+        protected final boolean isGlobal;
 
-        public Variable(Class<?> type, String name, boolean isFinal) {
+        public Variable(Class<?> type, String name, boolean isFinal, boolean isGlobal) {
             this.type = Objects.requireNonNull(type);
             this.name = Objects.requireNonNull(name);
             this.isFinal = isFinal;
+            this.isGlobal = isGlobal;
         }
 
         public Class<?> getType() {
@@ -66,8 +69,74 @@ public abstract class SemanticScope {
             return name;
         }
 
+        public boolean isGlobal() {
+            return isGlobal;
+        }
+
         public boolean isFinal() {
             return isFinal;
+        }
+    }
+
+    /**
+     * Created when visiting a class.  Holds the global variables of the class.
+     */
+    public static class ClassScope extends SemanticScope {
+        protected final Map<String, Variable> globals;
+        public ClassScope(ScriptScope scriptScope) {
+            super(scriptScope, new HashSet<>());
+            this.globals = new HashMap<>();
+        }
+
+        @Override
+        public boolean isVariableDefined(String name) {
+            return globals.containsKey(name);
+        }
+
+        @Override
+        public LocalFunction getLocalFunction() {
+            throw new UnsupportedOperationException("ClassScope has no localFunction");
+        }
+
+        @Override
+        public String getReturnCanonicalTypeName() {
+            throw new UnsupportedOperationException("ClassScope has no returnType");
+        }
+
+        @Override
+        public Variable getVariable(Location location, String name) {
+            Variable global = globals.get(name);
+            if (global != null) {
+                return global;
+            }
+            throw location.createError(new IllegalArgumentException("variable [" + name + "] is not defined"));
+        }
+
+        @Override
+        protected boolean isLocalVariableDefined(String name) {
+            return false;
+        }
+
+        @Override
+        protected Variable getLocalVariable(String name) {
+            return null;
+        }
+
+        @Override
+        protected boolean canDefineLocalVariable(String name) {
+            return true;
+        }
+
+        @Override
+        public Variable defineVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
+            if (isVariableDefined(name)) {
+                throw location.createError(new IllegalArgumentException("variable [" + name + "] is already defined"));
+            }
+
+            Variable variable = new Variable(type, name, isReadOnly, true);
+            globals.put(name, variable);
+
+            return variable;
         }
     }
 
@@ -79,16 +148,20 @@ public abstract class SemanticScope {
      */
     public static class FunctionScope extends SemanticScope {
 
-        protected final Class<?> returnType;
+        protected final SemanticScope parent;
+        protected final LocalFunction localFunction;
+        protected final boolean isMainFunction;
 
-        public FunctionScope(ScriptScope scriptScope, Class<?> returnType) {
-            super(scriptScope, new HashSet<>());
-            this.returnType = Objects.requireNonNull(returnType);
+        public FunctionScope(SemanticScope parent, LocalFunction localFunction, boolean isMainFunction) {
+            super(parent.scriptScope, new HashSet<>());
+            this.localFunction = Objects.requireNonNull(localFunction);
+            this.parent = Objects.requireNonNull(parent);
+            this.isMainFunction = isMainFunction;
         }
 
         @Override
         public boolean isVariableDefined(String name) {
-            return variables.containsKey(name);
+            return variables.containsKey(name) || parent.isVariableDefined(name);
         }
 
         /**
@@ -104,7 +177,11 @@ public abstract class SemanticScope {
             Variable variable = variables.get(name);
 
             if (variable == null) {
-                throw location.createError(new IllegalArgumentException("variable [" + name + "] is not defined"));
+                if (parent.isVariableDefined(name) == false) {
+                    throw location.createError(new IllegalArgumentException("variable [" + name + "] is not defined"));
+                }
+                variable = parent.getVariable(location, name);
+                assert variable != null;
             }
 
             usedVariables.add(name);
@@ -113,13 +190,41 @@ public abstract class SemanticScope {
         }
 
         @Override
-        public Class<?> getReturnType() {
-            return returnType;
+        protected boolean isLocalVariableDefined(String name) {
+            return variables.containsKey(name) || parent.isLocalVariableDefined(name);
+        }
+
+        @Override
+        protected Variable getLocalVariable(String name) {
+            Variable local = variables.get(name);
+            if (local != null) {
+                return local;
+            }
+            return parent.getLocalVariable(name);
+        }
+
+        @Override
+        protected boolean canDefineLocalVariable(String name) {
+            // Already defined
+            if (isLocalVariableDefined(name)) {
+                return false;
+            }
+            // Global
+            if (isVariableDefined(name)) {
+                // In execute
+                return isMainFunction == false;
+            }
+            return true;
+        }
+
+        @Override
+        public LocalFunction getLocalFunction() {
+            return localFunction;
         }
 
         @Override
         public String getReturnCanonicalTypeName() {
-            return PainlessLookupUtility.typeToCanonicalTypeName(returnType);
+            return PainlessLookupUtility.typeToCanonicalTypeName(localFunction.returnType);
         }
     }
 
@@ -167,8 +272,13 @@ public abstract class SemanticScope {
             Variable variable = variables.get(name);
 
             if (variable == null) {
+                if (parent.isVariableDefined(name) == false) {
+                    throw location.createError(new IllegalArgumentException("variable [" + name + "] is not defined"));
+                }
                 variable = parent.getVariable(location, name);
-                variable = new Variable(variable.getType(), variable.getName(), true);
+                assert variable != null;
+
+                variable = new Variable(variable.getType(), variable.getName(), true, variable.isGlobal());
                 captures.add(variable);
             } else {
                 usedVariables.add(name);
@@ -178,13 +288,38 @@ public abstract class SemanticScope {
         }
 
         @Override
+        protected boolean isLocalVariableDefined(String name) {
+            // TODO(stu): what should we do about captures here?
+            return variables.containsKey(name) || parent.isLocalVariableDefined(name);
+        }
+
+        @Override
+        protected Variable getLocalVariable(String name) {
+            Variable local = variables.get(name);
+            if (local != null) {
+                return local;
+            }
+            return parent.getLocalVariable(name);
+        }
+
+        @Override
+        protected boolean canDefineLocalVariable(String name) {
+            return parent.canDefineLocalVariable(name);
+        }
+
+        @Override
         public Class<?> getReturnType() {
             return returnType;
         }
 
         @Override
+        public LocalFunction getLocalFunction() {
+            return parent.getLocalFunction();
+        }
+
+        @Override
         public String getReturnCanonicalTypeName() {
-            return PainlessLookupUtility.typeToCanonicalTypeName(returnType);
+            return PainlessLookupUtility.typeToCanonicalTypeName(parent.getLocalFunction().returnType);
         }
 
         public Set<Variable> getCaptures() {
@@ -239,8 +374,30 @@ public abstract class SemanticScope {
         }
 
         @Override
-        public Class<?> getReturnType() {
-            return parent.getReturnType();
+        protected boolean isLocalVariableDefined(String name) {
+            return variables.containsKey(name) || parent.isLocalVariableDefined(name);
+        }
+
+        @Override
+        protected Variable getLocalVariable(String name) {
+            Variable local = variables.get(name);
+            if (local != null) {
+                return local;
+            }
+            return parent.getLocalVariable(name);
+        }
+
+        @Override
+        protected boolean canDefineLocalVariable(String name) {
+            if (isLocalVariableDefined(name)) {
+                return false;
+            }
+            return parent.canDefineLocalVariable(name);
+        }
+
+        @Override
+        public LocalFunction getLocalFunction() {
+            return parent.getLocalFunction();
         }
 
         @Override
@@ -250,11 +407,17 @@ public abstract class SemanticScope {
     }
 
     /**
-     * Returns a new function scope as the top-level scope with the
-     * specified return type.
+     * Returns a new function scope with a parent ClassScope.
      */
-    public static FunctionScope newFunctionScope(ScriptScope scriptScope, Class<?> returnType) {
-        return new FunctionScope(scriptScope, returnType);
+    public static FunctionScope newFunctionScope(ClassScope classScope, LocalFunction localFunction) {
+        return new FunctionScope(classScope, localFunction, false);
+    }
+
+    /**
+     * Returns a new function scope for the execute function with a parent ClassScope.
+     */
+    public static FunctionScope newMainFunctionScope(ClassScope classScope, LocalFunction localFunction) {
+        return new FunctionScope(classScope, localFunction, true);
     }
 
     protected final ScriptScope scriptScope;
@@ -323,22 +486,63 @@ public abstract class SemanticScope {
         return scriptScope.replicate(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
     }
 
-    public abstract Class<?> getReturnType();
+    public abstract LocalFunction getLocalFunction();
     public abstract String getReturnCanonicalTypeName();
 
+    /**
+     * Can a local variable with the given name be defined?  A local variable with {@code name} cannot be defined if:
+     *  - An existing local variable is already defined with name
+     *  - A global variable is defined with name and we are in the main function
+     *
+     * Conversely, a local variable with {@code name} can be defined if:
+     *  - No local variable exists with name
+     *  - No global variable exists with name OR such a global exists and name is defined in the context of
+     *    a user defined function.  In this case the local variable shadows the global variable.
+     */
+    protected abstract boolean canDefineLocalVariable(String name);
+
+    public Class<?> getReturnType() {
+        return getLocalFunction().returnType;
+    }
+
+    /**
+     * Define a local variable at {@code location}, used for error messages if name already exists, of {@code type},
+     * with {@code name}. {@code isReadyOnly} specifies if writes to this variable are rejected.
+     */
     public Variable defineVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
-        if (isVariableDefined(name)) {
+        if (canDefineLocalVariable(name) == false) {
             throw location.createError(new IllegalArgumentException("variable [" + name + "] is already defined"));
         }
 
-        Variable variable = new Variable(type, name, isReadOnly);
+        Variable variable = new Variable(type, name, isReadOnly, false);
         variables.put(name, variable);
 
         return variable;
     }
 
+    /**
+     * Is there any local or global variable defined with name?
+     */
     public abstract boolean isVariableDefined(String name);
+
+    /**
+     * Fetches the variable or throws an IllegalArgumentException if the variable is not defined
+     * @param location location of the error, if variable not defined
+     * @param name name of the variable
+     * @return Variable, if defined
+     * @throws IllegalArgumentException if variable is not defined
+     */
     public abstract Variable getVariable(Location location, String name);
+
+    /**
+     * Is there a local variable defined with name?
+     */
+    protected abstract boolean isLocalVariableDefined(String name);
+
+    /**
+     * Gets the local variable with name, or {@code null} if no such variable is defined.
+     */
+    protected abstract Variable getLocalVariable(String name);
 
     public Variable defineInternalVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
         return defineVariable(location, type, "#" + name, isReadOnly);

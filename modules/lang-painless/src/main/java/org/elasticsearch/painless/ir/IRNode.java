@@ -11,8 +11,10 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -55,6 +57,10 @@ public abstract class IRNode {
         return type.cast(decorations.get(type));
     }
 
+    public List<IRDecoration<?>> getAllDecorations() {
+        return new ArrayList<>(decorations.values());
+    }
+
     public <T extends IRDecoration<V>, V> V getDecorationValue(Class<T> type) {
         return getDecorationValueOrDefault(type, null);
     }
@@ -87,6 +93,10 @@ public abstract class IRNode {
 
     public boolean hasCondition(Class<? extends IRCondition> type) {
         return conditions.contains(type);
+    }
+
+    public List<Class<? extends IRCondition>> getAllConditions() {
+        return new ArrayList<>(conditions);
     }
 
     /* ---- end conditions, begin node data ---- */

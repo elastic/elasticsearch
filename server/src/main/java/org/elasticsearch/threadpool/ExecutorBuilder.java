@@ -37,6 +37,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
     }
 
     protected int applyHardSizeLimit(final Settings settings, final String name) {
+        // TODO[wrb]: does the system critical thread pool need a hard size limit?
         if (name.equals("bulk") || name.equals(ThreadPool.Names.WRITE) || name.equals(ThreadPool.Names.SYSTEM_WRITE)) {
             return 1 + EsExecutors.allocatedProcessors(settings);
         } else {

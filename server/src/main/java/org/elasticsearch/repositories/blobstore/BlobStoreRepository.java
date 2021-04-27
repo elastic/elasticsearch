@@ -1855,7 +1855,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     newRepositoryData.snapshotsToXContent(xContentBuilder, version);
                 }
                 final BytesReference serializedRepoData = out.bytes();
-                logger.info("--> repo data {}", serializedRepoData.utf8ToString());
                 writeAtomic(blobContainer(), indexBlob, serializedRepoData, true);
                 repoDataToCache = compressRepoDataForCache(serializedRepoData);
             }

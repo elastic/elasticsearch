@@ -13,10 +13,11 @@ docker stop es01-test
 docker stop kib01-test
 ----
 
-To remove the containers, run:
+To remove the containers and their network, run:
 
 [source,sh]
 ----
+docker network rm elastic
 docker rm es01-test
 docker rm kib01-test
 ----

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -32,6 +33,11 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     private static SearchExecutionContext createMockSearchExecutionContext(boolean allowExpensiveQueries) {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
+        SourceLookup sourceLookup = mock(SourceLookup.class);
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        when(searchLookup.source()).thenReturn(sourceLookup);
+        when(searchExecutionContext.lookup()).thenReturn(searchLookup);
         return searchExecutionContext;
     }
 

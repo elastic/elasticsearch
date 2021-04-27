@@ -419,7 +419,7 @@ end::index-ignore-unavailable[]
 
 tag::include-defaults[]
 `include_defaults`::
-(Optional, string) If `true`, return all default settings in the response.
+(Optional, Boolean) If `true`, return all default settings in the response.
 Defaults to `false`.
 end::include-defaults[]
 
@@ -1025,7 +1025,7 @@ Defines optional {transform} settings.
 end::transform-settings[]
 
 tag::transform-settings-dates-as-epoch-milli[]
-Defines if dates in the ouput should be written as ISO formatted string (default)
+Defines if dates in the output should be written as ISO formatted string (default)
 or as millis since epoch. `epoch_millis` has been the default for transforms created
 before version `7.11`. For compatible output set this to `true`.
 The default value is `false`.
@@ -1077,8 +1077,14 @@ end::term_statistics[]
 
 tag::terminate_after[]
 `terminate_after`::
-(Optional, integer) The maximum number of documents to collect for each shard,
-upon reaching which the query execution will terminate early.
+(Optional, integer) Maximum number of documents to collect for each shard. If a
+query reaches this limit, {es} terminates the query early. {es} collects
+documents before sorting.
++
+IMPORTANT: Use with caution. {es} applies this parameter to each shard handling
+the request. When possible, let {es} perform early termination automatically.
+Avoid specifying this parameter for requests that target data streams with
+backing indices across multiple data tiers.
 end::terminate_after[]
 
 tag::time[]
@@ -1147,7 +1153,7 @@ end::segment-version[]
 
 tag::version_type[]
 `version_type`::
-(Optional, enum) Specific version type: `internal`, `external`,
+(Optional, enum) Specific version type: `external`,
 `external_gte`.
 end::version_type[]
 

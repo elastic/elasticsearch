@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.test.rest.transform.match;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceMatch;
 import org.gradle.api.tasks.Internal;
 
 /**

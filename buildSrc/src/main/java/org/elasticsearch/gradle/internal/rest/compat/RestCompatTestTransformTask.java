@@ -18,20 +18,20 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransform;
-import org.elasticsearch.gradle.test.rest.transform.RestTestTransformer;
-import org.elasticsearch.gradle.test.rest.transform.headers.InjectHeaders;
-import org.elasticsearch.gradle.test.rest.transform.match.AddMatch;
-import org.elasticsearch.gradle.test.rest.transform.match.RemoveMatch;
+import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
+import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
+import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
+import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
+import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
+import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceMatch;
+import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsFalse;
+import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsTrue;
+import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllowedWarnings;
+import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
+import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceKeyInMatch;
 import org.elasticsearch.gradle.test.rest.transform.match.ReplaceLength;
-import org.elasticsearch.gradle.test.rest.transform.match.ReplaceMatch;
-import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsFalse;
-import org.elasticsearch.gradle.test.rest.transform.text.ReplaceIsTrue;
-import org.elasticsearch.gradle.test.rest.transform.warnings.InjectAllowedWarnings;
-import org.elasticsearch.gradle.test.rest.transform.warnings.InjectWarnings;
-import org.elasticsearch.gradle.test.rest.transform.warnings.RemoveWarnings;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
@@ -148,9 +148,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
         transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
     }
 
-    public void replaceIsFalse(String oldValue, Object newValue, String testName) {
-        transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
-    }
+
 
     /**
      * Removes the key/value of a match assertion all project REST tests for the matching subkey.

@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -37,6 +36,12 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.getFeatures().stream().anyMatch(feature -> "tasks".equals(feature.getFeatureName())));
     }
 
+    /**
+     * This test assumes that at least one of our defined features should reset successfully.
+     * Since plugins should be testing their own reset operations if they use something
+     * other than the default, this test tolerates failures in the response from the
+     * feature reset API.
+     */
     public void testResetFeatures() throws IOException {
         ResetFeaturesRequest request = new ResetFeaturesRequest();
 
@@ -59,6 +64,6 @@ public class FeaturesIT extends ESRestHighLevelClientTestCase {
             .map(ResetFeaturesResponse.ResetFeatureStateStatus::getStatus)
             .collect(Collectors.toSet());
 
-        assertThat(statuses, contains("SUCCESS"));
+        assertTrue("At least one feature should have been successfully reset", statuses.contains("SUCCESS"));
     }
 }

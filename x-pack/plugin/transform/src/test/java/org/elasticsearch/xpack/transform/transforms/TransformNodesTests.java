@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -237,6 +239,41 @@ public class TransformNodesTests extends ESTestCase {
                 .build();
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, true).get().getId(), is(equalTo("node-4")));
         assertThat(TransformNodes.selectAnyNodeThatCanRunThisTransform(nodes, false).get().getId(), is(oneOf("node-2", "node-4")));
+    }
+
+    public void testHasAnyTransformNode() {
+        {
+            DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
+            assertThat(TransformNodes.hasAnyTransformNode(nodes), is(false));
+            expectThrows(ElasticsearchStatusException.class, () -> TransformNodes.throwIfNoTransformNodes(newClusterState(nodes)));
+        }
+        {
+            DiscoveryNodes nodes =
+                DiscoveryNodes.builder()
+                    .add(newDiscoveryNode("node-1", Version.V_7_12_0))
+                    .add(newDiscoveryNode("node-2", Version.V_7_13_0))
+                    .add(newDiscoveryNode("node-3", Version.V_7_13_0))
+                    .build();
+            assertThat(TransformNodes.hasAnyTransformNode(nodes), is(false));
+            expectThrows(ElasticsearchStatusException.class, () -> TransformNodes.throwIfNoTransformNodes(newClusterState(nodes)));
+        }
+        {
+            DiscoveryNodes nodes =
+                DiscoveryNodes.builder()
+                    .add(newDiscoveryNode("node-1", Version.V_7_12_0))
+                    .add(newDiscoveryNode("node-2", Version.V_7_13_0, TRANSFORM_ROLE))
+                    .add(newDiscoveryNode("node-3", Version.V_7_13_0, REMOTE_CLUSTER_CLIENT_ROLE))
+                    .add(newDiscoveryNode("node-4", Version.V_7_13_0))
+                    .build();
+            assertThat(TransformNodes.hasAnyTransformNode(nodes), is(true));
+            TransformNodes.throwIfNoTransformNodes(newClusterState(nodes));
+        }
+    }
+
+    private static ClusterState newClusterState(DiscoveryNodes nodes) {
+        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .nodes(nodes)
+            .build();
     }
 
     private static DiscoveryNode newDiscoveryNode(String id, Version version, DiscoveryNodeRole... roles) {

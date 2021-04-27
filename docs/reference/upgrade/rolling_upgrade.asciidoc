@@ -53,6 +53,7 @@ To perform a rolling upgrade to {version}:
 +
 --
 include::disable-shard-alloc.asciidoc[]
+This step is only necessary for <<data-node,data nodes>>.
 --
 
 . *Stop non-essential indexing and perform a flush.* (Optional)
@@ -103,7 +104,7 @@ a node.
 . If you use {es} {security-features} to define realms, verify that your realm
 settings are up-to-date. The format of realm settings changed in version 7.0, in
 particular, the placement of the realm type changed. See
-<<realm-settings,Realm settings>>. 
+<<realm-settings,Realm settings>>.
 
 . *Start the upgraded node.*
 +

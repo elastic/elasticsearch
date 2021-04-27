@@ -53,31 +53,22 @@ setup:
         body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50 } } } }
 
   - match: { hits.total: 4 }
-
   - length: { aggregations.histo.buckets: 4 }
 
   - match: { aggregations.histo.buckets.0.key: 0 }
-
   - is_false: aggregations.histo.buckets.0.key_as_string
-
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
 
   - match: { aggregations.histo.buckets.1.key: 50 }
-
   - is_false: aggregations.histo.buckets.1.key_as_string
-
   - match: { aggregations.histo.buckets.1.doc_count: 1 }
 
   - match: { aggregations.histo.buckets.2.key: 100 }
-
   - is_false: aggregations.histo.buckets.2.key_as_string
-
   - match: { aggregations.histo.buckets.2.doc_count: 1 }
 
   - match: { aggregations.histo.buckets.3.key: 150 }
-
   - is_false: aggregations.histo.buckets.3.key_as_string
-
   - match: { aggregations.histo.buckets.3.doc_count: 1 }
 
 ---
@@ -115,31 +106,394 @@ setup:
         body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50, "format" : "Value is ##0.0" } } } }
 
   - match: { hits.total: 4 }
-
   - length: { aggregations.histo.buckets: 4 }
 
   - match: { aggregations.histo.buckets.0.key: 0 }
-
   - match: { aggregations.histo.buckets.0.key_as_string: "Value is 0.0" }
-
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
 
   - match: { aggregations.histo.buckets.1.key: 50 }
-
   - match: { aggregations.histo.buckets.1.key_as_string: "Value is 50.0" }
-
   - match: { aggregations.histo.buckets.1.doc_count: 1 }
 
   - match: { aggregations.histo.buckets.2.key: 100 }
-
   - match: { aggregations.histo.buckets.2.key_as_string: "Value is 100.0" }
-
   - match: { aggregations.histo.buckets.2.doc_count: 1 }
 
   - match: { aggregations.histo.buckets.3.key: 150 }
-
   - match: { aggregations.histo.buckets.3.key_as_string: "Value is 150.0" }
+  - match: { aggregations.histo.buckets.3.doc_count: 1 }
 
+---
+"Show empty intervals":
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: { "number" : 1 }
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: { "number" : 51 }
+
+  - do:
+      index:
+        index: test_1
+        id: 3
+        body: { "number" : 61 }
+
+  - do:
+      index:
+        index: test_1
+        id: 4
+        body: { "number" : 71 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 20 } } } }
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.histo.buckets: 4 }
+
+  - match: { aggregations.histo.buckets.0.key: 0 }
+  - is_false: aggregations.histo.buckets.0.key_as_string
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.1.key: 20 }
+  - is_false: aggregations.histo.buckets.1.key_as_string
+  - match: { aggregations.histo.buckets.1.doc_count: 0 }
+
+  - match: { aggregations.histo.buckets.2.key: 40 }
+  - is_false: aggregations.histo.buckets.2.key_as_string
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.3.key: 60 }
+  - is_false: aggregations.histo.buckets.3.key_as_string
+  - match: { aggregations.histo.buckets.3.doc_count: 2 }
+
+---
+"histogram with min_doc_count":
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: { "number" : 1 }
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: { "number" : 51 }
+
+  - do:
+      index:
+        index: test_1
+        id: 3
+        body: { "number" : 61 }
+
+  - do:
+      index:
+        index: test_1
+        id: 4
+        body: { "number" : 71 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search: # Test with min_doc_count: 1
+        rest_total_hits_as_int: true
+        body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 20, "min_doc_count": 1 } } } }
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.histo.buckets: 3 }
+
+  - match: { aggregations.histo.buckets.0.key: 0 }
+  - is_false: aggregations.histo.buckets.0.key_as_string
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.1.key: 40 }
+  - is_false: aggregations.histo.buckets.1.key_as_string
+  - match: { aggregations.histo.buckets.1.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.2.key: 60 }
+  - is_false: aggregations.histo.buckets.2.key_as_string
+  - match: { aggregations.histo.buckets.2.doc_count: 2 }
+
+  - do:
+      search: # Test with min_doc_count: 2
+        rest_total_hits_as_int: true
+        body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 20, "min_doc_count": 2 } } } }
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.histo.buckets: 1 }
+
+  - match: { aggregations.histo.buckets.0.key: 60 }
+  - is_false: aggregations.histo.buckets.0.key_as_string
+  - match: { aggregations.histo.buckets.0.doc_count: 2 }
+
+
+---
+"histogram with extended_bounds":
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: { "number" : 52 }
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: { "number" : 51 }
+
+  - do:
+      index:
+        index: test_1
+        id: 3
+        body: { "number" : 101 }
+
+  - do:
+      index:
+        index: test_1
+        id: 4
+        body: { "number" : 150 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50, extended_bounds : {"min": 0, "max": 200} } } } }
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.histo.buckets: 5 }
+
+  - match: { aggregations.histo.buckets.0.key: 0 }
+  - is_false: aggregations.histo.buckets.0.key_as_string
+  - match: { aggregations.histo.buckets.0.doc_count: 0 }
+
+  - match: { aggregations.histo.buckets.1.key: 50 }
+  - is_false: aggregations.histo.buckets.1.key_as_string
+  - match: { aggregations.histo.buckets.1.doc_count: 2 }
+
+  - match: { aggregations.histo.buckets.2.key: 100 }
+  - is_false: aggregations.histo.buckets.2.key_as_string
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.3.key: 150 }
+  - is_false: aggregations.histo.buckets.3.key_as_string
+  - match: { aggregations.histo.buckets.3.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.4.key: 200 }
+  - is_false: aggregations.histo.buckets.4.key_as_string
+  - match: { aggregations.histo.buckets.4.doc_count: 0 }
+
+
+---
+"histogram with hard bounds":
+  - skip:
+      version: " - 7.9.99"
+      reason:  hard_bounds were introduced in 7.10.0
+
+  - do:
+      indices.create:
+        index: test_3
+        body:
+          mappings:
+            properties:
+              range:
+                type: long_range
+
+  - do:
+      bulk:
+        index: test_3
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"range": {"lte": 10}}'
+          - '{"index": {}}'
+          - '{"range": {"gte": 15}}'
+
+  - do:
+      search:
+        index: test_3
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: range
+                interval: 1
+                hard_bounds:
+                  min: 0
+                  max: 20
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.histo.buckets: 21 }
+  - match: { aggregations.histo.buckets.0.key: 0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+  - match: { aggregations.histo.buckets.20.key: 20 }
+  - match: { aggregations.histo.buckets.20.doc_count: 1 }
+
+---
+"histogram with offset and unmapped":
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: { "number" : 11 }
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: { "number" : 51 }
+
+  - do:
+      index:
+        index: test_1
+        id: 3
+        body: { "number" : 101 }
+
+  - do:
+      index:
+        index: test_1
+        id: 4
+        body: { "number" : 151 }
+
+  - do:
+      indices.create:
+        index: test_unmapped
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test_*
+        rest_total_hits_as_int: true
+        body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50, offset: 20 } } } }
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.histo.buckets: 4 }
+
+  - match: { aggregations.histo.buckets.0.key: -30 }
+  - is_false: aggregations.histo.buckets.0.key_as_string
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.1.key: 20 }
+  - is_false: aggregations.histo.buckets.1.key_as_string
+  - match: { aggregations.histo.buckets.1.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.2.key: 70 }
+  - is_false: aggregations.histo.buckets.2.key_as_string
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.3.key: 120 }
+  - is_false: aggregations.histo.buckets.3.key_as_string
+  - match: { aggregations.histo.buckets.3.doc_count: 1 }
+
+---
+"histogram with missing field without missing param":
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: { "another_number" : 11 } # number field is missing
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: { "number" : 51 }
+
+  - do:
+      index:
+        index: test_1
+        id: 3
+        body: { "number" : 101 }
+
+  - do:
+      index:
+        index: test_1
+        id: 4
+        body: { "number" : 151 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50 } } } }
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.histo.buckets: 3 }
+
+  - match: { aggregations.histo.buckets.0.key: 50 }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.1.key: 100 }
+  - match: { aggregations.histo.buckets.1.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.2.key: 150 }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+
+
+---
+"histogram with missing field with missing param":
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: { "another_number" : 11 } # number field is missing
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: { "number" : 51 }
+
+  - do:
+      index:
+        index: test_1
+        id: 3
+        body: { "number" : 101 }
+
+  - do:
+      index:
+        index: test_1
+        id: 4
+        body: { "number" : 151 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "aggs" : { "histo" : { "histogram" : { "field" : "number", "interval" : 50, "missing": 0 } } } }
+
+  - match: { hits.total: 4 }
+  - length: { aggregations.histo.buckets: 4 }
+
+  - match: { aggregations.histo.buckets.0.key: 0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.1.key: 50 }
+  - match: { aggregations.histo.buckets.1.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.2.key: 100 }
+  - match: { aggregations.histo.buckets.2.doc_count: 1 }
+
+  - match: { aggregations.histo.buckets.3.key: 150 }
   - match: { aggregations.histo.buckets.3.doc_count: 1 }
 
 ---
@@ -528,52 +882,6 @@ setup:
   - match: { profile.shards.0.aggregations.0.description: histo }
   - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
   - match: { profile.shards.0.aggregations.0.debug.total_buckets: 3 }
-
----
-"histogram with hard bounds":
-  - skip:
-      version: " - 7.9.99"
-      reason:  hard_bounds were introduced in 7.10.0
-
-  - do:
-      indices.create:
-        index: test_3
-        body:
-          mappings:
-            properties:
-              range:
-                type: long_range
-
-  - do:
-      bulk:
-        index: test_3
-        refresh: true
-        body:
-            - '{"index": {}}'
-            - '{"range": {"lte": 10}}'
-            - '{"index": {}}'
-            - '{"range": {"gte": 15}}'
-
-  - do:
-      search:
-        index: test_3
-        body:
-          size: 0
-          aggs:
-            histo:
-              histogram:
-                field: range
-                interval: 1
-                hard_bounds:
-                  min: 0
-                  max: 20
-  - match: { hits.total.value: 2 }
-  - length: { aggregations.histo.buckets: 21 }
-  - match: { aggregations.histo.buckets.0.key: 0 }
-  - match: { aggregations.histo.buckets.0.doc_count: 1 }
-  - match: { aggregations.histo.buckets.20.key: 20 }
-  - match: { aggregations.histo.buckets.20.doc_count: 1 }
-
 
 ---
 "date_histogram with extended_bounds and offset and unmapped":

@@ -19,7 +19,7 @@ import java.util.Objects;
 /**
  * Request to create a service account token
  */
-public class CreateServiceAccountTokenRequest implements Validatable, ToXContentObject {
+public final class CreateServiceAccountTokenRequest implements Validatable, ToXContentObject {
 
     private final String namespace;
     private final String serviceName;

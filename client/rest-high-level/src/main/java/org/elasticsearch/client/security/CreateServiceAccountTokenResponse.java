@@ -18,7 +18,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class CreateServiceAccountTokenResponse {
+public final class CreateServiceAccountTokenResponse {
 
     private final String name;
     private final SecureString value;

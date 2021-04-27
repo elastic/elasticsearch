@@ -56,6 +56,8 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
+import org.elasticsearch.client.security.GetServiceAccountsRequest;
+import org.elasticsearch.client.security.GetServiceAccountsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesResponse;
 import org.elasticsearch.client.security.GetUserPrivilegesResponse;
 import org.elasticsearch.client.security.GetUsersRequest;
@@ -79,6 +81,7 @@ import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.security.TemplateRoleName;
 import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.client.security.support.CertificateInfo;
+import org.elasticsearch.client.security.support.ServiceAccountInfo;
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
@@ -2489,6 +2492,67 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
         }
 
+    }
+
+    public void testGetServiceAccounts() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::get-service-accounts-request
+            final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest("elastic", "fleet-server");
+            // end::get-service-accounts-request
+
+            // tag::get-service-accounts-execute
+            final GetServiceAccountsResponse getServiceAccountsResponse =
+                client.security().getServiceAccounts(getServiceAccountsRequest, RequestOptions.DEFAULT);
+            // end::get-service-accounts-execute
+
+            // tag::get-service-accounts-response
+            final ServiceAccountInfo serviceAccountInfo = getServiceAccountsResponse.getServiceAccountInfos().get(0); // <1>
+            // end::get-service-accounts-response
+            assertThat(serviceAccountInfo.getPrincipal(), equalTo("elastic/fleet-server"));
+        }
+
+        {
+            // tag::get-service-accounts-request-namespace
+            final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest("elastic");
+            // end::get-service-accounts-request-namespace
+        }
+
+        {
+            // tag::get-service-accounts-request-all
+            final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest();
+            // end::get-service-accounts-request-all
+        }
+
+        {
+            final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest("elastic", "fleet-server");
+
+            ActionListener<GetServiceAccountsResponse> listener;
+            // tag::get-service-accounts-execute-listener
+            listener = new ActionListener<GetServiceAccountsResponse>() {
+                @Override
+                public void onResponse(GetServiceAccountsResponse getServiceAccountsResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::get-service-accounts-execute-listener
+
+            final PlainActionFuture<GetServiceAccountsResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::get-service-accounts-execute-async
+            client.security().getServiceAccountsAsync(getServiceAccountsRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::get-service-accounts-execute-async
+
+            assertNotNull(future.actionGet());
+            assertThat(future.actionGet().getServiceAccountInfos().size(), equalTo(1));
+            assertThat(future.actionGet().getServiceAccountInfos().get(0).getPrincipal(), equalTo("elastic/fleet-server"));
+        }
     }
 
     public void testCreateServiceAccountToken() throws IOException {

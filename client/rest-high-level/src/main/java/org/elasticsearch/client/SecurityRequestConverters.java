@@ -31,6 +31,7 @@ import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetServiceAccountsRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
@@ -329,6 +330,18 @@ final class SecurityRequestConverters {
         final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
         request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request getServiceAccounts(final GetServiceAccountsRequest getServiceAccountsRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service");
+        if (getServiceAccountsRequest.getNamespace() != null) {
+            endpointBuilder.addPathPart(getServiceAccountsRequest.getNamespace());
+            if (getServiceAccountsRequest.getServiceName() != null) {
+                endpointBuilder.addPathPart(getServiceAccountsRequest.getServiceName());
+            }
+        }
+        return new Request(HttpGet.METHOD_NAME, endpointBuilder.build());
     }
 
     static Request createServiceAccountToken(final CreateServiceAccountTokenRequest createServiceAccountTokenRequest) throws IOException {

@@ -20,6 +20,8 @@ service account and an optional name for the service account token.
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 
+A token name will be auto generated if the +{request}+ does not specify it:
+
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-auto-name]

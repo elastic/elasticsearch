@@ -174,7 +174,7 @@ public class TrainedModelProvider {
         IndexRequest request =
             createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig);
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        
+
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
@@ -840,8 +840,6 @@ public class TrainedModelProvider {
                         }
                     });
 
-                    logger.info("found IDS: " + tokens + ", for request " + idExpression);
-
                     // Reverse lookup to see what model aliases were matched by their found trained model IDs
                     ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoResources);
                     requiredMatches.filterMatchedIds(matchedTokens);
@@ -1134,10 +1132,11 @@ public class TrainedModelProvider {
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
             TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
+
             if (builder.getModelType() == null) {
                 // before TrainedModelConfig::modelType was added tree ensembles and the
                 // lang ident model were the only models supported. Models created after
-                // VERSION_MODEL_TYPE_ADDED must have modelType set, if not set modelType
+                // VERSION_3RD_PARTY_CONFIG_ADDED must have modelType set, if not set modelType
                 // is a tree ensemble
                 assert builder.getVersion().before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED);
                 builder.setModelType(TrainedModelType.TREE_ENSEMBLE);

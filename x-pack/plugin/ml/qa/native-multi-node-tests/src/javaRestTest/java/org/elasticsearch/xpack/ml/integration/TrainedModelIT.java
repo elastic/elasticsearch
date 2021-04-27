@@ -259,7 +259,7 @@ public class TrainedModelIT extends ESRestTestCase {
             GetTrainedModelsResponse response = GetTrainedModelsResponse.fromXContent(parser);
             TrainedModelConfig model = response.getTrainedModels().get(0);
             assertThat(model.getModelType(), equalTo(TrainedModelType.PYTORCH));
-            assertThat(model.getLocation().getModelId(), equalTo(modelId));
+            assertThat(model.getLocation().getModelId(), equalTo(pytorchModelId));
             assertThat(model.getLocation().getIndex(), equalTo(index));
             assertThat(model.getEstimatedOperations(), equalTo(0L));
         }
@@ -286,6 +286,7 @@ public class TrainedModelIT extends ESRestTestCase {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelConfig.builder()
                 .setLocation(new TrainedModelLocation(pytorchModelId, index))
+                .setModelType(TrainedModelType.PYTORCH)
                 .setInferenceConfig(new ClassificationConfig())
                 .setModelId(modelId)
                 .setInput(new TrainedModelInput(Collections.singletonList("text")))

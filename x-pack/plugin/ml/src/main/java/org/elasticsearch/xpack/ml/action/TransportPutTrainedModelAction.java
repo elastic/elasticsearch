@@ -75,16 +75,19 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                    ClusterState state,
                                    ActionListener<Response> listener) {
         TrainedModelConfig config = request.getTrainedModelConfig();
+        try {
+            config.ensureParsedDefinition(xContentRegistry);
+        } catch (IOException ex) {
+            listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]",
+                ex,
+                config.getModelId()));
+            return;
+        }
+
         boolean hasModelDefinition = config.getModelDefinition() != null;
         if (hasModelDefinition) {
             try {
-                config.ensureParsedDefinition(xContentRegistry);
                 config.getModelDefinition().getTrainedModel().validate();
-            } catch (IOException ex) {
-                listener.onFailure(ExceptionsHelper.badRequestException("Failed to parse definition for [{}]",
-                    ex,
-                    config.getModelId()));
-                return;
             } catch (ElasticsearchException ex) {
                 listener.onFailure(ExceptionsHelper.badRequestException("Definition for [{}] has validation failures.",
                     ex,

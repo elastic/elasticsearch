@@ -354,6 +354,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
         }
         if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
             builder.setModelType((TrainedModelType)null);
+            builder.setLocation(null);
         }
         return builder.build();
     }

@@ -14,7 +14,7 @@ tasks.named("dependencyLicenses").configure { enabled = false }
 
 tasks.register("buildZip", Zip) {
   dependsOn "jar"
-  String parentDir = "license-tools-${archiveVersion}"
+  String parentDir = "license-tools-${project.version}"
   into(parentDir + '/lib') {
     from jar
     from configurations.runtimeClasspath

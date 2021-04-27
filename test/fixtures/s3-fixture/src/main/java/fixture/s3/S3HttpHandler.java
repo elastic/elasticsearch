@@ -10,11 +10,14 @@ package fixture.s3;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
@@ -22,16 +25,15 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -40,8 +42,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.CheckedInputStream;
-import java.util.zip.Checksum;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -121,15 +121,19 @@ public class S3HttpHandler implements HttpHandler {
                     .max()
                     .orElse(0);
 
-                final ByteArrayOutputStream blob = new ByteArrayOutputStream();
-                for (int partNumber = 0; partNumber <= nbParts; partNumber++) {
+                final BytesReference[] parts = new BytesReference[nbParts];
+                final BytesReference placeHolder = blobs.remove(multipartKey(uploadId, 0));
+                if (placeHolder.length() > 0) {
+                    throw new AssertionError("first blob should be empty but was of length [" + placeHolder.length() + "]");
+                }
+                for (int partNumber = 1; partNumber <= nbParts; partNumber++) {
                     BytesReference part = blobs.remove(multipartKey(uploadId, partNumber));
                     if (part == null) {
                         throw new AssertionError("Upload part is null");
                     }
-                    part.writeTo(blob);
+                    parts[partNumber - 1] = part;
                 }
-                blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
+                blobs.put(exchange.getRequestURI().getPath(), CompositeBytesReference.of(parts));
 
                 byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                     "<CompleteMultipartUploadResult>\n" +
@@ -272,97 +276,56 @@ public class S3HttpHandler implements HttpHandler {
         return uploadId + "\n" + partNumber;
     }
 
-    private static CheckedInputStream createCheckedInputStream(final InputStream inputStream, final MessageDigest digest) {
-        return new CheckedInputStream(inputStream, new Checksum() {
-            @Override
-            public void update(int b) {
-                digest.update((byte) b);
-            }
-
-            @Override
-            public void update(byte[] b, int off, int len) {
-                digest.update(b, off, len);
-            }
-
-            @Override
-            public long getValue() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void reset() {
-                digest.reset();
-            }
-        });
-    }
-
     private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
         final BytesReference bytesReference;
 
         final String headerDecodedContentLength = exchange.getRequestHeaders().getFirst("x-amz-decoded-content-length");
+        final BytesReference rawRequestBody = Streams.readFully(exchange.getRequestBody());
         if (headerDecodedContentLength == null) {
-            bytesReference = Streams.readFully(exchange.getRequestBody());
+            bytesReference = rawRequestBody;
         } else {
-            BytesReference cc = Streams.readFully(exchange.getRequestBody());
-
-            final ByteArrayOutputStream blob = new ByteArrayOutputStream();
-            try (BufferedInputStream in = new BufferedInputStream(cc.streamInput())) {
-                int chunkSize = 0;
-                int read;
-                while ((read = in.read()) != -1) {
-                    boolean markAndContinue = false;
-                    try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                        do { // search next consecutive {carriage return, new line} chars and stop
-                            if ((char) read == '\r') {
-                                int next = in.read();
-                                if (next != -1) {
-                                    if (next == '\n') {
-                                        break;
-                                    }
-                                    out.write(read);
-                                    out.write(next);
-                                    continue;
-                                }
-                            }
-                            out.write(read);
-                        } while ((read = in.read()) != -1);
-
-                        final String line = new String(out.toByteArray(), UTF_8);
-                        if (line.length() == 0 || line.equals("\r\n")) {
-                            markAndContinue = true;
-                        } else {
-                            Matcher matcher = chunkSignaturePattern.matcher(line);
-                            if (matcher.find()) {
-                                markAndContinue = true;
-                                chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
-                            }
-                        }
-                        if (markAndContinue) {
-                            in.mark(Integer.MAX_VALUE);
-                            continue;
-                        }
-                    }
-                    if (chunkSize > 0) {
-                        in.reset();
-                        final byte[] buffer = new byte[chunkSize];
-                        in.read(buffer, 0, buffer.length);
-                        blob.write(buffer);
-                        blob.flush();
-                        chunkSize = 0;
+            final List<BytesReference> chunks = new ArrayList<>();
+            int offset = 0;
+            while (offset < rawRequestBody.length()) {
+                int rIndex = rawRequestBody.indexOf((byte) '\r', offset);
+                while (rIndex > 0 && rIndex < rawRequestBody.length() - 1) {
+                    if (rawRequestBody.get(rIndex + 1) == '\n') {
+                        break;
                     }
                 }
+                final int chunkSize;
+                if (offset == rIndex || offset + 1 == rIndex) {
+                    offset = rIndex + 2;
+                    continue;
+                } else {
+                    Matcher matcher = chunkSignaturePattern.matcher(rawRequestBody.slice(offset, rIndex - offset).utf8ToString());
+                    if (matcher.find()) {
+                        offset = rIndex + 2;
+                        chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
+                    } else {
+                        continue;
+                    }
+                }
+                if (chunkSize > 0) {
+                    chunks.add(rawRequestBody.slice(offset, chunkSize));
+                    offset += chunkSize;
+                }
             }
-            if (blob.size() != Integer.parseInt(headerDecodedContentLength)) {
+            bytesReference = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
+            if (bytesReference.length() != Integer.parseInt(headerDecodedContentLength)) {
                 throw new IllegalStateException("Something went wrong when parsing the chunked request " +
-                    "[bytes read=" + blob.size() + ", expected=" + headerDecodedContentLength + "]");
+                    "[bytes read=" + bytesReference.length() + ", expected=" + headerDecodedContentLength + "]");
             }
-            bytesReference = new BytesArray(blob.toByteArray());
         }
 
         final MessageDigest digest = MessageDigests.md5();
-        Streams.readFully(createCheckedInputStream(bytesReference.streamInput(), digest));
+        BytesRef ref;
+        final BytesRefIterator iterator = bytesReference.iterator();
+        while ((ref = iterator.next()) != null) {
+            digest.update(ref.bytes, ref.offset, ref.length);
+        }
         return Tuple.tuple(MessageDigests.toHexString(digest.digest()), bytesReference);
     }
 

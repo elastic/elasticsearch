@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.internal.BuildPlugin
 
 /*
  * This script plugin configures formatting for Java source using Spotless

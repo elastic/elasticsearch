@@ -51,6 +51,9 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
         );
         analyzeRepositoryRequest.timeout(request.paramAsTime("timeout", analyzeRepositoryRequest.getTimeout()));
         analyzeRepositoryRequest.detailed(request.paramAsBoolean("detailed", analyzeRepositoryRequest.getDetailed()));
+        analyzeRepositoryRequest.abortWritePermitted(
+            request.paramAsBoolean("rarely_abort_writes", analyzeRepositoryRequest.isAbortWritePermitted())
+        );
 
         RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
         return channel -> cancelClient.execute(

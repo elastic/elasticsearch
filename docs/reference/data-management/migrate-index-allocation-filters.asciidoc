@@ -36,8 +36,8 @@ A node can also have other <<modules-node,roles>>. By default, new nodes are
 configured with all roles.
 
 When you add a data tier to an {ess} deployment,
-new nodes are automatically assigned to the tier.
-To change the role of an existing node in an {ess} deployment, use the
+one or more nodes are automatically configured with the corresponding role.
+To explicitly change the role of a node in an {ess} deployment, use the
 {cloud}/ec-api-deployment-crud.html#ec_update_a_deployment[Update deployment API].
 Replace the node's `node_type` configuration with the appropriate `node_roles`.
 For example, the following configuration adds the node to the hot and content
@@ -99,6 +99,7 @@ that set the hot shard allocation attribute on all indices.
 ----
 DELETE _template/.cloud-hot-warm-allocation-0
 ----
+// TEST[skip:no cloud template]
 
 If you're using a custom index template, update it to remove the <<shard-allocation-filtering, attribute-based allocation filters>> you used to assign new indices to the hot tier.
 

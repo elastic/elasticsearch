@@ -17,9 +17,10 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,11 +29,9 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.junit.Assume.assumeTrue;
 
 /**
  * Basic test that indexed documents survive the rolling restart. See
@@ -45,7 +44,6 @@ import static org.junit.Assume.assumeTrue;
  */
 public class IndexingIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72012")
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:
@@ -86,6 +84,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                     template.endObject();
                     Request createTemplate = new Request("PUT", "/_template/prevent-bwc-deprecation-template");
                     createTemplate.setJsonEntity(Strings.toString(template));
+                    createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                     client().performRequest(createTemplate);
                 }
             }

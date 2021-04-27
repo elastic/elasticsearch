@@ -1039,7 +1039,7 @@ Defines optional {transform} settings.
 end::transform-settings[]
 
 tag::transform-settings-dates-as-epoch-milli[]
-Defines if dates in the ouput should be written as ISO formatted string (default)
+Defines if dates in the output should be written as ISO formatted string (default)
 or as millis since epoch. `epoch_millis` has been the default for transforms created
 before version `7.11`. For compatible output set this to `true`.
 The default value is `false`.

@@ -561,7 +561,7 @@ end::dfas-downsample-factor[]
 tag::dfas-early-stopping-enabled[]
 Advanced configuration option.
 Specifies whether the training process should finish if it is not finding any
-better perfoming models. If disabled, the training process can take significantly
+better performing models. If disabled, the training process can take significantly
 longer and the chance of finding a better performing model is unremarkable.
 By default, early stoppping is enabled.
 end::dfas-early-stopping-enabled[]

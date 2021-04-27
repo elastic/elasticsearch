@@ -266,6 +266,11 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+            return wildcardQuery(value, method, false, context);
+        }
+
+        @Override
         public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
 
             String ngramIndexPattern = addLineEndChars(wildcardPattern);

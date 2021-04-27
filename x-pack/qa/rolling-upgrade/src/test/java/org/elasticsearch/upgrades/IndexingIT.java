@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 
 import java.io.IOException;
@@ -30,6 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
  * duplication but for now we have no real way to share code.
  */
 public class IndexingIT extends AbstractUpgradeTestCase {
+
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:
@@ -70,6 +72,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
                     template.endObject();
                     Request createTemplate = new Request("PUT", "/_template/xpack-prevent-bwc-deprecation-template");
                     createTemplate.setJsonEntity(Strings.toString(template));
+                    createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                     client().performRequest(createTemplate);
                 }
             }

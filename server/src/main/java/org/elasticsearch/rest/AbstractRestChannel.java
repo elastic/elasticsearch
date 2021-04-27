@@ -68,6 +68,8 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newErrorBuilder() throws IOException {
+        // release whatever output we already buffered and write error response to fresh buffer
+        releaseOutputBuffer();
         // Disable filtering when building error responses
         return newBuilder(request.getXContentType(), false);
     }

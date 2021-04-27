@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -66,7 +67,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             }
 
             long sortValue = implicitTiebreakerValues.get(ordinal);
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), new Text("_doc"), null, null);
             searchHit.sortValues(new SearchSortValues(
                 new Long[] { (long) ordinal, sortValue },
                 new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }));
@@ -82,7 +83,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                    hits.add(new SearchHit(-1, hitRef.id(), new Text("_doc"), null, null));
                 }
                 searchHits.add(hits);
             }

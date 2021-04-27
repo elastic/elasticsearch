@@ -70,17 +70,14 @@ public class FieldFetcher {
                 unmappedFetchPattern.add(fieldAndFormat.field);
             }
 
-            Collection<String> concreteFields = context.simpleMatchToIndexNames(fieldPattern);
-            for (String field : concreteFields) {
-                MappedFieldType ft = context.getFieldType(field);
-                if (ft == null) {
-                    continue;
-                }
+            Collection<MappedFieldType> concreteFields = context.getMatchingFieldTypes(fieldPattern);
+            for (MappedFieldType ft : concreteFields) {
+
                 // we want to skip metadata fields if we have a wildcard pattern
-                if (context.isMetadataField(field) && isWildcardPattern) {
+                if (context.isMetadataField(ft.name()) && isWildcardPattern) {
                     continue;
                 }
-                if (field.startsWith(nestedScopePath) == false) {
+                if (ft.name().startsWith(nestedScopePath) == false) {
                     // this field is out of scope for this FieldFetcher (its likely nested) so ignore
                     continue;
                 }
@@ -88,7 +85,7 @@ public class FieldFetcher {
                 if (nestedParentPaths.isEmpty() == false) {
                     // try to find the shortest nested parent path for this field
                     for (String nestedFieldPath : nestedParentPaths) {
-                        if (field.startsWith(nestedFieldPath)) {
+                        if (ft.name().startsWith(nestedFieldPath)) {
                             nestedParentPath = nestedFieldPath;
                             break;
                         }
@@ -96,6 +93,7 @@ public class FieldFetcher {
                 }
                 // only add concrete fields if they are not beneath a known nested field
                 if (nestedParentPath == null) {
+                    String field = isWildcardPattern ? ft.name() : fieldAndFormat.field;
                     ValueFetcher valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
                     fieldContexts.put(field, new FieldContext(field, valueFetcher));
                 }

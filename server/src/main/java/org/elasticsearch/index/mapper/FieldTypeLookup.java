@@ -10,10 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -90,28 +92,22 @@ final class FieldTypeLookup {
         return dynamicKeyLookup.get(field);
     }
 
-    /**
-     * Returns all the mapped field types.
-     */
-    Collection<MappedFieldType> get() {
-        return fullNameToFieldType.values();
-    }
-
-    /**
-     * Returns a list of the full names of a simple match regex like pattern against full name and index name.
-     */
-    Set<String> simpleMatchToFullName(String pattern) {
+    Collection<MappedFieldType> getMatching(String pattern) {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
+            // no wildcard, so it's an exact pattern and we just delegate to get()
+            MappedFieldType exactMatch = get(pattern);
+            return exactMatch == null ? Collections.emptySet() : Collections.singleton(exactMatch);
         }
-        Set<String> fields = new HashSet<>();
+        if ("*".equals(pattern)) {
+            return Collections.unmodifiableCollection(fullNameToFieldType.values());
+        }
+        List<MappedFieldType> matches = new ArrayList<>();
         for (String field : fullNameToFieldType.keySet()) {
             if (Regex.simpleMatch(pattern, field)) {
-                fields.add(field);
+                matches.add(fullNameToFieldType.get(field));
             }
         }
-        return fields;
+        return matches;
     }
 
     /**

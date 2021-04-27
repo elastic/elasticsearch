@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -48,15 +49,14 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     @Override
     protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
-        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
-        Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
-                || context.isFieldMapped(field)).collect(Collectors.toList());
+        Collection<String> mappedFields
+            = context.getMatchingFieldTypes(fieldPattern).stream().map(MappedFieldType::name).collect(Collectors.toList());
         if (mappedFields.size() == 0) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
-        } else if (fields.size() == 1) {
+        } else if (mappedFields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
-            String field = expectedFieldName(fields.iterator().next());
+            String field = expectedFieldName(mappedFields.iterator().next());
             if (context.getObjectMapper(field) != null) {
                 assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
                 BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();

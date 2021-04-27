@@ -19,20 +19,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         assertNull(lookup.get("foo"));
-        Collection<String> names = lookup.simpleMatchToFullName("foo");
-        assertNotNull(names);
-        assertThat(names, equalTo(Set.of("foo")));
+        Collection<MappedFieldType> names = lookup.getMatching("foo");
+        assertThat(names, hasSize(0));
     }
 
     public void testAddNewField() {
@@ -53,6 +53,10 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(field.fieldType(), aliasType);
     }
 
+    private static Set<String> fieldNames(String pattern, FieldTypeLookup lookup) {
+        return lookup.getMatching(pattern).stream().map(MappedFieldType::name).collect(Collectors.toSet());
+    }
+
     public void testSimpleMatchToFullName() {
         MockFieldMapper field1 = new MockFieldMapper("foo");
         MockFieldMapper field2 = new MockFieldMapper("bar");
@@ -62,7 +66,7 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         FieldTypeLookup lookup = new FieldTypeLookup(List.of(field1, field2), List.of(alias1, alias2), List.of());
 
-        Collection<String> names = lookup.simpleMatchToFullName("b*");
+        Collection<String> names = fieldNames("b*", lookup);
 
         assertFalse(names.contains("foo"));
         assertFalse(names.contains("food"));
@@ -132,13 +136,13 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(field1, concrete), emptyList(), List.of(field2, subfield));
         {
-            Set<String> matches = fieldTypeLookup.simpleMatchToFullName("fie*");
+            Set<String> matches = fieldNames("fie*", fieldTypeLookup);
             assertEquals(2, matches.size());
             assertTrue(matches.contains("field1"));
             assertTrue(matches.contains("field2"));
         }
         {
-            Set<String> matches = fieldTypeLookup.simpleMatchToFullName("object.sub*");
+            Set<String> matches = fieldNames("object.sub*", fieldTypeLookup);
             assertEquals(1, matches.size());
             assertTrue(matches.contains("object.subfield"));
         }

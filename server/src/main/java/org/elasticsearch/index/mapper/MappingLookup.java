@@ -197,13 +197,6 @@ public final class MappingLookup {
         return fieldMappers.values();
     }
 
-    /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> fieldTypes() {
-        return fieldTypeLookup.get();
-    }
-
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
@@ -292,8 +285,8 @@ public final class MappingLookup {
         return field.substring(0, lastDot);
     }
 
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return fieldTypesLookup().simpleMatchToFullName(pattern);
+    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+        return fieldTypesLookup().getMatching(pattern);
     }
 
     /**

@@ -79,7 +79,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -87,7 +86,10 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -348,14 +350,23 @@ public class SearchExecutionContextTests extends ESTestCase {
             runtimeMappings);
         assertTrue(context.isFieldMapped("cat"));
         assertThat(context.getFieldType("cat"), instanceOf(KeywordScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("cat"), equalTo(Set.of("cat")));
+        assertThat(context.getMatchingFieldTypes("cat"), hasSize(1));
+        assertThat(context.getMatchingFieldTypes("cat"), contains(context.getFieldType("cat")));
         assertTrue(context.isFieldMapped("dog"));
         assertThat(context.getFieldType("dog"), instanceOf(LongScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("dog"), equalTo(Set.of("dog")));
+        assertThat(context.getMatchingFieldTypes("dog"), hasSize(1));
+        assertThat(context.getMatchingFieldTypes("dog"), contains(context.getFieldType("dog")));
         assertTrue(context.isFieldMapped("pig"));
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
-        assertThat(context.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
+        assertThat(context.getMatchingFieldTypes("pig"), hasSize(1));
+        assertThat(context.getMatchingFieldTypes("pig"), contains(context.getFieldType("pig")));
+
+        assertThat(context.getMatchingFieldTypes("*"), hasSize(3));
+        assertThat(context.getMatchingFieldTypes("*"), containsInAnyOrder(
+            context.getFieldType("cat"),
+            context.getFieldType("dog"),
+            context.getFieldType("pig")
+        ));
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {

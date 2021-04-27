@@ -8,6 +8,7 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.ArrayList;
@@ -31,11 +32,9 @@ public class FetchDocValuesContext {
      */
     public FetchDocValuesContext(SearchExecutionContext searchExecutionContext, List<FieldAndFormat> fieldPatterns) {
         for (FieldAndFormat field : fieldPatterns) {
-            Collection<String> fieldNames = searchExecutionContext.simpleMatchToIndexNames(field.field);
-            for (String fieldName : fieldNames) {
-                if (searchExecutionContext.isFieldMapped(fieldName)) {
-                    fields.add(new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
-                }
+            Collection<MappedFieldType> fieldTypes = searchExecutionContext.getMatchingFieldTypes(field.field);
+            for (MappedFieldType fieldType : fieldTypes) {
+                fields.add(new FieldAndFormat(fieldType.name(), field.format, field.includeUnmapped));
             }
         }
 

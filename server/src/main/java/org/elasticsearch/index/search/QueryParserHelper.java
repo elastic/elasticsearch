@@ -19,7 +19,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Helpers to extract and expand field names and boosts
@@ -112,19 +111,17 @@ public final class QueryParserHelper {
      */
     static Map<String, Float> resolveMappingField(SearchExecutionContext context, String fieldOrPattern, float weight,
                                                   boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
-        Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
+        Collection<MappedFieldType> resolvedFields = context.getMatchingFieldTypes(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
 
-        for (String fieldName : allFields) {
-            if (fieldSuffix != null && context.getFieldType(fieldName + fieldSuffix) != null) {
-                fieldName = fieldName + fieldSuffix;
+        for (MappedFieldType fieldType : resolvedFields) {
+            if (fieldSuffix != null) {
+                MappedFieldType suffixed = context.getFieldType(fieldType.name() + fieldSuffix);
+                if (suffixed != null) {
+                    fieldType = suffixed;
+                }
             }
 
-            if (context.isFieldMapped(fieldName) == false) {
-                continue;
-            }
-
-            MappedFieldType fieldType = context.getFieldType(fieldName);
             if (acceptMetadataField == false && fieldType.name().startsWith("_")) {
                 // Ignore metadata fields
                 continue;
@@ -136,14 +133,8 @@ public final class QueryParserHelper {
                 }
             }
 
-            // Deduplicate aliases and their concrete fields.
-            String resolvedFieldName = fieldType.name();
-            if (allFields.contains(resolvedFieldName)) {
-                fieldName = resolvedFieldName;
-            }
-
-            float w = fields.getOrDefault(fieldName, 1.0F);
-            fields.put(fieldName, w * weight);
+            float w = fields.getOrDefault(fieldType.name(), 1.0F);
+            fields.put(fieldType.name(), w * weight);
         }
         return fields;
     }

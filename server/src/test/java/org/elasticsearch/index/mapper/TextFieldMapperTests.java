@@ -831,9 +831,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         SearchExecutionContext context = createSearchExecutionContext(ms);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
-            .add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
-            .build()), q);
+        assertEquals(new ConstantScoreQuery(new NormsFieldExistsQuery("foo.bar")), q);
     }
 
     private static void assertAnalyzesTo(Analyzer analyzer, String field, String input, String[] output) throws IOException {

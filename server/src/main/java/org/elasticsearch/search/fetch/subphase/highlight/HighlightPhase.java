@@ -10,7 +10,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -20,7 +19,6 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -94,26 +92,16 @@ public class HighlightPhase implements FetchSubPhase {
         Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
         for (SearchHighlightContext.Field field : highlightContext.fields()) {
             Highlighter highlighter = getHighlighter(field);
-            Collection<String> fieldNamesToHighlight;
-            if (Regex.isSimpleMatchPattern(field.field())) {
-                fieldNamesToHighlight = context.getSearchExecutionContext().simpleMatchToIndexNames(field.field());
-            } else {
-                fieldNamesToHighlight = Collections.singletonList(field.field());
-            }
+            Collection<MappedFieldType> fieldsToHighlight = context.getSearchExecutionContext().getMatchingFieldTypes(field.field());
 
             if (highlightContext.forceSource(field)) {
                 if (context.getSearchExecutionContext().isSourceEnabled() == false) {
-                    throw new IllegalArgumentException("source is forced for fields " + fieldNamesToHighlight
-                        + " but _source is disabled");
+                    throw new IllegalArgumentException("source is forced for highlighting but _source is disabled");
                 }
             }
 
             boolean fieldNameContainsWildcards = field.field().contains("*");
-            for (String fieldName : fieldNamesToHighlight) {
-                MappedFieldType fieldType = context.getSearchExecutionContext().getFieldType(fieldName);
-                if (fieldType == null) {
-                    continue;
-                }
+            for (MappedFieldType fieldType : fieldsToHighlight) {
 
                 // We should prevent highlighting if a field is anything but a text or keyword field.
                 // However, someone might implement a custom field type that has text and still want to
@@ -136,7 +124,7 @@ public class HighlightPhase implements FetchSubPhase {
                 Query highlightQuery = field.fieldOptions().highlightQuery();
 
                 boolean forceSource = highlightContext.forceSource(field);
-                builders.put(fieldName,
+                builders.put(fieldType.name(),
                     hc -> new FieldHighlightContext(fieldType.name(), field, fieldType, context, hc,
                         highlightQuery == null ? query : highlightQuery, forceSource, sharedCache));
             }

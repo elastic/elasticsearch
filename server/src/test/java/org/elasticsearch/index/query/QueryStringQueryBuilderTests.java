@@ -510,13 +510,11 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryFieldsWildcard() throws Exception {
         Query query = queryStringQuery("test").field("mapped_str*").toQuery(createSearchExecutionContext());
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
-        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
-            equalTo(new Term(TEXT_FIELD_NAME, "test")));
-        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
-            equalTo(new Term(KEYWORD_FIELD_NAME, "test")));
+        // TODO this is fragile because the order of disjuncts in DMQ matters for equality
+        Query expected = new DisjunctionMaxQuery(List.of(
+            new TermQuery(new Term(KEYWORD_FIELD_NAME, "test")),
+            new TermQuery(new Term(TEXT_FIELD_NAME, "test"))), 0.0f);
+        assertThat(query, equalTo(expected));
     }
 
     /**
@@ -1555,8 +1553,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field(TEXT_FIELD_NAME.substring(0, TEXT_FIELD_NAME.length()-2) + "*", 0.5f)
             .toQuery(createSearchExecutionContext());
         List<Query> terms = new ArrayList<>();
-        terms.add(new BoostQuery(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), 0.075f));
         terms.add(new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "first")), 0.5f));
+        terms.add(new BoostQuery(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), 0.075f));
         Query expected = new DisjunctionMaxQuery(terms, 1.0f);
         assertEquals(expected, query);
     }

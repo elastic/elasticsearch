@@ -53,11 +53,11 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
@@ -107,21 +107,20 @@ public class TransportFieldCapabilitiesIndexAction
                 return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
             }
 
-            Set<String> fieldNames = new HashSet<>();
+            List<MappedFieldType> fields = new ArrayList<>();
             for (String pattern : request.fields()) {
-                fieldNames.addAll(searchExecutionContext.simpleMatchToIndexNames(pattern));
+                fields.addAll(searchExecutionContext.getMatchingFieldTypes(pattern));
             }
 
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
             Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-            for (String field : fieldNames) {
-                MappedFieldType ft = searchExecutionContext.getFieldType(field);
+            for (MappedFieldType ft : fields) {
                 if (ft != null) {
-                    boolean isMetadataField = searchExecutionContext.isMetadataField(field);
+                    boolean isMetadataField = searchExecutionContext.isMetadataField(ft.name());
                     if (isMetadataField || fieldPredicate.test(ft.name())) {
-                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field,
+                        IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(ft.name(),
                             ft.familyTypeName(), isMetadataField, ft.isSearchable(), ft.isAggregatable(), ft.meta());
-                        responseMap.put(field, fieldCap);
+                        responseMap.put(ft.name(), fieldCap);
                     } else {
                         continue;
                     }

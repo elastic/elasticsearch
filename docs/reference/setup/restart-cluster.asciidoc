@@ -13,11 +13,13 @@ time, so the service remains uninterrupted.
 [[restart-cluster-full]]
 === Full-cluster restart
 
+// tag::disable_shard_alloc[]
 . *Disable shard allocation.*
 +
 --
 include::{es-repo-dir}/upgrade/disable-shard-alloc.asciidoc[]
 --
+// end::disable_shard_alloc[]
 // tag::stop_indexing[]
 . *Stop indexing and perform a flush.*
 +
@@ -168,12 +170,8 @@ the datafeeds from {kib} or with the <<ml-open-job,open jobs>> and
 [[restart-cluster-rolling]]
 === Rolling restart
 
-. *Disable shard allocation.*
-+
---
-include::{es-repo-dir}/upgrade/disable-shard-alloc.asciidoc[]
-This step is only necessary for <<data-node,data nodes>>.
---
+
+include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=disable_shard_alloc]
 
 include::{es-repo-dir}/setup/restart-cluster.asciidoc[tag=stop_indexing]
 
@@ -211,7 +209,7 @@ GET _cat/nodes
 . *Reenable shard allocation.*
 +
 --
-Once the node has joined the cluster, remove the
+For data nodes, once the node has joined the cluster, remove the
 `cluster.routing.allocation.enable` setting to enable shard allocation and start
 using the node:
 

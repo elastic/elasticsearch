@@ -162,7 +162,7 @@ public class XPackPlugin extends XPackClientPlugin
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
 
-        setLicenseState(new XPackLicenseState(settings, () -> getEpochMillisSupplier().getAsLong()));
+        setLicenseState(new XPackLicenseState(() -> getEpochMillisSupplier().getAsLong()));
 
         this.licensing = new Licensing(settings);
     }
@@ -244,12 +244,12 @@ public class XPackPlugin extends XPackClientPlugin
             clusterState.custom(TokenMetadata.TYPE) != null ||
             metadata.custom(TransformMetadata.TYPE) != null;
     }
-    
+
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
-    
+
 
     @Override
     public Settings additionalSettings() {

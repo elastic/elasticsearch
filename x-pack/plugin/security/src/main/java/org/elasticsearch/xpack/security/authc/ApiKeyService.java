@@ -70,7 +70,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -177,7 +176,6 @@ public class ApiKeyService {
 
     private final Clock clock;
     private final Client client;
-    private final XPackLicenseState licenseState;
     private final SecurityIndexManager securityIndex;
     private final ClusterService clusterService;
     private final Hasher hasher;
@@ -192,11 +190,10 @@ public class ApiKeyService {
 
     private volatile long lastExpirationRunMs;
 
-    public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
+    public ApiKeyService(Settings settings, Clock clock, Client client, SecurityIndexManager securityIndex,
                          ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
         this.clock = clock;
         this.client = client;
-        this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.enabled = XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.get(settings);

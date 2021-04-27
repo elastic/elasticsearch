@@ -12,10 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.common.MemoizedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.transport.TransportActionProxy;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
@@ -30,11 +32,13 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
 
     private final ThreadContext threadContext;
     private final XPackLicenseState licenseState;
+    private final Settings settings;
     private final Logger logger;
 
-    FieldAndDocumentLevelSecurityRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState) {
+    FieldAndDocumentLevelSecurityRequestInterceptor(ThreadContext threadContext, XPackLicenseState licenseState, Settings settings) {
         this.threadContext = threadContext;
         this.licenseState = licenseState;
+        this.settings = settings;
         this.logger = LogManager.getLogger(getClass());
     }
 
@@ -43,7 +47,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                           ActionListener<Void> listener) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
-            boolean shouldIntercept = licenseState.isSecurityEnabled();
+            boolean shouldIntercept = XPackSettings.SECURITY_ENABLED.get(settings);
             var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
             if (supports(indicesRequest) && shouldIntercept) {
                 final IndicesAccessControl indicesAccessControl =

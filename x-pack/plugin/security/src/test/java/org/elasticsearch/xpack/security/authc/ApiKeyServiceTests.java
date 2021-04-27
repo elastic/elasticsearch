@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -118,7 +117,6 @@ import static org.mockito.Mockito.when;
 public class ApiKeyServiceTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private XPackLicenseState licenseState;
     private Client client;
     private SecurityIndexManager securityIndex;
     private CacheInvalidatorRegistry cacheInvalidatorRegistry;
@@ -139,9 +137,6 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     @Before
     public void setupMocks() {
-        this.licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
@@ -1061,7 +1056,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             .put(baseSettings)
             .build();
         final ApiKeyService service = new ApiKeyService(
-            settings, Clock.systemUTC(), client, licenseState, securityIndex,
+            settings, Clock.systemUTC(), client, securityIndex,
             ClusterServiceUtils.createClusterService(threadPool),
             cacheInvalidatorRegistry, threadPool);
         if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {

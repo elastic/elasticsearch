@@ -266,7 +266,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, licenseState, securityIndex, clusterService,
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex, clusterService,
                                           mock(CacheInvalidatorRegistry.class), threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);

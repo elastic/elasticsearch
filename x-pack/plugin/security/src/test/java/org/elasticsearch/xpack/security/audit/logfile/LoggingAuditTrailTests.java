@@ -288,8 +288,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         logger = CapturingLogger.newCapturingLogger(randomFrom(Level.OFF, Level.FATAL, Level.ERROR, Level.WARN, Level.INFO), patternLayout);
         auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
-        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, new XPackLicenseState(settings, () -> 0),
-                                          securityIndexManager, clusterService,
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndexManager, clusterService,
                                           mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class));
     }
 

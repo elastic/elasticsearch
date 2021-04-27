@@ -93,8 +93,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             arg0.updateLocalNodeInfo(localNode);
             return null;
         }).when(clusterService).addListener(Mockito.isA(LoggingAuditTrail.class));
-        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), mock(Client.class), new XPackLicenseState(settings, () -> 0),
-                                          mock(SecurityIndexManager.class), clusterService,
+        apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), mock(Client.class), mock(SecurityIndexManager.class), clusterService,
                                           mock(CacheInvalidatorRegistry.class), mock(ThreadPool.class));
     }
 

@@ -505,7 +505,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             rolesProviders.addAll(extension.getRolesProviders(extensionComponents));
         }
 
-        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, getLicenseState(), securityIndex.get(),
+        final ApiKeyService apiKeyService = new ApiKeyService(settings, Clock.systemUTC(), client, securityIndex.get(),
             clusterService, cacheInvalidatorRegistry, threadPool);
         components.add(apiKeyService);
 
@@ -548,12 +548,12 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityIndex.get().addIndexStateListener(authcService.get()::onSecurityIndexStateChange);
 
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
-            new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), auditTrailService));
+            new ResizeRequestInterceptor(threadPool, getLicenseState(), settings, auditTrailService),
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), getLicenseState(), settings, auditTrailService));
         if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             requestInterceptors.addAll(Arrays.asList(
-                new SearchRequestInterceptor(threadPool, getLicenseState()),
-                new UpdateRequestInterceptor(threadPool, getLicenseState()),
+                new SearchRequestInterceptor(threadPool, getLicenseState(), settings),
+                new UpdateRequestInterceptor(threadPool, getLicenseState(), settings),
                 new BulkShardRequestInterceptor(threadPool, getLicenseState(), settings)
             ));
         }

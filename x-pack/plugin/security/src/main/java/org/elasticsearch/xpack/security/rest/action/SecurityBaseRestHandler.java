@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;

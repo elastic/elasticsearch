@@ -15,6 +15,7 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -75,7 +76,6 @@ public class RealmsTests extends ESTestCase {
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         threadContext = new ThreadContext(Settings.EMPTY);
         reservedRealm = mock(ReservedRealm.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         allowAllRealms();
         when(reservedRealm.type()).thenReturn(ReservedRealm.TYPE);
         when(reservedRealm.name()).thenReturn("reserved");
@@ -481,6 +481,7 @@ public class RealmsTests extends ESTestCase {
     public void testAuthcAuthzDisabled() throws Exception {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put("xpack.security.authc.realms." + FileRealmSettings.TYPE + ".realm_1.order", 0)
                 .build();
         Environment env = TestEnvironment.newEnvironment(settings);
@@ -488,7 +489,6 @@ public class RealmsTests extends ESTestCase {
 
         assertThat(realms.iterator().hasNext(), is(true));
 
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
         assertThat(realms.iterator().hasNext(), is(false));
     }
 
@@ -541,7 +541,6 @@ public class RealmsTests extends ESTestCase {
         }
 
         // check standard realms include native
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         allowOnlyStandardRealms();
         future = new PlainActionFuture<>();
         realms.usageStats(future);

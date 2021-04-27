@@ -41,7 +41,6 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
      */
     public void testBodyConsumed() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
         final RestHasPrivilegesAction action =
             new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder().startObject().endObject();
@@ -59,7 +58,6 @@ public class RestHasPrivilegesActionTests extends ESTestCase {
 
     public void testSecurityDisabled() throws Exception {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         final RestHasPrivilegesAction action =
             new RestHasPrivilegesAction(Settings.EMPTY, mock(SecurityContext.class), licenseState);

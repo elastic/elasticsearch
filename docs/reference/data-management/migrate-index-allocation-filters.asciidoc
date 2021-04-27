@@ -141,6 +141,7 @@ PUT my-index/_settings
   "index.routing.allocation.include._tier_preference": "data_hot"
 }
 ----
+// TEST[continued]
 
 For indices that have already transitioned out of the hot phase,
 the tier preference should include the appropriate fallback tiers
@@ -157,5 +158,6 @@ PUT my-index/_settings
   "index.routing.allocation.include._tier_preference": "data_warm,data_hot"
 }
 ----
+// TEST[continued]
 
 If an index is already in the cold phase, include the cold, warm, and hot tiers.

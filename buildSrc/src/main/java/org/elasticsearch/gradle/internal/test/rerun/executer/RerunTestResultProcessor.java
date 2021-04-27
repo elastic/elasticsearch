@@ -50,6 +50,7 @@ final class RerunTestResultProcessor implements TestResultProcessor {
 
     @Override
     public void completed(Object testId, TestCompleteEvent testCompleteEvent) {
+        boolean active = activeDescriptorsById.containsKey(testId);
         if (testId.equals(rootTestDescriptorId)) {
             if (activeDescriptorsById.size() != 1) {
                 return;
@@ -57,18 +58,23 @@ final class RerunTestResultProcessor implements TestResultProcessor {
         } else {
             activeDescriptorsById.remove(testId);
         }
-
-        delegate.completed(testId, testCompleteEvent);
+        if (active) {
+            delegate.completed(testId, testCompleteEvent);
+        }
     }
 
     @Override
     public void output(Object testId, TestOutputEvent testOutputEvent) {
-        delegate.output(testId, testOutputEvent);
+        if (activeDescriptorsById.containsKey(testId)) {
+            delegate.output(testId, testOutputEvent);
+        }
     }
 
     @Override
     public void failure(Object testId, Throwable throwable) {
-        delegate.failure(testId, throwable);
+        if (activeDescriptorsById.containsKey(testId)) {
+            delegate.failure(testId, throwable);
+        }
     }
 
     public void reset() {

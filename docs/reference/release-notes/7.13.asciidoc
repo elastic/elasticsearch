@@ -169,6 +169,7 @@ Machine Learning::
 * Add put and delete trained model alias APIs to high-level REST client {es-pull}69214[#69214]
 * Speed up training of regression and classification models for data sets with many features {ml-pull}1746[#1746]
 * Adjust the syscall filter to allow mremap and avoid spurious audit logging {ml-pull}1819[#1819]
+* Avoid overfitting in final training by scaling regularizers to account for the difference in the number of training examples. This results in a better match between train and test errors for classification and regression and often slightly improved test errors {ml-pull}1755[#1755]
 
 Mapping::
 * Add calculated numeric fields {es-pull}69531[#69531]

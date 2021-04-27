@@ -16,7 +16,7 @@ See <<security-api,Security APIs>>.
 
 See <<security-api,Security APIs>>.
 
-[role="exclude",id="security-api-delete-service-tokens"]
+[role="exclude",id="security-api-delete-service-token"]
 === Delete service account tokens
 
 See <<security-api,Security APIs>>.

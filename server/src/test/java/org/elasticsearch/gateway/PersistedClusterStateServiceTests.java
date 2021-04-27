@@ -587,7 +587,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private NodeEnvironment newNodeEnvironment(Path dataPath) throws IOException {
         return newNodeEnvironment(Settings.builder()
-            .put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
+            .put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString())
             .build());
     }
 

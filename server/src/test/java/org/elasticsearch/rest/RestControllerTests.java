@@ -780,7 +780,12 @@ public class RestControllerTests extends ESTestCase {
 
         @Override
         public void sendResponse(RestResponse response) {
-            throw new IllegalStateException("always throwing an exception for testing");
+            try {
+                throw new IllegalStateException("always throwing an exception for testing");
+            } finally {
+                // the production implementation in DefaultRestChannel always releases the output buffer, so we must too
+                releaseOutputBuffer();
+            }
         }
     }
 

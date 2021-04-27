@@ -116,7 +116,11 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
 
         assertAcked(client().admin().cluster().prepareDeleteRepository(repoName));
 
-        try (Stream<Path> rootContents = Files.list(repoPath.resolve(EncryptedRepository.DEK_ROOT_CONTAINER))) {
+        try (
+            Stream<Path> rootContents = Files.list(
+                repoPath.resolve(EncryptedRepository.DEK_ROOT_CONTAINER).resolve(EncryptedRepository.DEKS_GEN_CONTAINER)
+            )
+        ) {
             // tamper all DEKs
             rootContents.filter(Files::isDirectory).forEach(DEKRootPath -> {
                 try (Stream<Path> contents = Files.list(DEKRootPath)) {

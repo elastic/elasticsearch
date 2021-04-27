@@ -588,12 +588,13 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoryException.class,
             () -> PlainActionFuture.<RepositoryData, Exception>get(blobStoreRepository::getRepositoryData)
         );
-        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
+        // TODO detect incorrect repository
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName + "2").setWaitForCompletion(true).get()
         );
-        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));

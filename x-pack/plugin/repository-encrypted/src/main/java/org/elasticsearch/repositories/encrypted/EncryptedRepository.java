@@ -78,6 +78,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     // the path of the blob container holding all the DEKs
     // this is relative to the root base path holding the encrypted blobs (i.e. the repository root base path)
     static final String DEK_ROOT_CONTAINER = ".encryption-metadata"; // package private for tests
+    static final String DEKS_GEN_CONTAINER = "deks"; // package private for tests
     static final int DEK_ID_LENGTH = 22; // {@code org.elasticsearch.common.UUIDS} length
 
     // the snapshot metadata (residing in the cluster state for the lifetime of the snapshot)
@@ -304,13 +305,12 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     // pkg-private for tests
-    Tuple<String, SecretKey> generateKEK(String dekId) {
+    SecretKey generateKEK(String dekId) {
         try {
             // we rely on the DEK Id being generated randomly so it can be used as a salt
             final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(repositoryPassword, dekId);
-            final String kekId = AESKeyUtils.computeId(kek);
-            logger.debug("Repository [{}] computed KEK [{}] for DEK [{}]", metadata.name(), kekId, dekId);
-            return new Tuple<>(kekId, kek);
+            logger.debug("Repository [{}] computed KEK for DEK [{}]", metadata.name(), dekId);
+            return kek;
         } catch (GeneralSecurityException e) {
             throw new RepositoryException(metadata.name(), "Failure to generate KEK to wrap the DEK [" + dekId + "]", e);
         }
@@ -363,7 +363,8 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final BlobStore delegatedBlobStore;
         private final BlobPath delegatedBasePath;
         private final String repositoryName;
-        private final Function<String, Tuple<String, SecretKey>> getKEKforDEK;
+        private final long passwordGeneration;
+        private final Function<String, SecretKey> getKEKforDEK;
         private final Cache<String, SecretKey> dekCache;
         private final CheckedSupplier<SingleUseKey, IOException> singleUseDEKSupplier;
 
@@ -371,13 +372,14 @@ public class EncryptedRepository extends BlobStoreRepository {
             BlobStore delegatedBlobStore,
             BlobPath delegatedBasePath,
             String repositoryName,
-            Function<String, Tuple<String, SecretKey>> getKEKforDEK,
+            Function<String, SecretKey> getKEKforDEK,
             Supplier<Tuple<BytesReference, SecretKey>> dekGenerator,
             Cache<String, SecretKey> dekCache
         ) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.delegatedBasePath = delegatedBasePath;
             this.repositoryName = repositoryName;
+            this.passwordGeneration = 0; // hard-coded for now
             this.getKEKforDEK = getKEKforDEK;
             this.dekCache = dekCache;
             this.singleUseDEKSupplier = SingleUseKey.createSingleUseKeySupplier(() -> {
@@ -405,15 +407,15 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         private SecretKey loadDEK(String dekId) throws IOException {
-            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(dekId);
+            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER)
+                .add(DEKS_GEN_CONTAINER)
+                .add(String.valueOf(passwordGeneration));
             logger.debug("Repository [{}] loading wrapped DEK [{}] from blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
-            final Tuple<String, SecretKey> kekTuple = getKEKforDEK.apply(dekId);
-            final String kekId = kekTuple.v1();
-            final SecretKey kek = kekTuple.v2();
-            logger.trace("Repository [{}] using KEK [{}] to unwrap DEK [{}]", repositoryName, kekId, dekId);
+            final SecretKey kek = getKEKforDEK.apply(dekId);
+            logger.trace("Repository [{}] using KEK to unwrap DEK [{}]", repositoryName, dekId);
             final byte[] encryptedDEKBytes = new byte[AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES];
-            try (InputStream encryptedDEKInputStream = dekBlobContainer.readBlob(kekId)) {
+            try (InputStream encryptedDEKInputStream = dekBlobContainer.readBlob(dekId)) {
                 final int bytesRead = Streams.readFully(encryptedDEKInputStream, encryptedDEKBytes);
                 if (bytesRead != AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES) {
                     throw new RepositoryException(
@@ -437,10 +439,10 @@ public class EncryptedRepository extends BlobStoreRepository {
                     e
                 );
             }
-            logger.trace("Repository [{}] successfully read DEK [{}] from path {} {}", repositoryName, dekId, dekBlobPath, kekId);
+            logger.trace("Repository [{}] successfully read DEK [{}] from path {}", repositoryName, dekId, dekBlobPath);
             try {
                 final SecretKey dek = AESKeyUtils.unwrap(kek, encryptedDEKBytes);
-                logger.debug("Repository [{}] successfully loaded DEK [{}] from path {} {}", repositoryName, dekId, dekBlobPath, kekId);
+                logger.debug("Repository [{}] successfully loaded DEK [{}] from path {}", repositoryName, dekId, dekBlobPath);
                 return dek;
             } catch (GeneralSecurityException e) {
                 throw new RepositoryException(
@@ -456,14 +458,16 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         // pkg-private for tests
         void storeDEK(String dekId, SecretKey dek) throws IOException {
-            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(dekId);
+            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER)
+                .add(DEKS_GEN_CONTAINER)
+                .add(String.valueOf(passwordGeneration));
             logger.debug("Repository [{}] storing wrapped DEK [{}] under blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
-            final Tuple<String, SecretKey> kek = getKEKforDEK.apply(dekId);
-            logger.trace("Repository [{}] using KEK [{}] to wrap DEK [{}]", repositoryName, kek.v1(), dekId);
+            final SecretKey kek = getKEKforDEK.apply(dekId);
+            logger.trace("Repository [{}] using KEK to wrap DEK [{}]", repositoryName, dekId);
             final byte[] encryptedDEKBytes;
             try {
-                encryptedDEKBytes = AESKeyUtils.wrap(kek.v2(), dek);
+                encryptedDEKBytes = AESKeyUtils.wrap(kek, dek);
                 if (encryptedDEKBytes.length != AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES) {
                     throw new RepositoryException(
                         repositoryName,
@@ -476,8 +480,8 @@ public class EncryptedRepository extends BlobStoreRepository {
                 throw new RepositoryException(repositoryName, "Failure to AES wrap the DEK [" + dekId + "]", e);
             }
             logger.trace("Repository [{}] successfully wrapped DEK [{}]", repositoryName, dekId);
-            dekBlobContainer.writeBlobAtomic(kek.v1(), new BytesArray(encryptedDEKBytes), true);
-            logger.debug("Repository [{}] successfully stored DEK [{}] under path {} {}", repositoryName, dekId, dekBlobPath, kek.v1());
+            dekBlobContainer.writeBlobAtomic(dekId, new BytesArray(encryptedDEKBytes), true);
+            logger.debug("Repository [{}] successfully stored DEK [{}] under path {}", repositoryName, dekId, dekBlobPath);
         }
 
         @Override

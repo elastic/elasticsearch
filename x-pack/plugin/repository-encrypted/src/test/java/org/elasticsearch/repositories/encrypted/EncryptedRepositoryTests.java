@@ -14,7 +14,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -114,20 +113,28 @@ public class EncryptedRepositoryTests extends ESTestCase {
 
         encryptedBlobStore.storeDEK(DEKId, DEK);
 
-        Tuple<String, SecretKey> KEK = encryptedRepository.generateKEK(DEKId);
-        assertThat(blobsMap.keySet(), contains(delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(DEKId).add(KEK.v1())));
+        SecretKey KEK = encryptedRepository.generateKEK(DEKId);
+        assertThat(
+            blobsMap.keySet(),
+            contains(
+                delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER).add("0").add(DEKId)
+            )
+        );
         byte[] wrappedKey = blobsMap.values().iterator().next();
-        SecretKey unwrappedKey = AESKeyUtils.unwrap(KEK.v2(), wrappedKey);
+        SecretKey unwrappedKey = AESKeyUtils.unwrap(KEK, wrappedKey);
         assertThat(unwrappedKey.getEncoded(), equalTo(DEK.getEncoded()));
     }
 
     public void testGetDEKSuccess() throws Exception {
         String DEKId = randomAlphaOfLengthBetween(16, 32); // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec(randomByteArrayOfLength(32), "AES");
-        Tuple<String, SecretKey> KEK = encryptedRepository.generateKEK(DEKId);
+        SecretKey KEK = encryptedRepository.generateKEK(DEKId);
 
-        byte[] wrappedDEK = AESKeyUtils.wrap(KEK.v2(), DEK);
-        blobsMap.put(delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(DEKId).add(KEK.v1()), wrappedDEK);
+        byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
+        blobsMap.put(
+            delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER).add("0").add(DEKId),
+            wrappedDEK
+        );
 
         SecretKey loadedDEK = encryptedBlobStore.getDEKById(DEKId);
         assertThat(loadedDEK.getEncoded(), equalTo(DEK.getEncoded()));
@@ -136,12 +143,15 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void testGetTamperedDEKFails() throws Exception {
         String DEKId = randomAlphaOfLengthBetween(16, 32);  // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec("01234567890123456789012345678901".getBytes(StandardCharsets.UTF_8), "AES");
-        Tuple<String, SecretKey> KEK = encryptedRepository.generateKEK(DEKId);
+        SecretKey KEK = encryptedRepository.generateKEK(DEKId);
 
-        byte[] wrappedDEK = AESKeyUtils.wrap(KEK.v2(), DEK);
+        byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
         int tamperPos = randomIntBetween(0, wrappedDEK.length - 1);
         wrappedDEK[tamperPos] ^= 0xFF;
-        blobsMap.put(delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(DEKId).add(KEK.v1()), wrappedDEK);
+        blobsMap.put(
+            delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER).add("0").add(DEKId),
+            wrappedDEK
+        );
 
         RepositoryException e = expectThrows(RepositoryException.class, () -> encryptedBlobStore.getDEKById(DEKId));
         assertThat(e.repository(), equalTo(repositoryMetadata.name()));
@@ -164,13 +174,11 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void testGenerateKEK() {
         String id1 = "fixed identifier 1";
         String id2 = "fixed identifier 2";
-        Tuple<String, SecretKey> KEK1 = encryptedRepository.generateKEK(id1);
-        Tuple<String, SecretKey> KEK2 = encryptedRepository.generateKEK(id2);
-        assertThat(KEK1.v1(), not(equalTo(KEK2.v1())));
-        assertThat(KEK1.v2(), not(equalTo(KEK2.v2())));
-        Tuple<String, SecretKey> sameKEK1 = encryptedRepository.generateKEK(id1);
-        assertThat(KEK1.v1(), equalTo(sameKEK1.v1()));
-        assertThat(KEK1.v2(), equalTo(sameKEK1.v2()));
+        SecretKey KEK1 = encryptedRepository.generateKEK(id1);
+        SecretKey KEK2 = encryptedRepository.generateKEK(id2);
+        SecretKey sameKEK1 = encryptedRepository.generateKEK(id1);
+        assertThat(KEK1.getEncoded(), equalTo(sameKEK1.getEncoded()));
+        assertThat(KEK1.getEncoded(), not(equalTo(KEK2.getEncoded())));
     }
 
 }

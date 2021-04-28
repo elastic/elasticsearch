@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.internal.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
+import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceMatch;
@@ -31,7 +32,6 @@ import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllo
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
-import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceLength;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
@@ -120,12 +120,12 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     /**
      * A transformation to replace the key in a length assertion.
-     * @see ReplaceLength
+     * @see ReplaceKeyInLength
      * @param oldKeyName   the key name directly under length to replace.
      * @param newKeyName   the new key name directly under length.
      */
     public void replaceKeyInLength(String oldKeyName, String newKeyName) {
-        transformations.add(new ReplaceLength(oldKeyName, newKeyName, null));
+        transformations.add(new ReplaceKeyInLength(oldKeyName, newKeyName, null));
     }
 
     /**

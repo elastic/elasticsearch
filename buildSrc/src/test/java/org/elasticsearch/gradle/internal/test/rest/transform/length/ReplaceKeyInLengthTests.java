@@ -16,7 +16,7 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.List;
 
-public class ReplaceLengthTests extends TransformTests {
+public class ReplaceKeyInLengthTests extends TransformTests {
 
     @Test
     public void testLengthKeyChange() throws Exception {
@@ -29,7 +29,7 @@ public class ReplaceLengthTests extends TransformTests {
 
         List<ObjectNode> transformedTests = transformTests(
             tests,
-            Collections.singletonList(new ReplaceLength("key.in_length_to_replace", "key.in_length_replaced", null))
+            Collections.singletonList(new ReplaceKeyInLength("key.in_length_to_replace", "key.in_length_replaced", null))
         );
 
         AssertObjectNodes.areEqual(transformedTests, expectedTransformation);

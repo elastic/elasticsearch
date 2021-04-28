@@ -15,9 +15,9 @@ import org.gradle.api.tasks.Internal;
  * A transformation to replace the key in a length assertion.
  * For example, change from "length ":{"index._type": 1} to "length ":{"index._doc": 1}
  */
-public class ReplaceLength extends ReplaceKeyInMatch {
+public class ReplaceKeyInLength extends ReplaceKeyInMatch {
 
-    public ReplaceLength(String replaceKey, String newKeyName, String testName) {
+    public ReplaceKeyInLength(String replaceKey, String newKeyName, String testName) {
         super(replaceKey, newKeyName, testName);
     }
 

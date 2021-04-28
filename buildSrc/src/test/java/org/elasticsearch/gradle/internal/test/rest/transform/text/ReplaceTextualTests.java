@@ -16,7 +16,6 @@ import org.elasticsearch.gradle.internal.test.rest.transform.AssertObjectNodes;
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.junit.Test;
 
-import java.util.LinkedList;
 import java.util.List;
 
 public class ReplaceTextualTests extends TransformTests {
@@ -33,7 +32,7 @@ public class ReplaceTextualTests extends TransformTests {
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
         List<ObjectNode> transformedTests = transformTests(
-            new LinkedList<>(tests),
+            tests,
             List.of(
                 new ReplaceTextual("key_to_replace", "value_to_replace", MAPPER.convertValue("_replaced_value", TextNode.class), null),
                 new ReplaceIsTrue("is_true_to_replace", MAPPER.convertValue("is_true_replaced", TextNode.class)),

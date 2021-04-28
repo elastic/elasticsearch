@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.junit.Test;
 
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 
 public class ReplaceLengthTests extends TransformTests {
@@ -29,7 +28,7 @@ public class ReplaceLengthTests extends TransformTests {
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
         List<ObjectNode> transformedTests = transformTests(
-            new LinkedList<>(tests),
+            tests,
             Collections.singletonList(new ReplaceLength("key.in_length_to_replace", "key.in_length_replaced", null))
         );
 

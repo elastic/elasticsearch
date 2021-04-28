@@ -18,7 +18,6 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -34,7 +33,7 @@ public class ReplaceMatchTests extends TransformTests {
         JsonNode replacementNode = MAPPER.convertValue("_replaced_type", JsonNode.class);
         validateTest(tests, true, true);
         List<ObjectNode> transformedTests = transformTests(
-            new LinkedList<>(tests),
+            tests,
             Collections.singletonList(new ReplaceMatch("_type", replacementNode, null))
         );
         printTest(testName, transformedTests);
@@ -49,7 +48,7 @@ public class ReplaceMatchTests extends TransformTests {
         JsonNode replacementNode = MAPPER.convertValue("_replaced_type", JsonNode.class);
         validateTest(tests, true, false);
         List<ObjectNode> transformedTests = transformTests(
-            new LinkedList<>(tests),
+            tests,
             Collections.singletonList(new ReplaceMatch("_type", replacementNode, "Last test"))
         );
         printTest(testName, transformedTests);

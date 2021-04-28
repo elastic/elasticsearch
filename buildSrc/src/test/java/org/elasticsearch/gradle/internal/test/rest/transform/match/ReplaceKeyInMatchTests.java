@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.junit.Test;
 
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 
 public class ReplaceKeyInMatchTests extends TransformTests {
@@ -29,7 +28,7 @@ public class ReplaceKeyInMatchTests extends TransformTests {
         List<ObjectNode> expectedTransformation = getTests(test_transformed);
 
         List<ObjectNode> transformedTests = transformTests(
-            new LinkedList<>(tests),
+            tests,
             Collections.singletonList(new ReplaceKeyInMatch("match.key.to_replace", "match.key.replaced", null))
         );
 

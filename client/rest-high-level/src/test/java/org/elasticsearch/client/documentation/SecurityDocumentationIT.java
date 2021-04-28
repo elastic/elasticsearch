@@ -88,6 +88,8 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
+import org.elasticsearch.client.security.ClientEnrollmentRequest;
+import org.elasticsearch.client.security.ClientEnrollmentResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -119,12 +121,12 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -2560,6 +2562,70 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
             assertThat(resp.getAuthenticationType(), is("token"));
+        }
+    }
+
+    public void testClientEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::client-enrollment-kibana-request
+            char[] kibanaSystemPassword = new char[]{'k','i','b','a','n','a', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            ClientEnrollmentRequest request = new ClientEnrollmentRequest("kibana", kibanaSystemPassword);
+            // end::client-enrollment-kibana-request
+
+            // tag::client-enrollment-kibana-execute
+            ClientEnrollmentResponse response = client.security().enrollClient(request, RequestOptions.DEFAULT);
+            // end::client-enrollment-kibana-execute
+
+            // tag::client-enrollment-kibana-response
+            String httoCa = response.getHttpCa(); // <1>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <2>
+            // end::client-enrollment-kibana-response
+        }
+
+        {
+            // tag::client-enrollment-generic-client-request
+            ClientEnrollmentRequest request = new ClientEnrollmentRequest("generic_client", null);
+            // end::client-enrollment-generic-client-request
+
+            // tag::client-enrollment-generic-client-execute
+            ClientEnrollmentResponse response = client.security().enrollClient(request, RequestOptions.DEFAULT);
+            // end::client-enrollment-generic-client-execute
+
+            // tag::client-enrollment-generic-client-response
+            String httoCa = response.getHttpCa();
+            List<String> nodesAddresses = response.getNodesAddresses();
+            // end::client-enrollment-generic-client-response
+            assertThat(nodesAddresses.size(), equalTo(1)); // single-node cluster for docs tests
+            assertThat(httoCa,
+                endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
+        }
+
+        {
+            ClientEnrollmentRequest request = new ClientEnrollmentRequest("languange-client", null);
+            // tag::client-enrollment-generic-client-execute-listener
+            ActionListener<ClientEnrollmentResponse> listener =
+                new ActionListener<ClientEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(ClientEnrollmentResponse response) {
+                        // <1>
+                    }
+
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::client-enrollment-generic-client-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::client-enrollment-generic-client-execute-async
+            client.security().enrollClientAsync(request, RequestOptions.DEFAULT, listener);
+            // end::client-enrollment-generic-client-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.action;
+package org.elasticsearch.xpack.core.security.action.enrollment;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;

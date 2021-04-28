@@ -29,8 +29,6 @@ import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
-import org.elasticsearch.client.xpack.ClientEnrollmentRequest;
-import org.elasticsearch.client.xpack.ClientEnrollmentResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -54,7 +52,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -700,67 +697,4 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
-    public void testClientEnrollment() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        {
-            // tag::client-enrollment-kibana-request
-            char[] kibanaSystemPassword = new char[]{'k','i','b','a','n','a', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest("kibana", kibanaSystemPassword);
-            // end::client-enrollment-kibana-request
-
-            // tag::client-enrollment-kibana-execute
-            ClientEnrollmentResponse response = client.cluster().enrollClient(request, RequestOptions.DEFAULT);
-            // end::client-enrollment-kibana-execute
-
-            // tag::client-enrollment-kibana-response
-            String httoCa = response.getHttpCa(); // <1>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <2>
-            // end::client-enrollment-kibana-response
-        }
-
-        {
-            // tag::client-enrollment-generic-client-request
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest("generic_client", null);
-            // end::client-enrollment-generic-client-request
-
-            // tag::client-enrollment-generic-client-execute
-            ClientEnrollmentResponse response = client.cluster().enrollClient(request, RequestOptions.DEFAULT);
-            // end::client-enrollment-generic-client-execute
-
-            // tag::client-enrollment-generic-client-response
-            String httoCa = response.getHttpCa();
-            List<String> nodesAddresses = response.getNodesAddresses();
-            // end::client-enrollment-generic-client-response
-            assertThat(nodesAddresses.size(), equalTo(1)); // single-node cluster for docs tests
-            assertThat(httoCa,
-                endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
-        }
-
-        {
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest("languange-client", null);
-            // tag::client-enrollment-generic-client-execute-listener
-            ActionListener<ClientEnrollmentResponse> listener =
-                new ActionListener<ClientEnrollmentResponse>() {
-                @Override
-                public void onResponse(ClientEnrollmentResponse response) {
-                    // <1>
-                }
-
-
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }};
-            // end::client-enrollment-generic-client-execute-listener
-
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::client-enrollment-generic-client-execute-async
-            client.cluster().enrollClientAsync(request, RequestOptions.DEFAULT, listener);
-            // end::client-enrollment-generic-client-execute-async
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-    }
 }

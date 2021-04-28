@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.action;
+package org.elasticsearch.xpack.security.action.enrollment;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -31,6 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.enrollment.ClientEnrollmentRequest;
+import org.elasticsearch.xpack.core.security.action.enrollment.ClientEnrollmentResponse;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.junit.Before;

@@ -67,6 +67,8 @@ import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
+import org.elasticsearch.client.security.ClientEnrollmentRequest;
+import org.elasticsearch.client.security.ClientEnrollmentResponse;
 
 import java.io.IOException;
 
@@ -1130,4 +1132,38 @@ public final class SecurityClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }
+
+
+    /**
+     * Enrolls a client to a secured cluster using the Enroll Client API
+     *
+     * @param clientEnrollmentRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public ClientEnrollmentResponse enrollClient(
+        ClientEnrollmentRequest clientEnrollmentRequest,
+        RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(clientEnrollmentRequest,
+            SecurityRequestConverters::clientEnrollment,
+            options,
+            ClientEnrollmentResponse::fromXContent,
+            emptySet());
+    }
+
+    /**
+     * Asynchronously enrolls a client to a secured cluster using the Enroll Client API
+     *
+     * @param clientEnrollmentRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public Cancellable enrollClientAsync(ClientEnrollmentRequest clientEnrollmentRequest,
+        RequestOptions options,
+        ActionListener<ClientEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(clientEnrollmentRequest,
+            SecurityRequestConverters::clientEnrollment, options, ClientEnrollmentResponse::fromXContent, listener, emptySet());
+    }
+
 }

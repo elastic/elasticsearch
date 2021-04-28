@@ -45,7 +45,7 @@ include-tagged::{doc-tests-file}[{api}-kibana-response]
 [id="{upid}-{api}-execute-async"]
 ==== Asynchronous Execution
 
-This request can be executed asynchronously using the `cluster().enrollClientAsync()`
+This request can be executed asynchronously using the `security().enrollClientAsync()`
 method:
 
 ["source","java",subs="attributes,callouts,macros"]

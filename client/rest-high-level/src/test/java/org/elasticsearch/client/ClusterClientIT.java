@@ -27,8 +27,6 @@ import org.elasticsearch.client.indices.DeleteComponentTemplateRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesRequest;
 import org.elasticsearch.client.indices.GetComponentTemplatesResponse;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
-import org.elasticsearch.client.xpack.ClientEnrollmentRequest;
-import org.elasticsearch.client.xpack.ClientEnrollmentResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -54,7 +52,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -390,24 +387,4 @@ public class ClusterClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(exist);
     }
 
-    public void testEnrollClient() throws Exception {
-        ClientEnrollmentRequest genericClientRequest = new ClientEnrollmentRequest("kibana", null);
-        ClientEnrollmentResponse genericClientResponse =
-            execute(genericClientRequest, highLevelClient().cluster()::enrollClient, highLevelClient().cluster()::enrollClientAsync);
-        assertThat(genericClientResponse, notNullValue());
-        assertThat(genericClientResponse.getHttpCa()
-            , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
-        List<String> nodesAddresses = genericClientResponse.getNodesAddresses();
-        assertThat(nodesAddresses.size(), equalTo(1));
-
-        ClientEnrollmentRequest kibanaRequest = new ClientEnrollmentRequest("kibana",
-            new char[]{'k','i','b','a','n','a', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'});
-        ClientEnrollmentResponse kibanaResponse =
-            execute(kibanaRequest, highLevelClient().cluster()::enrollClient, highLevelClient().cluster()::enrollClientAsync);
-        assertThat(kibanaRequest, notNullValue());
-        assertThat(kibanaResponse.getHttpCa()
-            , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
-        List<String> nodesAddresses2 = kibanaResponse.getNodesAddresses();
-        assertThat(nodesAddresses2.size(), equalTo(1));
-    }
 }

@@ -31,6 +31,8 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.client.security.ClientEnrollmentRequest;
+import org.elasticsearch.client.security.ClientEnrollmentResponse;
 import org.elasticsearch.common.CharArrays;
 
 import java.io.IOException;
@@ -42,9 +44,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SecurityIT extends ESRestHighLevelClientTestCase {
 
@@ -150,6 +155,28 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final DeleteRoleResponse deleteRoleResponse = securityClient.deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
         // assert role deleted
         assertThat(deleteRoleResponse.isFound(), is(true));
+    }
+
+
+    public void testEnrollClient() throws Exception {
+        ClientEnrollmentRequest genericClientRequest = new ClientEnrollmentRequest("kibana", null);
+        ClientEnrollmentResponse genericClientResponse =
+            execute(genericClientRequest, highLevelClient().security()::enrollClient, highLevelClient().security()::enrollClientAsync);
+        assertThat(genericClientResponse, notNullValue());
+        assertThat(genericClientResponse.getHttpCa()
+            , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
+        List<String> nodesAddresses = genericClientResponse.getNodesAddresses();
+        assertThat(nodesAddresses.size(), equalTo(1));
+
+        ClientEnrollmentRequest kibanaRequest = new ClientEnrollmentRequest("kibana",
+            new char[]{'k','i','b','a','n','a', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'});
+        ClientEnrollmentResponse kibanaResponse =
+            execute(kibanaRequest, highLevelClient().security()::enrollClient, highLevelClient().security()::enrollClientAsync);
+        assertThat(kibanaRequest, notNullValue());
+        assertThat(kibanaResponse.getHttpCa()
+            , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
+        List<String> nodesAddresses2 = kibanaResponse.getNodesAddresses();
+        assertThat(nodesAddresses2.size(), equalTo(1));
     }
 
     private void deleteUser(User user) throws IOException {

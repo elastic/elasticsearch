@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.action;
+package org.elasticsearch.xpack.security.action.enrollment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -25,6 +25,9 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.enrollment.ClientEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.ClientEnrollmentRequest;
+import org.elasticsearch.xpack.core.security.action.enrollment.ClientEnrollmentResponse;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
@@ -106,6 +109,5 @@ public class TransportClientEnrollmentAction extends HandledTransportAction<Clie
         } else {
             return null;
         }
-
     }
 }

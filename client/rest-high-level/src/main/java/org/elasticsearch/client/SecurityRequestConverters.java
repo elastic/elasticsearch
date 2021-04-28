@@ -40,6 +40,7 @@ import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.SetUserEnabledRequest;
+import org.elasticsearch.client.security.ClientEnrollmentRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -327,6 +328,12 @@ final class SecurityRequestConverters {
     static Request invalidateApiKey(final InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
         final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
         request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request clientEnrollment(ClientEnrollmentRequest clientEnrollmentRequest) throws IOException{
+        Request request = new Request(HttpPost.METHOD_NAME, "/_security/enroll_client");
+        request.setEntity(RequestConverters.createEntity(clientEnrollmentRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 }

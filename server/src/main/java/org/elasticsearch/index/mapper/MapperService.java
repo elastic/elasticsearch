@@ -96,6 +96,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
+    private final MappingLookup emptyMappingLookup;
 
     private volatile DocumentMapper mapper;
 
@@ -117,6 +118,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
         this.mappingParser = new MappingParser(parserContextSupplier, metadataMapperParsers,
             this::getMetadataMappers, this::resolveDocumentType);
+        //pre-compute the empty mapping lookup for this mapper service so it can be returned whenever document mapper is null
+        MetadataFieldMapper[] metadataMappers = getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
+        Mapping mapping = Mapping.empty(MapperService.SINGLE_MAPPING_NAME, indexSettings.getIndexVersionCreated(), metadataMappers);
+        this.emptyMappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
     }
 
     public boolean hasNested() {
@@ -149,7 +154,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
             }
-
         } else {
             metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }
@@ -355,12 +359,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappingLookup mappingLookup() {
         DocumentMapper mapper = this.mapper;
-        if (mapper == null) {
-            MetadataFieldMapper[] metadataMappers = getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
-            Mapping mapping = Mapping.empty(MapperService.SINGLE_MAPPING_NAME, indexSettings.getIndexVersionCreated(), metadataMappers);
-            return MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
-        }
-        return mapper.mappers();
+        return mapper == null ? emptyMappingLookup : mapper.mappers();
     }
 
     /**

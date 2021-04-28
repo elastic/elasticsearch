@@ -165,7 +165,7 @@ cache on one or more nodes. Indices mounted with the shared cache mount option
 are only allocated to nodes that have a shared cache.
 
 [[searchable-snapshots-shared-cache]]
-`xpack.searchable.snapshot.shared_cache.size`::
+`xpack.searchable.snapshot.shared_cache.size` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The size of the space reserved for the shared cache, either specified as a
 percentage of total disk space or an absolute <<byte-units,byte value>>.

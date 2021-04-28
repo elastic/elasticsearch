@@ -192,13 +192,23 @@ public final class QuerySearchResult extends SearchPhaseResult {
      * Returns and nulls out the aggregation for this search results. This allows to free up memory once the aggregation is consumed.
      * @throws IllegalStateException if the aggregations have already been consumed.
      */
-    public DelayableWriteable<InternalAggregations> consumeAggs() {
+    public InternalAggregations consumeAggs() {
         if (aggregations == null) {
             throw new IllegalStateException("aggs already consumed");
         }
-        DelayableWriteable<InternalAggregations> aggs = aggregations;
-        aggregations = null;
-        return aggs;
+        try {
+            return aggregations.expand();
+        } finally {
+            aggregations.close();
+            aggregations = null;
+        }
+    }
+
+    public void releaseAggs() {
+        if (aggregations != null) {
+            aggregations.close();
+            aggregations = null;
+        }
     }
 
     public void aggregations(InternalAggregations aggregations) {
@@ -235,8 +245,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
         if (hasConsumedTopDocs() == false) {
             consumeTopDocs();
         }
-        if (hasAggs()) {
-            consumeAggs();
+        if (aggregations != null) {
+            aggregations.close();
+            aggregations = null;
         }
     }
 

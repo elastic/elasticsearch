@@ -46,7 +46,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
             indexService.mapperService());
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(new ContentPath(1));
-        MappedFieldType fieldType1 = fieldMapper.fieldType().childFieldType("key");
+        MappedFieldType fieldType1 = fieldMapper.fieldType().getChildFieldType("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
@@ -83,7 +83,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         assertEquals(1, onCacheCalled.get());
 
         // Load global field data for the subfield 'other_key'.
-        MappedFieldType fieldType2 = fieldMapper.fieldType().childFieldType("other_key");
+        MappedFieldType fieldType2 = fieldMapper.fieldType().getChildFieldType("other_key");
         IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });

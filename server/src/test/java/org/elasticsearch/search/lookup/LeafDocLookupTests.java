@@ -11,6 +11,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -62,9 +63,9 @@ public class LeafDocLookupTests extends ESTestCase {
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(new ContentPath(1));
-        MappedFieldType fieldType = fieldMapper.fieldType();
-        MappedFieldType fieldType1 = fieldType.childFieldType("key1");
-        MappedFieldType fieldType2 = fieldType.childFieldType("key2");
+        DynamicFieldType fieldType = fieldMapper.fieldType();
+        MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
+        MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");
 
         Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = ft -> {
             FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;

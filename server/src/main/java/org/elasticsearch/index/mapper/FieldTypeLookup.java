@@ -23,6 +23,7 @@ import java.util.Set;
  */
 final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
+    private final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -41,12 +42,13 @@ final class FieldTypeLookup {
         Collection<RuntimeField> runtimeFields
     ) {
 
-        int maxParentPathDots = 0;
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            maxParentPathDots = Math.max(maxParentPathDots, dotCount(fieldType.name()));
+            if (fieldType instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
+            }
             for (String targetField : fieldMapper.copyTo().copyToFields()) {
                 Set<String> sourcePath = fieldToCopiedFields.get(targetField);
                 if (sourcePath == null) {
@@ -56,6 +58,11 @@ final class FieldTypeLookup {
                 }
                 fieldToCopiedFields.get(targetField).add(fieldName);
             }
+        }
+
+        int maxParentPathDots = 0;
+        for (String dynamicRoot : dynamicFieldTypes.keySet()) {
+            maxParentPathDots = Math.max(maxParentPathDots, dotCount(dynamicRoot));
         }
         this.maxParentPathDots = maxParentPathDots;
 
@@ -106,11 +113,18 @@ final class FieldTypeLookup {
         }
 
         // Try parent fields instead!
+        if (dynamicFieldTypes.isEmpty()) {
+            // nope, no parent fields defined
+            return null;
+        }
         String parentField = longestPossibleParent(field);
         while (true) {
             fieldType = fullNameToFieldType.get(parentField);
             if (fieldType != null) {
-                return fieldType.childFieldType(field.substring(parentField.length() + 1));
+                if (dynamicFieldTypes.containsKey(fieldType.name())) {
+                    DynamicFieldType dft = dynamicFieldTypes.get(fieldType.name());
+                    return dft.getChildFieldType(field.substring(parentField.length() + 1));
+                }
             }
             if (parentField.contains(".") == false) {
                 break;

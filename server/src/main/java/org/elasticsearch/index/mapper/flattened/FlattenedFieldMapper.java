@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -379,7 +380,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
      * A field type that represents all 'root' values. This field type is used in
      * searches on the flattened field itself, e.g. 'my_flattened: some_value'.
      */
-    public static final class RootFlattenedFieldType extends StringFieldType {
+    public static final class RootFlattenedFieldType extends StringFieldType implements DynamicFieldType {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
 
@@ -422,7 +423,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MappedFieldType childFieldType(String childPath) {
+        public MappedFieldType getChildFieldType(String childPath) {
             return new KeyedFlattenedFieldType(name(), childPath, this);
         }
     }

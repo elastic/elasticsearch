@@ -306,6 +306,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
                 contextSuggestField("timmy"),
                 contextSuggestField("starbucks")
             ));
+            // check that the indexable fields produce tokenstreams without throwing an exception
+            // if this breaks it is likely a problem with setting contexts
             try (TokenStream ts = indexableFields.getFields("field.subsuggest")[0].tokenStream(Lucene.WHITESPACE_ANALYZER, null)) {
                 ts.reset();
                 while (ts.incrementToken()) {}

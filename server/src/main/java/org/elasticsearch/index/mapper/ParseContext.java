@@ -596,6 +596,12 @@ public abstract class ParseContext {
         };
     }
 
+    /**
+     * We are actively deprecating and removing the ability to pass complex objects
+     * to multifields - try and avoid using this method
+     * @deprecated 
+     */
+    @Deprecated
     public final ParseContext switchParser(XContentParser parser) {
         return new FilterParseContext(this) {
             @Override

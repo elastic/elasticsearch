@@ -45,9 +45,9 @@ Other versions:
 [[frozen-tier-ga]]
 === Frozen tier is now GA
 
-The frozen tier and shared-cache searchable snapshots are now generally
-available. These features were introduced as technical previews in 7.12. See
-the
+The frozen tier and partially mounted indices for {search-snaps}, formerly known
+as shared-cache {search-snaps}, are now generally available. We these features
+as technical previews in 7.12. See the
 {ref-bare}/7.12/release-highlights.html#frozen-tier-shared-snapshot-cache[7.12
 announcement].
 

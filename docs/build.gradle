@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
@@ -103,6 +103,8 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     plugin subproj.path
   }
 }
+
+
 
 tasks.named("integTest").configure {
   doFirst {

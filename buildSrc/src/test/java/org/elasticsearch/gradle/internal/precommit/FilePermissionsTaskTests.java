@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;

@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {

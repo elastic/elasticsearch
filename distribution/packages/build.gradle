@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.internal.LoggedExec
+import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.redline_rpm.header.Flags
 
 import java.nio.file.Files

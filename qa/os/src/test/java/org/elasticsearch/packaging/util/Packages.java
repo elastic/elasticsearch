@@ -91,7 +91,7 @@ public class Packages {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
 
-        if (distribution.version.onOrAfter(Version.V_7_13_0)) {
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
             ServerUtils.disableGeoIpDownloader(installation);
         }
         return installation;
@@ -233,7 +233,7 @@ public class Packages {
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass
         // the version through here
-        assertThat(es.bin("elasticsearch-sql-cli-" + distribution.versionString + ".jar"), file(File, "root", "root", p755));
+        assertThat(es.bin("elasticsearch-sql-cli-" + distribution.version + ".jar"), file(File, "root", "root", p755));
 
         Stream.of("users", "users_roles", "roles.yml", "role_mapping.yml", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));

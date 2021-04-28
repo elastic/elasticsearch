@@ -504,6 +504,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-get-service-accounts>>
 * <<{upid}-create-service-account-token>>
 * <<{upid}-delete-service-account-token>>
+* <<{upid}-get-service-account-credentials>>
 
 include::security/put-user.asciidoc[]
 include::security/get-users.asciidoc[]
@@ -538,6 +539,7 @@ include::security/invalidate-api-key.asciidoc[]
 include::security/get-service-accounts.asciidoc[]
 include::security/create-service-token.asciidoc[]
 include::security/delete-service-token.asciidoc[]
+include::security/get-service-account-credentials.asciidoc[]
 
 [role="xpack"]
 == Text Structure APIs

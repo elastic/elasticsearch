@@ -29,6 +29,7 @@ import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.client.security.GetServiceAccountsRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GrantApiKeyRequest;
@@ -547,5 +548,15 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         if (refreshPolicy != null && refreshPolicy != RefreshPolicy.NONE) {
             assertEquals(refreshPolicy.getValue(), request.getParameters().get("refresh"));
         }
+    }
+
+    public void testGetServiceAccountCredentials() {
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest =
+            new GetServiceAccountCredentialsRequest(namespace, serviceName);
+        final Request request = SecurityRequestConverters.getServiceAccountCredentials(getServiceAccountCredentialsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals("/_security/service/" + namespace + "/" + serviceName + "/credential", request.getEndpoint());
     }
  }

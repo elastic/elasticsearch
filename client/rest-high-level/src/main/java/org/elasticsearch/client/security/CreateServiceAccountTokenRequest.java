@@ -31,8 +31,8 @@ public final class CreateServiceAccountTokenRequest implements Validatable, ToXC
     public CreateServiceAccountTokenRequest(String namespace, String serviceName,
                                             @Nullable String tokenName,
                                             @Nullable RefreshPolicy refreshPolicy) {
-        this.namespace = namespace;
-        this.serviceName = serviceName;
+        this.namespace = Objects.requireNonNull(namespace, "namespace is required");
+        this.serviceName = Objects.requireNonNull(serviceName, "service-name is required");
         this.tokenName = tokenName;
         this.refreshPolicy = refreshPolicy;
     }

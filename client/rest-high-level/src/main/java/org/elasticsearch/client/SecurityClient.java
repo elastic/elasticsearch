@@ -50,6 +50,8 @@ import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRoleMappingsResponse;
 import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.client.security.GetServiceAccountsRequest;
 import org.elasticsearch.client.security.GetServiceAccountsResponse;
 import org.elasticsearch.client.security.GetSslCertificatesRequest;
@@ -1195,6 +1197,36 @@ public final class SecurityClient {
                                                       final ActionListener<DeleteServiceAccountTokenResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteServiceAccountToken, options,
             DeleteServiceAccountTokenResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Get credentials for a service account synchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-service-credentails.html">
+     * the docs</a> for more information.
+     * @param request the request with namespace and service-name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the get service accounts call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public GetServiceAccountCredentialsResponse getServiceAccountCredentials(GetServiceAccountCredentialsRequest request,
+                                                                             RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::getServiceAccountCredentials,
+            options, GetServiceAccountCredentialsResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Get credentials for a service account asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-service-credentails.html">
+     * the docs</a> for more information.
+     * @param request the request with namespace and service-name
+     * @param options the request options (e.g., headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable getServiceAccountCredentialsAsync(GetServiceAccountCredentialsRequest request, RequestOptions options,
+                                                         ActionListener<GetServiceAccountCredentialsResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::getServiceAccountCredentials,
+            options, GetServiceAccountCredentialsResponse::fromXContent, listener, emptySet());
     }
 
     /**

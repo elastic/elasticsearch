@@ -12,6 +12,9 @@ import org.elasticsearch.client.security.user.privileges.Role;
 
 import java.util.Objects;
 
+/**
+ * Information about a service account.
+ */
 public final class ServiceAccountInfo {
 
     private final String principal;

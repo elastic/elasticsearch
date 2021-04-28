@@ -32,6 +32,7 @@ import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsRequest;
 import org.elasticsearch.client.security.GetServiceAccountsRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GrantApiKeyRequest;
@@ -376,5 +377,14 @@ final class SecurityRequestConverters {
         }
         request.addParameters(params.asMap());
         return request;
+    }
+
+    static Request getServiceAccountCredentials(final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service")
+            .addPathPart(getServiceAccountCredentialsRequest.getNamespace(), getServiceAccountCredentialsRequest.getServiceName())
+            .addPathPartAsIs("credential");
+
+        return new Request(HttpGet.METHOD_NAME, endpointBuilder.build());
     }
 }

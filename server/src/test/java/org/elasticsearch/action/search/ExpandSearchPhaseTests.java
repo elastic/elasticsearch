@@ -115,6 +115,36 @@ public class ExpandSearchPhaseTests extends ESTestCase {
         }
     }
 
+    public void testMultiSearchFailure() {
+        MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
+
+        mockSearchPhaseContext.getRequest().source(new SearchSourceBuilder()
+            .collapse(new CollapseBuilder("someField").setInnerHits(new InnerHitBuilder().setName("name"))));
+        mockSearchPhaseContext.searchTransport = new SearchTransportService(null, null, null) {
+            @Override
+            void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
+                listener.onFailure(new RuntimeException("sending multi search failed"));
+            }
+        };
+
+        SearchHits hits = new SearchHits(new SearchHit[]{
+            new SearchHit(1, "ID",
+                Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList("value"))),
+                Collections.emptyMap()),
+            new SearchHit(2, "ID2",
+                Collections.singletonMap("someField", new DocumentField("someField", Collections.singletonList("value"))),
+                Collections.emptyMap())},
+            new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
+
+        InternalSearchResponse internalSearchResponse = new InternalSearchResponse(hits, null, null, null, false, null, 1);
+        ExpandSearchPhase phase = new ExpandSearchPhase(mockSearchPhaseContext, internalSearchResponse, null);
+        phase.run();
+
+        Throwable t = mockSearchPhaseContext.phaseFailure.get();
+        assertThat(t, Matchers.instanceOf(RuntimeException.class));
+        assertThat(t.getMessage(), equalTo("sending multi search failed"));
+    }
+
     public void testFailOneItemFailsEntirePhase() throws IOException {
         AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
 

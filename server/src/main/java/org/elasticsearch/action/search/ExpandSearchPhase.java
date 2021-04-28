@@ -103,7 +103,7 @@ final class ExpandSearchPhase extends SearchPhase {
                         }
                     }
                     context.sendSearchResponse(searchResponse, queryResults);
-                }, context::onFailure)
+                }, e -> context.onPhaseFailure(this, "failed to expand hits", e))
             );
         } else {
             context.sendSearchResponse(searchResponse, queryResults);

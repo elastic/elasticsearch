@@ -62,11 +62,6 @@ interface SearchPhaseContext extends Executor {
     void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults);
 
     /**
-     * Notifies the top-level listener of the provided exception
-     */
-    void onFailure(Exception e);
-
-    /**
      * This method will communicate a fatal phase failure back to the user. In contrast to a shard failure
      * will this method immediately fail the search request and return the failure to the issuer of the request
      * @param phase the phase that failed

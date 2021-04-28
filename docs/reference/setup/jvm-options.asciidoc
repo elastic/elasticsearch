@@ -6,7 +6,7 @@ If needed, you can override these default options by adding custom JVM options
 files (preferred) or setting the `ES_JAVA_OPTS` environment variable.
 
 JVM options files must have the suffix '.options' and contain a line-delimited
-list of JVM arguments. JVM options files are processed in lexicographic order.
+list of JVM arguments. JVM processes options files in lexicographic order.
 
 Where you put the JVM options files depends on the type of installation:
 

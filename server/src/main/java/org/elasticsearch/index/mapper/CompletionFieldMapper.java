@@ -372,7 +372,7 @@ public class CompletionFieldMapper extends FieldMapper {
             }
         }
 
-        createFieldNamesField(context);
+        context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata: inputMap.values()) {
             ParseContext externalValueContext = context.createExternalValueContext(metadata);
             multiFields.parse(this, externalValueContext);

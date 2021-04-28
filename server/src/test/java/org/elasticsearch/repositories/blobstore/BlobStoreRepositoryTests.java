@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +37,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -43,11 +45,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -219,17 +226,77 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final RepositoryMetadata metadata = new RepositoryMetadata("test-repo", REPO_TYPE, settings);
 
         Settings useCompressSettings = Settings.builder()
-            .put(node().getEnvironment().settings())
-            .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), true)
-            .build();
+                .put(node().getEnvironment().settings())
+                .put(FsRepository.REPOSITORIES_COMPRESS_SETTING.getKey(), true)
+                .build();
         Environment useCompressEnvironment =
-            new Environment(useCompressSettings, node().getEnvironment().configFile());
+                new Environment(useCompressSettings, node().getEnvironment().configFile());
 
         new FsRepository(metadata, useCompressEnvironment, null, BlobStoreTestUtil.mockClusterService(),
                 MockBigArrays.NON_RECYCLING_INSTANCE, null);
 
         assertWarnings("[repositories.fs.compress] setting was deprecated in Elasticsearch and will be removed in a future release!" +
-            " See the breaking changes documentation for the next major version.");
+                " See the breaking changes documentation for the next major version.");
+    }
+
+    public void testRepositoryDataDetails() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+        final String repositoryName = repository.getMetadata().name();
+        final Settings repositorySettings = repository.getMetadata().settings();
+
+        createIndex("green-index");
+        ensureGreen("green-index");
+
+        assertAcked(client().admin().indices().prepareCreate("red-index")
+                .setSettings(Settings.builder()
+                        .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), "*")
+                        .build())
+                .setWaitForActiveShards(0));
+
+        final long beforeStartTime = getInstanceFromNode(ThreadPool.class).absoluteTimeInMillis();
+        final CreateSnapshotResponse createSnapshotResponse = client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repositoryName, "test-snap-1")
+                .setWaitForCompletion(true)
+                .setPartial(true)
+                .get();
+        final long afterEndTime = System.currentTimeMillis();
+
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
+        final SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
+
+        final Consumer<RepositoryData.SnapshotDetails> snapshotDetailsAsserter = snapshotDetails ->
+        {
+            assertThat(snapshotDetails.getSnapshotState(), equalTo(SnapshotState.PARTIAL));
+            assertThat(snapshotDetails.getVersion(), equalTo(Version.CURRENT));
+            assertThat(snapshotDetails.getStartTimeMillis(), allOf(
+                    greaterThanOrEqualTo(beforeStartTime),
+                    lessThanOrEqualTo(afterEndTime)));
+            assertThat(snapshotDetails.getEndTimeMillis(), allOf(
+                    greaterThanOrEqualTo(beforeStartTime),
+                    lessThanOrEqualTo(afterEndTime),
+                    greaterThanOrEqualTo(snapshotDetails.getStartTimeMillis())));
+        };
+
+        final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
+        final RepositoryData.SnapshotDetails snapshotDetails = repositoryData.getSnapshotDetails(snapshotId);
+        snapshotDetailsAsserter.accept(snapshotDetails);
+
+        // now check the handling of the case where details are missing, by removing the details from the repo data as if from an
+        // older repo format and verifing that they are refreshed from the SnapshotInfo when writing the repo data out
+
+        writeIndexGen(
+                repository,
+                repositoryData.withExtraDetails(Collections.singletonMap(
+                        snapshotId,
+                        new RepositoryData.SnapshotDetails(
+                                SnapshotState.PARTIAL,
+                                Version.CURRENT,
+                                -1,
+                                -1))),
+                repositoryData.getGenId());
+
+        snapshotDetailsAsserter.accept(PlainActionFuture.get(repository::getRepositoryData).getSnapshotDetails(snapshotId));
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
@@ -271,7 +338,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 shardGenerations.indices().stream().collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
             final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
                     randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
-                    Version.CURRENT);
+                    Version.CURRENT,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong());
             repoData = repoData.addSnapshot(
                 snapshotId,
                 details,

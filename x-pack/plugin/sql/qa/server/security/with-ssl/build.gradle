@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.test-with-ssl'
 
@@ -11,7 +11,7 @@ tasks.named("integTest").configure {
   }
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   // The setup that we actually want
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.http.ssl.enabled', 'true'

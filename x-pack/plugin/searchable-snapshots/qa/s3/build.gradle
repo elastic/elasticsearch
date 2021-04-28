@@ -1,5 +1,5 @@
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -46,7 +46,7 @@ tasks.named("integTest").configure {
   nonInputProperties.systemProperty 'test.s3.base_path', s3BasePath ? s3BasePath + "_searchable_snapshots_tests" + BuildParams.testSeed : 'base_path'
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.path
 

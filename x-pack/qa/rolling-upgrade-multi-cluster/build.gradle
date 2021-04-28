@@ -1,5 +1,5 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
@@ -21,7 +21,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 3
     }
   }
-  testClusters.matching { it.name.startsWith("${baseName}-") }.all {
+  testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
     testDistribution = "DEFAULT"
     versions = [bwcVersion.toString(), project.version]
 

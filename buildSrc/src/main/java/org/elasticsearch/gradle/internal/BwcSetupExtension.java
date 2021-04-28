@@ -10,8 +10,6 @@ package org.elasticsearch.gradle.internal;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.BwcVersions;
-import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -27,7 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-import static org.elasticsearch.gradle.util.JavaUtil.getJavaHome;
+import static org.elasticsearch.gradle.internal.util.JavaUtil.getJavaHome;
 
 /**
  * By registering bwc tasks via this extension we can support declaring custom bwc tasks from the build script

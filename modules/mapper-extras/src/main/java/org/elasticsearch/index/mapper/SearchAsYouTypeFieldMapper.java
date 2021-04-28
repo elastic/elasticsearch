@@ -588,7 +588,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
         }
         if (fieldType().fieldType.omitNorms()) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

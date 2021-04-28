@@ -19,7 +19,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,24 +43,6 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
     @Override
     protected GeoPointFieldScript.Factory dummyScript() {
         return DUMMY;
-    }
-
-    public void testAsDocValues() {
-        GeoPointFieldScript script = new GeoPointFieldScript(
-                "test",
-                Collections.emptyMap(),
-                new SearchLookup(field -> null, (ft, lookup) -> null),
-                null
-        ) {
-            @Override
-            public void execute() {
-                emit(78.96, 12.12);
-                emit(13.45, 56.78);
-            }
-        };
-        script.execute();
-
-        assertArrayEquals(new long[] {1378381707499043786L, 8091971733044486384L}, script.asDocValues());
     }
 
     public void testTooManyValues() throws IOException {

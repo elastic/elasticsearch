@@ -3,6 +3,36 @@
 
 The following pages have moved or been deleted.
 
+// [START] Service account redirects
+// These redirects are required for the CI builds to pass until the service
+//accounts PR is merged
+[role="exclude",id="security-api-get-service-credentials"]
+=== Get service credentials
+
+See <<security-api,Security APIs>>.
+
+[role="exclude",id="security-api-get-service-accounts"]
+=== Get service accounts
+
+See <<security-api,Security APIs>>.
+
+[role="exclude",id="security-api-delete-service-token"]
+=== Delete service account tokens
+
+See <<security-api,Security APIs>>.
+
+[role="exclude",id="security-api-clear-service-token-caches"]
+=== Clear service account token caches
+
+See <<security-api,Security APIs>>.
+
+[role="exclude",id="security-api-create-service-token"]
+=== Create service account tokens
+
+See <<security-api,Security APIs>>.
+
+// [END] Service account redirects
+
 // [START] Security redirects
 
 [role="exclude",id="get-started-users"]

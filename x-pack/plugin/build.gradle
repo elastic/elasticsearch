@@ -1,8 +1,9 @@
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.internal.jvm.Jvm
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.LoggedExec
+
+import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
@@ -15,7 +16,7 @@ dependencies {
 }
 
 // let the yamlRestTest see the classpath of test
-GradleUtils.extendSourceSet(project, "test", "yamlRestTest", yamlRestTest)
+GradleUtils.extendSourceSet(project, "test", "yamlRestTest", tasks.named("yamlRestTest"))
 
 subprojects {
   afterEvaluate {

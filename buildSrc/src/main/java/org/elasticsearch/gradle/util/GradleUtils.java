@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.util;
 
-import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -187,12 +187,14 @@ public abstract class GradleUtils {
      * Extends one configuration from another and refreshes the classpath of a provided Test.
      * The Test parameter is only needed for eagerly defined test tasks.
      */
-    public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName, Test test) {
+    public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName, TaskProvider<Test> test) {
         extendSourceSet(project, parentSourceSetName, childSourceSetName);
         if (test != null) {
-            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-            SourceSet child = sourceSets.getByName(childSourceSetName);
-            test.setClasspath(child.getRuntimeClasspath());
+            test.configure(t -> {
+                SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+                SourceSet child = sourceSets.getByName(childSourceSetName);
+                t.setClasspath(child.getRuntimeClasspath());
+            });
         }
     }
 

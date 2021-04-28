@@ -21,6 +21,7 @@ import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -28,6 +29,7 @@ import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetServiceAccountsRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
@@ -501,18 +503,47 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
     }
 
+    public void testGetServiceAccounts() throws IOException {
+        final String namespace = randomBoolean() ? randomAlphaOfLengthBetween(3, 8) : null;
+        final String serviceName = namespace == null ? null : randomAlphaOfLengthBetween(3, 8);
+        final GetServiceAccountsRequest getServiceAccountsRequest = new GetServiceAccountsRequest(namespace, serviceName);
+        final Request request = SecurityRequestConverters.getServiceAccounts(getServiceAccountsRequest);
+        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        if (namespace == null) {
+            assertEquals("_security/service", request.getEndpoint());
+        } else if (serviceName == null) {
+            assertEquals("_security/service/" + namespace, request.getEndpoint());
+        } else {
+            assertEquals("_security/service/" + namespace + "/" + serviceName, request.getEndpoint());
+        }
+    }
+
     public void testCreateServiceAccountToken() throws IOException {
         final String namespace = randomAlphaOfLengthBetween(3, 8);
-        final String service = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final String tokenName = randomBoolean() ? randomAlphaOfLengthBetween(3, 8) : null;
         final RefreshPolicy refreshPolicy = randomBoolean() ? randomFrom(RefreshPolicy.values()) : null;
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest(namespace, service, tokenName, refreshPolicy);
+            new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName, refreshPolicy);
         final Request request = SecurityRequestConverters.createServiceAccountToken(createServiceAccountTokenRequest);
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         final String url =
-            "/_security/service/" + namespace + "/" + service + "/credential/token" + (tokenName == null ? "" : "/" + tokenName);
+            "/_security/service/" + namespace + "/" + serviceName + "/credential/token" + (tokenName == null ? "" : "/" + tokenName);
         assertEquals(url, request.getEndpoint());
+        if (refreshPolicy != null && refreshPolicy != RefreshPolicy.NONE) {
+            assertEquals(refreshPolicy.getValue(), request.getParameters().get("refresh"));
+        }
+    }
+
+    public void testDeleteServiceAccountToken() throws IOException {
+        final String namespace = randomAlphaOfLengthBetween(3, 8);
+        final String serviceName = randomAlphaOfLengthBetween(3, 8);
+        final String tokenName = randomAlphaOfLengthBetween(3, 8);
+        final RefreshPolicy refreshPolicy = randomBoolean() ? randomFrom(RefreshPolicy.values()) : null;
+        final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
+            new DeleteServiceAccountTokenRequest(namespace, serviceName, tokenName, refreshPolicy);
+        final Request request = SecurityRequestConverters.deleteServiceAccountToken(deleteServiceAccountTokenRequest);
+        assertEquals("/_security/service/" + namespace + "/" + serviceName + "/credential/token/" + tokenName, request.getEndpoint());
         if (refreshPolicy != null && refreshPolicy != RefreshPolicy.NONE) {
             assertEquals(refreshPolicy.getValue(), request.getParameters().get("refresh"));
         }

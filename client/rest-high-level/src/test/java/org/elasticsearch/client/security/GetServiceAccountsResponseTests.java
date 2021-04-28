@@ -8,90 +8,77 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.security.support.ServiceAccountInfo;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GetServiceAccountsResponseTests extends ESTestCase {
+public class GetServiceAccountsResponseTests
+    extends AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse,
+    GetServiceAccountsResponse> {
 
-    public void testFromXContent() throws IOException {
-        final String json =
-            "{\n" +
-                "  \"elastic/fleet-server\": {\n" +
-                "    \"role_descriptor\": {\n" +
-                "      \"cluster\": [\n" +
-                "        \"monitor\",\n" +
-                "        \"manage_own_api_key\"\n" +
-                "      ],\n" +
-                "      \"indices\": [\n" +
-                "        {\n" +
-                "          \"names\": [\n" +
-                "            \"logs-*\",\n" +
-                "            \"metrics-*\",\n" +
-                "            \"traces-*\",\n" +
-                "            \"synthetics-*\",\n" +
-                "            \".logs-endpoint.diagnostic.collection-*\"\n" +
-                "          ],\n" +
-                "          \"privileges\": [\n" +
-                "            \"write\",\n" +
-                "            \"create_index\",\n" +
-                "            \"auto_configure\"\n" +
-                "          ],\n" +
-                "          \"allow_restricted_indices\": false\n" +
-                "        },\n" +
-                "        {\n" +
-                "          \"names\": [\n" +
-                "            \".fleet-*\"\n" +
-                "          ],\n" +
-                "          \"privileges\": [\n" +
-                "            \"read\",\n" +
-                "            \"write\",\n" +
-                "            \"monitor\",\n" +
-                "            \"create_index\",\n" +
-                "            \"auto_configure\"\n" +
-                "          ],\n" +
-                "          \"allow_restricted_indices\": false\n" +
-                "        }\n" +
-                "      ],\n" +
-                "      \"applications\": [],\n" +
-                "      \"run_as\": [],\n" +
-                "      \"metadata\": {},\n" +
-                "      \"transient_metadata\": {\n" +
-                "        \"enabled\": true\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }\n" +
-                "}\n";
+    @Override
+    protected org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse createServerTestInstance(
+        XContentType xContentType) {
+        final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
+        return new org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse(
+            new org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo[]{
+                new org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo(principal,
+                    new RoleDescriptor(principal,
+                        randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
+                        new RoleDescriptor.IndicesPrivileges[]{
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
+                                .privileges(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
+                                .build(),
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .indices(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
+                                .privileges(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
+                                .build()
+                        },
+                        Strings.EMPTY_ARRAY
+                    )
+                )
+            });
+    }
 
-        final GetServiceAccountsResponse getServiceAccountsResponse = GetServiceAccountsResponse.fromXContent(
-            XContentType.JSON.xContent().createParser(
-                NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, json));
+    @Override
+    protected GetServiceAccountsResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return GetServiceAccountsResponse.fromXContent(parser);
+    }
 
-        assertThat(getServiceAccountsResponse.getServiceAccountInfos().size(), equalTo(1));
-        final ServiceAccountInfo serviceAccountInfo = getServiceAccountsResponse.getServiceAccountInfos().get(0);
-        assertThat(serviceAccountInfo.getPrincipal(), equalTo("elastic/fleet-server"));
+    @Override
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse serverTestInstance,
+        GetServiceAccountsResponse clientInstance) {
+        final org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo serverTestInstanceServiceAccountInfo =
+            serverTestInstance.getServiceAccountInfos()[0];
+        final String principal = serverTestInstanceServiceAccountInfo.getPrincipal();
+        final RoleDescriptor roleDescriptor = serverTestInstanceServiceAccountInfo.getRoleDescriptor();
+
+        assertThat(clientInstance.getServiceAccountInfos().size(), equalTo(1));
+        final ServiceAccountInfo serviceAccountInfo = clientInstance.getServiceAccountInfos().get(0);
+        assertThat(serviceAccountInfo.getPrincipal(), equalTo(principal));
         assertThat(serviceAccountInfo.getRole(), equalTo(
             Role.builder()
                 .name("role_descriptor")
-                .clusterPrivileges("monitor", "manage_own_api_key")
+                .clusterPrivileges(roleDescriptor.getClusterPrivileges())
                 .indicesPrivileges(
                     IndicesPrivileges.builder()
-                        .indices("logs-*", "metrics-*", "traces-*", "synthetics-*", ".logs-endpoint.diagnostic.collection-*")
-                        .privileges("write", "create_index", "auto_configure")
-                        .allowRestrictedIndices(false)
+                        .indices(roleDescriptor.getIndicesPrivileges()[0].getIndices())
+                        .privileges(roleDescriptor.getIndicesPrivileges()[0].getPrivileges())
                         .build(),
                     IndicesPrivileges.builder()
-                        .indices(".fleet-*")
-                        .privileges("read", "write", "monitor", "create_index", "auto_configure")
-                        .allowRestrictedIndices(false)
+                        .indices(roleDescriptor.getIndicesPrivileges()[1].getIndices())
+                        .privileges(roleDescriptor.getIndicesPrivileges()[1].getPrivileges())
                         .build()
                 )
                 .build()

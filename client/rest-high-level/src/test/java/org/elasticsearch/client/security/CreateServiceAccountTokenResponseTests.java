@@ -8,34 +8,38 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CreateServiceAccountTokenResponseTests extends ESTestCase {
+public class CreateServiceAccountTokenResponseTests
+    extends AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse,
+    CreateServiceAccountTokenResponse> {
 
-    public void testFromXContent() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
-        final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+    @Override
+    protected org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse createServerTestInstance(
+        XContentType xContentType) {
         final String tokenName = randomAlphaOfLengthBetween(3, 8);
         final String value = randomAlphaOfLength(22);
-        builder.startObject()
-            .field("created", "true")
-            .field("token", Map.of("name", tokenName, "value", value))
-            .endObject();
-        BytesReference xContent = BytesReference.bytes(builder);
+        return org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse.created(
+            tokenName, new SecureString(value.toCharArray()));
+    }
 
-        final CreateServiceAccountTokenResponse response =
-            CreateServiceAccountTokenResponse.fromXContent(createParser(xContentType.xContent(), xContent));
+    @Override
+    protected CreateServiceAccountTokenResponse doParseToClientInstance(XContentParser parser) throws IOException {
+        return CreateServiceAccountTokenResponse.fromXContent(parser);
+    }
 
-        assertThat(response.getName(), equalTo(tokenName));
-        assertThat(response.getValue().toString(), equalTo(value));
+    @Override
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse serverTestInstance,
+        CreateServiceAccountTokenResponse clientInstance) {
+        assertThat(serverTestInstance.getName(), equalTo(clientInstance.getName()));
+        assertThat(serverTestInstance.getValue(), equalTo(clientInstance.getValue()));
     }
 }

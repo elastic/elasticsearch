@@ -34,6 +34,8 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -1160,6 +1162,39 @@ public final class SecurityClient {
                                                       final ActionListener<CreateServiceAccountTokenResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::createServiceAccountToken, options,
             CreateServiceAccountTokenResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Delete a service account token.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-service-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to delete a service account token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the create service account token call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public DeleteServiceAccountTokenResponse deleteServiceAccountToken(final DeleteServiceAccountTokenRequest request,
+                                                                       final RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::deleteServiceAccountToken, options,
+            DeleteServiceAccountTokenResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously deletes a service account token.<br>
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delete-service-token.html">
+     * the docs</a> for more.
+     *
+     * @param request the request to delete a service account token
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable deleteServiceAccountTokenAsync(final DeleteServiceAccountTokenRequest request,
+                                                      final RequestOptions options,
+                                                      final ActionListener<DeleteServiceAccountTokenResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::deleteServiceAccountToken, options,
+            DeleteServiceAccountTokenResponse::fromXContent, listener, emptySet());
     }
 
     /**

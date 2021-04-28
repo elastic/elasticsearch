@@ -18,6 +18,9 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Response for creating a service account token. Contains the token's name and value for bearer authentication.
+ */
 public final class CreateServiceAccountTokenResponse {
 
     private final String name;

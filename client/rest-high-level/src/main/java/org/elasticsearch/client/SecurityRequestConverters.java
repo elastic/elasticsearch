@@ -24,6 +24,7 @@ import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -356,6 +357,22 @@ final class SecurityRequestConverters {
         final RequestConverters.Params params = new RequestConverters.Params();
         if (createServiceAccountTokenRequest.getRefreshPolicy() != null) {
             params.withRefreshPolicy(createServiceAccountTokenRequest.getRefreshPolicy());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteServiceAccountToken(final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service")
+            .addPathPart(deleteServiceAccountTokenRequest.getNamespace(), deleteServiceAccountTokenRequest.getServiceName())
+            .addPathPartAsIs("credential/token")
+            .addPathPart(deleteServiceAccountTokenRequest.getTokenName());
+
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpointBuilder.build());
+        final RequestConverters.Params params = new RequestConverters.Params();
+        if (deleteServiceAccountTokenRequest.getRefreshPolicy() != null) {
+            params.withRefreshPolicy(deleteServiceAccountTokenRequest.getRefreshPolicy());
         }
         request.addParameters(params.asMap());
         return request;

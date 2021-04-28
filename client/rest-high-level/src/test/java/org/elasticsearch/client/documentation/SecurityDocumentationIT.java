@@ -42,6 +42,8 @@ import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DeleteUserResponse;
 import org.elasticsearch.client.security.DisableUserRequest;
@@ -2607,6 +2609,55 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.actionGet());
             assertNotNull(future.actionGet().getName());
             assertNotNull(future.actionGet().getValue());
+        }
+    }
+
+    public void testDeleteServiceAccountToken() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::delete-service-account-token-request
+            DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
+                new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
+            // end::delete-service-account-token-request
+
+            // tag::delete-service-account-token-execute
+            DeleteServiceAccountTokenResponse deleteServiceAccountTokenResponse =
+                client.security().deleteServiceAccountToken(deleteServiceAccountTokenRequest, RequestOptions.DEFAULT);
+            // end::delete-service-account-token-execute
+
+            // tag::delete-service-account-token-response
+            final boolean found = deleteServiceAccountTokenResponse.isAcknowledged(); // <1>
+            // end::delete-service-account-token-response
+            assertFalse(deleteServiceAccountTokenResponse.isAcknowledged());
+        }
+
+        {
+            DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
+                new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
+            ActionListener<DeleteServiceAccountTokenResponse> listener;
+            // tag::delete-service-account-token-execute-listener
+            listener = new ActionListener<DeleteServiceAccountTokenResponse>() {
+                @Override
+                public void onResponse(DeleteServiceAccountTokenResponse deleteServiceAccountTokenResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            // end::delete-service-account-token-execute-listener
+
+            final PlainActionFuture<DeleteServiceAccountTokenResponse> future = new PlainActionFuture<>();
+            listener = future;
+
+            // tag::delete-service-account-token-execute-async
+            client.security().deleteServiceAccountTokenAsync(deleteServiceAccountTokenRequest, RequestOptions.DEFAULT, listener); // <1>
+            // end::delete-service-account-token-execute-async
+
+            assertNotNull(future.actionGet());
+            assertFalse(future.actionGet().isAcknowledged());
         }
     }
 

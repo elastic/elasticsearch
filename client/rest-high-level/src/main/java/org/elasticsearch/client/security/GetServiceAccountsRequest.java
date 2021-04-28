@@ -18,6 +18,9 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
+/**
+ * Request to retrieve information of service accounts
+ */
 public final class GetServiceAccountsRequest implements Validatable, ToXContentObject {
 
     @Nullable

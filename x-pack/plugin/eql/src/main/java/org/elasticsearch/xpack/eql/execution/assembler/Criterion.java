@@ -22,6 +22,7 @@ public class Criterion<Q extends QueryRequest> {
     private final List<HitExtractor> keys;
     private final HitExtractor timestamp;
     private final HitExtractor tiebreaker;
+    private final HitExtractor implicitTiebreaker;
 
     private final boolean descending;
     private final int keySize;
@@ -31,12 +32,14 @@ public class Criterion<Q extends QueryRequest> {
               List<HitExtractor> keys,
               HitExtractor timestamp,
               HitExtractor tiebreaker,
+              HitExtractor implicitTiebreaker,
               boolean descending) {
         this.stage = stage;
         this.queryRequest = queryRequest;
         this.keys = keys;
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
+        this.implicitTiebreaker = implicitTiebreaker;
 
         this.descending = descending;
 
@@ -73,7 +76,6 @@ public class Criterion<Q extends QueryRequest> {
 
     @SuppressWarnings({ "unchecked" })
     public Ordinal ordinal(SearchHit hit) {
-
         Object ts = timestamp.extract(hit);
         if (ts instanceof Number == false) {
             throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
@@ -89,7 +91,13 @@ public class Criterion<Q extends QueryRequest> {
             }
             tbreaker = (Comparable<Object>) tb;
         }
-        return new Ordinal(timestamp, tbreaker);
+
+        Object implicitTbreaker = implicitTiebreaker.extract(hit);
+        if (implicitTbreaker instanceof Number == false) {
+            throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
+        }
+        long implicitTiebreaker = ((Number) implicitTbreaker).longValue();
+        return new Ordinal(timestamp, tbreaker, implicitTiebreaker);
     }
 
     @Override

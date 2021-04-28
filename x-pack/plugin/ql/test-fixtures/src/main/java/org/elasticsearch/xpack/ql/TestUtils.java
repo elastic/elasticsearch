@@ -38,6 +38,9 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeDiagnosingMatcher;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -54,11 +57,15 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.jar.JarInputStream;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyMap;
@@ -67,14 +74,18 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomZone;
+import static org.elasticsearch.xpack.ql.TestUtils.StringContainsRegex.containsRegex;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 
 public final class TestUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
-
     public static final Configuration TEST_CFG = new Configuration(UTC, null, null);
+
+    private static final String MATCHER_TYPE_CONTAINS = "CONTAINS";
+    private static final String MATCHER_TYPE_REGEX = "REGEX";
 
     private TestUtils() {}
 
@@ -315,5 +326,125 @@ public final class TestUtils {
             runtimeFields.put(randomAlphaOfLength(5), config);
         }
         return runtimeFields;
+    }
+
+    public static Collection<Object[]> readSpec(Class<?> clazz, String testFileName) throws Exception {
+        ArrayList<Object[]> arr = new ArrayList<>();
+        Map<String, Integer> testNames = new LinkedHashMap<>();
+
+        try (
+            InputStream is = clazz.getResourceAsStream(testFileName);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))
+        ) {
+            int lineNumber = 0;
+            String line;
+            boolean done = false;
+            String name = null;
+            String query = null;
+            ArrayList<Matcher<String>> matchers = new ArrayList<>(8);
+
+            StringBuilder sb = new StringBuilder();
+
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+                line = line.trim();
+
+                if (line.isEmpty() || line.startsWith("//")) {
+                    continue;
+                }
+
+                if (name == null) {
+                    name = line;
+                    Integer previousName = testNames.put(name, lineNumber);
+                    if (previousName != null) {
+                        throw new IllegalArgumentException(
+                            "Duplicate test name '" + line + "' at line " + lineNumber + " (previously seen at line " + previousName + ")"
+                        );
+                    }
+                }
+
+                else if (query == null) {
+                    sb.append(line).append(' ');
+                    if (line.endsWith(";")) {
+                        sb.setLength(sb.length() - 2);
+                        query = sb.toString();
+                        sb.setLength(0);
+                    }
+                }
+
+                else {
+                    if (line.endsWith(";")) {
+                        line = line.substring(0, line.length() - 1);
+                        done = true;
+                    }
+
+                    if (line.isEmpty() == false) {
+                        String[] matcherAndExpectation = line.split("[ \\t]+", 2);
+                        if (matcherAndExpectation.length == 1) {
+                            matchers.add(containsString(matcherAndExpectation[0]));
+                        } else if (matcherAndExpectation.length == 2) {
+                            String matcherType = matcherAndExpectation[0];
+                            String expectation = matcherAndExpectation[1];
+                            switch (matcherType.toUpperCase(Locale.ROOT)) {
+                                case MATCHER_TYPE_CONTAINS:
+                                    matchers.add(containsString(expectation));
+                                    break;
+                                case MATCHER_TYPE_REGEX:
+                                    matchers.add(containsRegex(expectation));
+                                    break;
+                                default:
+                                    throw new IllegalArgumentException(
+                                        "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
+                                    );
+                            }
+                        }
+                    }
+
+                    if (done) {
+                        // Add and zero out for the next spec
+                        arr.add(new Object[] { testFileName, name, query, matchers });
+                        name = null;
+                        query = null;
+                        matchers = new ArrayList<>(8);
+                        done = false;
+                    }
+                }
+            }
+
+            if (name != null) {
+                throw new IllegalStateException("Read a test [" + name + "] without a body at the end of [" + testFileName + "]");
+            }
+        }
+        return arr;
+    }
+
+    // Matcher which extends the functionality of org.hamcrest.Matchers.matchesPattern(String)}
+    // by allowing to match detected regex groups later on in the pattern, e.g.:
+    // "(?<id>.+?)"....... \k<id>....."}
+    public static class StringContainsRegex extends TypeSafeDiagnosingMatcher<String> {
+
+        private final Pattern pattern;
+
+        protected StringContainsRegex(Pattern pattern) {
+            this.pattern = pattern;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("a string containing the pattern ").appendValue(pattern);
+        }
+
+        @Override
+        protected boolean matchesSafely(String actual, Description mismatchDescription) {
+            if (pattern.matcher(actual).find() == false) {
+                mismatchDescription.appendText("the string was ").appendValue(actual);
+                return false;
+            }
+            return true;
+        }
+
+        public static Matcher<String> containsRegex(String regex) {
+            return new StringContainsRegex(Pattern.compile(regex));
+        }
     }
 }

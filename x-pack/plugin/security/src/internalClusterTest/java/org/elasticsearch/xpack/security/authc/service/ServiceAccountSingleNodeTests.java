@@ -34,13 +34,37 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Map;
 
+import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_HASHED;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForNodePEMFiles;
+import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
+import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
     private static final String BEARER_TOKEN = "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3";
+    private static final String SERVICE_ACCOUNT_MANAGER_NAME = "service_account_manager";
+
+    @Override
+    protected String configUsers() {
+        return super.configUsers()
+            + SERVICE_ACCOUNT_MANAGER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
+    }
+
+    @Override
+    protected String configRoles() {
+        return super.configRoles()
+            + SERVICE_ACCOUNT_MANAGER_NAME + ":\n"
+            + "  cluster:\n"
+            + "    - 'manage_service_account'\n";
+    }
+
+    @Override
+    protected String configUsersRoles() {
+        return super.configUsersRoles()
+            + SERVICE_ACCOUNT_MANAGER_NAME + ":" + SERVICE_ACCOUNT_MANAGER_NAME + "\n";
+    }
 
     @Override
     protected Settings nodeSettings() {
@@ -80,25 +104,20 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
     public void testApiServiceAccountToken() {
         final IndexServiceAccountTokenStore store = node().injector().getInstance(IndexServiceAccountTokenStore.class);
         final Cache<String, ListenableFuture<CachingServiceAccountTokenStore.CachedResult>> cache = store.getCache();
-        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "api-token-1");
-        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
-            client().execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest).actionGet();
-        assertThat(createServiceAccountTokenResponse.getName(), equalTo("api-token-1"));
+        final SecureString secretValue1 = createApiServiceToken("api-token-1");
         assertThat(cache.count(), equalTo(0));
 
         final AuthenticateRequest authenticateRequest = new AuthenticateRequest("elastic/fleet-server");
-        final AuthenticateResponse authenticateResponse =
-            createServiceAccountClient(createServiceAccountTokenResponse.getValue().toString())
-                .execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
+        final AuthenticateResponse authenticateResponse = createServiceAccountClient(secretValue1.toString())
+            .execute(AuthenticateAction.INSTANCE, authenticateRequest).actionGet();
         assertThat(authenticateResponse.authentication(), equalTo(getExpectedAuthentication("api-token-1")));
         // cache is populated after authenticate
         assertThat(cache.count(), equalTo(1));
 
         final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
             new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "api-token-1");
-        final DeleteServiceAccountTokenResponse deleteServiceAccountTokenResponse =
-            client().execute(DeleteServiceAccountTokenAction.INSTANCE, deleteServiceAccountTokenRequest).actionGet();
+        final DeleteServiceAccountTokenResponse deleteServiceAccountTokenResponse = createServiceAccountManagerClient()
+            .execute(DeleteServiceAccountTokenAction.INSTANCE, deleteServiceAccountTokenRequest).actionGet();
         assertThat(deleteServiceAccountTokenResponse.found(), is(true));
         // cache is cleared after token deletion
         assertThat(cache.count(), equalTo(0));
@@ -138,6 +157,11 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(cache.count(), equalTo(1));
     }
 
+    private Client createServiceAccountManagerClient() {
+        return client().filterWithHeader(Map.of("Authorization",
+            basicAuthHeaderValue(SERVICE_ACCOUNT_MANAGER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
+    }
+
     private Client createServiceAccountClient() {
         return createServiceAccountClient(BEARER_TOKEN);
     }
@@ -160,7 +184,8 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
             new CreateServiceAccountTokenRequest("elastic", "fleet-server", tokenName);
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
-            client().execute(CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest).actionGet();
+            createServiceAccountManagerClient().execute(
+                CreateServiceAccountTokenAction.INSTANCE, createServiceAccountTokenRequest).actionGet();
         assertThat(createServiceAccountTokenResponse.getName(), equalTo(tokenName));
         return createServiceAccountTokenResponse.getValue();
     }

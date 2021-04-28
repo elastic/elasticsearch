@@ -16,11 +16,11 @@ import java.util.function.LongConsumer;
 class AllCellValues extends ByteTrackingSortingNumericDocValues {
     private GeoShapeValues geoValues;
 
-    protected AllCellValues(GeoShapeValues geoValues, GeoGridTiler tiler, LongConsumer circuitBreakerConsumer) {
+    protected AllCellValues(GeoShapeValues geoValues, long value, LongConsumer circuitBreakerConsumer) {
         super(circuitBreakerConsumer);
         this.geoValues = geoValues;
         resize(1);
-        values[0] = tiler.encode(0, 0, 0);
+        values[0] = value;
     }
 
     @Override

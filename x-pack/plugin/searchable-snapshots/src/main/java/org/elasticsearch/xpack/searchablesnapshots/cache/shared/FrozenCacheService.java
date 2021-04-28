@@ -128,17 +128,6 @@ public class FrozenCacheService implements Releasable {
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
                         );
                     }
-
-                    @SuppressWarnings("unchecked")
-                    final List<String> dataPaths = (List<String>) settings.get(Environment.PATH_DATA_SETTING);
-                    if (dataPaths.size() > 1) {
-                        throw new SettingsException(
-                            "setting [{}={}] is not permitted on nodes with multiple data paths [{}]",
-                            SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                            value.getStringRep(),
-                            String.join(",", dataPaths)
-                        );
-                    }
                 }
             }
 

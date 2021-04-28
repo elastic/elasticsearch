@@ -28,9 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty4Plugin;
@@ -52,6 +50,9 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
+import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -96,40 +97,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         blockActionLatch.countDown();
         expectThrows(CancellationException.class, future::actionGet);
 
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(actionName)));
-        });
-    }
-
-    protected void awaitTaskWithPrefix(String actionPrefix) throws Exception {
-        logger.info("--> waiting for task with prefix [{}] to start", actionPrefix);
-        assertBusy(() -> {
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getTaskManager().getTasks().values().stream().anyMatch(t -> t.getAction().startsWith(actionPrefix))) {
-                    return;
-                }
-            }
-            fail("no task with prefix [" + actionPrefix + "] found");
-        });
-    }
-
-    protected void assertAllCancellableTasksAreCancelled(String actionPrefix) throws Exception {
-        logger.info("--> checking that all tasks are marked as cancelled");
-        assertBusy(() -> {
-            boolean foundTask = false;
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                for (CancellableTask cancellableTask : transportService.getTaskManager().getCancellableTasks().values()) {
-                    if (cancellableTask.getAction().startsWith(actionPrefix)) {
-                        foundTask = true;
-                        assertTrue(
-                            "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
-                            cancellableTask.isCancelled());
-                    }
-                }
-            }
-            assertTrue("found no cancellable tasks", foundTask);
-        });
+        assertAllTasksHaveFinished(actionName);
     }
 
     public static class BlockingUsageActionXPackPlugin extends LocalStateCompositeXPackPlugin {

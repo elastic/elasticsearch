@@ -107,6 +107,10 @@ public class DockerTests extends PackagingTestCase {
      * Check that the /_xpack API endpoint's presence is correct for the type of distribution being tested.
      */
     public void test011PresenceOfXpack() throws Exception {
+        withCustomConfig(tempConf -> {
+            // Create a startup problem by adding an invalid YAML line to the config
+            append(tempConf.resolve("elasticsearch.yml"), "xpack.security.enabled: false\n");
+        });
         waitForElasticsearch(installation);
         final int statusCode = Request.Get("http://localhost:9200/_xpack").execute().returnResponse().getStatusLine().getStatusCode();
         assertThat(statusCode, equalTo(200));

@@ -85,6 +85,7 @@ public class CertGenCliTests extends PackagingTestCase {
         FileUtils.cp(certsDir, installation.config("certs"));
     }
 
+    @AwaitsFix(bugUrl = "Fix Packaging tests")
     public void test40RunWithCert() throws Exception {
         // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
         assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));

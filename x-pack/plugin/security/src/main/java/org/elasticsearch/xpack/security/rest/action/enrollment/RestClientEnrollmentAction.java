@@ -55,7 +55,7 @@ public class RestClientEnrollmentAction extends SecurityBaseRestHandler {
     }
 
     @Override public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.POST, "/_cluster/enroll_client"));
+        return List.of(new Route(RestRequest.Method.POST, "/_security/enroll_client"));
     }
 
     @Override protected RestChannelConsumer innerPrepareRequest(

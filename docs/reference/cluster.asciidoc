@@ -78,8 +78,6 @@ GET /_nodes/ra*:2*
 
 include::cluster/allocation-explain.asciidoc[]
 
-include::cluster/enroll-client.asciidoc[]
-
 include::cluster/get-settings.asciidoc[]
 
 include::cluster/health.asciidoc[]

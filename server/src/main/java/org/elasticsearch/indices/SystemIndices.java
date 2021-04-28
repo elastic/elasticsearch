@@ -596,7 +596,7 @@ public class SystemIndices {
 
             if (allIndices.isEmpty()) {
                 // if no actual indices match the pattern, we can stop here
-                listener.onResponse(new ResetFeatureStateStatus(name, "SUCCESS"));
+                listener.onResponse(ResetFeatureStateStatus.success(name));
                 return;
             }
 
@@ -605,12 +605,12 @@ public class SystemIndices {
             client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    listener.onResponse(new ResetFeatureStateStatus(name, "SUCCESS"));
+                    listener.onResponse(ResetFeatureStateStatus.success(name));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onResponse(new ResetFeatureStateStatus(name, "FAILURE: " + e.getMessage()));
+                    listener.onResponse(ResetFeatureStateStatus.failure(name, e));
                 }
             });
         }

@@ -52,9 +52,7 @@ public class NativeStorageProvider {
      */
     public void cleanupLocalTmpStorageInCaseOfUncleanShutdown() {
         try {
-            for (Path p : environment.dataFiles()) {
-                IOUtils.rm(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER));
-            }
+            IOUtils.rm(environment.dataFile().resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER));
         } catch (Exception e) {
             LOGGER.warn("Failed to cleanup native storage from previous invocation", e);
         }
@@ -79,17 +77,16 @@ public class NativeStorageProvider {
     }
 
     private Path tryAllocateStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {
-        for (Path path : environment.dataFiles()) {
-            try {
-                if (getUsableSpace(path) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes()) {
-                    Path tmpDirectory = path.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER).resolve(uniqueIdentifier);
-                    Files.createDirectories(tmpDirectory);
-                    allocatedStorage.put(uniqueIdentifier, tmpDirectory);
-                    return tmpDirectory;
-                }
-            } catch (IOException e) {
-                LOGGER.warn("Failed to obtain information about path [{}]: {}", path, e);
+        final Path path = environment.dataFile();
+        try {
+            if (getUsableSpace(path) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes()) {
+                Path tmpDirectory = path.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER).resolve(uniqueIdentifier);
+                Files.createDirectories(tmpDirectory);
+                allocatedStorage.put(uniqueIdentifier, tmpDirectory);
+                return tmpDirectory;
             }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to obtain information about path [{}]: {}", path, e);
         }
         LOGGER.warn("Failed to find native storage for [{}], returning null", uniqueIdentifier);
         return null;
@@ -97,14 +94,13 @@ public class NativeStorageProvider {
 
     public boolean localTmpStorageHasEnoughSpace(Path path, ByteSizeValue requestedSize) {
         Path realPath = path.toAbsolutePath();
-        for (Path p : environment.dataFiles()) {
-            try {
-                if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
-                    return getUsableSpace(p) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes();
-                }
-            } catch (IOException e) {
-                LOGGER.warn("Failed to obtain information about path [{}]: {}", path, e);
+        Path dataPath = environment.dataFile();
+        try {
+            if (realPath.startsWith(dataPath.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
+                return getUsableSpace(dataPath) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes();
             }
+        } catch (IOException e) {
+            LOGGER.warn("Failed to obtain information about path [{}]: {}", path, e);
         }
 
         LOGGER.debug("Not enough space left for path [{}]", path);
@@ -122,10 +118,9 @@ public class NativeStorageProvider {
         if (path != null) {
             // do not allow to breakout from the tmp storage provided
             Path realPath = path.toAbsolutePath();
-            for (Path p : environment.dataFiles()) {
-                if (realPath.startsWith(p.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
-                    IOUtils.rm(path);
-                }
+            Path dataPath = environment.dataFile();
+            if (realPath.startsWith(dataPath.resolve(LOCAL_STORAGE_SUBFOLDER).resolve(LOCAL_STORAGE_TMP_FOLDER))) {
+                IOUtils.rm(path);
             }
         }
     }

@@ -103,7 +103,7 @@ a node.
 . If you use {es} {security-features} to define realms, verify that your realm
 settings are up-to-date. The format of realm settings changed in version 7.0, in
 particular, the placement of the realm type changed. See
-<<realm-settings,Realm settings>>. 
+<<realm-settings,Realm settings>>.
 
 . *Start the upgraded node.*
 +
@@ -122,8 +122,9 @@ GET _cat/nodes
 +
 --
 
-Once the node has joined the cluster, remove the `cluster.routing.allocation.enable`
-setting to enable shard allocation and start using the node:
+For data nodes, once the node has joined the cluster, remove the
+`cluster.routing.allocation.enable` setting to enable shard allocation and start
+using the node:
 
 [source,console]
 --------------------------------------------------

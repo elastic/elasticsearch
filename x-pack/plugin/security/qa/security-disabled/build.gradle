@@ -5,7 +5,7 @@
  * For example: If a cluster has a pipeline with the set_security_user processor
  *              defined, it should be not fail
  */
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 

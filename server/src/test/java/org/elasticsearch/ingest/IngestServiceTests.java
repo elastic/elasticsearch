@@ -67,7 +67,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -112,9 +111,8 @@ public class IngestServiceTests extends ESTestCase {
     @Before
     public void setup(){
         threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(executorService);
-        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
     public void testIngestPlugin() {
         Client client = mock(Client.class);
@@ -1456,9 +1454,8 @@ public class IngestServiceTests extends ESTestCase {
 
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        ExecutorService executorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.generic()).thenReturn(executorService);
-        when(threadPool.executor(anyString())).thenReturn(executorService);
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
         return new IngestService(mock(ClusterService.class), threadPool, null, null,
             null, Collections.singletonList(new IngestPlugin() {
             @Override

@@ -185,23 +185,16 @@ public final class RepositoryData {
     }
 
     /**
-     * Creates a copy of this instance that contains updated version data.
-     * @param versions map of snapshot versions
+     * Creates a copy of this instance that contains additional details read from the per-snapshot metadata blobs
+     * @param extraDetails map of snapshot details
      * @return copy with updated version data
      */
-    public RepositoryData withVersions(Map<SnapshotId, Version> versions) {
-        if (versions.isEmpty()) {
+    public RepositoryData withExtraDetails(Map<SnapshotId, SnapshotDetails> extraDetails) {
+        if (extraDetails.isEmpty()) {
             return this;
         }
         final Map<String, SnapshotDetails> newDetails = new HashMap<>(snapshotsDetails);
-        versions.forEach((id, version) -> newDetails.compute(id.getUUID(), (uuid, existingDetails) -> {
-            if (existingDetails == null) {
-                return new SnapshotDetails(null, version);
-            } else {
-                assert existingDetails.getVersion() == null;
-                return new SnapshotDetails(existingDetails.getSnapshotState(), version);
-            }
-        }));
+        extraDetails.forEach((id, extraDetail) -> newDetails.put(id.getUUID(), extraDetail));
         return new RepositoryData(
                 uuid,
                 genId,
@@ -246,6 +239,18 @@ public final class RepositoryData {
      */
     public Collection<SnapshotId> getSnapshotIds() {
         return snapshotIds.values();
+    }
+
+    /**
+     * @return whether some of the {@link SnapshotDetails} of the given snapshot are missing, due to BwC, so that they must be loaded from
+     * the {@link SnapshotInfo} blob instead.
+     */
+    public boolean hasMissingDetails(SnapshotId snapshotId) {
+        final SnapshotDetails snapshotDetails = getSnapshotDetails(snapshotId);
+        return snapshotDetails == null
+                || snapshotDetails.getVersion() == null
+                || snapshotDetails.getStartTimeMillis() == -1
+                || snapshotDetails.getEndTimeMillis() == -1;
     }
 
     /**
@@ -428,26 +433,6 @@ public final class RepositoryData {
                 MISSING_UUID);
     }
 
-    /**
-     * For test purposes, make a copy of this instance with the version field missing for the given snapshot UUID, as if from an
-     * older version. Also removes the UUIDs since these were missing from the older version in question, see {@link #withoutUUIDs}.
-     */
-    public RepositoryData withoutSnapshotVersion(String snapshotUuid) {
-        final Map<String, SnapshotDetails> newSnapshotsDetails = new HashMap<>(snapshotsDetails);
-        final SnapshotState snapshotState = newSnapshotsDetails.get(snapshotUuid).getSnapshotState();
-        newSnapshotsDetails.put(snapshotUuid, new SnapshotDetails(snapshotState, null));
-        return new RepositoryData(
-                MISSING_UUID,
-                genId,
-                snapshotIds,
-                newSnapshotsDetails,
-                indices,
-                indexSnapshots,
-                shardGenerations,
-                indexMetaDataGenerations,
-                MISSING_UUID);
-    }
-
     public RepositoryData withClusterUuid(String clusterUUID) {
         assert clusterUUID.equals(MISSING_UUID) == false;
         return new RepositoryData(
@@ -598,6 +583,8 @@ public final class RepositoryData {
     private static final String STATE = "state";
     private static final String VERSION = "version";
     private static final String MIN_VERSION = "min_version";
+    private static final String START_TIME_MILLIS = "start_time_millis";
+    private static final String END_TIME_MILLIS = "end_time_millis";
 
     /**
      * Writes the snapshots metadata and the related indices metadata to x-content.
@@ -679,6 +666,14 @@ public final class RepositoryData {
             if (version != null) {
                 builder.field(VERSION, version.toString());
             }
+
+            if (snapshotDetails.getStartTimeMillis() != -1) {
+                builder.field(START_TIME_MILLIS, snapshotDetails.getStartTimeMillis());
+            }
+            if (snapshotDetails.getEndTimeMillis() != -1) {
+                builder.field(END_TIME_MILLIS, snapshotDetails.getEndTimeMillis());
+            }
+
             builder.endObject();
         }
         builder.endArray();
@@ -841,6 +836,8 @@ public final class RepositoryData {
             SnapshotState state = null;
             Map<String, String> metaGenerations = null;
             Version version = null;
+            long startTimeMillis = -1;
+            long endTimeMillis = -1;
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 String currentFieldName = parser.currentName();
                 parser.nextToken();
@@ -860,11 +857,21 @@ public final class RepositoryData {
                     case VERSION:
                         version = Version.fromString(parser.text());
                         break;
+                    case START_TIME_MILLIS:
+                        assert startTimeMillis == -1;
+                        startTimeMillis = parser.longValue();
+                        break;
+                    case END_TIME_MILLIS:
+                        assert endTimeMillis == -1;
+                        endTimeMillis = parser.longValue();
+                        break;
                 }
             }
+            assert (startTimeMillis == -1) == (endTimeMillis == -1)
+                    : "unexpected: " + startTimeMillis + ", " + endTimeMillis + ", ";
             final SnapshotId snapshotId = new SnapshotId(name, uuid);
             if (state != null || version != null) {
-                snapshotsDetails.put(uuid, new SnapshotDetails(state, version));
+                snapshotsDetails.put(uuid, new SnapshotDetails(state, version, startTimeMillis, endTimeMillis));
             }
             snapshots.put(uuid, snapshotId);
             if (metaGenerations != null && metaGenerations.isEmpty() == false) {
@@ -968,7 +975,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null);
+        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;
@@ -976,9 +983,21 @@ public final class RepositoryData {
         @Nullable // may be omitted if pre-7.6 nodes were involved somewhere
         private final Version version;
 
-        public SnapshotDetails(@Nullable SnapshotState snapshotState, @Nullable Version version) {
+        // May be -1 if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
+        private final long startTimeMillis;
+
+        // May be -1 if unknown, which happens if the snapshot was taken before 7.14 and hasn't been updated yet
+        private final long endTimeMillis;
+
+        public SnapshotDetails(
+                @Nullable SnapshotState snapshotState,
+                @Nullable Version version,
+                long startTimeMillis,
+                long endTimeMillis) {
             this.snapshotState = snapshotState;
             this.version = version;
+            this.startTimeMillis = startTimeMillis;
+            this.endTimeMillis = endTimeMillis;
         }
 
         @Nullable
@@ -991,17 +1010,34 @@ public final class RepositoryData {
             return version;
         }
 
+        /**
+         * @return start time in millis since the epoch, or {@code -1} if unknown.
+         */
+        public long getStartTimeMillis() {
+            return startTimeMillis;
+        }
+
+        /**
+         * @return end time in millis since the epoch, or {@code -1} if unknown.
+         */
+        public long getEndTimeMillis() {
+            return endTimeMillis;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             SnapshotDetails that = (SnapshotDetails) o;
-            return snapshotState == that.snapshotState && Objects.equals(version, that.version);
+            return startTimeMillis == that.startTimeMillis
+                    && endTimeMillis == that.endTimeMillis
+                    && snapshotState == that.snapshotState
+                    && Objects.equals(version, that.version);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(snapshotState, version);
+            return Objects.hash(snapshotState, version, startTimeMillis, endTimeMillis);
         }
 
     }

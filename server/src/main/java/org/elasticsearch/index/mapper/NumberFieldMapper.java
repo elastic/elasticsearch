@@ -1155,7 +1155,7 @@ public class NumberFieldMapper extends FieldMapper {
             indexed, hasDocValues, stored));
 
         if (hasDocValues == false && (stored || indexed)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

@@ -33,6 +33,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             histo:
@@ -40,7 +41,7 @@ setup:
                 field: number
                 interval: 50
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 4 }
 
   - match: { aggregations.histo.buckets.0.key: 0 }
@@ -77,6 +78,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             histo:
@@ -85,7 +87,7 @@ setup:
                 interval: 50
                 format: "Value is ##0.0"
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 4 }
 
   - match: { aggregations.histo.buckets.0.key: 0 }
@@ -121,6 +123,7 @@ setup:
           - '{"number": 71}'
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             histo:
@@ -128,7 +131,7 @@ setup:
                 field: number
                 interval: 20
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 4 }
 
   - match: { aggregations.histo.buckets.0.key: 0 }
@@ -325,6 +328,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         index: test_*
         body:
           aggs:
@@ -334,7 +338,7 @@ setup:
                 interval: 50
                 offset: 20
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 4 }
 
   - match: { aggregations.histo.buckets.0.key: -30 }
@@ -371,6 +375,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             histo:
@@ -378,7 +383,7 @@ setup:
                 field: number
                 interval: 50
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 3 }
 
   - match: { aggregations.histo.buckets.0.key: 50 }
@@ -409,6 +414,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             histo:
@@ -417,7 +423,7 @@ setup:
                 interval: 50
                 missing: 0
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 4 }
 
   - match: { aggregations.histo.buckets.0.key: 0 }

@@ -35,9 +35,7 @@ public class AssertObjectNodes {
                     toString(expectedTests)
                 );
             }
-
         }
-
     }
 
     private static String toString(List<ObjectNode> tests) {

@@ -168,6 +168,7 @@ setup:
 
   - do:
       search: # Test with min_doc_count: 1
+        rest_total_hits_as_int: true
         body:
           aggs:
             histo:
@@ -176,7 +177,7 @@ setup:
                 interval: 20
                 min_doc_count: 1
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 3 }
 
   - match: { aggregations.histo.buckets.0.key: 0 }
@@ -193,6 +194,7 @@ setup:
 
   - do:
       search: # Test with min_doc_count: 2
+        rest_total_hits_as_int: true
         body:
           aggs:
             histo:
@@ -201,7 +203,7 @@ setup:
                 interval: 20
                 min_doc_count: 2
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 1 }
   - match: { aggregations.histo.buckets.0.key: 60 }
   - is_false: aggregations.histo.buckets.0.key_as_string
@@ -225,6 +227,7 @@ setup:
 
   - do:
       search:
+        rest_total_hits_as_int: true
         body:
           aggs:
             histo:
@@ -235,7 +238,7 @@ setup:
                   min: 0
                   max: 200
 
-  - match: { hits.total.value: 4 }
+  - match: { hits.total: 4 }
   - length: { aggregations.histo.buckets: 5 }
 
   - match: { aggregations.histo.buckets.0.key: 0 }
@@ -571,11 +574,8 @@ setup:
 ---
 "date_histogram with offset":
   - skip:
-      version: "all"
-      reason:  "AwaitsFix https://github.com/elastic/elasticsearch/issues/51525"
-      # When fixed, reinstate these lines
-      #version: " - 7.1.99"
-      #reason:  calendar_interval introduced in 7.2.0
+      version: " - 7.1.99"
+      reason:  calendar_interval introduced in 7.2.0
 
   - do:
       indices.create:

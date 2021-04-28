@@ -35,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -53,6 +54,7 @@ class DatabaseReaderLazyLoader implements Closeable {
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
+    private volatile long lastUpdate;
     final SetOnce<DatabaseReader> databaseReader;
 
     // cache the database type so that we do not re-read it on every pipeline execution
@@ -194,6 +196,9 @@ class DatabaseReaderLazyLoader implements Closeable {
     }
 
     DatabaseReader get() throws IOException {
+        if (lastUpdate != 0 && System.currentTimeMillis() - lastUpdate > Duration.ofDays(30).toMillis()) {
+            throw new IllegalStateException("Database was not updated for 30 days");
+        }
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
@@ -248,4 +253,7 @@ class DatabaseReaderLazyLoader implements Closeable {
         return new DatabaseReader.Builder(databasePath.toFile());
     }
 
+    void setLastUpdate(long lastUpdate) {
+        this.lastUpdate = lastUpdate;
+    }
 }

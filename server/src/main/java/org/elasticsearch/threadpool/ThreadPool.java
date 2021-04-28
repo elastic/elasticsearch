@@ -73,7 +73,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
         public static final String SYSTEM_READ = "system_read";
         public static final String SYSTEM_WRITE = "system_write";
-        public static final String SYSTEM_CRITICAL = "system_critical";
+        public static final String SYSTEM_CRITICAL_READ = "system_critical_read";
+        public static final String SYSTEM_CRITICAL_WRITE = "system_critical_write";
     }
 
     public enum ThreadPoolType {
@@ -122,7 +123,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED),
-        entry(Names.SYSTEM_CRITICAL, ThreadPoolType.FIXED));
+        entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
+        entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED));
 
     private final Map<String, ExecutorHolder> executors;
 
@@ -174,8 +176,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SYSTEM_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_READ, halfProcMaxAt5, 2000, false));
         builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
-        // TODO[wrb]: check on thread pool size?
-        builders.put(Names.SYSTEM_CRITICAL, new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL, halfProcMaxAt5, 1500, false));
+        builders.put(Names.SYSTEM_CRITICAL_READ, new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_READ, halfProcMaxAt5, 2000,
+            false));
+        builders.put(Names.SYSTEM_CRITICAL_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_CRITICAL_WRITE, halfProcMaxAt5, 1500,
+            false));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {

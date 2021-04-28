@@ -17,6 +17,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
@@ -31,9 +32,11 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -310,58 +313,56 @@ public class S3HttpHandler implements HttpHandler {
             } else {
                 BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
                 int chunkIndex = 0;
+                final List<BytesReference> chunks = new ArrayList<>();
 
-                try (final ByteArrayOutputStream blob = new ByteArrayOutputStream()) {
-                    while (true) {
-                        chunkIndex += 1;
+                while (true) {
+                    chunkIndex += 1;
 
-                        final int headerLength = requestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
-                        if (headerLength == 0) {
-                            throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
-                        }
-                        if (headerLength > 150) {
-                            throw new IllegalStateException(
-                                    "header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes");
-                        }
-                        if (headerLength < 3) {
-                            throw new IllegalStateException(
-                                    "header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes");
-                        }
-                        if (requestBody.get(headerLength - 1) != '\n' || requestBody.get(headerLength - 2) != '\r') {
-                            throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
-                        }
-
-                        final String header = requestBody.slice(0, headerLength - 2).utf8ToString();
-                        final Matcher matcher = chunkSignaturePattern.matcher(header);
-                        if (matcher.find() == false) {
-                            throw new IllegalStateException(
-                                    "header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]");
-                        }
-                        final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
-
-                        if (requestBody.get(headerLength + chunkSize) != '\r' || requestBody.get(headerLength + chunkSize + 1) != '\n') {
-                            throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
-                        }
-
-                        final BytesRefIterator chunkIterator = requestBody.slice(headerLength, chunkSize).iterator();
-                        BytesRef bytesRef;
-                        while ((bytesRef = chunkIterator.next()) != null) {
-                            blob.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                        }
-
-                        final int toSkip = headerLength + chunkSize + 2;
-                        requestBody = requestBody.slice(toSkip, requestBody.length() - toSkip);
-
-                        if (chunkSize == 0) {
-                            break;
-                        }
+                    final int headerLength = requestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
+                    if (headerLength == 0) {
+                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
+                    }
+                    if (headerLength > 150) {
+                        throw new IllegalStateException(
+                                "header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes");
+                    }
+                    if (headerLength < 3) {
+                        throw new IllegalStateException(
+                                "header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes");
+                    }
+                    if (requestBody.get(headerLength - 1) != '\n' || requestBody.get(headerLength - 2) != '\r') {
+                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
                     }
 
-                    if (blob.size() != Integer.parseInt(headerDecodedContentLength)) {
-                        throw new IllegalStateException("Something went wrong when parsing the chunked request " +
-                                "[bytes read=" + blob.size() + ", expected=" + headerDecodedContentLength + "]");
+                    final String header = requestBody.slice(0, headerLength - 2).utf8ToString();
+                    final Matcher matcher = chunkSignaturePattern.matcher(header);
+                    if (matcher.find() == false) {
+                        throw new IllegalStateException(
+                                "header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]");
                     }
-                    bytesReference = new BytesArray(blob.toByteArray());
+                    final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
+
+                    if (requestBody.get(headerLength + chunkSize) != '\r' || requestBody.get(headerLength + chunkSize + 1) != '\n') {
+                        throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+                    }
+
+                    if (chunkSize != 0) {
+                        chunks.add(requestBody.slice(headerLength, chunkSize));
+                    }
+
+                    final int toSkip = headerLength + chunkSize + 2;
+                    requestBody = requestBody.slice(toSkip, requestBody.length() - toSkip);
+
+                    if (chunkSize == 0) {
+                        break;
+                    }
+                }
+
+                bytesReference = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
+
+                if (bytesReference.length() != Integer.parseInt(headerDecodedContentLength)) {
+                    throw new IllegalStateException("Something went wrong when parsing the chunked request " +
+                            "[bytes read=" + bytesReference.length() + ", expected=" + headerDecodedContentLength + "]");
                 }
             }
 

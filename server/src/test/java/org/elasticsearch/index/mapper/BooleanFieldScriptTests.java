@@ -45,27 +45,6 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
         return DUMMY;
     }
 
-    public void testAsDocValues() {
-        BooleanFieldScript script = new BooleanFieldScript(
-                "test",
-                Map.of(),
-                new SearchLookup(field -> null, (ft, lookup) -> null),
-                null
-        ) {
-            @Override
-            public void execute() {
-                emit(true);
-                emit(false);
-                emit(true);
-                emit(true);
-                emit(false);
-            }
-        };
-        script.execute();
-
-        assertArrayEquals(new boolean[] {false, false, true, true, true}, script.asDocValues());
-    }
-
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));

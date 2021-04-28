@@ -331,7 +331,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         Field field = new Field(fieldType().name(), value, fieldType);
         context.doc().add(field);
-        createFieldNamesField(context);
+        context.addToFieldNames(fieldType().name());
     }
 
     @Override

@@ -277,30 +277,6 @@ public class S3HttpHandler implements HttpHandler {
         return uploadId + "\n" + partNumber;
     }
 
-    private static CheckedInputStream createCheckedInputStream(final InputStream inputStream, final MessageDigest digest) {
-        return new CheckedInputStream(inputStream, new Checksum() {
-            @Override
-            public void update(int b) {
-                digest.update((byte) b);
-            }
-
-            @Override
-            public void update(byte[] b, int off, int len) {
-                digest.update(b, off, len);
-            }
-
-            @Override
-            public long getValue() {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void reset() {
-                digest.reset();
-            }
-        });
-    }
-
     private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
@@ -367,7 +343,11 @@ public class S3HttpHandler implements HttpHandler {
             }
 
             final MessageDigest digest = MessageDigests.md5();
-            Streams.readFully(createCheckedInputStream(bytesReference.streamInput(), digest));
+            BytesRef ref;
+            final BytesRefIterator iterator = bytesReference.iterator();
+            while ((ref = iterator.next()) != null) {
+                digest.update(ref.bytes, ref.offset, ref.length);
+            }
             return Tuple.tuple(MessageDigests.toHexString(digest.digest()), bytesReference);
         } catch (Exception e) {
             exchange.sendResponseHeaders(500, 0);

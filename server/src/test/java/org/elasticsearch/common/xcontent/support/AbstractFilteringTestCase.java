@@ -1438,10 +1438,10 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
             .endObject()
             .endObject()
             .endObject();
-        Set<String> manyFilters = Files.lines(
-            Path.of(AbstractFilteringTestCase.class.getResource("many_filters.txt").toURI()),
+        Set<String> manyFilters = Files.readAllLines(
+            PathUtils.get(AbstractFilteringTestCase.class.getResource("many_filters.txt").toURI()),
             StandardCharsets.UTF_8
-        ).filter(s -> false == s.startsWith("#")).collect(toSet());
+        ).stream().filter(s -> false == s.startsWith("#")).collect(toSet());
         testFilter(deep, deep, manyFilters, emptySet());
     }
 }

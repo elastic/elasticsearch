@@ -28,7 +28,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -137,8 +136,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
 
         // simulate older data path layout by moving data under "nodes/0" folder
-        final List<Path> dataPaths = Environment.PATH_DATA_SETTING.get(dataPathSettings)
-            .stream().map(PathUtils::get).collect(Collectors.toList());
+        final List<Path> dataPaths = List.of(PathUtils.get(Environment.PATH_DATA_SETTING.get(dataPathSettings)));
         dataPaths.forEach(path -> {
                 final Path targetPath = path.resolve("nodes").resolve("0");
                 try {

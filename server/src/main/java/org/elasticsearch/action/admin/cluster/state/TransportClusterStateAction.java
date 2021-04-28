@@ -79,7 +79,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
-            assert acceptableClusterStateOrFailedPredicate.test(state) == false;
+            // It is possible that the task is cancelled after the predicate has been executed, therefore we should take
+            // that into account as well for the assertion
+            assert acceptableClusterStateOrFailedPredicate.test(state) == false
+                || request.local() == false && cancellableTask.isCancelled();
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
                 .waitForNextChange(new ClusterStateObserver.Listener() {
 

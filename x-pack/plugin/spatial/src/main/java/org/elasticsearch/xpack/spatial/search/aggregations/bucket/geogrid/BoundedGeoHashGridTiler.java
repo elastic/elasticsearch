@@ -26,12 +26,13 @@ public class BoundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
 
     @Override
     protected boolean validHash(String hash) {
-        Rectangle rectangle = Geohash.toBoundingBox(hash);
-        if (bbox.top() >= rectangle.getMinY() && bbox.bottom() <= rectangle.getMaxY()) {
+        final Rectangle rectangle = Geohash.toBoundingBox(hash);
+        // touching hashes are excluded
+        if (bbox.top() > rectangle.getMinY() && bbox.bottom() < rectangle.getMaxY()) {
             if (crossesDateline) {
-                return bbox.left() <= rectangle.getMaxX() || bbox.right() >= rectangle.getMinX();
+                return bbox.left() < rectangle.getMaxX() || bbox.right() > rectangle.getMinX();
             } else {
-                return bbox.left() <= rectangle.getMaxX() && bbox.right() >= rectangle.getMinX();
+                return bbox.left() < rectangle.getMaxX() && bbox.right() > rectangle.getMinX();
             }
         }
         return false;

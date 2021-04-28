@@ -58,7 +58,8 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
         final AtomicInteger position = new AtomicInteger(0);
         final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) -> {
             // Since we're executing the actions locally we should create a new request
-            // to avoid mutating the original request and setting the wrong parent task
+            // to avoid mutating the original request and setting the wrong parent task,
+            // since it is possible that the parent task gets cancelled and new child tasks are banned.
             final XPackUsageRequest childRequest = new XPackUsageRequest();
             childRequest.setParentTask(request.getParentTask());
             client.executeLocally(featureUsageAction, childRequest, iteratingListener.delegateFailure((l, usageResponse) -> {

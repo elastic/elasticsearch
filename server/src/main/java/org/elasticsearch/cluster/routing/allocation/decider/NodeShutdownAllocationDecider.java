@@ -56,7 +56,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
                     node.nodeId()
                 );
             default:
-                logger.error(
+                logger.debug(
                     "found unrecognized node shutdown type [{}] while deciding allocation for [{}] shard [{}][{}] on node [{}]",
                     thisNodeShutdownMetadata.getType(),
                     shardRouting.primary() ? "primary" : "replica",
@@ -97,7 +97,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
             case REMOVE:
                 return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
             default:
-                logger.error(
+                logger.debug(
                     "found unrecognized node shutdown type [{}] while deciding auto-expansion for index [{}] on node [{}]",
                     thisNodeShutdownMetadata.getType(),
                     indexMetadata.getIndex().getName(),

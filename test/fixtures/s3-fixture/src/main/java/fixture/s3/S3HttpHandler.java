@@ -355,7 +355,7 @@ public class S3HttpHandler implements HttpHandler {
                 printStream.println(e.toString());
                 e.printStackTrace(printStream);
             }
-            throw e;
+            throw new AssertionError("parseRequestBody failed", e);
         }
     }
 

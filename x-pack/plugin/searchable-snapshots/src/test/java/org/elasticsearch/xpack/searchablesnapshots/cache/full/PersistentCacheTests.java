@@ -48,7 +48,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.assertCacheFileEquals;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
@@ -193,7 +192,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 NODE_ROLES_SETTING.getKey(),
                 randomValueOtherThanMany(
                     r -> Objects.equals(r, DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) || r.canContainData(),
-                    () -> randomFrom(BUILT_IN_ROLES)
+                    () -> randomFrom(DiscoveryNodeRole.roles())
                 ).roleName()
             )
             .build();
@@ -211,7 +210,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             nodeEnvironment = newNodeEnvironment(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                    .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                    .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
                     .build()
             );
 

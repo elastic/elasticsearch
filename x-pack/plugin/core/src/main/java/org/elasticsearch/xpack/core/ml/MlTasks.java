@@ -37,6 +37,9 @@ public final class MlTasks {
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE =
         new PersistentTasksCustomMetadata.Assignment(null,
             "persistent task cannot be assigned while upgrade mode is enabled.");
+    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS =
+        new PersistentTasksCustomMetadata.Assignment(null,
+            "persistent task will not be assigned as a feature reset is in progress.");
 
     private MlTasks() {
     }

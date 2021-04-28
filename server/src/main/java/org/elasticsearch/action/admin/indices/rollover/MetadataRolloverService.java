@@ -27,6 +27,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,14 +57,17 @@ public class MetadataRolloverService {
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final SystemIndices systemIndices;
+
     @Inject
     public MetadataRolloverService(ThreadPool threadPool,
                                    MetadataCreateIndexService createIndexService, MetadataIndexAliasesService indexAliasesService,
-                                   IndexNameExpressionResolver indexNameExpressionResolver) {
+                                   IndexNameExpressionResolver indexNameExpressionResolver, SystemIndices systemIndices) {
         this.threadPool = threadPool;
         this.createIndexService = createIndexService;
         this.indexAliasesService = indexAliasesService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.systemIndices = systemIndices;
     }
 
     public static class RolloverResult {
@@ -209,7 +214,16 @@ public class MetadataRolloverService {
             );
         }
 
-        lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+        final SystemDataStreamDescriptor systemDataStreamDescriptor;
+        if (dataStream.isSystem() == false) {
+            systemDataStreamDescriptor = null;
+            lookupTemplateForDataStream(dataStreamName, currentState.metadata());
+        } else {
+            systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
+            if (systemDataStreamDescriptor == null) {
+                throw new IllegalArgumentException("no system data stream descriptor found for data stream [" + dataStreamName + "]");
+            }
+        }
 
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
@@ -219,8 +233,12 @@ public class MetadataRolloverService {
             return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), currentState);
         }
 
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
-            prepareDataStreamCreateIndexRequest(dataStreamName, rolledDataStream.getWriteIndex().getName(), createIndexRequest);
+        CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest = prepareDataStreamCreateIndexRequest(
+            dataStreamName,
+            rolledDataStream.getWriteIndex().getName(),
+            createIndexRequest,
+            systemDataStreamDescriptor
+        );
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
             (builder, indexMetadata) -> builder.put(ds.rollover(currentState.metadata(), indexMetadata.getIndexUUID())));
 
@@ -252,10 +270,12 @@ public class MetadataRolloverService {
 
     static CreateIndexClusterStateUpdateRequest prepareDataStreamCreateIndexRequest(final String dataStreamName,
                                                                                     final String targetIndexName,
-                                                                                    CreateIndexRequest createIndexRequest) {
-        Settings settings = Settings.builder().put("index.hidden", true).build();
+                                                                                    CreateIndexRequest createIndexRequest,
+                                                                                    final SystemDataStreamDescriptor descriptor) {
+        Settings settings = descriptor != null ? Settings.EMPTY : Settings.builder().put("index.hidden", true).build();
         return prepareCreateIndexRequest(targetIndexName, targetIndexName, "rollover_data_stream", createIndexRequest, settings)
-            .dataStreamName(dataStreamName);
+            .dataStreamName(dataStreamName)
+            .systemDataStreamDescriptor(descriptor);
     }
 
     static CreateIndexClusterStateUpdateRequest prepareCreateIndexRequest(

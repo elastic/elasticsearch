@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -245,7 +243,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         try {
             indexScriptValues(searchLookup, readerContext, doc, parseContext);
         } catch (Exception e) {
-            if ("ignore".equals(onScriptError)) {
+            if ("continue".equals(onScriptError)) {
                 parseContext.addIgnoredField(name());
             } else {
                 throw new MapperParsingException("Error executing script on field [" + name() + "]", e);
@@ -264,19 +262,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
         throw new UnsupportedOperationException("FieldMapper " + name() + " does not support [script]");
-    }
-
-    protected final void createFieldNamesField(ParseContext context) {
-        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
-        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) context.getMetadataMapper(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFieldMapper != null) {
-            FieldNamesFieldType fieldNamesFieldType = fieldNamesFieldMapper.fieldType();
-            if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
-                for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
-                }
-            }
-        }
     }
 
     @Override
@@ -538,6 +523,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             public Builder add(String field) {
                 copyToBuilders.add(field);
                 return this;
+            }
+
+            public boolean hasValues() {
+                return copyToBuilders.isEmpty() == false;
             }
 
             public CopyTo build() {
@@ -979,7 +968,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 "on_script_error",
                 true,
                 initializer,
-                "reject", "ignore").requiresParameters(dependentScriptParam);
+                "fail", "continue").requiresParameters(dependentScriptParam);
         }
     }
 
@@ -1069,6 +1058,24 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          */
         protected String buildFullName(ContentPath contentPath) {
             return contentPath.pathAsText(name);
+        }
+
+        protected void addScriptValidation(
+            Parameter<Script> scriptParam,
+            Parameter<Boolean> indexParam,
+            Parameter<Boolean> docValuesParam
+        ) {
+            scriptParam.setValidator(s -> {
+                if (s != null && indexParam.get() == false && docValuesParam.get() == false) {
+                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
+                }
+                if (s != null && multiFieldsBuilder.hasMultiFields()) {
+                    throw new MapperParsingException("Cannot define multifields on a field with a script");
+                }
+                if (s != null && copyTo.hasValues()) {
+                    throw new MapperParsingException("Cannot define copy_to parameter on a field with a script");
+                }
+            });
         }
 
         /**

@@ -96,6 +96,19 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
                 InternalAggregationTestCase.emptyReduceContextBuilder().forPartialReduction());
     }
 
+    public void testLargeReduce() {
+        expectReduceUsesTooManyBuckets(new InternalHistogram(
+            "h",
+            List.of(),
+            BucketOrder.key(true),
+            0,
+            new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),
+            DocValueFormat.RAW,
+            false,
+            null
+        ), 100000);
+    }
+
     @Override
     protected void assertReduced(InternalHistogram reduced, List<InternalHistogram> inputs) {
         TreeMap<Double, Long> expectedCounts = new TreeMap<>();

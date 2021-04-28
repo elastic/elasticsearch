@@ -8,6 +8,10 @@ After adding password protection in the <<security-minimal-setup,minimal securit
 (TLS). The transport layer handles all internal communication between nodes in
 your cluster.
 
+IMPORTANT: If your cluster has multiple nodes, then you must configure
+TLS between nodes. <<dev-vs-prod-mode,Production mode>> clusters will not start
+if you do not enable TLS.
+
 The transport layer relies on mutual TLS for both encryption and
 authentication of nodes. Correctly applying TLS ensures that a malicious node
 cannot join the cluster and exchange data with other nodes. While implementing

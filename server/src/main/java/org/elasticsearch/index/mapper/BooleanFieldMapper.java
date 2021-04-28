@@ -89,14 +89,7 @@ public class BooleanFieldMapper extends FieldMapper {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.script.precludesParameters(nullValue);
-            this.script.setValidator(s -> {
-                if (s != null && indexed.get() == false && docValues.get() == false) {
-                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
-                }
-                if (s != null && multiFieldsBuilder.hasMultiFields()) {
-                    throw new MapperParsingException("Cannot define multifields on a field with a script");
-                }
-            });
+            addScriptValidation(script, indexed, docValues);
         }
 
         @Override
@@ -300,7 +293,7 @@ public class BooleanFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

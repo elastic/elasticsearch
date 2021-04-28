@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 public class CreateDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<CreateDataStreamAction.Request> {
 
     private final MetadataCreateDataStreamService metadataCreateDataStreamService;
+    private final SystemIndices systemIndices;
 
     @Inject
     public CreateDataStreamTransportAction(
@@ -33,7 +36,8 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        MetadataCreateDataStreamService metadataCreateDataStreamService
+        MetadataCreateDataStreamService metadataCreateDataStreamService,
+        SystemIndices systemIndices
     ) {
         super(
             CreateDataStreamAction.NAME,
@@ -46,6 +50,7 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
             ThreadPool.Names.SAME
         );
         this.metadataCreateDataStreamService = metadataCreateDataStreamService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -55,9 +60,14 @@ public class CreateDataStreamTransportAction extends AcknowledgedTransportMaster
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
+        final SystemDataStreamDescriptor systemDataStreamDescriptor = systemIndices.validateDataStreamAccess(
+            request.getName(),
+            threadPool.getThreadContext()
+        );
         MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest updateRequest =
             new MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest(
                 request.getName(),
+                systemDataStreamDescriptor,
                 request.masterNodeTimeout(),
                 request.timeout()
             );

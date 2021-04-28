@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -39,6 +41,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
     GetDataStreamAction.Response> {
 
     private static final Logger LOGGER = LogManager.getLogger(GetDataStreamsTransportAction.class);
+    private final SystemIndices systemIndices;
 
     @Inject
     public GetDataStreamsTransportAction(
@@ -46,7 +49,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
     ) {
         super(
             GetDataStreamAction.NAME,
@@ -59,6 +63,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             GetDataStreamAction.Response::new,
             ThreadPool.Names.SAME
         );
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -71,18 +76,32 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
         for (DataStream dataStream : dataStreams) {
-            String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
+            final String indexTemplate;
             String ilmPolicyName = null;
-            if (indexTemplate != null) {
-                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                ilmPolicyName = settings.get("index.lifecycle.name");
+            if (dataStream.isSystem()) {
+                SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
+                indexTemplate = dataStreamDescriptor != null ? dataStreamDescriptor.getDataStreamName() : null;
+                if (dataStreamDescriptor != null) {
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(
+                        dataStreamDescriptor.getComposableIndexTemplate(),
+                        dataStreamDescriptor.getComponentTemplates()
+                    );
+                    ilmPolicyName = settings.get("index.lifecycle.name");
+                }
             } else {
-                LOGGER.warn(
-                    "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"
-                        + "from a snapshot?",
-                    dataStream.getName()
-                );
+                indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
+                if (indexTemplate != null) {
+                    Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                    ilmPolicyName = settings.get("index.lifecycle.name");
+                } else {
+                    LOGGER.warn(
+                        "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"
+                            + "from a snapshot?",
+                        dataStream.getName()
+                    );
+                }
             }
+
             ClusterStateHealth streamHealth = new ClusterStateHealth(
                 state,
                 dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)

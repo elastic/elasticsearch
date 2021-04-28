@@ -27,7 +27,7 @@ public class ClientEnrollmentRequestTests extends ESTestCase {
         ClientEnrollmentRequest request = new ClientEnrollmentRequest(clientType, withPassword ? password : null);
 
         Map<String, Object> expected = new HashMap<>(Map.of(
-            "client_type", "kibana"
+            "client_type", clientType
         ));
         if (withPassword) {
             expected.put("client_password", new String(password));

@@ -69,6 +69,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     }
 
     public static Optional<NodesShutdownMetadata> getShutdowns(final ClusterState state) {
+        assert state != null : "cluster state should never be null";
         return Optional.ofNullable(state)
             .map(ClusterState::metadata)
             .map(m -> m.custom(TYPE));

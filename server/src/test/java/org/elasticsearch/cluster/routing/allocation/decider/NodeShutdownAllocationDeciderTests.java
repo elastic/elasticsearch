@@ -146,7 +146,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
-    public void testCanAutoExpandToRestartingNode() {
+    public void testCannotAutoExpandToRestartingNode() {
         ClusterState state = prepareState(
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             SingleNodeShutdownMetadata.Type.RESTART
@@ -155,10 +155,10 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         allocation.debugDecision(true);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
-        assertThat(decision.type(), equalTo(Decision.Type.YES));
+        assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is preparing to restart, but will remain in the cluster")
+            equalTo("node [" + DATA_NODE.getId() + "] is preparing to restart, auto-expansion waiting until it is complete")
         );
     }
 

@@ -92,8 +92,12 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
 
         switch (thisNodeShutdownMetadata.getType()) {
             case RESTART:
-                return allocation.decision(Decision.YES, NAME, "node [%s] is preparing to restart, but will remain in the cluster",
-                    node.getId());
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "node [%s] is preparing to restart, auto-expansion waiting until it is complete",
+                    node.getId()
+                );
             case REMOVE:
                 return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
             default:

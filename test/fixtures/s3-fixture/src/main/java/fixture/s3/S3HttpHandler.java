@@ -10,6 +10,8 @@ package fixture.s3;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -22,11 +24,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
-import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HashMap;
@@ -299,71 +301,81 @@ public class S3HttpHandler implements HttpHandler {
     private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
-        final BytesReference bytesReference;
+        try {
+            final BytesReference bytesReference;
 
-        final String headerDecodedContentLength = exchange.getRequestHeaders().getFirst("x-amz-decoded-content-length");
-        if (headerDecodedContentLength == null) {
-            bytesReference = Streams.readFully(exchange.getRequestBody());
-        } else {
-            BytesReference cc = Streams.readFully(exchange.getRequestBody());
+            final String headerDecodedContentLength = exchange.getRequestHeaders().getFirst("x-amz-decoded-content-length");
+            if (headerDecodedContentLength == null) {
+                bytesReference = Streams.readFully(exchange.getRequestBody());
+            } else {
+                BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
+                int chunkIndex = 0;
 
-            final ByteArrayOutputStream blob = new ByteArrayOutputStream();
-            try (BufferedInputStream in = new BufferedInputStream(cc.streamInput())) {
-                int chunkSize = 0;
-                int read;
-                while ((read = in.read()) != -1) {
-                    boolean markAndContinue = false;
-                    try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
-                        do { // search next consecutive {carriage return, new line} chars and stop
-                            if ((char) read == '\r') {
-                                int next = in.read();
-                                if (next != -1) {
-                                    if (next == '\n') {
-                                        break;
-                                    }
-                                    out.write(read);
-                                    out.write(next);
-                                    continue;
-                                }
-                            }
-                            out.write(read);
-                        } while ((read = in.read()) != -1);
+                try (final ByteArrayOutputStream blob = new ByteArrayOutputStream()) {
+                    while (true) {
+                        chunkIndex += 1;
 
-                        final String line = new String(out.toByteArray(), UTF_8);
-                        if (line.length() == 0 || line.equals("\r\n")) {
-                            markAndContinue = true;
-                        } else {
-                            Matcher matcher = chunkSignaturePattern.matcher(line);
-                            if (matcher.find()) {
-                                markAndContinue = true;
-                                chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
-                            }
+                        final int headerLength = requestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
+                        if (headerLength == 0) {
+                            throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
                         }
-                        if (markAndContinue) {
-                            in.mark(Integer.MAX_VALUE);
-                            continue;
+                        if (headerLength > 150) {
+                            throw new IllegalStateException(
+                                    "header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes");
+                        }
+                        if (headerLength < 3) {
+                            throw new IllegalStateException(
+                                    "header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes");
+                        }
+                        if (requestBody.get(headerLength - 1) != '\n' || requestBody.get(headerLength - 2) != '\r') {
+                            throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+                        }
+
+                        final String header = requestBody.slice(0, headerLength - 2).utf8ToString();
+                        final Matcher matcher = chunkSignaturePattern.matcher(header);
+                        if (matcher.find() == false) {
+                            throw new IllegalStateException(
+                                    "header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]");
+                        }
+                        final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
+
+                        if (requestBody.get(headerLength + chunkSize) != '\r' || requestBody.get(headerLength + chunkSize + 1) != '\n') {
+                            throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+                        }
+
+                        final BytesRefIterator chunkIterator = requestBody.slice(headerLength, chunkSize).iterator();
+                        BytesRef bytesRef;
+                        while ((bytesRef = chunkIterator.next()) != null) {
+                            blob.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+                        }
+
+                        final int toSkip = headerLength + chunkSize + 2;
+                        requestBody = requestBody.slice(toSkip, requestBody.length() - toSkip);
+
+                        if (chunkSize == 0) {
+                            break;
                         }
                     }
-                    if (chunkSize > 0) {
-                        in.reset();
-                        final byte[] buffer = new byte[chunkSize];
-                        in.read(buffer, 0, buffer.length);
-                        blob.write(buffer);
-                        blob.flush();
-                        chunkSize = 0;
+
+                    if (blob.size() != Integer.parseInt(headerDecodedContentLength)) {
+                        throw new IllegalStateException("Something went wrong when parsing the chunked request " +
+                                "[bytes read=" + blob.size() + ", expected=" + headerDecodedContentLength + "]");
                     }
+                    bytesReference = new BytesArray(blob.toByteArray());
                 }
             }
-            if (blob.size() != Integer.parseInt(headerDecodedContentLength)) {
-                throw new IllegalStateException("Something went wrong when parsing the chunked request " +
-                    "[bytes read=" + blob.size() + ", expected=" + headerDecodedContentLength + "]");
-            }
-            bytesReference = new BytesArray(blob.toByteArray());
-        }
 
-        final MessageDigest digest = MessageDigests.md5();
-        Streams.readFully(createCheckedInputStream(bytesReference.streamInput(), digest));
-        return Tuple.tuple(MessageDigests.toHexString(digest.digest()), bytesReference);
+            final MessageDigest digest = MessageDigests.md5();
+            Streams.readFully(createCheckedInputStream(bytesReference.streamInput(), digest));
+            return Tuple.tuple(MessageDigests.toHexString(digest.digest()), bytesReference);
+        } catch (Exception e) {
+            exchange.sendResponseHeaders(500, 0);
+            try (PrintStream printStream = new PrintStream(exchange.getResponseBody())) {
+                printStream.println(e.toString());
+                e.printStackTrace(printStream);
+            }
+            throw e;
+        }
     }
 
     public static void sendError(final HttpExchange exchange,

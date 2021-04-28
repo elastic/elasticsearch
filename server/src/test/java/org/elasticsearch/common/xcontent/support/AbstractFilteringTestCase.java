@@ -16,10 +16,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toSet;
 
 /**
  * Tests for {@link XContent} filtering.
@@ -1415,5 +1420,28 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
                     .field("photosCount", 2)
                 .endObject();
         testFilter(expected, sample, singleton("photosCount"), emptySet());
+    }
+
+    public void testManyFilters() throws IOException, URISyntaxException {
+        Builder deep = builder -> builder.startObject()
+            .startObject("system")
+            .startObject("process")
+            .startObject("cgroup")
+            .startObject("memory")
+            .startObject("stats")
+            .startObject("mapped_file")
+            .field("bytes", 100)
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        Set<String> manyFilters = Files.lines(
+            Path.of(AbstractFilteringTestCase.class.getResource("many_filters.txt").toURI()),
+            StandardCharsets.UTF_8
+        ).filter(s -> false == s.startsWith("#")).collect(toSet());
+        testFilter(deep, deep, manyFilters, emptySet());
     }
 }

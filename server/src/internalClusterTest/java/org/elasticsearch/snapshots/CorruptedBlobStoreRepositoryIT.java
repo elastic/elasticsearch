@@ -200,7 +200,11 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 repositoryData.getGenId(),
                 repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, Function.identity())),
                 repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID,
-                        s -> new RepositoryData.SnapshotDetails(repositoryData.getSnapshotState(s), null))),
+                        s -> new RepositoryData.SnapshotDetails(
+                                repositoryData.getSnapshotState(s),
+                                null,
+                                -1,
+                                -1))),
                 Collections.emptyMap(),
                 ShardGenerations.EMPTY,
                 IndexMetaDataGenerations.EMPTY,

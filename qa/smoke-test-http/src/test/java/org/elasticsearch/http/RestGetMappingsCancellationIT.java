@@ -24,31 +24,19 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), BlockingMappings.class);
-    }
 
     public void testGetMappingsCancellation() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -105,50 +93,6 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
         });
     }
 
-    public void testGetMappingsCancellationWhileProducingMappings() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startDataOnlyNode();
-        ensureStableCluster(2);
-
-        for (int i = 0; i < 2; i++) {
-            final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            createIndex(indexName);
-            ensureGreen(indexName);
-        }
-
-        final String actionName = GetMappingsAction.NAME;
-
-        final Request request = new Request(HttpGet.METHOD_NAME, "/_mappings");
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        final Cancellable cancellable = getRestClient().performRequestAsync(request, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                future.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                future.onFailure(exception);
-            }
-        });
-
-        assertThat(future.isDone(), equalTo(false));
-        awaitTaskWithPrefix(actionName);
-
-        cancellable.cancel();
-        assertAllCancellableTasksAreCancelled(actionName);
-
-        BlockingMappings.unblockExecution();
-
-        expectThrows(CancellationException.class, future::actionGet);
-
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(actionName)));
-        });
-    }
-
-
     private void updateClusterState(Function<ClusterState, ClusterState> transformationFn) {
         final TimeValue timeout = TimeValue.timeValueSeconds(10);
 
@@ -174,29 +118,5 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
             });
 
         future.actionGet();
-    }
-
-    public static class BlockingMappings extends Plugin implements MapperPlugin {
-        private static final AtomicInteger executions = new AtomicInteger();
-        private static final CyclicBarrier barrier = new CyclicBarrier(2);
-
-        static void unblockExecution() throws Exception {
-            barrier.await();
-        }
-
-        @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> {
-                if (executions.incrementAndGet() > 1) {
-                    assert false : "Unexpected execution";
-                }
-                try {
-                    barrier.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-                return (field) -> true;
-            };
-        }
     }
 }

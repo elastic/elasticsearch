@@ -39,7 +39,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
         super(GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
-                indexNameExpressionResolver, GetMappingsResponse::new, ThreadPool.Names.GENERIC);
+                indexNameExpressionResolver, GetMappingsResponse::new);
         this.indicesService = indicesService;
     }
 
@@ -49,7 +49,7 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
         logger.trace("serving getMapping request based on version {}", state.version());
         final Metadata metadata = state.metadata();
         final ImmutableOpenMap<String, MappingMetadata> mappings =
-            metadata.findMappings(concreteIndices, indicesService.getFieldFilter(), (unused) -> checkCancellation(task));
+            metadata.findMappings(concreteIndices, indicesService.getFieldFilter(), () -> checkCancellation(task));
         listener.onResponse(new GetMappingsResponse(mappings));
     }
 

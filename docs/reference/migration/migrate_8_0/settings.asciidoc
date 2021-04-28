@@ -167,8 +167,7 @@ Discontinue use of the removed settings. If needed, use
 cluster recovery pending a certain number of data nodes.
 ====
 
-.Setting the searchable snapshots shared cache size on non-frozen nodes is no
-longer permitted.
+.Setting the searchable snapshots shared cache size on non-frozen nodes is no longer permitted.
 [%collapsible]
 ====
 *Details* +

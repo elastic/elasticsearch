@@ -26,18 +26,17 @@ The heap size should be based on the available RAM:
 memory for purposes other than the JVM heap. For example, {es} uses
 off-heap buffers for efficient network communication and relies
 on the operating system's filesystem cache for
-efficient access to files. The JVM itself also requires some memory. It is
-normal for the {es} process to use more memory than the limit
+efficient access to files. The JVM itself also requires some memory. It's
+normal for {es} to use more memory than the limit
 configured with the `Xmx` setting.
 +
 NOTE: When running in a container, such as <<docker,Docker>>, total memory is
 defined as the amount of memory visible to the container, not the total system
 memory on the host.
 
-* Set `Xms` and `Xmx` to no more than the threshold that the JVM uses for
-compressed ordinary object pointers (oops). The exact threshold varies but
-is near 32 GB. You can verify that you are under the threshold by checking
-the logs for a heap size entry like this:
+* Set `Xms` and `Xmx` to no more than 32 GB, the approximate threshold for
+compressed ordinary object pointers (oops). To verify you are under the
+threshold, check `elasticsearch.logs` for an entry like this:
 +
 [source,txt]
 ----
@@ -49,7 +48,7 @@ compressed oops. The exact threshold varies but 26GB is safe on most
 systems and can be as large as 30GB on some systems. You can verify that
 you are under this threshold by starting {es} with the JVM options
 `-XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode` and checking
-the logs for a heap address entry like this:
+`elasticsearch.logs` for an entry like this:
 +
 [source,txt]
 ----
@@ -72,7 +71,7 @@ collection pauses.
 To configure the heap size, add the `Xms` and `Xmx` JVM arguments to a
 custom JVM options file with the extension `.options` and
 store it in the `jvm.options.d/` directory.
-For example, to set the maximum heap size to 2GB, set both `Xms` and `Xmx` to 2g:
+For example, to set the maximum heap size to 2GB, set both `Xms` and `Xmx` to `2g`:
 
 [source,txt]
 ------------------
@@ -91,6 +90,5 @@ ES_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch
 The `ES_JAVA_OPTS` variable overrides all other JVM
 options. We do not recommend using `ES_JAVA_OPTS` in production.
 
-NOTE: If you are running {es} as a <<windows-service,Windows service>>,
-the heap size is initially populated as specified, but can be modified through
-the service manager. For more information, see <<windows-service>>.
+NOTE: If you are running {es} as a Windows service, you can change the heap size
+using the service manager. See <<windows-service>>.

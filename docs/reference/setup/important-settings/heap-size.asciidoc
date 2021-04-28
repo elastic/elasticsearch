@@ -4,7 +4,7 @@
 
 By default, {es} automatically sets the JVM heap size based on a node's
 <<node-roles,roles>> and total memory.
-Using the default sizing is recommended for most production environments.
+We recommend the default sizing for most production environments.
 
 NOTE: Automatic heap sizing requires the <<jvm-version,bundled JDK>> or, if using
 a custom JRE location, a Java 14 or later JRE.

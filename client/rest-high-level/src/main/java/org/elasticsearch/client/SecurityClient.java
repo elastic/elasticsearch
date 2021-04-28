@@ -20,6 +20,7 @@ import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.ClearSecurityCacheResponse;
+import org.elasticsearch.client.security.ClearServiceAccountTokenCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
@@ -573,6 +574,38 @@ public final class SecurityClient {
                                              ActionListener<ClearSecurityCacheResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearApiKeyCache, options,
             ClearSecurityCacheResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Clears the service account token cache for the specified namespace, service-name and list of token names.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-service-token-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with namespace, service-name and token names for the service account tokens
+     *                that should be cleared from the cache.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response from the clear security cache call
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */public ClearSecurityCacheResponse clearServiceAccountTokenCache(ClearServiceAccountTokenCacheRequest request,
+                                                                       RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request, SecurityRequestConverters::clearServiceAccountTokenCache,
+            options, ClearSecurityCacheResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Clears the service account token cache for the specified namespace, service-name and list of token names asynchronously.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-service-token-cache.html">
+     * the docs</a> for more.
+     *
+     * @param request the request with namespace, service-name and token names for the service account tokens
+     *                that should be cleared from the cache.
+     * @param options  the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */public Cancellable clearServiceAccountTokenCacheAsync(ClearServiceAccountTokenCacheRequest request, RequestOptions options,
+                                                             ActionListener<ClearSecurityCacheResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::clearServiceAccountTokenCache,
+            options, ClearSecurityCacheResponse::fromXContent, listener, emptySet());
     }
 
     /**

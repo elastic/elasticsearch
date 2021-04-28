@@ -10,16 +10,13 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Objects;
 
 /**
  * Request to delete a service account token
  */
-public class DeleteServiceAccountTokenRequest implements Validatable, ToXContentObject {
+public class DeleteServiceAccountTokenRequest implements Validatable {
 
     private final String namespace;
     private final String serviceName;
@@ -68,10 +65,5 @@ public class DeleteServiceAccountTokenRequest implements Validatable, ToXContent
     @Override
     public int hashCode() {
         return Objects.hash(namespace, serviceName, tokenName, refreshPolicy);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 }

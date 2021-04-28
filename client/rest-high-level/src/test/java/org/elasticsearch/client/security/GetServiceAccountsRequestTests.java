@@ -10,6 +10,7 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.Optional;
 
@@ -38,5 +39,26 @@ public class GetServiceAccountsRequestTests extends ESTestCase {
         final Optional<ValidationException> validationException = request4.validate();
         assertTrue(validationException.isPresent());
         assertThat(validationException.get().getMessage(), containsString("cannot specify service-name without namespace"));
+    }
+
+    public void testEqualsHashCode() {
+        final String namespace = randomBoolean() ? randomAlphaOfLengthBetween(3, 8) : null;
+        final String serviceName = namespace == null ? null : (randomBoolean() ? randomAlphaOfLengthBetween(3, 8) : null);
+
+        final GetServiceAccountsRequest request = new GetServiceAccountsRequest(namespace, serviceName);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
+            original -> new GetServiceAccountsRequest(request.getNamespace(), request.getServiceName()),
+            this::mutateInstance);
+    }
+
+    private GetServiceAccountsRequest mutateInstance(GetServiceAccountsRequest request) {
+        switch (randomIntBetween(0, 1)) {
+            case 0:
+                return new GetServiceAccountsRequest(randomValueOtherThan(request.getNamespace(),
+                    () -> randomAlphaOfLengthBetween(3, 8)), request.getServiceName());
+            default:
+                return new GetServiceAccountsRequest(request.getNamespace(),
+                    randomValueOtherThan(request.getServiceName(), () -> randomAlphaOfLengthBetween(3, 8)));
+        }
     }
 }

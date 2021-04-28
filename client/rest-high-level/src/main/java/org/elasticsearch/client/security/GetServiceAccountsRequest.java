@@ -11,17 +11,14 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Objects;
 import java.util.Optional;
 
 /**
  * Request to retrieve information of service accounts
  */
-public final class GetServiceAccountsRequest implements Validatable, ToXContentObject {
+public final class GetServiceAccountsRequest implements Validatable {
 
     @Nullable
     private final String namespace;
@@ -73,10 +70,5 @@ public final class GetServiceAccountsRequest implements Validatable, ToXContentO
     @Override
     public int hashCode() {
         return Objects.hash(namespace, serviceName);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 }

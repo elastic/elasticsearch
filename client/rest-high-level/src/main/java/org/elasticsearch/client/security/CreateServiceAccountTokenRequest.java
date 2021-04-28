@@ -10,16 +10,13 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Objects;
 
 /**
  * Request to create a service account token
  */
-public final class CreateServiceAccountTokenRequest implements Validatable, ToXContentObject {
+public final class CreateServiceAccountTokenRequest implements Validatable {
 
     private final String namespace;
     private final String serviceName;
@@ -75,10 +72,5 @@ public final class CreateServiceAccountTokenRequest implements Validatable, ToXC
     @Override
     public int hashCode() {
         return Objects.hash(namespace, serviceName, tokenName, refreshPolicy);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder;
     }
 }

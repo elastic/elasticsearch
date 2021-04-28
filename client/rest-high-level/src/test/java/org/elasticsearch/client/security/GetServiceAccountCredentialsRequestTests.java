@@ -24,7 +24,7 @@ public class GetServiceAccountCredentialsRequestTests extends ESTestCase {
         assertThat(request.getServiceName(), equalTo(serviceName));
     }
 
-    public void  testEqualsHashCode() {
+    public void testEqualsHashCode() {
         final String namespace = randomAlphaOfLengthBetween(3, 8);
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final GetServiceAccountCredentialsRequest request = new GetServiceAccountCredentialsRequest(namespace, serviceName);

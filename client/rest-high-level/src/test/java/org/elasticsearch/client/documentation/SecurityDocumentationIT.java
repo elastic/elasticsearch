@@ -27,6 +27,7 @@ import org.elasticsearch.client.security.ClearRealmCacheResponse;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.ClearSecurityCacheResponse;
+import org.elasticsearch.client.security.ClearServiceAccountTokenCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequestTests;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
@@ -1078,8 +1079,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            //tag::clear-api-key-cache-execute-listener
             ClearApiKeyCacheRequest request = ClearApiKeyCacheRequest.clearById("yVGMr3QByxdh1MSaicYx");
+            //tag::clear-api-key-cache-execute-listener
             ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
                 @Override
                 public void onResponse(ClearSecurityCacheResponse clearSecurityCacheResponse) {
@@ -1100,6 +1101,57 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::clear-api-key-cache-execute-async
             client.security().clearApiKeyCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
             // end::clear-api-key-cache-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testClearServiceAccountTokenCache() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        {
+            //tag::clear-service-account-token-cache-request
+            ClearServiceAccountTokenCacheRequest request = new ClearServiceAccountTokenCacheRequest(
+                "elastic", // <1>
+                "fleet-server", // <2>
+                "token1" // <3>
+            );
+            //end::clear-service-account-token-cache-request
+            //tag::clear-service-account-token-cache-execute
+            ClearSecurityCacheResponse response = client.security().clearServiceAccountTokenCache(request, RequestOptions.DEFAULT);
+            //end::clear-service-account-token-cache-execute
+
+            assertNotNull(response);
+            assertThat(response.getNodes(), not(empty()));
+
+            //tag::clear-service-account-token-cache-response
+            List<ClearSecurityCacheResponse.Node> nodes = response.getNodes(); // <1>
+            //end::clear-service-account-token-cache-response
+        }
+
+        {
+            ClearServiceAccountTokenCacheRequest request = new ClearServiceAccountTokenCacheRequest("elastic", "fleet-server",
+                "token1", "token2");
+            //tag::clear-service-account-token-cache-execute-listener
+            ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
+                @Override
+                public void onResponse(ClearSecurityCacheResponse clearSecurityCacheResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            };
+            //end::clear-service-account-token-cache-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::clear-service-account-token-cache-execute-async
+            client.security().clearServiceAccountTokenCacheAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::clear-service-account-token-cache-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

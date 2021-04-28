@@ -17,6 +17,7 @@ import org.elasticsearch.client.security.ClearApiKeyCacheRequest;
 import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.ClearServiceAccountTokenCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
@@ -192,6 +193,17 @@ final class SecurityRequestConverters {
         String endpoint = new RequestConverters.EndpointBuilder()
             .addPathPartAsIs("_security/api_key")
             .addCommaSeparatedPathParts(clearApiKeyCacheRequest.ids())
+            .addPathPart("_clear_cache")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
+    static Request clearServiceAccountTokenCache(ClearServiceAccountTokenCacheRequest clearServiceAccountTokenCacheRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder()
+            .addPathPartAsIs("_security/service")
+            .addPathPart(clearServiceAccountTokenCacheRequest.getNamespace(), clearServiceAccountTokenCacheRequest.getServiceName())
+            .addPathPartAsIs("credential/token")
+            .addCommaSeparatedPathParts(clearServiceAccountTokenCacheRequest.getTokenNames())
             .addPathPart("_clear_cache")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);

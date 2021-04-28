@@ -18,6 +18,7 @@ public class Distribution {
     public final Platform platform;
     public final Flavor flavor;
     public final boolean hasJdk;
+    public final String baseVersion;
     public final String version;
 
     public Distribution(Path path) {
@@ -39,6 +40,7 @@ public class Distribution {
         this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
         this.hasJdk = filename.contains("no-jdk") == false;
         String version = filename.split("-", 3)[1];
+        this.baseVersion = version;
         if (filename.contains("-SNAPSHOT")) {
             version += "-SNAPSHOT";
         }

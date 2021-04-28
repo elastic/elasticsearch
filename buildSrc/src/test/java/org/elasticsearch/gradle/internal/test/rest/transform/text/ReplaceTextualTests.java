@@ -16,7 +16,6 @@ import org.elasticsearch.gradle.internal.test.rest.transform.AssertObjectNodes;
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.junit.Test;
 
-import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 

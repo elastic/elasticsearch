@@ -64,7 +64,7 @@ Disabling _field_names is not necessary because it no longer carries a large ind
 ====
 
 [[mapping-boosts]]
-.The `boost` parameter on field mappings has been removed
+.The `boost` parameter on field mappings has been removed.
 [%collapsible]
 ====
 *Details* +
@@ -80,7 +80,7 @@ directly on queries instead.
 ====
 
 //tag::notable-breaking-changes[]
-.Java-time date formats replace joda-time formats
+.Java-time date formats replace joda-time formats.
 [%collapsible]
 ====
 *Details* +
@@ -97,7 +97,7 @@ time migration guide].
 // end::notable-breaking-changes[]
 
 [[geo-shape-strategy]]
-.The `strategy` parameter on `geo_shape` mappings now rejects unknown strategies
+.The `strategy` parameter on `geo_shape` mappings now rejects unknown strategies.
 [%collapsible]
 ====
 *Details* +

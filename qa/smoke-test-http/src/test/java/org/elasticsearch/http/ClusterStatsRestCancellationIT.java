@@ -34,9 +34,6 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,6 +44,9 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
+import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
 
@@ -123,28 +123,12 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
             cancellable.cancel();
             expectThrows(CancellationException.class, future::actionGet);
 
-            logger.info("--> checking that all cluster stats tasks are marked as cancelled");
-            assertBusy(() -> {
-                boolean foundTask = false;
-                for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                    for (CancellableTask cancellableTask : transportService.getTaskManager().getCancellableTasks().values()) {
-                        if (cancellableTask.getAction().startsWith(ClusterStatsAction.NAME)) {
-                            foundTask = true;
-                            assertTrue(cancellableTask.isCancelled());
-                        }
-                    }
-                }
-                assertTrue(foundTask);
-            });
+            assertAllCancellableTasksAreCancelled(ClusterStatsAction.NAME);
         } finally {
             Releasables.close(releasables);
         }
 
-        logger.info("--> checking that all cluster stats tasks have finished");
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(ClusterStatsAction.NAME)));
-        });
+        assertAllTasksHaveFinished(ClusterStatsAction.NAME);
     }
 
     public static class StatsBlockingPlugin extends Plugin implements EnginePlugin {

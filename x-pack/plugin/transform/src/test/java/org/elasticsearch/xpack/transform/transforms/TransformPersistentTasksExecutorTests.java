@@ -170,7 +170,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     public void testVerifyIndicesPrimaryShardsAreActive() {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metadata, routingTable);
+        addIndices(metadata, routingTable, true);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.routingTable(routingTable.build());
@@ -211,12 +211,36 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
+
+        // case: latest index hasn't been created yet
+        metadata = Metadata.builder();
+        routingTable = RoutingTable.builder();
+        addIndices(metadata, routingTable, false);
+
+        csBuilder = ClusterState.builder(new ClusterName("_name"));
+        csBuilder.routingTable(routingTable.build());
+        csBuilder.metadata(metadata);
+
+        result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
+            csBuilder.build(),
+            TestIndexNameExpressionResolver.newInstance()
+        );
+        assertEquals(1, result.size());
+        assertEquals(TransformInternalIndexConstants.LATEST_INDEX_NAME, result.get(0));
     }
 
-    private void addIndices(Metadata.Builder metadata, RoutingTable.Builder routingTable) {
+    private void addIndices(Metadata.Builder metadata, RoutingTable.Builder routingTable, boolean addLatest) {
         List<String> indices = new ArrayList<>();
         indices.add(TransformInternalIndexConstants.AUDIT_INDEX);
-        indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
+
+        // simulate 2 old indexes
+        indices.add(TransformInternalIndexConstants.INDEX_PATTERN + "004");
+        indices.add(TransformInternalIndexConstants.INDEX_PATTERN + "006");
+
+        if (addLatest) {
+            indices.add(TransformInternalIndexConstants.LATEST_INDEX_NAME);
+        }
+
         for (String indexName : indices) {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
             indexMetadata.settings(
@@ -353,7 +377,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     private ClusterState buildClusterState(DiscoveryNodes.Builder nodes) {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
-        addIndices(metadata, routingTable);
+        addIndices(metadata, routingTable, true);
         PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder()
             .addTask(
                 "transform-task-1",
@@ -382,7 +406,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
 
         return csBuilder.build();
-
     }
 
     public TransformPersistentTasksExecutor buildTaskExecutor() {

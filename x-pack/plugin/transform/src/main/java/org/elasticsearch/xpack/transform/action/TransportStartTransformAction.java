@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
+import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 
 import java.time.Clock;
@@ -136,7 +138,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         final AtomicReference<TransformTaskParams> transformTaskParamsHolder = new AtomicReference<>();
         final AtomicReference<TransformConfig> transformConfigHolder = new AtomicReference<>();
 
-        // <5> Wait for the allocated task's state to STARTED
+        // <6> Wait for the allocated task's state to STARTED
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>> newPersistentTaskActionListener = ActionListener
             .wrap(task -> {
                 TransformTaskParams transformTask = transformTaskParamsHolder.get();
@@ -149,7 +151,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 );
             }, listener::onFailure);
 
-        // <4> Create the task in cluster state so that it will start executing on the node
+        // <5> Create the task in cluster state so that it will start executing on the node
         ActionListener<Boolean> createOrGetIndexListener = ActionListener.wrap(unused -> {
             TransformTaskParams transformTask = transformTaskParamsHolder.get();
             assert transformTask != null;
@@ -185,7 +187,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             }
         }, listener::onFailure);
 
-        // <2> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
+        // <4> If the destination index exists, start the task, otherwise deduce our mappings for the destination index and create it
         ActionListener<ValidateTransformAction.Response> validationListener = ActionListener.wrap(validationResponse -> {
             final String destinationIndex = transformConfigHolder.get().getDestination().getIndex();
             String[] dest = indexNameExpressionResolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), destinationIndex);
@@ -221,7 +223,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             }
         }, listener::onFailure);
 
-        // <2> run transform validations
+        // <3> run transform validations
         ActionListener<TransformConfig> getTransformListener = ActionListener.wrap(config -> {
             if (config.isValid() == false) {
                 listener.onFailure(
@@ -241,8 +243,20 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             client.execute(ValidateTransformAction.INSTANCE, new ValidateTransformAction.Request(config, false), validationListener);
         }, listener::onFailure);
 
-        // <1> Get the config to verify it exists and is valid
-        transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
+
+        // <2> Get the config to verify it exists and is valid
+        ActionListener<Void> templateCheckListener = ActionListener.wrap(
+            aVoid -> transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener),
+            error -> {
+                Throwable cause = ExceptionsHelper.unwrapCause(error);
+                String msg = "Failed to create transform internal index";
+                listener.onFailure(new ElasticsearchStatusException(msg + "[" + cause + "]", ExceptionsHelper.status(cause)));
+                logger.error(msg, cause);
+            }
+        );
+
+        // <1> Check the index templates are installed
+        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(clusterService, client, templateCheckListener);
     }
 
     private void createDestinationIndex(final TransformConfig config,

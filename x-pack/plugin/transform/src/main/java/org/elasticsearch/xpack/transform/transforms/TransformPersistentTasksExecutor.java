@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -64,6 +65,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
     // The amount of time we wait for the cluster state to respond when being marked as failed
     private static final int MARK_AS_FAILED_TIMEOUT_SEC = 90;
+    private static final int WAIT_FOR_INDEX_CREATION_TIMEOUT_SEC = 2;
     private final Client client;
     private final TransformServices transformServices;
     private final ThreadPool threadPool;
@@ -71,6 +73,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     private final IndexNameExpressionResolver resolver;
     private final TransformAuditor auditor;
     private volatile int numFailureRetries;
+    private volatile String internalIndexCreationFailure;
 
     public TransformPersistentTasksExecutor(
         Client client,
@@ -94,11 +97,53 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     @Override
     public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
-            return new PersistentTasksCustomMetadata.Assignment(null,
-                "Transform task will not be assigned as a feature reset is in progress.");
+            return new PersistentTasksCustomMetadata.Assignment(
+                null,
+                "Transform task will not be assigned as a feature reset is in progress."
+            );
         }
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
+            // check if the latest index got created
+            if (unavailableIndices.contains(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+                CountDownLatch indexCreationLatch = new CountDownLatch(1);
+                ActionListener<Void> templateCheckListener = ActionListener.wrap(
+                    aVoid -> {
+                        logger.debug(
+                            "Successfully created transform internal index: [{}]",
+                            TransformInternalIndexConstants.LATEST_INDEX_NAME
+                        );
+                        indexCreationLatch.countDown();
+                    },
+                    error -> {
+                        Throwable cause = ExceptionsHelper.unwrapCause(error);
+                        String reason = "Not starting transform ["
+                            + params.getId()
+                            + "], because the transform internal index could not be created";
+
+                        if (internalIndexCreationFailure == null) {
+                            // only log it once
+                            logger.error(reason, cause);
+                        }
+                        internalIndexCreationFailure = reason + ", cause: " + cause.getMessage();
+                        indexCreationLatch.countDown();
+                    }
+                );
+                TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(clusterService, client, templateCheckListener);
+
+                // note: wait for the index to be created, but do not block the assigner too long, it will be called again
+                // e.g. by the periodic re-check every 30s
+                try {
+                    indexCreationLatch.await(WAIT_FOR_INDEX_CREATION_TIMEOUT_SEC, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    logger.debug("Timeout waiting for the internal index to be created", e);
+                }
+
+                if (internalIndexCreationFailure != null) {
+                    // we have a (former) index creation failure, use it as the reason, otherwise we re-use the generic reason
+                    return new PersistentTasksCustomMetadata.Assignment(null, internalIndexCreationFailure);
+                }
+            }
             String reason = "Not starting transform ["
                 + params.getId()
                 + "], "
@@ -106,8 +151,13 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 + String.join(",", unavailableIndices)
                 + "]";
             logger.debug(reason);
+
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
+
+        // reset index creation failure
+        internalIndexCreationFailure = null;
+
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
             clusterState,
             node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
@@ -145,6 +195,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 unavailableIndices.add(index);
             }
         }
+        // explicitly check for the latest versioned index, it might not exist yet, e.g. for rolling upgrade scenarios
+        if (Arrays.stream(indices).anyMatch(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME::equals) == false) {
+            unavailableIndices.add(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+        }
+
         return unavailableIndices;
     }
 
@@ -178,7 +233,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <7> load next checkpoint
+        // <6> load next checkpoint
         ActionListener<TransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(nextCheckpoint -> {
 
             if (nextCheckpoint.isEmpty()) {
@@ -201,7 +256,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, msg);
         });
 
-        // <6> load last checkpoint
+        // <5> load last checkpoint
         ActionListener<TransformCheckpoint> getTransformLastCheckpointListener = ActionListener.wrap(lastCheckpoint -> {
             indexerBuilder.setLastCheckpoint(lastCheckpoint);
 
@@ -214,7 +269,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, msg);
         });
 
-        // <5> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
+        // <4> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
         ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener.wrap(
@@ -262,7 +317,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <4> set fieldmappings for the indexer, get the previous stats (if they exist)
+        // <3> set fieldmappings for the indexer, get the previous stats (if they exist)
         ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(fieldMappings -> {
             indexerBuilder.setFieldMappings(fieldMappings);
             transformServices.getConfigManager().getTransformStoredDoc(transformId, transformStatsActionListener);
@@ -275,12 +330,15 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, msg);
         });
 
-        // <3> Validate the transform, assigning it to the indexer, and get the field mappings
+        // <2> Validate the transform, assigning it to the indexer, and get the field mappings
         ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
             if (config.isValid()) {
                 indexerBuilder.setTransformConfig(config);
-                SchemaUtil.getDestinationFieldMappings(buildTask.getParentTaskClient(), config.getDestination().getIndex(),
-                        getFieldMappingsListener);
+                SchemaUtil.getDestinationFieldMappings(
+                    buildTask.getParentTaskClient(),
+                    config.getDestination().getIndex(),
+                    getFieldMappingsListener
+                );
             } else {
                 markAsFailed(buildTask, TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId));
             }
@@ -290,20 +348,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, msg);
         });
 
-        // <2> Get the transform config
-        ActionListener<Void> templateCheckListener = ActionListener.wrap(
-            aVoid -> transformServices.getConfigManager().getTransformConfiguration(transformId, getTransformConfigListener),
-            error -> {
-                Throwable cause = ExceptionsHelper.unwrapCause(error);
-                String msg = "Failed to create internal index mappings";
-                logger.error(msg, cause);
-                markAsFailed(buildTask, msg + "[" + cause + "]");
-            }
-        );
-
-        // <1> Check the index templates are installed
-        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(clusterService, buildTask.getParentTaskClient(),
-                templateCheckListener);
+        // <1> Get the transform config
+        transformServices.getConfigManager().getTransformConfiguration(transformId, getTransformConfigListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

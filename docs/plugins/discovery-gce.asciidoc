@@ -432,9 +432,9 @@ Ensure the following flags are set:
 Creating with console (web)::
 +
 --
-When creating an instance using the web console, scroll down to _Identity and API access_.
+When creating an instance using the web console, scroll down to **Identity and API access**.
 
-Select a service-account with the correct permissions or choose "Compute Engine default service account" and select "Allow default access" for the _Access scopes_.
+Select a service account with the correct permissions or choose **Compute Engine default service account** and select **Allow default access** for **Access scopes**.
 --
 
 Creating with knife google::

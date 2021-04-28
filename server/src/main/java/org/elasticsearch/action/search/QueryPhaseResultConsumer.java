@@ -182,7 +182,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 aggsList.add(lastMerge.reducedAggs);
             }
             for (QuerySearchResult result : toConsume) {
-                aggsList.add(result.consumeAggs().expand());
+                aggsList.add(result.consumeAggs());
             }
             newAggs = InternalAggregations.topLevelReduce(aggsList, aggReduceContextBuilder.forPartialReduction());
         } else {
@@ -310,6 +310,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         try {
                             addEstimateAndMaybeBreak(aggsSize);
                         } catch (Exception exc) {
+                            result.releaseAggs();
                             onMergeFailure(exc);
                             next.run();
                             return;
@@ -458,7 +459,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                 aggsList.add(mergeResult.reducedAggs);
             }
             for (QuerySearchResult result : buffer) {
-                aggsList.add(result.consumeAggs().expand());
+                aggsList.add(result.consumeAggs());
             }
             return aggsList;
         }

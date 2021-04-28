@@ -24,6 +24,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
@@ -55,7 +56,6 @@ class DatabaseReaderLazyLoader implements Closeable {
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
-    private final AtomicBoolean warningEmitted = new AtomicBoolean();
     private volatile long lastUpdate;
     final SetOnce<DatabaseReader> databaseReader;
 
@@ -198,13 +198,14 @@ class DatabaseReaderLazyLoader implements Closeable {
     }
 
     DatabaseReader get() throws IOException {
+        //only downloaded databases will have lastUpdate != 0, we never update it for default databases or databases from config dir
         if (lastUpdate != 0) {
             Path fileName = databasePath.getFileName();
             if (System.currentTimeMillis() - lastUpdate > Duration.ofDays(30).toMillis()) {
                 throw new IllegalStateException("database [" + fileName + "] was not updated for 30 days and is disabled");
-            } else if (System.currentTimeMillis() - lastUpdate > Duration.ofDays(25).toMillis() && warningEmitted.getAndSet(true)) {
-                LOGGER.warn("database [{}] was not updated for over 25 days, ingestion will fail if there is no update for 30 days",
-                    fileName);
+            } else if (System.currentTimeMillis() - lastUpdate > Duration.ofDays(25).toMillis()) {
+                HeaderWarning.addWarning(
+                    "database [{}] was not updated for over 25 days, ingestion will fail if there is no update for 30 days", fileName);
             }
         }
         if (databaseReader.get() == null) {
@@ -263,6 +264,5 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     void setLastUpdate(long lastUpdate) {
         this.lastUpdate = lastUpdate;
-        warningEmitted.set(false);
     }
 }

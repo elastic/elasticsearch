@@ -1041,11 +1041,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /** Returns a random number of temporary paths. */
-    public String[] tmpPaths() {
-        return new String[] { createTempDir().toAbsolutePath().toString() };
-    }
-
     public NodeEnvironment newNodeEnvironment() throws IOException {
         return newNodeEnvironment(Settings.EMPTY);
     }

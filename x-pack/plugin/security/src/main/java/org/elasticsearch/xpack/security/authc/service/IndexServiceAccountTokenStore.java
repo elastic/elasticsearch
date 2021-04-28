@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -57,6 +58,7 @@ import java.time.Clock;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
@@ -145,22 +147,28 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         } else if (false == frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {
-            // TODO: wildcard support?
-            final BoolQueryBuilder query = QueryBuilders.boolQuery()
-                .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
-                .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
-            final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
-                .setScroll(DEFAULT_KEEPALIVE_SETTING.get(getSettings()))
-                .setQuery(query)
-                .setSize(1000)
-                .setFetchSource(false)
-                .request();
-            request.indicesOptions().ignoreUnavailable();
+            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+                final Supplier<ThreadContext.StoredContext> contextSupplier =
+                    client.threadPool().getThreadContext().newRestorableContext(false);
+                try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
+                    // TODO: wildcard support?
+                    final BoolQueryBuilder query = QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("doc_type", SERVICE_ACCOUNT_TOKEN_DOC_TYPE))
+                        .must(QueryBuilders.termQuery("username", accountId.asPrincipal()));
+                    final SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)
+                        .setScroll(DEFAULT_KEEPALIVE_SETTING.get(getSettings()))
+                        .setQuery(query)
+                        .setSize(1000)
+                        .setFetchSource(false)
+                        .request();
+                    request.indicesOptions().ignoreUnavailable();
 
-            logger.trace("Searching tokens for service account [{}]", accountId);
-            ScrollHelper.fetchAllByEntity(client, request,
-                new ContextPreservingActionListener<>(client.threadPool().getThreadContext().newRestorableContext(false), listener),
-                hit -> extractTokenInfo(hit.getId(), accountId));
+                    logger.trace("Searching tokens for service account [{}]", accountId);
+                    ScrollHelper.fetchAllByEntity(client, request,
+                        new ContextPreservingActionListener<>(contextSupplier, listener),
+                        hit -> extractTokenInfo(hit.getId(), accountId));
+                }
+            });
         }
     }
 

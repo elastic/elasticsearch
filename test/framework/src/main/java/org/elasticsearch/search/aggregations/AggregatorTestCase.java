@@ -78,8 +78,10 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
@@ -236,8 +238,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                 long bytesToPreallocate,
                                                 int maxBucket,
                                                 MappedFieldType... fieldTypes) throws IOException {
+
         MappingLookup mappingLookup = new MappingLookup(
-            Mapping.EMPTY,
+            Mapping.empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT, new MetadataFieldMapper[0]),
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
             objectMappers(),
             // Alias all fields to <name>-alias to test aliases
@@ -360,7 +363,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = new MappingLookup(Mapping.EMPTY, Set.of(), Set.of(), Set.of(), null, null, null);
+        Mapping mapping = Mapping.empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT, new MetadataFieldMapper[0]);
+        MappingLookup disableNestedLookup = new MappingLookup(mapping, Set.of(), Set.of(), Set.of(), null, null, null);
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subContext).getNestedDocuments();
         when(ctx.getSearchExecutionContext()).thenReturn(subContext);
 

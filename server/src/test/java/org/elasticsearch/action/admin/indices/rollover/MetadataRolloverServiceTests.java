@@ -15,13 +15,13 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -575,7 +575,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MappingLookup mappingLookup = new MappingLookup(
-                Mapping.EMPTY,
+                Mapping.empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT, new MetadataFieldMapper[0]),
                 List.of(mockedTimestampField, dateFieldMapper),
                 List.of(),
                 List.of(),
@@ -677,7 +677,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MappingLookup mappingLookup = new MappingLookup(
-                Mapping.EMPTY,
+                Mapping.empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT, new MetadataFieldMapper[0]),
                 List.of(mockedTimestampField, dateFieldMapper),
                 List.of(),
                 List.of(),

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -33,24 +32,6 @@ public final class MappingLookup {
      */
     public static class CacheKey {
         private CacheKey() {}
-    }
-
-    /**
-     * A lookup representing an empty mapping.
-     */
-    //TODO possibly all usages of this should be replaced?
-    public static final MappingLookup EMPTY = empty(
-        Version.CURRENT,
-        new MetadataFieldMapper[0],
-        null,
-        null,
-        null
-    );
-
-    static MappingLookup empty(Version version, MetadataFieldMapper[] metadataFieldMappers, DocumentParser documentParser,
-                               IndexSettings indexSettings, IndexAnalyzers indexAnalyzers) {
-        return MappingLookup.fromMapping(Mapping.empty(MapperService.SINGLE_MAPPING_NAME, version, metadataFieldMappers),
-            documentParser, indexSettings, indexAnalyzers);
     }
 
     private final CacheKey cacheKey = new CacheKey();

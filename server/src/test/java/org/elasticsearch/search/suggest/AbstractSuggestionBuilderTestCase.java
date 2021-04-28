@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -172,7 +173,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
-            MappingLookup lookup = new MappingLookup(Mapping.EMPTY, mappers, emptyList(), emptyList(), null, null, null);
+            Mapping mapping = Mapping.empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT, new MetadataFieldMapper[0]);
+            MappingLookup lookup = new MappingLookup(mapping, mappers, emptyList(), emptyList(), null, null, null);
             SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings, null,
                 null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
                     System::currentTimeMillis, null, null, () -> true, null, emptyMap());
@@ -209,8 +211,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
             indexSettings);
 
+        Mapping empty = Mapping.empty(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT, new MetadataFieldMapper[0]);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(empty, null, null, null);
         SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,  null,
-            null, mock(MapperService.class), MappingLookup.EMPTY, null, null, xContentRegistry(), namedWriteableRegistry, null, null,
+            null, mock(MapperService.class), mappingLookup, null, null, xContentRegistry(), namedWriteableRegistry, null, null,
             System::currentTimeMillis, null, null, () -> true, null, emptyMap());
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

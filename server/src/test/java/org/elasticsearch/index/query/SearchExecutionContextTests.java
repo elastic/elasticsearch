@@ -381,7 +381,8 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {
-        return createSearchExecutionContext(indexUuid, clusterAlias, MappingLookup.EMPTY, Map.of());
+        MappingLookup mappingLookup = createMappingLookup(Collections.emptyList(), Collections.emptyList());
+        return createSearchExecutionContext(indexUuid, clusterAlias, mappingLookup, Map.of());
     }
 
     private static SearchExecutionContext createSearchExecutionContext(RuntimeField... fieldTypes) {

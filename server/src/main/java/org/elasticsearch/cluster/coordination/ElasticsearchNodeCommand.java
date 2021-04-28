@@ -40,10 +40,8 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Map;
-import java.util.Objects;
 
 public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     private static final Logger logger = LogManager.getLogger(ElasticsearchNodeCommand.class);
@@ -101,14 +99,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         super(description);
     }
 
-    public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path[] dataPaths) throws IOException {
-        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPaths);
+    public static PersistedClusterStateService createPersistedClusterStateService(Settings settings, Path dataPath) throws IOException {
+        final NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(dataPath);
         if (nodeMetadata == null) {
             throw new ElasticsearchException(NO_NODE_METADATA_FOUND_MSG);
         }
 
         String nodeId = nodeMetadata.nodeId();
-        return new PersistedClusterStateService(dataPaths, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
+        return new PersistedClusterStateService(new Path[] { dataPath }, nodeId, namedXContentRegistry, BigArrays.NON_RECYCLING_INSTANCE,
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
     }
 
@@ -131,12 +129,11 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
-            final Path[] dataPaths =
-                    Arrays.stream(lock.getNodePaths()).filter(Objects::nonNull).map(p -> p.path).toArray(Path[]::new);
-            if (dataPaths.length == 0) {
+            if (lock.getNodePaths().length == 0) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            processNodePaths(terminal, dataPaths, options, env);
+            final Path dataPath = lock.getNodePaths()[0].path;
+            processNodePaths(terminal, dataPath, options, env);
         } catch (LockObtainFailedException e) {
             throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }
@@ -172,18 +169,14 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     /**
      * Process the paths. Locks for the paths is held during this method invocation.
      * @param terminal the terminal to use for messages
-     * @param dataPaths the paths of the node to process
+     * @param dataPath the path of the node to process
      * @param options the command line options
      * @param env the env of the node to process
      */
-    protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env)
+    protected abstract void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment env)
         throws IOException, UserException;
 
-    protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
-        return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
-    }
-
-    private static NodeEnvironment.NodePath createNodePath(Path path) {
+    protected static NodeEnvironment.NodePath createNodePath(Path path) {
         try {
             return new NodeEnvironment.NodePath(path);
         } catch (IOException e) {

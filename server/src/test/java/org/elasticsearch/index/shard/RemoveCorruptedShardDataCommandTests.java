@@ -80,7 +80,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     private IndexMetadata indexMetadata;
     private ClusterState clusterState;
     private IndexShard indexShard;
-    private Path[] dataPaths;
+    private Path dataPath;
     private Path translogPath;
     private Path indexPath;
 
@@ -103,7 +103,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
 
         // create same directory structure as prod does
         Files.createDirectories(dataDir);
-        dataPaths = new Path[] {dataDir};
+        dataPath = dataDir;
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -372,11 +372,11 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options = parser.parse("--index", shardId.getIndex().getName(),
             "--shard-id", Integer.toString(shardId.id()));
 
-        command.findAndProcessShardPath(options, environment, dataPaths, clusterState,
+        command.findAndProcessShardPath(options, environment, dataPath, clusterState,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
 
         final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-        command.findAndProcessShardPath(options2, environment, dataPaths, clusterState,
+        command.findAndProcessShardPath(options2, environment, dataPath, clusterState,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
     }
 

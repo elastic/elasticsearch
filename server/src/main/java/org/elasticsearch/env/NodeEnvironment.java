@@ -904,6 +904,18 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     /**
+     * Returns the node data location.
+     * @throws IllegalStateException if the node is not configured to store local locations
+     */
+    public Path nodeDataPath() {
+        assertEnvIsLocked();
+        if (nodePaths.length == 0) {
+            return null;
+        }
+        return nodePaths[0].path;
+    }
+
+    /**
      * Returns shared data path for this node environment
      */
     public Path sharedDataPath() {

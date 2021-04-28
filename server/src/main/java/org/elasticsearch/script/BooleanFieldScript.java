@@ -11,7 +11,6 @@ package org.elasticsearch.script;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -67,17 +66,6 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
      */
     public final int falses() {
         return falses;
-    }
-
-    /**
-     * Reorders the values from the last time {@link #runForDoc(int)} was called to
-     * how this would appear in doc-values order.
-     */
-    public final boolean[] asDocValues() {
-        boolean[] values = new boolean[falses + trues];
-        Arrays.fill(values, 0, falses, false);
-        Arrays.fill(values, falses, falses + trues, true);
-        return values;
     }
 
     public final void emit(boolean v) {

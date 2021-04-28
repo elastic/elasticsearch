@@ -146,7 +146,8 @@ public class StoreKeyConfigTests extends ESTestCase {
     }
 
     private StoreKeyConfig config(Path path, char[] password, String type) {
-        return new StoreKeyConfig(path.toString(), password, type, password, KeyManagerFactory.getDefaultAlgorithm(), configBasePath);
+        final String pathName = path == null ? null : path.toString();
+        return new StoreKeyConfig(pathName, password, type, password, KeyManagerFactory.getDefaultAlgorithm(), configBasePath);
     }
 
     private void assertKeysLoaded(StoreKeyConfig keyConfig, String... names) throws CertificateParsingException {

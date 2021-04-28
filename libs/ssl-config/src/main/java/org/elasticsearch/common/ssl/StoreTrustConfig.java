@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 /**
  * A {@link SslTrustConfig} that builds a Trust Manager from a keystore file.
  */
-final class StoreTrustConfig implements SslTrustConfig {
+public final class StoreTrustConfig implements SslTrustConfig {
     private final String truststorePath;
     private final char[] password;
     private final String type;

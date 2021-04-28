@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemKeyConfig;
+import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.env.Environment;
 
 import javax.net.ssl.KeyManager;
@@ -48,10 +49,6 @@ public class CertParsingUtils {
 
     private CertParsingUtils() {
         throw new IllegalStateException("Utility class should not be instantiated");
-    }
-
-    static Path resolvePath(String path, Environment environment) {
-        return environment.configFile().resolve(path);
     }
 
     static List<Path> resolvePaths(List<String> certPaths, Environment environment) {
@@ -192,20 +189,18 @@ public class CertParsingUtils {
         throw new IllegalStateException("failed to find a X509ExtendedKeyManager");
     }
 
-    public static X509ExtendedKeyManager getKeyManager(X509KeyPairSettings keyPair, Settings settings,
-                                                       @Nullable String trustStoreAlgorithm, Environment environment) {
-        if (trustStoreAlgorithm == null) {
-            trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
-        }
-        final KeyConfig keyConfig = createKeyConfig(keyPair, settings, trustStoreAlgorithm);
+    public static X509ExtendedKeyManager getKeyManager(X509KeyPairSettings keyPair, Settings settings, Environment environment) {
+        final SslKeyConfig keyConfig = createKeyConfig(keyPair, settings, environment);
         if (keyConfig == null) {
             return null;
         } else {
-            return keyConfig.createKeyManager(environment);
+            return keyConfig.createKeyManager();
         }
     }
 
-    static KeyConfig createKeyConfig(X509KeyPairSettings keyPair, Settings settings, String trustStoreAlgorithm) {
+    @Deprecated()
+    /** @deprecated  We should use {@link SslSettingsLoader} instead */
+    static SslKeyConfig createKeyConfig(X509KeyPairSettings keyPair, Settings settings, Environment environment) {
         String keyPath = keyPair.keyPath.get(settings).orElse(null);
         String keyStorePath = keyPair.keystorePath.get(settings).orElse(null);
         String keyStoreType = getKeyStoreType(keyPair.keystoreType, settings, keyStorePath);
@@ -221,7 +216,7 @@ public class CertParsingUtils {
                 throw new IllegalArgumentException("you must specify the certificates [" + keyPair.certificatePath.getKey()
                     + "] to use with the key [" + keyPair.keyPath.getKey() + "]");
             }
-            return new PEMKeyConfig(keyPath, keyPassword, certPath);
+            return new PemKeyConfig(certPath, keyPath, keyPassword.getChars(), environment.configFile());
         }
 
         if (keyStorePath != null || keyStoreType.equalsIgnoreCase("pkcs11")) {
@@ -231,8 +226,8 @@ public class CertParsingUtils {
             if (keyStoreKeyPassword.length() == 0) {
                 keyStoreKeyPassword = keyStorePassword;
             }
-            return new StoreKeyConfig(keyStorePath, keyStoreType, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm,
-                trustStoreAlgorithm);
+            return new org.elasticsearch.common.ssl.StoreKeyConfig(keyStorePath, keyStorePassword.getChars(),
+                keyStoreType, keyStoreKeyPassword.getChars(), keyStoreAlgorithm, environment.configFile());
         }
         return null;
     }

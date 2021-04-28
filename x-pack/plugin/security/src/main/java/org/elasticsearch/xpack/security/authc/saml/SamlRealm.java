@@ -331,7 +331,7 @@ public final class SamlRealm extends Realm implements Releasable {
     private static List<X509Credential> buildCredential(RealmConfig config, String prefix, Setting.AffixSetting<String> aliasSetting,
                                                         boolean allowMultiple) {
         final X509KeyPairSettings keyPairSettings = X509KeyPairSettings.withPrefix(prefix, false);
-        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, config.settings(), null, config.env());
+        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, config.settings(), config.env());
         if (keyManager == null) {
             return null;
         }

@@ -289,7 +289,7 @@ public class SamlIdentityProviderBuilder {
 
     static List<X509Credential> buildCredentials(Environment env, Settings settings, String prefix, boolean allowMultiple) {
         final X509KeyPairSettings keyPairSettings = X509KeyPairSettings.withPrefix(prefix, false);
-        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, settings, null, env);
+        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, settings, env);
         if (keyManager == null) {
             return Collections.emptyList();
         }

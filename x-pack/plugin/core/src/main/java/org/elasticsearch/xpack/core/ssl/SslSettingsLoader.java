@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslKeyConfig;
@@ -31,6 +32,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
 
     private final Settings settings;
     private final Map<String, Setting<SecureString>> secureSettings;
+    private final Map<String, Setting<?>> standardSettings;
 
     public SslSettingsLoader(Settings settings, String settingPrefix) {
         super(settingPrefix);
@@ -38,6 +40,9 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         final SSLConfigurationSettings sslConfigurationSettings = settingPrefix == null ?
             SSLConfigurationSettings.withoutPrefix() : SSLConfigurationSettings.withPrefix(settingPrefix);
         this.secureSettings = sslConfigurationSettings.getSecureSettings()
+            .stream()
+            .collect(Collectors.toMap(Setting::getKey, Function.identity()));
+        this.standardSettings = sslConfigurationSettings.getAllSettings()
             .stream()
             .collect(Collectors.toMap(Setting::getKey, Function.identity()));
         setDefaultClientAuth(SslClientAuthenticationMode.REQUIRED);
@@ -50,7 +55,24 @@ public class SslSettingsLoader extends SslConfigurationLoader {
 
     @Override
     protected String getSettingAsString(String key) {
+        checkSetting(key);
         return settings.get(key);
+    }
+
+    @Override
+    protected List<String> getSettingAsList(String key) throws Exception {
+        checkSetting(key);
+        return settings.getAsList(key);
+    }
+
+    private void checkSetting(String key) {
+        final Setting<?> setting = standardSettings.get(key);
+        if (setting != null) {
+            // This triggers deprecation warnings
+            setting.get(settings);
+        } else {
+            throw new SslConfigException("No such setting [" + key + "]");
+        }
     }
 
     @Override
@@ -60,11 +82,6 @@ public class SslSettingsLoader extends SslConfigurationLoader {
             throw new IllegalArgumentException("The secure setting [" + key + "] is not registered");
         }
         return setting.exists(settings) ? setting.get(settings).getChars() : null;
-    }
-
-    @Override
-    protected List<String> getSettingAsList(String key) throws Exception {
-        return settings.getAsList(key);
     }
 
     @Override

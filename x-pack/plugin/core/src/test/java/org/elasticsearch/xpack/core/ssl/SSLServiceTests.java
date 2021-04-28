@@ -29,6 +29,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.ssl.TrustEverythingConfig;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -948,7 +949,7 @@ public class SSLServiceTests extends ESTestCase {
             builder.put("xpack.security.ssl.diagnose.trust", true);
         }
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(builder.build())));
-        final X509ExtendedTrustManager baseTrustManager = TrustAllConfig.INSTANCE.createTrustManager(env);
+        final X509ExtendedTrustManager baseTrustManager = TrustEverythingConfig.TRUST_EVERYTHING.createTrustManager();
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final X509ExtendedTrustManager wrappedTrustManager = sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration);
         assertThat(wrappedTrustManager, instanceOf(DiagnosticTrustManager.class));
@@ -959,7 +960,7 @@ public class SSLServiceTests extends ESTestCase {
         final Settings.Builder builder = Settings.builder();
         builder.put("xpack.security.ssl.diagnose.trust", false);
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(builder.build())));
-        final X509ExtendedTrustManager baseTrustManager = TrustAllConfig.INSTANCE.createTrustManager(env);
+        final X509ExtendedTrustManager baseTrustManager = TrustEverythingConfig.TRUST_EVERYTHING.createTrustManager();
         final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         assertThat(sslService.wrapWithDiagnostics(baseTrustManager, sslConfiguration), sameInstance(baseTrustManager));
     }

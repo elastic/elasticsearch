@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 /**
  * A TrustConfiguration that merges trust anchors from a number of other trust configs to produce a single {@link X509ExtendedTrustManager}.
  */
-class CompositeTrustConfig implements SslTrustConfig {
+public class CompositeTrustConfig implements SslTrustConfig {
     private final List<SslTrustConfig> configs;
 
     CompositeTrustConfig(List<SslTrustConfig> configs) {

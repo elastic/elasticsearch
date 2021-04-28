@@ -37,7 +37,10 @@ final class SslFileUtil {
         if (cause instanceof AccessDeniedException) {
             return accessDenied(fileType, paths, (AccessDeniedException) cause);
         }
-        String message = "cannot read configured " + fileType + " [" + pathsToString(paths) + "]";
+        String message = "cannot read configured " + fileType;
+        if (paths.isEmpty() == false) {
+            message += " [" + pathsToString(paths) + "]";
+        }
         if (cause != null && cause.getMessage() != null) {
             message += " - " + cause.getMessage();
         }
@@ -81,7 +84,11 @@ final class SslFileUtil {
     }
 
     public static SslConfigException securityException(String fileType, List<Path> paths, GeneralSecurityException cause, String detail) {
-        String message = "cannot load " + fileType + " from [" + pathsToString(paths) + "] due to " + cause.getClass().getSimpleName();
+        String message = "cannot load " + fileType;
+        if (paths.isEmpty() == false) {
+            message += " from [" + pathsToString(paths) + "]";
+        }
+        message += " due to " + cause.getClass().getSimpleName();
         if (cause.getMessage() != null) {
             message += " (" + cause.getMessage() + ")";
         }

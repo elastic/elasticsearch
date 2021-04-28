@@ -24,7 +24,9 @@ import java.util.function.BiFunction;
 /**
  * This class represents a trust configuration that corresponds to the default trusted CAs of the JDK
  */
-final class DefaultJdkTrustConfig implements SslTrustConfig {
+public final class DefaultJdkTrustConfig implements SslTrustConfig {
+
+    public static final DefaultJdkTrustConfig DEFAULT_INSTANCE = new DefaultJdkTrustConfig();
 
     private final BiFunction<String, String, String> systemProperties;
     private final char[] trustStorePassword;

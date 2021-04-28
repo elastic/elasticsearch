@@ -16,9 +16,9 @@ import java.util.List;
 /**
  * A {@link SslKeyConfig} that does nothing (provides a null key manager)
  */
-final class EmptyKeyConfig implements SslKeyConfig {
+public final class EmptyKeyConfig implements SslKeyConfig {
 
-    static final EmptyKeyConfig INSTANCE = new EmptyKeyConfig();
+    public static final EmptyKeyConfig INSTANCE = new EmptyKeyConfig();
 
     private EmptyKeyConfig() {
         // Enforce a single instance

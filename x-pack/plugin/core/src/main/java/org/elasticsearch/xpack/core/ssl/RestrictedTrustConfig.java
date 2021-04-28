@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * An implementation of {@link TrustConfig} that constructs a {@link RestrictedTrustManager}.
+ * An implementation of {@link SslTrustConfig} that constructs a {@link RestrictedTrustManager}.
  * This implementation always wraps another <code>TrustConfig</code> to perform the
  * underlying certificate validation.
  */

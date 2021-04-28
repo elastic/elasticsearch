@@ -21,9 +21,9 @@ import java.util.List;
  * {@code false}.
  * This class cannot be used on FIPS-140 JVM as it has its own trust manager implementation.
  */
-final class TrustEverythingConfig implements SslTrustConfig {
+public final class TrustEverythingConfig implements SslTrustConfig {
 
-    static final TrustEverythingConfig TRUST_EVERYTHING = new TrustEverythingConfig();
+    public static final TrustEverythingConfig TRUST_EVERYTHING = new TrustEverythingConfig();
 
     private TrustEverythingConfig() {
         // single instances

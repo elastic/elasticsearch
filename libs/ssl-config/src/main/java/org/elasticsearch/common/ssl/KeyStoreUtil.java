@@ -64,8 +64,10 @@ final class KeyStoreUtil {
      */
     static KeyStore readKeyStore(Path path, String ksType, char[] password) throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(ksType);
-        try (InputStream in = Files.newInputStream(path)) {
-            keyStore.load(in, password);
+        if (path != null) {
+            try (InputStream in = Files.newInputStream(path)) {
+                keyStore.load(in, password);
+            }
         }
         return keyStore;
     }

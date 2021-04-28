@@ -24,7 +24,9 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase {
 
@@ -153,12 +155,14 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
 
     public void testValidateDefaultIgnoreMalformed() throws Exception {
         Settings indexSettings = Settings.builder().put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), true).build();
-        Exception e = expectThrows(IllegalArgumentException.class,
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
             () -> createMapperService(Version.CURRENT, indexSettings, () -> true, timestampMapping(true, b -> {
-            b.startObject("@timestamp");
-            b.field("type", "date");
-            b.endObject();
-        })));
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+            }))
+        );
         assertThat(
             e.getMessage(),
             equalTo("data stream timestamp field [@timestamp] has disallowed [ignore_malformed] attribute specified")

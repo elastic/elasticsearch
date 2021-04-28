@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
 
 import java.util.concurrent.TimeUnit
@@ -95,4 +95,20 @@ buildScan {
       tag 'LOCAL'
     }
   }
+}
+
+subprojects {
+  tasks.withType(Test).configureEach(new Action<Test>() {
+    @Override
+    void execute(Test test) {
+      test.doLast(new Action<Test>() {
+        @Override
+        void execute(Test t) {
+          if(t.rerun.didRerun.get() == true) {
+            buildScan.tag 'unexpected-test-jvm-exit'
+          }
+        }
+      })
+    }
+  })
 }

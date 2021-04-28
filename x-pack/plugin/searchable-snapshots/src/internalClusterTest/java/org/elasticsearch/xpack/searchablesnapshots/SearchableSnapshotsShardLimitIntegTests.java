@@ -19,7 +19,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
-public class SearchableSnapshotsShardLimitIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsShardLimitIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     private static final int MAX_NORMAL = 3;
     private static final int MAX_FROZEN = 20;
@@ -55,7 +55,7 @@ public class SearchableSnapshotsShardLimitIntegTests extends BaseSearchableSnaps
         createFullSnapshot(fsRepoName, snapshotName);
 
         final Settings.Builder indexSettingsBuilder = Settings.builder();
-        final int initialCopies = between(1, MAX_FROZEN);
+        final int initialCopies = between(1, MAX_FROZEN - 1);
         indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, initialCopies - 1);
         mount(indexSettingsBuilder, MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
 

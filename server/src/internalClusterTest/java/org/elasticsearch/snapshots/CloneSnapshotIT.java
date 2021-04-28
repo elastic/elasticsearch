@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -82,8 +83,9 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         } else {
             currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
         }
-        final String newShardGeneration = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
+        final ShardSnapshotResult shardSnapshotResult = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
                 sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f));
+        final String newShardGeneration = shardSnapshotResult.getGeneration();
 
         if (useBwCFormat) {
             final long gen = Long.parseLong(newShardGeneration);
@@ -107,9 +109,11 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(snapshotFiles.get(0).isSame(snapshotFiles.get(1)));
 
         // verify that repeated cloning is idempotent
-        final String newShardGeneration2 = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
+        final ShardSnapshotResult shardSnapshotResult2 = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
                 sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, newShardGeneration, f));
-        assertEquals(newShardGeneration, newShardGeneration2);
+        assertEquals(newShardGeneration, shardSnapshotResult2.getGeneration());
+        assertEquals(shardSnapshotResult.getSegmentCount(), shardSnapshotResult2.getSegmentCount());
+        assertEquals(shardSnapshotResult.getSize(), shardSnapshotResult2.getSize());
     }
 
     public void testCloneSnapshotIndex() throws Exception {

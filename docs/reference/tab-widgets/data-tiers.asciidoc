@@ -28,7 +28,7 @@ snapshots>>.
 +
 [source,yaml]
 ----
-xpack.searchable.snapshot.shared_cache.size: 576GB
+xpack.searchable.snapshot.shared_cache.size: 570GB
 ----
 
 . Click **Save** and **Confirm** to apply your changes.

@@ -37,6 +37,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -120,13 +121,14 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
             .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
-            // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
-            .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
             // Disable request throttling because some random values in tests might generate too many failures for the S3 client
             .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .setSecureSettings(secureSettings);
 
+        if (randomBoolean()) {
+            builder.put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
+        }
         if (signerOverride != null) {
             builder.put(S3ClientSettings.SIGNER_OVERRIDE.getConcreteSettingForNamespace("test").getKey(), signerOverride);
         }
@@ -147,10 +149,15 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
         final RepositoryData modifiedRepositoryData = repositoryData
-                .withoutSnapshotVersion(fakeOldSnapshot.getUUID())
-                .withVersions(Collections.singletonMap(
+                .withoutUUIDs()
+                .withExtraDetails(Collections.singletonMap(
                         fakeOldSnapshot,
-                        SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
+                        new RepositoryData.SnapshotDetails(
+                                SnapshotState.SUCCESS,
+                                SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion(),
+                                0L, // -1 would refresh RepositoryData and find the real version
+                                0L // -1 would refresh RepositoryData and find the real version
+                        )));
         final BytesReference serialized = BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(),
             SnapshotsService.OLD_SNAPSHOT_FORMAT));
         PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->

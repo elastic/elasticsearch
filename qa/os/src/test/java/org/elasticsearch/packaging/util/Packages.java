@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -92,7 +93,9 @@ public class Packages {
             Files.write(installation.envFile, singletonList("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
 
-        ServerUtils.disableGeoIpDownloader(installation);
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
+            ServerUtils.disableGeoIpDownloader(installation);
+        }
         return installation;
     }
 

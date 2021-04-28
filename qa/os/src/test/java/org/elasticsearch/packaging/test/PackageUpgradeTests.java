@@ -32,7 +32,6 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
-        verifyPackageInstallation(installation, bwcDistribution, sh);
     }
 
     public void test11ModifyKeystore() throws Exception {

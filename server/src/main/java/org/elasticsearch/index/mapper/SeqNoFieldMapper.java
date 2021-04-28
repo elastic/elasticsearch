@@ -78,7 +78,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new SeqNoFieldMapper());
+    public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class SeqNoFieldType extends SimpleMappedFieldType {
 
@@ -194,7 +196,5 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
-    public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
 
 }

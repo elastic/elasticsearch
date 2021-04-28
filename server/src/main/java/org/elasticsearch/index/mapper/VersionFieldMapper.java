@@ -23,7 +23,9 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_version";
     public static final String CONTENT_TYPE = "_version";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new VersionFieldMapper());
+    public static final VersionFieldMapper INSTANCE = new VersionFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class VersionFieldType extends MappedFieldType {
 
@@ -76,6 +78,4 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
-    public static final VersionFieldMapper INSTANCE = new VersionFieldMapper();
 }

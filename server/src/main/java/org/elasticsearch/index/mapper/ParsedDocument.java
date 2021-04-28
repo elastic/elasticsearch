@@ -17,7 +17,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The result of parsing a document.
@@ -38,22 +41,40 @@ public class ParsedDocument {
 
     private Mapping dynamicMappingsUpdate;
 
+    /**
+     * Create a no-op tombstone document
+     * @param index     the index of the document
+     * @param reason    the reason for the no-op
+     */
     public static ParsedDocument noopTombstone(String index, String reason) {
-        ParsedDocument doc = deleteTombstone(index, null);
+        SourceToParse source = new SourceToParse(index, "", new BytesArray("{}"), XContentType.JSON);
+        ParsedDocument doc = tombstone(source, VersionFieldMapper.INSTANCE, SeqNoFieldMapper.INSTANCE);
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);
         doc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
         return doc;
     }
 
+    /**
+     * Create a delete tombstone document
+     * @param index the index of the deleted document
+     * @param id    the id of the deleted document
+     */
     public static ParsedDocument deleteTombstone(String index, String id) {
-        SourceToParse source = new SourceToParse(index, id == null ? "" : id, new BytesArray("{}"), XContentType.JSON);
+        Objects.requireNonNull(id);
+        SourceToParse source = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
+        return tombstone(source, IdFieldMapper.NO_FIELDDATA_INSTANCE, VersionFieldMapper.INSTANCE, SeqNoFieldMapper.INSTANCE);
+    }
+
+    private static ParsedDocument tombstone(SourceToParse source, MetadataFieldMapper... mappers) {
         ParseContext.InternalParseContext context = new ParseContext.InternalParseContext(null, 1,null, source, null);
-        if (id != null) {
-            IdFieldMapper.NO_FIELDDATA_INSTANCE.preParse(context);
+        try {
+            for (MetadataFieldMapper mapper : mappers) {
+                mapper.preParse(context);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);  // shouldn't happen on any of the metadata mappers we use
         }
-        VersionFieldMapper.INSTANCE.preParse(context);
-        SeqNoFieldMapper.INSTANCE.preParse(context);
         ParsedDocument doc = new ParsedDocument(
             context.version(),
             context.seqID(),
@@ -66,6 +87,7 @@ public class ParsedDocument {
         );
         doc.seqID.tombstoneField.setLongValue(1);
         doc.rootDoc().add(doc.seqID.tombstoneField);
+        assert doc.docs().size() == 1;
         return doc;
     }
 

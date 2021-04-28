@@ -67,7 +67,8 @@ public class EnrichMultiNodeIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false) // TODO Change this to run with security enabled
             .build();
     }

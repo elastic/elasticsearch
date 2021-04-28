@@ -86,10 +86,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
     }
 
     public static final IdFieldMapper NO_FIELDDATA_INSTANCE = new IdFieldMapper(() -> false);
-    public static final IdFieldMapper FIELDDATA_INSTANCE = new IdFieldMapper(() -> true);
 
-    public static final TypeParser PARSER
-        = new FixedTypeParser(c -> c.isIdFieldDataEnabled().getAsBoolean() ? FIELDDATA_INSTANCE : NO_FIELDDATA_INSTANCE);
+    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
 
     static final class IdFieldType extends TermBasedFieldType {
 

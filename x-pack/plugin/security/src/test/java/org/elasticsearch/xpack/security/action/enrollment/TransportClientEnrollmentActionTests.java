@@ -35,18 +35,20 @@ import org.elasticsearch.xpack.core.security.action.enrollment.ClientEnrollmentR
 import org.elasticsearch.xpack.core.security.action.enrollment.ClientEnrollmentResponse;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -65,10 +67,16 @@ public class TransportClientEnrollmentActionTests extends ESTestCase {
         nodesInfoRequests = new ArrayList<>();
         final Environment env = mock(Environment.class);
         final Path tempDir = createTempDir();
-        httpCaPath = tempDir.resolve("httpCa.crt");
-        Files.copy(getDataPath("/org/elasticsearch/xpack/core/action/httpCa.crt"), httpCaPath);
+        httpCaPath = tempDir.resolve("httpCa.p12");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
         when(env.configFile()).thenReturn(tempDir);
-        final Settings settings = Settings.EMPTY;
+        final Settings settings = Settings.builder()
+            .put("keystore.path", "httpCa.p12")
+            .put("keystore.password", "password")
+            .build();
+        final SSLService sslService = mock(SSLService.class);
+        final SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        when(sslService.getHttpTransportSSLConfiguration()).thenReturn(sslConfiguration);
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -116,7 +124,7 @@ public class TransportClientEnrollmentActionTests extends ESTestCase {
             x -> null,
             null,
             Collections.emptySet());
-        action = new TransportClientEnrollmentAction(transportService, client, settings, env, mock(ActionFilters.class));
+        action = new TransportClientEnrollmentAction(transportService, client, settings, sslService, env, mock(ActionFilters.class));
     }
 
     public void testKibanaEnrollment() throws Exception {
@@ -126,7 +134,9 @@ public class TransportClientEnrollmentActionTests extends ESTestCase {
         final PlainActionFuture<ClientEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final ClientEnrollmentResponse response = future.actionGet();
-        assertThat(response.getHttpCa(), equalTo(Base64.getUrlEncoder().encodeToString(Files.readAllBytes(httpCaPath))));
+        assertThat(response.getHttpCa(), startsWith("MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
+            "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIxMDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEA" +
+            "xMpRWxhc3RpYyBDZXJ0aWZpY2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCCJbOU4JvxDD_F"));
         assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
         if (shouldChangePassword) {
             assertThat(changePasswordRequests.size(), equalTo(1));
@@ -141,7 +151,9 @@ public class TransportClientEnrollmentActionTests extends ESTestCase {
         final PlainActionFuture<ClientEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final ClientEnrollmentResponse response = future.actionGet();
-        assertThat(response.getHttpCa(), equalTo(Base64.getUrlEncoder().encodeToString(Files.readAllBytes(httpCaPath))));
+        assertThat(response.getHttpCa(), startsWith("MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
+            "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIxMDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEA" +
+            "xMpRWxhc3RpYyBDZXJ0aWZpY2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCCJbOU4JvxDD_F"));
         assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
         assertThat(changePasswordRequests.size(), equalTo(0));
         assertThat(nodesInfoRequests.size(), equalTo(1));

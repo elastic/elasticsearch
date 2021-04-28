@@ -32,14 +32,17 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.ssl.KeyConfig;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
 
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class TransportClientEnrollmentAction extends HandledTransportAction<ClientEnrollmentRequest, ClientEnrollmentResponse> {
 
@@ -48,25 +51,38 @@ public class TransportClientEnrollmentAction extends HandledTransportAction<Clie
     private final Environment environment;
     private final Client client;
     private final Settings settings;
+    private final SSLService sslService;
 
-    @Inject public TransportClientEnrollmentAction(
-        TransportService transportService, Client client, Settings settings, Environment environment, ActionFilters actionFilters) {
+    @Inject
+    public TransportClientEnrollmentAction(TransportService transportService, Client client, Settings settings,
+                                                   SSLService sslService, Environment environment, ActionFilters actionFilters) {
         super(ClientEnrollmentAction.NAME, transportService, actionFilters, ClientEnrollmentRequest::new);
         this.environment = environment;
         this.client = new OriginSettingClient(client, SECURITY_ORIGIN);
         this.settings = settings;
+        this.sslService = sslService;
     }
 
-    @Override protected void doExecute(
+    @Override
+    protected void doExecute(
         Task task, ClientEnrollmentRequest request, ActionListener<ClientEnrollmentResponse> listener) {
         try {
-            final String httpCaCert = "httpCa.crt";
-            final Path httpCaCertPath = environment.configFile().resolve(httpCaCert);
-            if (Files.exists(httpCaCertPath) == false) {
-                listener.onFailure(new IllegalStateException("HTTP layer CA certificate " + httpCaCert + " does not exist"));
+            final KeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
+            if (keyConfig instanceof StoreKeyConfig == false) {
+                listener.onFailure(new IllegalStateException(
+                        "Unable to enroll client. Elasticsearch node HTTP layer SSL configuration is not configured with a keystore"));
+                return;
+            }
+            final List<X509Certificate> caCertificates = ((StoreKeyConfig) keyConfig).x509Certificates(environment).stream()
+                    .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1).collect(Collectors.toList());
+            if (caCertificates.size() != 1) {
+                    listener.onFailure(new IllegalStateException(
+                        "Unable to enroll client. Elasticsearch node HTTP layer SSL configuration Keystore doesn't contain a single " +
+                            "PrivateKey entry where the associated certificate is a CA certificate"));
+
             } else {
-                final String httpCa = Base64.getUrlEncoder().encodeToString(Files.readAllBytes(httpCaCertPath));
-                NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().addMetric(NodesInfoRequest.Metric.HTTP.metricName());
+                final String httpCa = Base64.getUrlEncoder().encodeToString(caCertificates.get(0).getEncoded());
+                final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().addMetric(NodesInfoRequest.Metric.HTTP.metricName());
                 client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(nodesInfoResponse -> {
                     final List<String> nodeList = new ArrayList<>();
                     for (NodeInfo nodeInfo : nodesInfoResponse.getNodes()) {
@@ -92,7 +108,6 @@ public class TransportClientEnrollmentAction extends HandledTransportAction<Clie
                     logger.debug("Failed to enroll client [{}]. Error was [{}]", request.getClientType(), e.getMessage());
                     listener.onFailure(e);
                 }));
-
             }
         } catch (Exception e) {
             listener.onFailure(e);

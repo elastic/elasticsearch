@@ -38,7 +38,7 @@ import java.util.Objects;
 /**
  * A key configuration that is backed by a {@link KeyStore}
  */
-class StoreKeyConfig extends KeyConfig {
+public class StoreKeyConfig extends KeyConfig {
 
     private static final String KEYSTORE_FILE = "keystore";
 
@@ -121,6 +121,20 @@ class StoreKeyConfig extends KeyConfig {
                 if (certificate instanceof X509Certificate) {
                     certificates.add(new CertificateInfo(keyStorePath, keyStoreType, alias, i == 0, (X509Certificate) certificate));
                 }
+            }
+        }
+        return certificates;
+    }
+
+    public Collection<X509Certificate> x509Certificates(Environment environment) throws GeneralSecurityException, IOException {
+        final KeyStore trustStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
+        final List<X509Certificate> certificates = new ArrayList<>();
+        final Enumeration<String> aliases = trustStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            final Certificate certificate = trustStore.getCertificate(alias);
+            if (certificate instanceof X509Certificate) {
+                certificates.add((X509Certificate) certificate);
             }
         }
         return certificates;

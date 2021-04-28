@@ -29,7 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-abstract class KeyConfig extends TrustConfig {
+public abstract class KeyConfig extends TrustConfig {
 
     static final KeyConfig NONE = new KeyConfig() {
         @Override

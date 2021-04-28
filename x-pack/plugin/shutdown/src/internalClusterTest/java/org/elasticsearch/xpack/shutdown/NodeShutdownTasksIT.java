@@ -62,7 +62,7 @@ import static org.hamcrest.Matchers.not;
  * This class is for testing that when shutting down a node, persistent tasks
  * are not assigned to that node.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 public class NodeShutdownTasksIT extends ESIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(NodeShutdownTasksIT.class);

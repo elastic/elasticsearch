@@ -13,7 +13,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.bwc-test'
 
 for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   String baseName = "v${bwcVersion}"

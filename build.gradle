@@ -27,18 +27,21 @@ plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
+  id 'elasticsearch.build-scan'
+  id 'elasticsearch.build-complete'
+  id 'elasticsearch.jdk-download'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.runtime-jdk-provision'
+  id 'elasticsearch.ide'
+  id 'elasticsearch.forbidden-dependencies'
+  id 'elasticsearch.formatting'
+  id 'elasticsearch.local-distribution'
+  id 'elasticsearch.fips'
+  id 'elasticsearch.testclusters'
+  id 'elasticsearch.run'
   id "com.diffplug.spotless" version "5.12.0" apply false
 }
 
-apply from: 'gradle/build-scan.gradle'
-apply from: 'gradle/build-complete.gradle'
-apply from: 'gradle/runtime-jdk-provision.gradle'
-apply from: 'gradle/ide.gradle'
-apply from: 'gradle/forbidden-dependencies.gradle'
-apply from: 'gradle/formatting.gradle'
-apply from: 'gradle/local-distribution.gradle'
-apply from: 'gradle/fips.gradle'
-apply from: 'gradle/run.gradle'
 
 // common maven publishing configuration
 allprojects {

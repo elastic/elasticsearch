@@ -7,7 +7,9 @@
  */
 import org.elasticsearch.gradle.testclusters.RunTask
 
-apply plugin: 'elasticsearch.testclusters'
+// gradle has an open issue of failing applying plugins in
+// precompiled script plugins
+// apply plugin: 'elasticsearch.testclusters'
 
 testClusters {
   runTask {

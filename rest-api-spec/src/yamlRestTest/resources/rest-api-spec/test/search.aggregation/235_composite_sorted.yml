@@ -1,6 +1,5 @@
 ---
 setup:
-
   - do:
       indices.create:
         index: sorted
@@ -75,8 +74,8 @@ setup:
 ---
 one source - first page:
   - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/72362"
+      version: " - 7.1.99"
+      reason: calendar_interval added in 7.2.0
   - do:
       search:
         index: sorted
@@ -101,8 +100,8 @@ one source - first page:
 ---
 one source - second page:
   - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/72362"
+      version: " - 7.1.99"
+      reason: calendar_interval added in 7.2.0
   - do:
       search:
         index: sorted
@@ -129,8 +128,8 @@ one source - second page:
 ---
 two sources - first page:
   - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/72362"
+      version: " - 7.1.99"
+      reason: calendar_interval added in 7.2.0
   - do:
       search:
         index: sorted
@@ -160,8 +159,8 @@ two sources - first page:
 ---
 two sources - second page:
   - skip:
-      version: "all"
-      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/72362"
+      version: " - 7.1.99"
+      reason: calendar_interval added in 7.2.0
   - do:
       search:
         index: sorted

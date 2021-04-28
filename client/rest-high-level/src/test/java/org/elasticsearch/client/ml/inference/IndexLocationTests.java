@@ -8,25 +8,26 @@
 
 package org.elasticsearch.client.ml.inference;
 
+import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 
-public class TrainedModelLocationTests extends AbstractXContentTestCase<TrainedModelLocation> {
+public class IndexLocationTests extends AbstractXContentTestCase<IndexLocation> {
 
-    static TrainedModelLocation randomInstance() {
-        return new TrainedModelLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
+    static IndexLocation randomInstance() {
+        return new IndexLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
     }
 
     @Override
-    protected TrainedModelLocation createTestInstance() {
+    protected IndexLocation createTestInstance() {
         return randomInstance();
     }
 
     @Override
-    protected TrainedModelLocation doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelLocation.fromXContent(parser);
+    protected IndexLocation doParseInstance(XContentParser parser) throws IOException {
+        return IndexLocation.fromXContent(parser);
     }
 
     @Override

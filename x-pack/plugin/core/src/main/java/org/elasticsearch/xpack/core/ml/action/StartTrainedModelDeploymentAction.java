@@ -22,7 +22,7 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -161,7 +161,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
-            builder.field(TrainedModelLocation.INDEX.getPreferredName(), index);
+            builder.field(IndexLocation.INDEX.getPreferredName(), index);
             builder.endObject();
             return builder;
         }

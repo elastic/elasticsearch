@@ -10,6 +10,7 @@ package org.elasticsearch.client.ml.inference;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
+import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -78,8 +79,8 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareNamedObject(TrainedModelConfig.Builder::setInferenceConfig,
             (p, c, n) -> p.namedObject(InferenceConfig.class, n, null),
             INFERENCE_CONFIG);
-        PARSER.declareObject(TrainedModelConfig.Builder::setLocation,
-            (p, c) -> TrainedModelLocation.fromXContent(p),
+        PARSER.declareNamedObject(TrainedModelConfig.Builder::setLocation,
+            (p, c, n) -> p.namedObject(TrainedModelLocation.class, n, null),
             LOCATION);
     }
 
@@ -270,7 +271,7 @@ public class TrainedModelConfig implements ToXContentObject {
             writeNamedObject(builder, params, INFERENCE_CONFIG.getPreferredName(), inferenceConfig);
         }
         if (location != null) {
-            builder.field(LOCATION.getPreferredName(), location);
+            writeNamedObject(builder, params, LOCATION.getPreferredName(), location);
         }
         builder.endObject();
         return builder;

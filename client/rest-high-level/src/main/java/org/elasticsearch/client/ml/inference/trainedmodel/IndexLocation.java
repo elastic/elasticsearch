@@ -6,39 +6,38 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.client.ml.inference;
+package org.elasticsearch.client.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class TrainedModelLocation implements ToXContentObject {
+public class IndexLocation implements TrainedModelLocation {
 
-    public static final String NAME = "model_location";
-    public static final ParseField MODEL_ID = new ParseField("model_id");
-    public static final ParseField INDEX = new ParseField("index");
+    public static final String INDEX = "index";
+    private static final ParseField MODEL_ID = new ParseField("model_id");
+    private static final ParseField NAME = new ParseField("name");
 
-    private static final ConstructingObjectParser<TrainedModelLocation, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, true, a -> new TrainedModelLocation((String) a[0], (String) a[1] ));
+    private static final ConstructingObjectParser<IndexLocation, Void> PARSER =
+        new ConstructingObjectParser<>(INDEX, true, a -> new IndexLocation((String) a[0], (String) a[1]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
     }
 
-    public static TrainedModelLocation fromXContent(XContentParser parser) throws IOException {
+    public static IndexLocation fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
     private final String modelId;
     private final String index;
 
-    public TrainedModelLocation(String modelId, String index) {
+    public IndexLocation(String modelId, String index) {
         this.modelId = Objects.requireNonNull(modelId);
         this.index = Objects.requireNonNull(index);
     }
@@ -52,10 +51,15 @@ public class TrainedModelLocation implements ToXContentObject {
     }
 
     @Override
+    public String getName() {
+        return INDEX;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field(NAME.getPreferredName(), index);
         builder.field(MODEL_ID.getPreferredName(), modelId);
-        builder.field(INDEX.getPreferredName(), index);
         builder.endObject();
         return builder;
     }
@@ -68,7 +72,7 @@ public class TrainedModelLocation implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        TrainedModelLocation that = (TrainedModelLocation) o;
+        IndexLocation that = (IndexLocation) o;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(index, that.index);
     }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.inference;
+package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -13,26 +13,26 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
-public class TrainedModelLocationTests extends AbstractSerializingTestCase<TrainedModelLocation> {
+public class IndexLocationTests extends AbstractSerializingTestCase<IndexLocation> {
 
     private final boolean lenient = randomBoolean();
 
-    public static TrainedModelLocation randomInstance() {
-        return new TrainedModelLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
+    public static IndexLocation randomInstance() {
+        return new IndexLocation(randomAlphaOfLength(7), randomAlphaOfLength(7));
     }
 
     @Override
-    protected TrainedModelLocation doParseInstance(XContentParser parser) throws IOException {
-        return TrainedModelLocation.fromXContent(parser, lenient);
+    protected IndexLocation doParseInstance(XContentParser parser) throws IOException {
+        return lenient ? IndexLocation.fromXContentLenient(parser) : IndexLocation.fromXContentStrict(parser);
     }
 
     @Override
-    protected Writeable.Reader<TrainedModelLocation> instanceReader() {
-        return TrainedModelLocation::new;
+    protected Writeable.Reader<IndexLocation> instanceReader() {
+        return IndexLocation::new;
     }
 
     @Override
-    protected TrainedModelLocation createTestInstance() {
+    protected IndexLocation createTestInstance() {
         return randomInstance();
     }
 

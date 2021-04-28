@@ -24,6 +24,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocationTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -74,7 +75,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setInferenceConfig(randomFrom(ClassificationConfigTests.randomClassificationConfig(),
                 RegressionConfigTests.randomRegressionConfig()))
             .setTags(tags)
-            .setLocation(randomBoolean() ? null : TrainedModelLocationTests.randomInstance());
+            .setLocation(randomBoolean() ? null : IndexLocationTests.randomInstance());
     }
 
     @Before
@@ -222,7 +223,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     public void testValidateWithBothDefinitionAndLocation() {
         ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
-                .setLocation(TrainedModelLocationTests.randomInstance())
+                .setLocation(IndexLocationTests.randomInstance())
                 .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
                 .setModelType(TrainedModelType.PYTORCH)
                 .validate());
@@ -232,7 +233,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     public void testValidateWithWithMissingTypeAndDefinition() {
         ActionRequestValidationException ex = expectThrows(ActionRequestValidationException.class,
             () -> TrainedModelConfig.builder()
-                .setLocation(TrainedModelLocationTests.randomInstance())
+                .setLocation(IndexLocationTests.randomInstance())
                 .validate());
         assertThat(ex.getMessage(), containsString("[model_type] must be set if [definition] is not defined"));
     }

@@ -15,7 +15,7 @@ import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
 import org.elasticsearch.client.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.client.ml.inference.TrainedModelInput;
-import org.elasticsearch.client.ml.inference.TrainedModelLocation;
+import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.client.ml.inference.TrainedModelType;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
@@ -259,8 +259,9 @@ public class TrainedModelIT extends ESRestTestCase {
             GetTrainedModelsResponse response = GetTrainedModelsResponse.fromXContent(parser);
             TrainedModelConfig model = response.getTrainedModels().get(0);
             assertThat(model.getModelType(), equalTo(TrainedModelType.PYTORCH));
-            assertThat(model.getLocation().getModelId(), equalTo(pytorchModelId));
-            assertThat(model.getLocation().getIndex(), equalTo(index));
+            IndexLocation location = (IndexLocation) model.getLocation();
+            assertThat(location.getModelId(), equalTo(pytorchModelId));
+            assertThat(location.getIndex(), equalTo(index));
             assertThat(model.getEstimatedOperations(), equalTo(0L));
         }
     }
@@ -285,7 +286,7 @@ public class TrainedModelIT extends ESRestTestCase {
     private void putPyTorchModel(String modelId, String pytorchModelId, String index) throws IOException {
         try(XContentBuilder builder = XContentFactory.jsonBuilder()) {
             TrainedModelConfig.builder()
-                .setLocation(new TrainedModelLocation(pytorchModelId, index))
+                .setLocation(new IndexLocation(pytorchModelId, index))
                 .setModelType(TrainedModelType.PYTORCH)
                 .setInferenceConfig(new ClassificationConfig())
                 .setModelId(modelId)

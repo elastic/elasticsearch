@@ -28,7 +28,10 @@ import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedInferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.LenientlyParsedTrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedInferenceConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.StrictlyParsedTrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
@@ -123,8 +126,10 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             p.namedObject(LenientlyParsedInferenceConfig.class, n, null) :
             p.namedObject(StrictlyParsedInferenceConfig.class, n, null),
             INFERENCE_CONFIG);
-        parser.declareObject(TrainedModelConfig.Builder::setLocation,
-            (p, c) -> TrainedModelLocation.fromXContent(p, ignoreUnknownFields),
+        parser.declareNamedObject(TrainedModelConfig.Builder::setLocation,
+            (p, c, n) -> ignoreUnknownFields ?
+                p.namedObject(LenientlyParsedTrainedModelLocation.class, n, null) :
+                p.namedObject(StrictlyParsedTrainedModelLocation.class, n, null),
             LOCATION);
         return parser;
     }
@@ -212,7 +217,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         this.inferenceConfig = in.readOptionalNamedWriteable(InferenceConfig.class);
         if (in.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
             this.modelType = in.readOptionalEnum(TrainedModelType.class);
-            this.location = in.readOptionalWriteable(TrainedModelLocation::new);
+            this.location = in.readOptionalNamedWriteable(TrainedModelLocation.class);
         } else {
             this.modelType = null;
             this.location = null;
@@ -337,7 +342,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeOptionalNamedWriteable(inferenceConfig);
         if (out.getVersion().onOrAfter(VERSION_3RD_PARTY_CONFIG_ADDED)) {
             out.writeOptionalEnum(modelType);
-            out.writeOptionalWriteable(location);
+            out.writeOptionalNamedWriteable(location);
         }
     }
 
@@ -386,7 +391,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             writeNamedObject(builder, params, INFERENCE_CONFIG.getPreferredName(), inferenceConfig);
         }
         if (location != null) {
-            builder.field(LOCATION.getPreferredName(), location);
+            writeNamedObject(builder, params, LOCATION.getPreferredName(), location);
         }
         builder.endObject();
         return builder;

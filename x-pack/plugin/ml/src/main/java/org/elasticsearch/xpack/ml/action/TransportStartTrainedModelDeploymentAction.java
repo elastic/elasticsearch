@@ -138,7 +138,7 @@ public class TransportStartTrainedModelDeploymentAction
                 persistentTasksService.sendStartRequest(
                     MlTasks.trainedModelDeploymentTaskId(request.getModelId()),
                     MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
-                    new TaskParams(trainedModelConfig.getLocation().getModelId(), trainedModelConfig.getLocation().getIndex()),
+                    new TaskParams(trainedModelConfig.getLocation().getModelId(), trainedModelConfig.getLocation().getResourceName()),
                     waitForDeploymentToStart
                 );
             },

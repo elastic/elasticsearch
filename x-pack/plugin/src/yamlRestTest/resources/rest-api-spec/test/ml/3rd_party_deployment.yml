@@ -17,15 +17,17 @@
                 "field_names": ["text_field"]
             },
             "location": {
-              "model_id": "distilbert-finetuned-sst",
-              "index": "big_model"
+              "index": {
+                "model_id": "distilbert-finetuned-sst",
+                "name": "big_model"
+              }
             }
           }
 
   - do:
       ml.get_trained_models:
         model_id: distilbert-finetuned-sst
-  - match: { trained_model_configs.0.location.model_id: distilbert-finetuned-sst }
+  - match: { trained_model_configs.0.location.index.model_id: distilbert-finetuned-sst }
 
 #  - do:
 #      ml.start_deployment:

@@ -55,7 +55,7 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             targetType.equals(TargetType.CLASSIFICATION) ?
                 ClassificationConfigTests.randomClassificationConfig() :
                 RegressionConfigTests.randomRegressionConfig(),
-            randomBoolean() ? null : TrainedModelLocationTests.randomInstance());
+            randomBoolean() ? null : IndexLocationTests.randomInstance());
     }
 
     @Override

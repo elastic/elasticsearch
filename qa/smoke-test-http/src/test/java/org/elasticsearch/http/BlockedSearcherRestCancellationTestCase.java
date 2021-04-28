@@ -31,7 +31,6 @@ import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,6 +41,9 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
+import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
 
@@ -118,11 +120,7 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             Releasables.close(releasables);
         }
 
-        logger.info("--> checking that all tasks have finished");
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(actionPrefix)));
-        });
+        assertAllTasksHaveFinished(actionPrefix);
     }
 
     public static class SearcherBlockingPlugin extends Plugin implements EnginePlugin {

@@ -25,14 +25,15 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.EnumSet;
-import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 
+import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
+import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -87,10 +88,7 @@ public class RestGetMappingsCancellationIT extends HttpSmokeTestCase {
 
         expectThrows(CancellationException.class, future::actionGet);
 
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(actionName)));
-        });
+        assertAllTasksHaveFinished(actionName);
     }
 
     private void updateClusterState(Function<ClusterState, ClusterState> transformationFn) {

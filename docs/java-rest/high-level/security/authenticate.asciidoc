@@ -45,6 +45,10 @@ see {javadoc-client}/security/user/User.html.
 <5> `getLookupRealm().getName()` retrieves the name of the realm from where the user information is looked up.
 <6> `getLookupRealm().getType()` retrieves the type of the realm from where the user information is looked up.
 <7> `getAuthenticationType()` retrieves the authentication type of the authenticated user.
+<8> `getMetadata()` retrieves metadata relevant to this authentication.
+Note this is different from `user.getMetadata()`.
+For <<{upid}-create-service-account-token,service account token>> authentication, it contains
+a key of `_token_name` with the value being the token name.
 
 [id="{upid}-{api}-async"]
 ==== Asynchronous Execution

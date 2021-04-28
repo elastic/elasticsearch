@@ -33,7 +33,8 @@ public class CreateServiceAccountTokenRequestTests extends ESTestCase {
         assertNull(request2.getRefreshPolicy());
 
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
-        final CreateServiceAccountTokenRequest request3 = new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName, refreshPolicy);
+        final CreateServiceAccountTokenRequest request3 =
+            new CreateServiceAccountTokenRequest(namespace, serviceName, tokenName, refreshPolicy);
         assertThat(request3.getNamespace(), equalTo(namespace));
         assertThat(request3.getServiceName(), equalTo(serviceName));
         assertThat(request3.getTokenName(), equalTo(tokenName));

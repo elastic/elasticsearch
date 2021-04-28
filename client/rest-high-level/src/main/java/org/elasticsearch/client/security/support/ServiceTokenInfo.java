@@ -26,4 +26,19 @@ public class ServiceTokenInfo {
     public String getSource() {
         return source;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        ServiceTokenInfo that = (ServiceTokenInfo) o;
+        return name.equals(that.name) && source.equals(that.source);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, source);
+    }
 }

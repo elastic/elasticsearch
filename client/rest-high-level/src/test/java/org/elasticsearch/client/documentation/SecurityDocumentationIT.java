@@ -130,7 +130,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -756,6 +756,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String lookupRealmName = response.getLookupRealm().getName(); // <5>
             final String lookupRealmType = response.getLookupRealm().getType(); // <6>
             final String authenticationType = response.getAuthenticationType(); // <7>
+            final Map<String, Object> authMetadata = response.getMetadata(); // <8>
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
@@ -769,6 +770,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(lookupRealmName, is("default_file"));
             assertThat(lookupRealmType, is("file"));
             assertThat(authenticationType, is("realm"));
+            assertThat(authMetadata, anEmptyMap());
         }
 
         {
@@ -795,6 +797,39 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::authenticate-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+
+        {
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+            CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
+                client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+
+            AuthenticateResponse response = client.security().authenticate(
+                RequestOptions.DEFAULT.toBuilder().addHeader(
+                    "Authorization", "Bearer " + createServiceAccountTokenResponse.getValue().toString()).build());
+
+            User user = response.getUser();
+            boolean enabled = response.enabled();
+            final String authenticationRealmName = response.getAuthenticationRealm().getName();
+            final String authenticationRealmType = response.getAuthenticationRealm().getType();
+            final String lookupRealmName = response.getLookupRealm().getName();
+            final String lookupRealmType = response.getLookupRealm().getType();
+            final String authenticationType = response.getAuthenticationType();
+            final Map<String, Object> authMetadata = response.getMetadata();
+
+            assertThat(user.getUsername(), is("elastic/fleet-server"));
+            assertThat(user.getRoles(), empty());
+            assertThat(user.getFullName(), equalTo("Service account - elastic/fleet-server"));
+            assertThat(user.getEmail(), nullValue());
+            assertThat(user.getMetadata(), equalTo(Map.of("_elastic_service_account", true)));
+            assertThat(enabled, is(true));
+            assertThat(authenticationRealmName, is("service_account"));
+            assertThat(authenticationRealmType, is("service_account"));
+            assertThat(lookupRealmName, is("service_account"));
+            assertThat(lookupRealmType, is("service_account"));
+            assertThat(authenticationType, is("token"));
+            assertThat(authMetadata, equalTo(Map.of("_token_name", "token1")));
         }
     }
 

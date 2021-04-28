@@ -28,8 +28,16 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
                                       ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                       Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver,
                                       Writeable.Reader<Response> response) {
-        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, response,
+        this(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, response,
                 ThreadPool.Names.SAME);
+    }
+
+    public TransportClusterInfoAction(String actionName, TransportService transportService,
+                                      ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
+                                      Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver,
+                                      Writeable.Reader<Response> response, String executor) {
+        super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, response,
+            executor);
     }
 
     @Override
@@ -42,9 +50,9 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     protected final void masterOperation(Task task, final Request request, final ClusterState state,
                                          final ActionListener<Response> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        doMasterOperation(request, concreteIndices, state, listener);
+        doMasterOperation(task, request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state,
+    protected abstract void doMasterOperation(Task task, Request request, String[] concreteIndices, ClusterState state,
                                               ActionListener<Response> listener);
 }

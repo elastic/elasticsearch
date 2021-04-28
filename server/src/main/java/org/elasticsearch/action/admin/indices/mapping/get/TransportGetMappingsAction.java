@@ -15,11 +15,18 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.info.TransportClusterInfoAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.concurrent.CancellationException;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
 
@@ -32,14 +39,23 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
         super(GetMappingsAction.NAME, transportService, clusterService, threadPool, actionFilters, GetMappingsRequest::new,
-                indexNameExpressionResolver, GetMappingsResponse::new);
+                indexNameExpressionResolver, GetMappingsResponse::new, ThreadPool.Names.GENERIC);
         this.indicesService = indicesService;
     }
 
     @Override
-    protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
+    protected void doMasterOperation(Task task, final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetMappingsResponse> listener) {
         logger.trace("serving getMapping request based on version {}", state.version());
-        listener.onResponse(new GetMappingsResponse(state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter())));
+        final Metadata metadata = state.metadata();
+        final ImmutableOpenMap<String, MappingMetadata> mappings =
+            metadata.findMappings(concreteIndices, indicesService.getFieldFilter(), (unused) -> checkCancellation(task));
+        listener.onResponse(new GetMappingsResponse(mappings));
+    }
+
+    private void checkCancellation(Task task) {
+        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+            throw new CancellationException("Task cancelled");
+        }
     }
 }

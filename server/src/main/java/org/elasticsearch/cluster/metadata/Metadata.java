@@ -64,6 +64,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -76,6 +77,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
+    private static final Consumer<String> ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = (indexName) -> { };
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
 
@@ -374,6 +376,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      */
     public ImmutableOpenMap<String, MappingMetadata> findMappings(String[] concreteIndices,
                                                                   Function<String, Predicate<String>> fieldFilter) {
+        return findMappings(concreteIndices, fieldFilter, ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
+    }
+
+    /**
+     * Finds all mappings for concrete indices. Only fields that match the provided field
+     * filter will be returned (default is a predicate that always returns true, which can be
+     * overridden via plugins)
+     *
+     * @see MapperPlugin#getFieldFilter()
+     *
+     * @param onNextIndex a hook that gets notified for each index that's processed
+     */
+    public ImmutableOpenMap<String, MappingMetadata> findMappings(String[] concreteIndices,
+                                                                  Function<String, Predicate<String>> fieldFilter,
+                                                                  Consumer<String> onNextIndex) {
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
             return ImmutableOpenMap.of();
@@ -382,6 +399,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
+            onNextIndex.accept(index);
             IndexMetadata indexMetadata = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
             indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));

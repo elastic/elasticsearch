@@ -1,5 +1,6 @@
 ---
 setup:
+
   - do:
       indices.create:
         index: sorted
@@ -74,8 +75,8 @@ setup:
 ---
 one source - first page:
   - skip:
-      version: " - 6.99.99"
-      reason: Format added in 7.0.0
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/72362"
   - do:
       search:
         index: sorted
@@ -100,8 +101,8 @@ one source - first page:
 ---
 one source - second page:
   - skip:
-      version: " - 6.99.99"
-      reason: Format added in 7.0.0
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/72362"
   - do:
       search:
         index: sorted
@@ -128,8 +129,8 @@ one source - second page:
 ---
 two sources - first page:
   - skip:
-      version: " - 6.99.99"
-      reason: Format added in 7.0.0
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/72362"
   - do:
       search:
         index: sorted
@@ -159,8 +160,8 @@ two sources - first page:
 ---
 two sources - second page:
   - skip:
-      version: " - 6.99.99"
-      reason: Format added in 7.0.0
+      version: "all"
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/72362"
   - do:
       search:
         index: sorted

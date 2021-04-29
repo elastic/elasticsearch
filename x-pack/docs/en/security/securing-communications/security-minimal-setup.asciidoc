@@ -104,17 +104,17 @@ When the {es} security features are enabled, users must log in to {kib} with a
 valid username and password.
 
 {kib} also performs some background tasks that require use of the built-in
-`elastic` user.
+`kibana_system` user.
 
-You'll configure {kib} to use the built-in `elastic` user and the
+You'll configure {kib} to use the built-in `kibana_system` user and the
 password that you created earlier.
 
 . Add the `elasticsearch.username` setting to the `KIB_PATH_CONF/kibana.yml`
-file and set the value to the `elastic` user:
+file and set the value to the `kibana_system` user:
 +
 [source,yaml]
 ----
-elasticsearch.username: "elastic"
+elasticsearch.username: "kibana_system"
 ----
 +
 NOTE: The `KIB_PATH_CONF` variable is the path for the {kib}
@@ -132,14 +132,14 @@ to create the {kib} keystore and add the secure settings:
 ./bin/kibana-keystore create
 ----
 
-   b. Add the password for the `elastic` user to the {kib} keystore:
+   b. Add the password for the `kibana_system` user to the {kib} keystore:
 +
 [source,shell]
 ----
 ./bin/kibana-keystore add elasticsearch.password
 ----
 +
-When prompted, enter the password for the `elastic` user.
+When prompted, enter the password for the `kibana_system` user.
 
 . Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
 +

@@ -265,7 +265,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         final SetOnce<Path[]> listener = new SetOnce<>();
         env.deleteIndexDirectorySafe(index, 5000, idxSettings, listener::set);
-        assertThat(listener.get(), equalTo(env.indexPath(index)));
+        assertThat(listener.get()[0], equalTo(env.indexPath(index)));
         assertNull(threadException.get());
 
         path = env.indexPath(index);

@@ -478,6 +478,46 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             containsString("policy specifies [searchable_snapshot] action multiple times with differing repositories"));
     }
 
+    public void testFoobar() throws Exception {
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createPolicy(client(), policy,
+            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
+                SearchableSnapshotAction.NAME, new SearchableSnapshotAction(
+                    snapshotRepo, randomBoolean()))
+            ),
+            null, null, null, null
+        );
+
+        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
+            new Template(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .build(), null, null)
+        );
+
+        indexDocument(client(), dataStream, true);
+        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
+        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_hot"));
+
+        // rollover the data stream so searchable_snapshot can complete
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        final String restoredIndex = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + firstGenIndex;
+        assertBusy(() -> {
+            logger.info("--> waiting for [{}] to exist...", restoredIndex);
+            assertTrue(indexExists(restoredIndex));
+        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("hot").getKey())),
+            30, TimeUnit.SECONDS);
+
+        Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
+        // searchable snapshots mounted in the hot phase should be pinned to hot nodes
+        assertThat(hotIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+            is("data_hot"));
+    }
+
+
     public void testSearchableSnapshotActionOverridesMigrateAction() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,

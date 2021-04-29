@@ -99,7 +99,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         environment =
             TestEnvironment.newEnvironment(Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), dataDir)
-                .putList(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString()).build());
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString()).build());
 
         // create same directory structure as prod does
         Files.createDirectories(dataDir);

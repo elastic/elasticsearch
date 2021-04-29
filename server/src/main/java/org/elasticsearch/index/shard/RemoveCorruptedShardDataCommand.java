@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
@@ -59,6 +58,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.common.lucene.Lucene.indexWriterConfigWithNoMerging;
 
 public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
@@ -372,13 +373,9 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
         terminal.println("Marking index with the new history uuid : " + historyUUID);
         // commit the new history id
-        final IndexWriterConfig iwc = new IndexWriterConfig(null)
-            // we don't want merges to happen here - we call maybe merge on the engine
-            // later once we stared it up otherwise we would need to wait for it here
-            // we also don't specify a codec here and merges should use the engines for this index
+        final IndexWriterConfig iwc = indexWriterConfigWithNoMerging(null)
             .setCommitOnClose(false)
             .setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-            .setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         // IndexWriter acquires directory lock by its own
         try (IndexWriter indexWriter = new IndexWriter(indexDirectory, iwc)) {

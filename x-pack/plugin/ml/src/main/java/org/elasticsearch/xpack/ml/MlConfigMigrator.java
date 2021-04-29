@@ -188,7 +188,7 @@ public class MlConfigMigrator {
     }
 
     private void migrateBatches(List<JobsAndDatafeeds> batches, ActionListener<Boolean> listener) {
-        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(EsExecutors.newDirectExecutorService(), true);
+        VoidChainTaskExecutor voidChainTaskExecutor = new VoidChainTaskExecutor(EsExecutors.DIRECT_EXECUTOR_SERVICE, true);
         for (JobsAndDatafeeds batch : batches) {
             voidChainTaskExecutor.add(chainedListener -> writeConfigToIndex(batch.datafeedConfigs, batch.jobs, ActionListener.wrap(
                 failedDocumentIds -> {

@@ -23,6 +23,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Simple unit-tests for Environment.java
@@ -61,7 +62,7 @@ public class EnvironmentTests extends ESTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
+        assertThat(environment.dataFile(), equalTo(pathHome.resolve("data")));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
@@ -139,9 +140,8 @@ public class EnvironmentTests extends ESTestCase {
 
         final Path home = PathUtils.get(homePath);
 
-        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(environment.settings());
-        assertThat(dataPaths, hasSize(1));
-        assertPath(dataPaths.get(0), home.resolve("data"));
+        final String dataPath = Environment.PATH_DATA_SETTING.get(environment.settings());
+        assertPath(dataPath, home.resolve("data"));
 
         final String logPath = Environment.PATH_LOGS_SETTING.get(environment.settings());
         assertPath(logPath, home.resolve("logs"));
@@ -155,6 +155,23 @@ public class EnvironmentTests extends ESTestCase {
 
         final String pidFile = Environment.NODE_PIDFILE_SETTING.get(environment.settings());
         assertPath(pidFile, home.resolve("pidfile"));
+    }
+
+    public void testSingleDataPathListCheck() {
+        {
+            final Settings settings = Settings.builder().build();
+            assertThat(Environment.dataPathUsesList(settings), is(false));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
     }
 
     private void assertPath(final String actual, final Path expected) {

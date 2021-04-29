@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -32,23 +31,19 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import javax.crypto.KeyGenerator;
@@ -239,36 +234,14 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void snapshotShard(
-        Store store,
-        MapperService mapperService,
-        SnapshotId snapshotId,
-        IndexId indexId,
-        IndexCommit snapshotIndexCommit,
-        String shardStateIdentifier,
-        IndexShardSnapshotStatus snapshotStatus,
-        Version repositoryMetaVersion,
-        Map<String, Object> userMetadata,
-        ActionListener<ShardSnapshotResult> listener
-    ) {
+    public void snapshotShard(SnapshotShardContext context) {
         try {
-            validateLocalRepositorySecret(userMetadata);
+            validateLocalRepositorySecret(context.userMetadata());
         } catch (RepositoryException passwordValidationException) {
-            listener.onFailure(passwordValidationException);
+            context.onFailure(passwordValidationException);
             return;
         }
-        super.snapshotShard(
-            store,
-            mapperService,
-            snapshotId,
-            indexId,
-            snapshotIndexCommit,
-            shardStateIdentifier,
-            snapshotStatus,
-            repositoryMetaVersion,
-            userMetadata,
-            listener
-        );
+        super.snapshotShard(context);
     }
 
     @Override
@@ -386,7 +359,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     // pkg-private for tests
-    static final class EncryptedBlobStore implements BlobStore {
+    class EncryptedBlobStore implements BlobStore {
         private final BlobStore delegatedBlobStore;
         private final BlobPath delegatedBasePath;
         private final String repositoryName;
@@ -524,7 +497,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
     }
 
-    private static final class EncryptedBlobContainer extends AbstractBlobContainer {
+    private final class EncryptedBlobContainer extends AbstractBlobContainer {
         private final String repositoryName;
         private final BlobContainer delegatedBlobContainer;
         // supplier for the DEK used for encryption (snapshot)
@@ -625,6 +598,45 @@ public class EncryptedRepository extends BlobStoreRepository {
         public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
             // reuse, but possibly generate and store a new DEK
             final SingleUseKey singleUseNonceAndDEK = singleUseDEKSupplier.get();
+            final BytesReference dekIdBytes = getDEKBytes(singleUseNonceAndDEK);
+            final long encryptedBlobSize = getEncryptedBlobByteLength(blobSize);
+            try (InputStream encryptedInputStream = encryptedInput(inputStream, singleUseNonceAndDEK, dekIdBytes)) {
+                delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
+            }
+        }
+
+        @Override
+        public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+            // reuse, but possibly generate and store a new DEK
+            final SingleUseKey singleUseNonceAndDEK = singleUseDEKSupplier.get();
+            final BytesReference dekIdBytes = getDEKBytes(singleUseNonceAndDEK);
+            try (
+                ReleasableBytesStreamOutput tmp = new ReleasableBytesStreamOutput(
+                    Math.toIntExact(getEncryptedBlobByteLength(bytes.length())),
+                    bigArrays
+                )
+            ) {
+                try (InputStream encryptedInputStream = encryptedInput(bytes.streamInput(), singleUseNonceAndDEK, dekIdBytes)) {
+                    org.elasticsearch.core.internal.io.Streams.copy(encryptedInputStream, tmp, false);
+                }
+                delegatedBlobContainer.writeBlob(blobName, tmp.bytes(), failIfAlreadyExists);
+            }
+        }
+
+        private ChainingInputStream encryptedInput(InputStream inputStream, SingleUseKey singleUseNonceAndDEK, BytesReference dekIdBytes)
+            throws IOException {
+            return ChainingInputStream.chain(
+                dekIdBytes.streamInput(),
+                new EncryptionPacketsInputStream(
+                    inputStream,
+                    singleUseNonceAndDEK.getKey(),
+                    singleUseNonceAndDEK.getNonce(),
+                    PACKET_LENGTH_IN_BYTES
+                )
+            );
+        }
+
+        private BytesReference getDEKBytes(SingleUseKey singleUseNonceAndDEK) {
             final BytesReference dekIdBytes = singleUseNonceAndDEK.getKeyId();
             if (dekIdBytes.length() != DEK_ID_LENGTH) {
                 throw new RepositoryException(
@@ -633,20 +645,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                     new IllegalStateException("Unexpected DEK Id length [" + dekIdBytes.length() + "]")
                 );
             }
-            final long encryptedBlobSize = getEncryptedBlobByteLength(blobSize);
-            try (
-                InputStream encryptedInputStream = ChainingInputStream.chain(
-                    dekIdBytes.streamInput(),
-                    new EncryptionPacketsInputStream(
-                        inputStream,
-                        singleUseNonceAndDEK.getKey(),
-                        singleUseNonceAndDEK.getNonce(),
-                        PACKET_LENGTH_IN_BYTES
-                    )
-                )
-            ) {
-                delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
-            }
+            return dekIdBytes;
         }
 
         @Override

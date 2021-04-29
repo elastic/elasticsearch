@@ -32,11 +32,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
@@ -44,7 +44,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.ShardSnapshotResult;
+import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -55,7 +55,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -126,17 +125,16 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
 
 
     @Override
-    public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                              IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                              Version repositoryMetaVersion, Map<String, Object> userMetadata,
-                              ActionListener<ShardSnapshotResult> listener) {
+    public void snapshotShard(SnapshotShardContext context) {
+        final MapperService mapperService = context.mapperService();
         if (mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false) {
-            listener.onFailure(
+            context.onFailure(
                 new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
                     "or filters the source"));
             return;
         }
+        final Store store = context.store();
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
             throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
@@ -159,6 +157,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot;
             snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
+            final IndexCommit snapshotIndexCommit = context.indexCommit();
             try {
                 snapshot.syncSnapshot(snapshotIndexCommit);
             } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
@@ -176,15 +175,16 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            super.snapshotShard(tempStore, mapperService, snapshotId, indexId, indexCommit, shardStateIdentifier, snapshotStatus,
-                repositoryMetaVersion, userMetadata, ActionListener.runBefore(listener, () -> IOUtils.close(toClose)));
+            super.snapshotShard(new SnapshotShardContext(tempStore, mapperService, context.snapshotId(), context.indexId(),
+                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)), context.stateIdentifier(),
+                    context.status(), context.getRepositoryMetaVersion(), context.userMetadata(), context));
         } catch (IOException e) {
             try {
                 IOUtils.close(toClose);
             } catch (IOException ex) {
                 e.addSuppressed(ex);
             }
-            listener.onFailure(e);
+            context.onFailure(e);
         }
     }
 

@@ -45,7 +45,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -235,9 +234,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // that the incoming mappings are the same as the current ones: we need to
             // parse the incoming mappings into a DocumentMapper and check that its
             // serialization is the same as the existing mapper
-            DocumentMapper newMapper = parse(mapping.type(), mapping.source());
+            Mapping newMapping = parseMapping(mapping.type(), mapping.source());
             final CompressedXContent currentSource = this.mapper.mappingSource();
-            final CompressedXContent newSource = newMapper.mappingSource();
+            final CompressedXContent newSource = newMapping.toCompressedXContent();
             if (Objects.equals(currentSource, newSource) == false) {
                 throw new IllegalStateException("expected current mapping [" + currentSource
                     + "] to be the same as new mapping [" + newSource + "]");
@@ -303,19 +302,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource);
-
-        if (newMapper.mappingSource().equals(mappingSource) == false) {
-            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
+        Mapping newMapping = parseMapping(mapper.type(), mappingSource);
+        if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
+            throw new IllegalStateException("Mapping serialization result is different from source. \n--> Source ["
                 + mappingSource + "]\n--> Result ["
-                + newMapper.mappingSource() + "]");
+                + newMapping.toCompressedXContent() + "]");
         }
         return true;
-    }
-
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        Mapping mapping = mappingParser.parse(mappingType, mappingSource);
-        return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
     }
 
     /**
@@ -359,7 +352,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
         }
-        mapper = parse(SINGLE_MAPPING_NAME, null);
+        Mapping mapping = mappingParser.parse(SINGLE_MAPPING_NAME, null);
+        mapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 
@@ -368,14 +362,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappedFieldType fieldType(String fullName) {
         return mappingLookup().fieldTypesLookup().get(fullName);
-    }
-
-    /**
-     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
-     * then the fields will be returned with a type prefix.
-     */
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return mappingLookup().simpleMatchToFullName(pattern);
     }
 
     /**

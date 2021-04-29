@@ -171,15 +171,9 @@ sequences.
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 60,
-  "timed_out": false,
+  ...
   "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
+    "total": ...,
     "sequences": [
       {
         "events": [
@@ -228,7 +222,8 @@ sequences.
   }
 }
 ----
-// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 1, "relation": "eq" },/]
 // TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
 // TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
@@ -286,70 +281,22 @@ The `hits.sequences.join_keys` property contains the shared field values.
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 60,
-  "timed_out": false,
-  "hits": {
-    "total": {
-      "value": 1,
-      "relation": "eq"
-    },
+  ...
+  "hits": ...,
     "sequences": [
       {
         "join_keys": [
           2012
         ],
-        "events": [
-          {
-            "_index": ".ds-my-data-stream-2099.12.07-000001",
-            "_id": "OQmfCaduce8zoHT93o4H",
-            "_source": {
-              "@timestamp": "2099-12-07T11:07:09.000Z",
-              "event": {
-                "category": "process",
-                "id": "aR3NWVOs",
-                "sequence": 4
-              },
-              "process": {
-                "pid": 2012,
-                "name": "regsvr32.exe",
-                "command_line": "regsvr32.exe  /s /u /i:https://...RegSvr32.sct scrobj.dll",
-                "executable": "C:\\Windows\\System32\\regsvr32.exe"
-              }
-            }
-          },
-          {
-            "_index": ".ds-my-data-stream-2099.12.07-000001",
-            "_id": "yDwnGIJouOYGBzP0ZE9n",
-            "_source": {
-              "@timestamp": "2099-12-07T11:07:10.000Z",
-              "event": {
-                "category": "file",
-                "id": "tZ1NWVOs",
-                "sequence": 5
-              },
-              "process": {
-                "pid": 2012,
-                "name": "regsvr32.exe",
-                "executable": "C:\\Windows\\System32\\regsvr32.exe"
-              },
-              "file": {
-                "path": "C:\\Windows\\System32\\scrobj.dll",
-                "name": "scrobj.dll"
-              }
-            }
-          }
-        ]
+        "events": ...
       }
     ]
   }
 }
 ----
-// TESTRESPONSE[s/"took": 60/"took": $body.took/]
-// TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.sequences.0.events.0._index/]
-// TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.sequences.0.events.0._id/]
-// TESTRESPONSE[s/"_id": "yDwnGIJouOYGBzP0ZE9n"/"_id": $body.hits.sequences.0.events.1._id/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"hits": \.\.\.,/"hits": { "total": { "value": 1, "relation": "eq" },/]
+// TESTRESPONSE[s/"events": \.\.\./"events": $body.hits.sequences.0.events/]
 
 Use the <<eql-until-keyword,`until` keyword>> to specify an expiration
 event for sequences. Matching sequences must end before this event.
@@ -456,15 +403,9 @@ hit.
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 60,
-  "timed_out": false,
+  ...
   "hits": {
-    "total": {
-      "value": 2,
-      "relation": "eq"
-    },
+    "total": ...,
     "events": [
       {
         "_index": ".ds-my-data-stream-2099.12.07-000001",
@@ -496,41 +437,16 @@ hit.
           ]
         }
       },
-      {
-        "_index": ".ds-my-data-stream-2099.12.07-000001",
-        "_id": "xLkCaj4EujzdNSxfYLbO",
-        "fields": {
-          "process.name": [
-            "regsvr32.exe"
-          ],
-          "process.name.keyword": [
-            "regsvr32.exe"
-          ],
-          "@timestamp": [
-            "4100324830000"
-          ],
-          "event.type": [
-            "termination"
-          ],
-          "process.executable.keyword": [
-            "C:\\Windows\\System32\\regsvr32.exe"
-          ],
-          "process.pid": [
-            2012
-          ],
-          "process.executable": [
-            "C:\\Windows\\System32\\regsvr32.exe"
-          ]
-        }
-      }
+      ....
     ]
   }
 }
 ----
-// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 2, "relation": "eq" },/]
 // TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
-// TESTRESPONSE[s/"_id": "xLkCaj4EujzdNSxfYLbO"/"_id": $body.hits.events.1._id/]
+// TESTRESPONSE[s/      \.\.\.\.\n/$body.hits.events.1/]
 
 [discrete]
 [[eql-use-runtime-fields]]
@@ -569,15 +485,9 @@ The API returns:
 [source,console-result]
 ----
 {
-  "is_partial": false,
-  "is_running": false,
-  "took": 60,
-  "timed_out": false,
+  ...
   "hits": {
-    "total": {
-      "value": 2,
-      "relation": "eq"
-    },
+    "total": ...,
     "events": [
       {
         "_index": ".ds-my-data-stream-2099.12.07-000001",
@@ -591,15 +501,17 @@ The API returns:
           ]
         }
       },
-      ...
+      ....
     ]
   }
 }
 ----
-// TESTRESPONSE[s/"took": 60/"took": $body.took/]
+// TESTRESPONSE[s/  \.\.\.\n/"is_partial": false, "is_running": false, "took": $body.took, "timed_out": false,/]
+// TESTRESPONSE[s/"total": \.\.\.,/"total": { "value": 2, "relation": "eq" },/]
 // TESTRESPONSE[s/"_index": ".ds-my-data-stream-2099.12.07-000001"/"_index": $body.hits.events.0._index/]
 // TESTRESPONSE[s/"_id": "OQmfCaduce8zoHT93o4H"/"_id": $body.hits.events.0._id/]
-// TESTRESPONSE[s/\.\.\./$body.hits.events.1/]
+// TESTRESPONSE[s/      \.\.\.\.\n/$body.hits.events.1/]
+
 
 [discrete]
 [[specify-a-timestamp-or-event-category-field]]
@@ -693,7 +605,7 @@ data, or <<modules-cross-cluster-search,multiple clusters>>.
 
 To avoid long waits, run an async EQL search. Set `wait_for_completion_timeout`
 to a duration you'd like to wait for synchronous results.
-+
+
 [source,console]
 ----
 GET /my-data-stream/_eql/search

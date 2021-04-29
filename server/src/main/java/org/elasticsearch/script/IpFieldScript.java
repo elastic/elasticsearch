@@ -19,7 +19,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -85,17 +84,6 @@ public abstract class IpFieldScript extends AbstractFieldScript {
      */
     public final BytesRef[] values() {
         return values;
-    }
-
-    /**
-     * Reorders the values from the last time {@link #values()} was called to
-     * how this would appear in doc-values order. Truncates garbage values
-     * based on {@link #count()}.
-     */
-    public final BytesRef[] asDocValues() {
-        BytesRef[] truncated = Arrays.copyOf(values, count());
-        Arrays.sort(truncated);
-        return truncated;
     }
 
     /**

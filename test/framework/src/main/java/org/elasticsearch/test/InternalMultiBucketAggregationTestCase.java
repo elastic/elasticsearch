@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -17,15 +18,18 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class InternalMultiBucketAggregationTestCase<T extends InternalAggregation & MultiBucketsAggregation>
         extends InternalAggregationTestCase<T> {
@@ -184,5 +188,29 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         /*
          * No-op.
          */
+    }
+
+    /**
+     * Build a reuce 
+     */
+    protected static void expectReduceUsesTooManyBuckets(InternalAggregation agg, int bucketLimit) {
+        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            new IntConsumer() {
+                int buckets;
+
+                @Override
+                public void accept(int value) {
+                    buckets += value;
+                    if (buckets > bucketLimit) {
+                        throw new IllegalArgumentException("too big!");
+                    }
+                }
+            },
+            PipelineTree.EMPTY
+        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> agg.reduce(List.of(agg), reduceContext));
+        assertThat(e.getMessage(), equalTo("too big!"));
     }
 }

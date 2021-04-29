@@ -143,7 +143,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (SnapshotsInProgress.Entry entry : currentSnapshotEntries) {
                 currentSnapshotNames.add(entry.snapshot().getSnapshotId().getName());
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                Map<String, IndexId> indexIdLookup = null;
                 for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards()) {
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.value;
                     if (status.nodeId() != null) {
@@ -197,12 +196,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     if (stage == SnapshotIndexShardStage.DONE) {
                         // Shard snapshot completed successfully so we should be able to load the exact statistics for this
                         // shard from the repository already.
-                        if (indexIdLookup == null) {
-                            indexIdLookup = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
-                        }
                         final ShardId shardId = shardEntry.key;
                         shardStatus = new SnapshotIndexShardStatus(shardId, repositoriesService.repository(entry.repository())
-                            .getShardSnapshotStatus(entry.snapshot().getSnapshotId(), indexIdLookup.get(shardId.getIndexName()),
+                            .getShardSnapshotStatus(entry.snapshot().getSnapshotId(), entry.indices().get(shardId.getIndexName()),
                                 shardId).asCopy());
                     } else {
                         shardStatus = new SnapshotIndexShardStatus(shardEntry.key, stage);

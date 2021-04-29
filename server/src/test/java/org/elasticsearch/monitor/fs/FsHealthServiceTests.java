@@ -134,14 +134,13 @@ public class FsHealthServiceTests extends ESTestCase {
         try (NodeEnvironment env = newNodeEnvironment()) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
-            for(Path path : env.nodeDataPath()){
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
-                        "test" + ++counter,
-                        FsHealthService.class.getCanonicalName(),
-                        Level.WARN,
-                        "health check of [" + path + "] took [*ms] which is above the warn threshold*"));
-            }
+            Path path = env.nodeDataPath();
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test" + ++counter,
+                    FsHealthService.class.getCanonicalName(),
+                    Level.WARN,
+                    "health check of [" + path + "] took [*ms] which is above the warn threshold*"));
 
             //disrupt file system
             disruptFileSystemProvider.injectIOException.set(true);

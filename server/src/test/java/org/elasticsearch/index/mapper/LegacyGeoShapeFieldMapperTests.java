@@ -108,7 +108,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
-        assumeFalse("Version is too new", version.onOrAfter(Version.V_8_0_0));
+        assumeFalse("LegacyGeoShapeFieldMapper can't be created in version " + version, version.onOrAfter(Version.V_8_0_0));
         return super.createMapperService(version, mapping);
     }
 

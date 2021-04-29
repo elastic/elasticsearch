@@ -395,7 +395,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                     nodeLoad.getError());
                 return noScaleResultOrRefresh(reasonBuilder, true, new AutoscalingDeciderResult(context.currentCapacity(),
                     reasonBuilder
-                        .setSimpleReason("Passing currently perceived capacity as no scaling changes were detected to be possible")
+                        .setSimpleReason(
+                            "Passing currently perceived capacity as there was a failure gathering node limits ["
+                                + nodeLoad.getError()
+                                + "]"
+                        )
                         .build()));
             }
             nodeLoads.add(nodeLoad);
@@ -404,10 +408,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         // This is an exceptional case, the memory tracking became stale between us checking previously and calculating the loads
         // We should return a no scale in this case
         if (nodeIsMemoryAccurate == false) {
-            assert false : "view of memory is stale after recent check";
             return noScaleResultOrRefresh(reasonBuilder, true, new AutoscalingDeciderResult(context.currentCapacity(),
                 reasonBuilder
-                    .setSimpleReason("Passing currently perceived capacity as no scaling changes were detected to be possible")
+                    .setSimpleReason(
+                        "Passing currently perceived capacity as nodes were unable to provide an accurate view of their memory usage"
+                    )
                     .build()));
         }
 

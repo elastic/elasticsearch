@@ -71,7 +71,8 @@ public class XPackUsageFeatureAction extends ActionType<XPackUsageFeatureRespons
         WATCHER
     );
 
-    private XPackUsageFeatureAction(String name) {
+    // public for testing
+    public XPackUsageFeatureAction(String name) {
         super(BASE_NAME + name, XPackUsageFeatureResponse::new);
     }
 

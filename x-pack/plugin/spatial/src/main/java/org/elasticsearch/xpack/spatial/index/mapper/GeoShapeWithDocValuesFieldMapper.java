@@ -223,7 +223,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
             docValuesField.add(fields, geometry);
         } else if (fieldType().isSearchable()) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

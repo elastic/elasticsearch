@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -33,10 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -48,14 +45,10 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -72,7 +65,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testPersistsAndReloadsTerm() throws IOException {
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final long newTerm = randomNonNegativeLong();
 
@@ -87,7 +80,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testPersistsAndReloadsGlobalMetadata() throws IOException {
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final String clusterUUID = UUIDs.randomBase64UUID(random());
             final long version = randomLongBetween(1L, Long.MAX_VALUE);
@@ -131,216 +124,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
-    public void testLoadsFreshestState() throws IOException {
-        final Path[] dataPaths = createDataPaths();
-        final long freshTerm = randomLongBetween(1L, Long.MAX_VALUE);
-        final long staleTerm = randomBoolean() ? freshTerm : randomLongBetween(1L, freshTerm);
-        final long freshVersion = randomLongBetween(2L, Long.MAX_VALUE);
-        final long staleVersion = staleTerm == freshTerm ? randomLongBetween(1L, freshVersion - 1) : randomLongBetween(1L, Long.MAX_VALUE);
-
-        final HashSet<Path> unimportantPaths = Arrays.stream(dataPaths).collect(Collectors.toCollection(HashSet::new));
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths)) {
-            final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                writeState(writer, staleTerm,
-                    ClusterState.builder(clusterState).version(staleVersion)
-                        .metadata(Metadata.builder(clusterState.metadata()).coordinationMetadata(
-                            CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(staleTerm).build())).build(),
-                    clusterState);
-            }
-        }
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(new Path[]{randomFrom(dataPaths)})) {
-            unimportantPaths.remove(nodeEnvironment.nodeDataPaths()[0]);
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                writeState(writer, freshTerm,
-                    ClusterState.builder(clusterState).version(freshVersion)
-                        .metadata(Metadata.builder(clusterState.metadata()).coordinationMetadata(
-                            CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(freshTerm).build())).build(),
-                    clusterState);
-            }
-        }
-
-        if (randomBoolean() && unimportantPaths.isEmpty() == false) {
-            IOUtils.rm(randomFrom(unimportantPaths));
-        }
-
-        // verify that the freshest state is chosen
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths)) {
-            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService(nodeEnvironment)
-                .loadBestOnDiskState();
-            final ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
-            assertThat(clusterState.term(), equalTo(freshTerm));
-            assertThat(clusterState.version(), equalTo(freshVersion));
-        }
-    }
-
-    public void testFailsOnMismatchedNodeIds() throws IOException {
-        final Path[] dataPaths1 = createDataPaths();
-        final Path[] dataPaths2 = createDataPaths();
-
-        final String[] nodeIds = new String[2];
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
-            nodeIds[0] = nodeEnvironment.nodeId();
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                writer.writeFullStateAndCommit(0L,
-                    ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
-            }
-        }
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
-            nodeIds[1] = nodeEnvironment.nodeId();
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                writer.writeFullStateAndCommit(0L,
-                    ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build());
-            }
-        }
-
-        NodeMetadata.FORMAT.cleanupOldFiles(Long.MAX_VALUE, dataPaths2);
-
-        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
-
-        final String failure = expectThrows(IllegalStateException.class, () -> newNodeEnvironment(combinedPaths)).getMessage();
-        assertThat(failure,
-            allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
-        assertTrue("[" + failure + "] should match " + Arrays.toString(dataPaths2),
-            Arrays.stream(dataPaths2).anyMatch(p -> failure.contains(p.toString())));
-
-        // verify that loadBestOnDiskState has same check
-        final String message = expectThrows(IllegalStateException.class,
-            () -> new PersistedClusterStateService(combinedPaths, nodeIds[0], xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                () -> 0L).loadBestOnDiskState()).getMessage();
-        assertThat(message,
-            allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
-        assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
-            Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
-    }
-
-    public void testFailsOnMismatchedCommittedClusterUUIDs() throws IOException {
-        final Path[] dataPaths1 = createDataPaths();
-        final Path[] dataPaths2 = createDataPaths();
-        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
-
-        final String clusterUUID1 = UUIDs.randomBase64UUID(random());
-        final String clusterUUID2 = UUIDs.randomBase64UUID(random());
-
-        // first establish consistent node IDs and write initial metadata
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                assertFalse(clusterState.metadata().clusterUUIDCommitted());
-                writer.writeFullStateAndCommit(0L, clusterState);
-            }
-        }
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                assertFalse(clusterState.metadata().clusterUUIDCommitted());
-                writer.writeFullStateAndCommit(0L, ClusterState.builder(clusterState)
-                    .metadata(Metadata.builder(clusterState.metadata())
-                        .clusterUUID(clusterUUID1)
-                        .clusterUUIDCommitted(true)
-                        .version(1))
-                    .incrementVersion().build());
-            }
-        }
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                assertFalse(clusterState.metadata().clusterUUIDCommitted());
-                writer.writeFullStateAndCommit(0L, ClusterState.builder(clusterState)
-                    .metadata(Metadata.builder(clusterState.metadata())
-                        .clusterUUID(clusterUUID2)
-                        .clusterUUIDCommitted(true)
-                        .version(1))
-                    .incrementVersion().build());
-            }
-        }
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
-            assertThat(message,
-                allOf(containsString("mismatched cluster UUIDs in metadata"), containsString(clusterUUID1), containsString(clusterUUID2)));
-            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths1),
-                Arrays.stream(dataPaths1).anyMatch(p -> message.contains(p.toString())));
-            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
-                Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
-        }
-    }
-
-    public void testFailsIfFreshestStateIsInStaleTerm() throws IOException {
-        final Path[] dataPaths1 = createDataPaths();
-        final Path[] dataPaths2 = createDataPaths();
-        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
-
-        final long staleCurrentTerm = randomLongBetween(1L, Long.MAX_VALUE - 1);
-        final long freshCurrentTerm = randomLongBetween(staleCurrentTerm + 1, Long.MAX_VALUE);
-
-        final long freshTerm = randomLongBetween(1L, Long.MAX_VALUE);
-        final long staleTerm = randomBoolean() ? freshTerm : randomLongBetween(1L, freshTerm);
-        final long freshVersion = randomLongBetween(2L, Long.MAX_VALUE);
-        final long staleVersion = staleTerm == freshTerm ? randomLongBetween(1L, freshVersion - 1) : randomLongBetween(1L, Long.MAX_VALUE);
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                assertFalse(clusterState.metadata().clusterUUIDCommitted());
-                writeState(writer, staleCurrentTerm, ClusterState.builder(clusterState)
-                    .metadata(Metadata.builder(clusterState.metadata()).version(1)
-                        .coordinationMetadata(CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(staleTerm).build()))
-                    .version(staleVersion)
-                    .build(),
-                    clusterState);
-            }
-        }
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths1)) {
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                writeState(writer, freshCurrentTerm, clusterState, clusterState);
-            }
-        }
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService(nodeEnvironment)
-                    .loadBestOnDiskState();
-                final ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
-                writeState(writer, onDiskState.currentTerm, ClusterState.builder(clusterState)
-                    .metadata(Metadata.builder(clusterState.metadata()).version(2)
-                        .coordinationMetadata(CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(freshTerm).build()))
-                    .version(freshVersion)
-                    .build(), clusterState);
-            }
-        }
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
-            assertThat(message, allOf(
-                    containsString("inconsistent terms found"),
-                    containsString(Long.toString(staleCurrentTerm)),
-                    containsString(Long.toString(freshCurrentTerm))));
-            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths1),
-                Arrays.stream(dataPaths1).anyMatch(p -> message.contains(p.toString())));
-            assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
-                Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
-        }
-    }
-
     public void testFailsGracefullyOnExceptionDuringFlush() throws IOException {
         final AtomicBoolean throwException = new AtomicBoolean();
 
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService
                 = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
@@ -378,7 +165,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     public void testClosesWriterOnFatalError() throws IOException {
         final AtomicBoolean throwException = new AtomicBoolean();
 
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService
                 = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
@@ -424,7 +211,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     public void testCrashesWithIOErrorOnCommitFailure() throws IOException {
         final AtomicBoolean throwException = new AtomicBoolean();
 
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService
                 = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
@@ -473,7 +260,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe the global metadata
         // isn't there any more
 
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
                 final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
                 writeState(writer, 0L, ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
@@ -495,89 +282,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
-    public void testFailsIfGlobalMetadataIsDuplicated() throws IOException {
-        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe the global metadata
-        // is duplicated
-
-        final Path[] dataPaths1 = createDataPaths();
-        final Path[] dataPaths2 = createDataPaths();
-        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                writeState(writer, 0L, ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
-                    clusterState);
-            }
-
-            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
-            final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
-                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                    indexWriter.addIndexes(dupDirectory);
-                    indexWriter.commit();
-                }
-            }
-
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
-            assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
-        }
-    }
-
-    public void testFailsIfIndexMetadataIsDuplicated() throws IOException {
-        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe some index metadata
-        // is duplicated
-
-        final Path[] dataPaths1 = createDataPaths();
-        final Path[] dataPaths2 = createDataPaths();
-        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String indexUUID = UUIDs.randomBase64UUID(random());
-            final String indexName = randomAlphaOfLength(10);
-
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                writeState(writer, 0L, ClusterState.builder(clusterState)
-                        .metadata(Metadata.builder(clusterState.metadata())
-                            .version(1L)
-                            .coordinationMetadata(CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(1L).build())
-                            .put(IndexMetadata.builder(indexName)
-                                .version(1L)
-                                .settings(Settings.builder()
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))))
-                        .incrementVersion().build(),
-                    clusterState);
-            }
-
-            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
-            final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
-                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                    indexWriter.deleteDocuments(new Term("type", "global")); // do not duplicate global metadata
-                    indexWriter.addIndexes(dupDirectory);
-                    indexWriter.commit();
-                }
-            }
-
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState()).getMessage();
-            assertThat(message, allOf(
-                containsString("duplicate metadata found"),
-                containsString(brokenPath.toString()),
-                containsString(indexName),
-                containsString(indexUUID)));
-        }
-    }
-
     public void testPersistsAndReloadsIndexMetadataIffVersionOrTermChanges() throws IOException {
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
             final long globalVersion = randomLongBetween(1L, Long.MAX_VALUE);
             final String indexUUID = UUIDs.randomBase64UUID(random());
@@ -654,7 +360,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testPersistsAndReloadsIndexMetadataForMultipleIndices() throws IOException {
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
 
             final long term = randomLongBetween(1L, Long.MAX_VALUE);
@@ -726,7 +432,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testReloadsMetadataAcrossMultipleSegments() throws IOException {
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
 
             final int writes = between(5, 20);
@@ -782,7 +488,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final AtomicLong writeDurationMillis = new AtomicLong(slowWriteLoggingThresholdMillis);
 
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(nodeEnvironment,
                     xContentRegistry(), getBigArrays(), clusterSettings, () -> currentTime.getAndAdd(writeDurationMillis.get()));
 
@@ -879,17 +585,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath()).build();
     }
 
-    public static Path[] createDataPaths() {
-        final Path[] dataPaths = new Path[randomIntBetween(1, 4)];
-        for (int i = 0; i < dataPaths.length; i++) {
-            dataPaths[i] = createTempDir();
-        }
-        return dataPaths;
-    }
-
-    private NodeEnvironment newNodeEnvironment(Path[] dataPaths) throws IOException {
+    private NodeEnvironment newNodeEnvironment(Path dataPath) throws IOException {
         return newNodeEnvironment(Settings.builder()
-            .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).collect(Collectors.toList()))
+            .put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString())
             .build());
     }
 

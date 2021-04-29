@@ -67,7 +67,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     }
 
                     // Verify that there's not already a shutdown metadata for this node
-                    if (Objects.nonNull(currentShutdownMetadata.getAllNodeMetdataMap().get(request.getNodeId()))) {
+                    if (Objects.nonNull(currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()))) {
                         throw new IllegalArgumentException("node [" + request.getNodeId() + "] is already shutting down");
                     }
 

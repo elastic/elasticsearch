@@ -287,7 +287,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         ParseContext.Document document = parseContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
-        assertThat(document.getFields().size(), equalTo(4));
+        assertThat(document.getFields().size(), equalTo(3));
         assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("field\u0000term"));
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
     }

@@ -1119,6 +1119,27 @@ public class ApiKeyService {
         }
     }
 
+    /**
+     * If the authentication has type of api_key, returns the metadata associated to the
+     * API key.
+     * @param authentication {@link Authentication}
+     * @return A map for the metadata or an empty map if no metadata is found.
+     */
+    public static Map<String, Object> getApiKeyMetadata(Authentication authentication) {
+        if (AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
+            throw new IllegalArgumentException("authentication type must be [api_key], got ["
+                + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT) + "]");
+        }
+        final Object apiKeyMetadata = authentication.getMetadata().get(ApiKeyService.API_KEY_METADATA_KEY);
+        if (apiKeyMetadata != null) {
+            final Tuple<XContentType, Map<String, Object>> tuple =
+                XContentHelper.convertToMap((BytesReference) apiKeyMetadata, false, XContentType.JSON);
+            return tuple.v2();
+        } else {
+            return Map.of();
+        }
+    }
+
     final class CachedApiKeyHashResult {
         final boolean success;
         final char[] hash;

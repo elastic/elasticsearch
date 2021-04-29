@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.eql;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
@@ -73,5 +75,24 @@ public final class EqlTestUtils {
     public static IndicesOptions randomIndicesOptions() {
         return IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+    }
+
+    public static SearchSortValues randomSearchSortValues(Object[] values) {
+        DocValueFormat[] sortValueFormats = new DocValueFormat[values.length];
+        for (int i = 0; i < values.length; i++) {
+            sortValueFormats[i] = DocValueFormat.RAW;
+        }
+        return new SearchSortValues(values, sortValueFormats);
+    }
+
+    public static SearchSortValues randomSearchLongSortValues() {
+        int size = randomIntBetween(1, 20);
+        Object[] values = new Object[size];
+        DocValueFormat[] sortValueFormats = new DocValueFormat[size];
+        for (int i = 0; i < size; i++) {
+            values[i] = randomLong();
+            sortValueFormats[i] = DocValueFormat.RAW;
+        }
+        return new SearchSortValues(values, sortValueFormats);
     }
 }

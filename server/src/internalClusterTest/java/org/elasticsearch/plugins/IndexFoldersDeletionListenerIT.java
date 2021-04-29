@@ -235,7 +235,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final Path dataDirWithLeftOverShards = createTempDir();
         String dataNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), List.of(dataDirWithLeftOverShards.toAbsolutePath().toString()))
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataDirWithLeftOverShards.toAbsolutePath().toString())
                 .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
                 .build()
         );

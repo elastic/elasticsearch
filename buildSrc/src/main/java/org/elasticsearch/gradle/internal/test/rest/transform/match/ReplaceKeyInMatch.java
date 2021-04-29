@@ -10,18 +10,16 @@ package org.elasticsearch.gradle.internal.test.rest.transform.match;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.elasticsearch.gradle.internal.test.rest.transform.ReplaceByKey;
 import org.gradle.api.tasks.Internal;
 
 /**
  * A transformation to replace the key in a match. For example, change from "match":{"index._type": "foo"} to "match":{"index._doc": "foo"}
  */
-public class ReplaceKeyInMatch extends ReplaceMatch {
-
-    private final String newKeyName;
+public class ReplaceKeyInMatch extends ReplaceByKey {
 
     public ReplaceKeyInMatch(String replaceKey, String newKeyName, String testName) {
         super(replaceKey, newKeyName, null, testName);
-        this.newKeyName = newKeyName;
     }
 
     @Override
@@ -33,8 +31,8 @@ public class ReplaceKeyInMatch extends ReplaceMatch {
     @Override
     public void transformTest(ObjectNode matchParent) {
         ObjectNode matchNode = (ObjectNode) matchParent.get(getKeyToFind());
-        JsonNode value = matchNode.get(getReplaceKey());
-        matchNode.remove(getReplaceKey());
-        matchNode.set(newKeyName, value);
+        JsonNode previousValue = matchNode.get(requiredChildKey());
+        matchNode.remove(requiredChildKey());
+        matchNode.set(getNewChildKey(), previousValue);
     }
 }

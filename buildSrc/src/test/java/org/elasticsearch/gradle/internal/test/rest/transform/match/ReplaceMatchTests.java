@@ -38,7 +38,6 @@ public class ReplaceMatchTests extends TransformTests {
         );
         printTest(testName, transformedTests);
         validateTest(tests, false, true);
-
     }
 
     @Test

@@ -146,8 +146,8 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
-                Set<String> deprecated = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
-                throw new IllegalArgumentException("using deprecated parameter " + Arrays.toString(deprecated.toArray())
+                Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
+                throw new IllegalArgumentException("using deprecated parameters " + Arrays.toString(deprecatedParams.toArray())
                     + " in mapper [" + name + "] of type [geo_shape] is no longer allowed");
             }
             builder = new LegacyGeoShapeFieldMapper.Builder(

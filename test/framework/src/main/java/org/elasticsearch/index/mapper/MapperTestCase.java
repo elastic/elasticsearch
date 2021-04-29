@@ -655,6 +655,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 minimalMapping(b);
                 b.field("store", true);
             }));
+            assumeTrue("Mapper service is too old",
+                mapperService.parserContext().indexVersionCreated().onOrAfter(Version.V_8_0_0));
             assertParseMinimalWarnings();
         } catch (MapperParsingException e) {
             assertParseMinimalWarnings();

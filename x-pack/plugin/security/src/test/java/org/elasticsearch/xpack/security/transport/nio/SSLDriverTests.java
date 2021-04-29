@@ -160,7 +160,6 @@ public class SSLDriverTests extends ESTestCase {
         normalClose(clientDriver, serverDriver);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72122")
     public void testHandshakeFailureBecauseProtocolMismatch() throws Exception {
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();
@@ -169,7 +168,6 @@ public class SSLDriverTests extends ESTestCase {
         final String[] serverProtocols;
         final String[] clientProtocols;
         final Matcher<String> expectedMessageMatcher;
-        final boolean inZuluJvm = System.getProperty("java.vendor", "").contains("Azul");
         if (inFipsJvm()) {
             // fips JSSE does not support TLSv1.3 yet
             serverProtocols = new String[]{"TLSv1.2"};
@@ -185,13 +183,10 @@ public class SSLDriverTests extends ESTestCase {
         } else {
             serverProtocols = new String[]{"TLSv1.2"};
             clientProtocols = new String[]{"TLSv1.1"};
-            if (inZuluJvm) {
-                expectedMessageMatcher = is("No appropriate protocol (protocol is disabled or cipher suites are inappropriate)");
-            } else {
-                expectedMessageMatcher = anyOf(
-                    is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]"),
-                    is("Client requested protocol TLSv1.1 not enabled or not supported"));
-            }
+            expectedMessageMatcher = anyOf(
+                is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]"),
+                is("Client requested protocol TLSv1.1 not enabled or not supported"),
+                is("No appropriate protocol (protocol is disabled or cipher suites are inappropriate)"));
         }
 
         serverEngine.setEnabledProtocols(serverProtocols);
@@ -204,10 +199,10 @@ public class SSLDriverTests extends ESTestCase {
 
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {
-            if (false == inFipsJvm() && inZuluJvm && false == serverDriver.getOutboundBuffer().hasEncryptedBytesToFlush()) {
+            if (false == inFipsJvm() && false == serverDriver.getOutboundBuffer().hasEncryptedBytesToFlush()) {
                 serverDriver.getSSLEngine().closeInbound();
                 serverDriver.getSSLEngine().closeOutbound();
-                serverDriver.close();;
+                serverDriver.close();
                 assertTrue(serverDriver.isClosed());
                 clientDriver.close();
                 assertTrue(clientDriver.isClosed());

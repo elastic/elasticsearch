@@ -123,7 +123,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.SEARCH_THROTTLED, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED),
-        entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
+        entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED));
 
     private final Map<String, ExecutorHolder> executors;

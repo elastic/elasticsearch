@@ -97,6 +97,11 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
     private final List<SystemIndexDescriptor> priorSystemIndexDescriptors;
 
     /**
+     * The thread pools that actions will use to operate on this descriptor's system indices
+     */
+    private final SystemIndices.ThreadPools threadPools;
+
+    /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
@@ -104,7 +109,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
         this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(),
-            Type.INTERNAL_UNMANAGED, List.of(), List.of());
+            Type.INTERNAL_UNMANAGED, List.of(), List.of(), null);
     }
 
     /**
@@ -118,7 +123,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
         this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(), type,
-            allowedElasticProductOrigins, List.of());
+            allowedElasticProductOrigins, List.of(), null);
     }
 
     /**
@@ -155,7 +160,8 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         Version minimumNodeVersion,
         Type type,
         List<String> allowedElasticProductOrigins,
-        List<SystemIndexDescriptor> priorSystemIndexDescriptors
+        List<SystemIndexDescriptor> priorSystemIndexDescriptors,
+        SystemIndices.ThreadPools threadPools
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -248,6 +254,18 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             }
         }
 
+        if (Objects.nonNull(threadPools)) {
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(threadPools.getGetPoolName()) == false) {
+                throw new IllegalArgumentException(threadPools.getGetPoolName() + " is not a valid thread pool");
+            }
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(threadPools.getSearchPoolName()) == false) {
+                throw new IllegalArgumentException(threadPools.getGetPoolName() + " is not a valid thread pool");
+            }
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(threadPools.getWritePoolName()) == false) {
+                throw new IllegalArgumentException(threadPools.getGetPoolName() + " is not a valid thread pool");
+            }
+        }
+
         this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
         this.aliasName = aliasName;
@@ -279,6 +297,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             sortedPriorSystemIndexDescriptors = List.copyOf(copy);
         }
         this.priorSystemIndexDescriptors = sortedPriorSystemIndexDescriptors;
+        this.threadPools = Objects.nonNull(threadPools) ? threadPools : SystemIndices.ThreadPools.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
     }
 
 
@@ -433,6 +452,10 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return null;
     }
 
+    public SystemIndices.ThreadPools getThreadPools() {
+        return this.threadPools;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -500,6 +523,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
+        private SystemIndices.ThreadPools threadPools;
 
         private Builder() {}
 
@@ -573,6 +597,11 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             return this;
         }
 
+        public Builder setThreadPools(SystemIndices.ThreadPools threadPools) {
+            this.threadPools = threadPools;
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
@@ -592,7 +621,8 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
                 minimumNodeVersion,
                 type,
                 allowedElasticProductOrigins,
-                priorSystemIndexDescriptors
+                priorSystemIndexDescriptors,
+                threadPools
             );
         }
     }
@@ -680,42 +710,4 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return Version.fromString(value);
     }
 
-    public static class ThreadPools {
-        private final String getPoolName;
-        private final String searchPoolName;
-        private final String writePoolName;
-
-        public static ThreadPools DEFAULT_SYSTEM_INDEX_THREAD_POOLS = new ThreadPools(
-            ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE
-        );
-
-        public static ThreadPools DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS = new ThreadPools(
-            ThreadPool.Names.GET, ThreadPool.Names.SEARCH, ThreadPool.Names.WRITE
-        );
-
-        public static ThreadPools CRITICAL_SYSTEM_INDEX_THREAD_POOLS = new ThreadPools(
-            ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_CRITICAL_WRITE
-        );
-
-        public ThreadPools(String getPoolName, String searchPoolName, String writePoolName) {
-            assert ThreadPool.THREAD_POOL_TYPES.containsKey(getPoolName);
-            assert ThreadPool.THREAD_POOL_TYPES.containsKey(searchPoolName);
-            assert ThreadPool.THREAD_POOL_TYPES.containsKey(writePoolName);
-            this.getPoolName = getPoolName;
-            this.searchPoolName = searchPoolName;
-            this.writePoolName = writePoolName;
-        }
-
-        public String getGetPoolName() {
-            return getPoolName;
-        }
-
-        public String getSearchPoolName() {
-            return searchPoolName;
-        }
-
-        public String getWritePoolName() {
-            return writePoolName;
-        }
-    }
 }

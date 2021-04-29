@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -622,5 +623,50 @@ public class SystemIndices {
             plugin.getSystemDataStreamDescriptors(),
             plugin.getAssociatedIndexPatterns(),
             plugin::cleanUpFeature);
+    }
+
+    public static class ThreadPools {
+        private final String getPoolName;
+        private final String searchPoolName;
+        private final String writePoolName;
+
+        public static ThreadPools DEFAULT_SYSTEM_INDEX_THREAD_POOLS = new ThreadPools(
+            ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE
+        );
+
+        public static ThreadPools DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS = new ThreadPools(
+            ThreadPool.Names.GET, ThreadPool.Names.SEARCH, ThreadPool.Names.WRITE
+        );
+
+        public static ThreadPools CRITICAL_SYSTEM_INDEX_THREAD_POOLS = new ThreadPools(
+            ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_CRITICAL_WRITE
+        );
+
+        public ThreadPools(String getPoolName, String searchPoolName, String writePoolName) {
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(getPoolName) == false) {
+                throw new IllegalArgumentException(getPoolName + " is not a valid thread pool");
+            }
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(searchPoolName) == false) {
+                throw new IllegalArgumentException(searchPoolName + " is not a valid thread pool");
+            }
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(writePoolName) == false) {
+                throw new IllegalArgumentException(writePoolName + " is not a valid thread pool");
+            }
+            this.getPoolName = getPoolName;
+            this.searchPoolName = searchPoolName;
+            this.writePoolName = writePoolName;
+        }
+
+        public String getGetPoolName() {
+            return getPoolName;
+        }
+
+        public String getSearchPoolName() {
+            return searchPoolName;
+        }
+
+        public String getWritePoolName() {
+            return writePoolName;
+        }
     }
 }

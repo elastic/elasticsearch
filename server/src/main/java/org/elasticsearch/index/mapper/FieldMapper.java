@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -1200,23 +1201,41 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    public static BiConsumer<String, ParserContext> notInMultiFields(String type) {
+        return (n, c) -> {
+            if (c.isWithinMultiField()) {
+                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in multifields");
+            }
+        };
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
     public static final class TypeParser implements Mapper.TypeParser {
 
         private final BiFunction<String, ParserContext, Builder> builderFunction;
+        private final BiConsumer<String, ParserContext> contextValidator;
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, ParserContext, Builder> builderFunction) {
+            this(builderFunction, (n, c) -> {});
+        }
+
+        public TypeParser(
+            BiFunction<String, ParserContext, Builder> builderFunction,
+            BiConsumer<String, ParserContext> contextValidator
+        ) {
             this.builderFunction = builderFunction;
+            this.contextValidator = contextValidator;
         }
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            contextValidator.accept(name, parserContext);
             Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);
             return builder;

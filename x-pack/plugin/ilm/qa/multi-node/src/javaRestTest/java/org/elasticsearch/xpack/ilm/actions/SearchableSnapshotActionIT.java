@@ -161,8 +161,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             TimeUnit.SECONDS);
     }
 
-       @SuppressWarnings("unchecked")
-       public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
+    @SuppressWarnings("unchecked")
+    public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
 
         // create policy with cold and delete phases
@@ -198,21 +198,21 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(restoredIndexName)), 60, TimeUnit.SECONDS);
 
         assertTrue("the snapshot we generate in the cold phase should be deleted by the delete phase", waitUntil(() -> {
-           try {
-               Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/_all");
-               Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
+            try {
+                Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/_all");
+                Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
 
-               Map<String, Object> responseMap;
-               try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
-                   responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-               }
-               List<Object> responses = (List<Object>) responseMap.get("responses");
-               Object snapshots = ((Map<String, Object>) responses.get(0)).get("snapshots");
-               return ((List<Map<String, Object>>) snapshots).size() == 0;
-           } catch (Exception e) {
-               logger.error(e.getMessage(), e);
-               return false;
-           }
+                Map<String, Object> responseMap;
+                try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
+                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                List<Object> responses = (List<Object>) responseMap.get("responses");
+                Object snapshots = ((Map<String, Object>) responses.get(0)).get("snapshots");
+                return ((List<Map<String, Object>>) snapshots).size() == 0;
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                return false;
+            }
         }, 30, TimeUnit.SECONDS));
     }
 

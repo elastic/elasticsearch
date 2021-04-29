@@ -115,7 +115,6 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         assertThat(e.getMessage(),
             containsString("using deprecated parameter [strategy] " +
                 "in mapper [field] of type [geo_shape] is no longer allowed"));
-        assertFieldWarnings(new String[] {"strategy"});
     }
 
     public void testLegacySwitches() throws IOException {

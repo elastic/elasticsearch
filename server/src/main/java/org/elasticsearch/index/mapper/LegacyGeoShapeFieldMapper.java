@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -80,6 +81,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public static boolean containsDeprecatedParameter(Set<String> paramKeys) {
         return DEPRECATED_PARAMETERS.stream().anyMatch(paramKeys::contains);
+    }
+
+    public static Set<String> getDeprecatedParameters(Set<String> paramKeys) {
+        return DEPRECATED_PARAMETERS.stream().filter((p) -> paramKeys.contains(p)).collect(Collectors.toSet());
     }
 
     public static class Defaults {
@@ -126,43 +131,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         return ((LegacyGeoShapeFieldMapper)in).builder;
     }
 
-    private static void checkVersion(String name, Mapper.TypeParser.ParserContext context, String parameter) {
-        if (context.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
-            throw new IllegalArgumentException("using deprecated parameter [" + parameter
-                + "] in mapper [" + name + "] of type [geo_shape] is no longer allowed");
-        }
-    }
-
-    private static SpatialStrategy spatialStrategy(String name, Mapper.TypeParser.ParserContext context, Object o) {
-        checkVersion(name, context, "strategy");
-        return o == null ? null : SpatialStrategy.fromString(o.toString());
-    }
-
-    private static String tree(String name, Mapper.TypeParser.ParserContext context, Object o) {
-        checkVersion(name, context, "tree");
-        return o == null ? null : o.toString();
-    }
-
-    private static Integer treeLevels(String name, Mapper.TypeParser.ParserContext context, Object o) {
-        checkVersion(name, context, "tree_levels");
-        return o == null ? null : XContentMapValues.nodeIntegerValue(o);
-    }
-
-    private static DistanceUnit.Distance precision(String name, Mapper.TypeParser.ParserContext context, Object o) {
-        checkVersion(name, context, "precision");
-        return o == null ? null : DistanceUnit.Distance.parseDistance(o.toString());
-    }
-
-    private static Double distanceErrorPct(String name, Mapper.TypeParser.ParserContext context, Object o) {
-        checkVersion(name, context, "distance_error_pct");
-        return o == null ? null : XContentMapValues.nodeDoubleValue(o);
-    }
-
-    private static Boolean pointsOnly(String name, Mapper.TypeParser.ParserContext context, Object o) {
-        checkVersion(name, context, "points_only");
-        return o == null ? null : XContentMapValues.nodeBooleanValue(o);
-    }
-
     public static class Builder extends FieldMapper.Builder {
 
         Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
@@ -173,27 +141,26 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         Parameter<Explicit<Orientation>> orientation = orientationParam(m -> builder(m).orientation.get());
 
         Parameter<SpatialStrategy> strategy = new Parameter<>("strategy", false, () -> SpatialStrategy.RECURSIVE,
-            (n, c, o) -> spatialStrategy(n, c, o), m -> builder(m).strategy.get())
+            (n, c, o) -> SpatialStrategy.fromString(o.toString()), m -> builder(m).strategy.get())
             .deprecated();
-        Parameter<String> tree = new Parameter<>("tree", false, () -> Defaults.TREE,
-            (n, c, o) -> tree(n, c, o), m -> builder(m).tree.get())
+        Parameter<String> tree = Parameter.stringParam("tree", false, m -> builder(m).tree.get(), Defaults.TREE)
             .deprecated();
         Parameter<Integer> treeLevels = new Parameter<>("tree_levels", false, () -> null,
-            (n, c, o) -> treeLevels(n, c, o),
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeIntegerValue(o),
             m -> builder(m).treeLevels.get())
             .deprecated();
         Parameter<DistanceUnit.Distance> precision = new Parameter<>("precision", false, () -> null,
-            (n, c, o) -> precision(n, c, o),
+            (n, c, o) -> o == null ? null : DistanceUnit.Distance.parseDistance(o.toString()),
             m -> builder(m).precision.get())
             .deprecated();
         Parameter<Double> distanceErrorPct = new Parameter<>("distance_error_pct", true, () -> null,
-            (n, c, o) -> distanceErrorPct(n, c, o),
+            (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
             m -> builder(m).distanceErrorPct.get())
             .deprecated()
             .acceptsNull();
         Parameter<Boolean> pointsOnly = new Parameter<>("points_only", false,
             () -> null,
-            (n, c, o) -> pointsOnly(n, c, o), m -> builder(m).pointsOnly.get())
+            (n, c, o) -> XContentMapValues.nodeBooleanValue(o), m -> builder(m).pointsOnly.get())
             .deprecated().acceptsNull();
 
         Parameter<Map<String, String>> meta = Parameter.metaParam();

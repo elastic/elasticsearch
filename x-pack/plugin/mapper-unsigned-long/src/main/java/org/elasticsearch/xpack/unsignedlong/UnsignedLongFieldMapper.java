@@ -443,9 +443,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     protected void parseCreateField(ParseContext context) throws IOException {
         XContentParser parser = context.parser();
         Long numericValue;
-        if (context.externalValueSet()) {
-            numericValue = parseUnsignedLong(context.externalValue());
-        } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             numericValue = null;
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0) {
             numericValue = null;

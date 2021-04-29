@@ -13,6 +13,7 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.nio.Buffer;
@@ -31,6 +32,7 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.is;
 
 public class SSLDriverTests extends ESTestCase {
@@ -158,7 +160,6 @@ public class SSLDriverTests extends ESTestCase {
         normalClose(clientDriver, serverDriver);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72122")
     public void testHandshakeFailureBecauseProtocolMismatch() throws Exception {
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();
@@ -166,26 +167,24 @@ public class SSLDriverTests extends ESTestCase {
 
         final String[] serverProtocols;
         final String[] clientProtocols;
-        final String expectedMessage;
-        final boolean inZuluJvm = System.getProperty("java.vendor", "").contains("Azul");
+        final Matcher<String> expectedMessageMatcher;
+
         if (inFipsJvm()) {
             // fips JSSE does not support TLSv1.3 yet
             serverProtocols = new String[]{"TLSv1.2"};
             clientProtocols = new String[]{"TLSv1.1"};
-            expectedMessage = "org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)";
+            expectedMessageMatcher = is("org.bouncycastle.tls.TlsFatalAlert: protocol_version(70)");
         } else if (JavaVersion.current().compareTo(JavaVersion.parse("16")) >= 0) {
             // JDK16 https://jdk.java.net/16/release-notes does not permit protocol TLSv1.1 OOB
             serverProtocols = new String[]{"TLSv1.3"};
             clientProtocols = new String[]{"TLSv1.2"};
-            expectedMessage = "The client supported protocol versions [TLSv1.2] are not accepted by server preferences [TLS13]";
+            expectedMessageMatcher = is("The client supported protocol versions [TLSv1.2] are not accepted by server preferences [TLS13]");
         } else {
             serverProtocols = new String[]{"TLSv1.2"};
             clientProtocols = new String[]{"TLSv1.1"};
-            if (inZuluJvm) {
-                expectedMessage = "No appropriate protocol (protocol is disabled or cipher suites are inappropriate)";
-            } else {
-                expectedMessage = "The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]";
-            }
+            expectedMessageMatcher = anyOf(
+                is("No appropriate protocol (protocol is disabled or cipher suites are inappropriate)"),
+                is("The client supported protocol versions [TLSv1.1] are not accepted by server preferences [TLS12]"));
         }
 
         serverEngine.setEnabledProtocols(serverProtocols);
@@ -194,11 +193,11 @@ public class SSLDriverTests extends ESTestCase {
         SSLDriver serverDriver = getDriver(serverEngine, false);
 
         SSLException sslException = expectThrows(SSLException.class, () -> handshake(clientDriver, serverDriver));
-        assertThat(sslException.getMessage(), is(expectedMessage));
+        assertThat(sslException.getMessage(), expectedMessageMatcher);
 
         // Prior to JDK11 we still need to send a close alert
         if (serverDriver.isClosed() == false) {
-            if (false == inFipsJvm() && inZuluJvm && false == serverDriver.getOutboundBuffer().hasEncryptedBytesToFlush()) {
+            if (false == inFipsJvm() && false == serverDriver.getOutboundBuffer().hasEncryptedBytesToFlush()) {
                 serverDriver.getSSLEngine().closeInbound();
                 serverDriver.getSSLEngine().closeOutbound();
                 serverDriver.close();;

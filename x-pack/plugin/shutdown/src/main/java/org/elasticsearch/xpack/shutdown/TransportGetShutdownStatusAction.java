@@ -66,9 +66,9 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         if (nodesShutdownMetadata == null) {
             response = new GetShutdownStatusAction.Response(new ArrayList<>());
         } else if (request.getNodeIds().length == 0) {
-            response = new GetShutdownStatusAction.Response(new ArrayList<>(nodesShutdownMetadata.getAllNodeMetdataMap().values()));
+            response = new GetShutdownStatusAction.Response(new ArrayList<>(nodesShutdownMetadata.getAllNodeMetadataMap().values()));
         } else {
-            Map<String, SingleNodeShutdownMetadata> nodeShutdownMetadataMap = nodesShutdownMetadata.getAllNodeMetdataMap();
+            Map<String, SingleNodeShutdownMetadata> nodeShutdownMetadataMap = nodesShutdownMetadata.getAllNodeMetadataMap();
             final List<SingleNodeShutdownMetadata> shutdownStatuses = Arrays.stream(request.getNodeIds())
                 .map(nodeShutdownMetadataMap::get)
                 .filter(Objects::nonNull)

@@ -93,6 +93,8 @@ dependencies {
   api 'org.apache.rat:apache-rat:0.11'
   api "org.elasticsearch:jna:5.7.0-1"
   api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+  // for our ide tweaking
+  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api 'de.thetaphi:forbiddenapis:3.1'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
@@ -138,6 +140,8 @@ dependencies {
  *****************************************************************************/
 // this will only happen when buildSrc is built on its own during build init
 if (project == rootProject) {
+  apply plugin: 'groovy-gradle-plugin'
+
   repositories {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()

@@ -21,37 +21,54 @@ import java.util.Objects;
 
 public final class NodeEnrollmentResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ParseField HTTP_CA_KEYSTORE = new ParseField("http_ca_keystore");
-    private static final ParseField TRANSPORT_KEYSTORE = new ParseField("transport_keystore");
+    private static final ParseField HTTP_CA_KEY = new ParseField("http_ca_key");
+    private static final ParseField HTTP_CA_CERT = new ParseField("http_ca_cert");
+    private static final ParseField TRANSPORT_KEY = new ParseField("transport_key");
+    private static final ParseField TRANSPORT_CERT = new ParseField("transport_cert");
     private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
-    private final String httpCaKeystore;
-    private final String transportKeystore;
+    private final String httpCaKey;
+    private final String httpCaCert;
+    private final String transportKey;
+    private final String transportCert;
     private final String clusterName;
     private final List<String> nodesAddresses;
 
     public NodeEnrollmentResponse(StreamInput in) throws IOException {
         super(in);
-        httpCaKeystore = in.readString();
-        transportKeystore = in.readString();
+        httpCaKey = in.readString();
+        httpCaCert = in.readString();
+        transportKey = in.readString();
+        transportCert = in.readString();
         clusterName = in.readString();
         nodesAddresses = in.readStringList();
     }
 
-    public NodeEnrollmentResponse(String httpKeystore, String transportKeystore, String clusterName, List<String> nodesAddresses) {
-        this.httpCaKeystore = httpKeystore;
-        this.transportKeystore = transportKeystore;
+    public NodeEnrollmentResponse(String httpCaKey, String httpCaCert, String transportKey, String transportCert, String clusterName,
+                                  List<String> nodesAddresses) {
+        this.httpCaKey = httpCaKey;
+        this.httpCaCert = httpCaCert;
+        this.transportKey = transportKey;
+        this.transportCert = transportCert;
         this.clusterName = clusterName;
         this.nodesAddresses = nodesAddresses;
     }
 
-    public String getHttpCaKeystore() {
-        return httpCaKeystore;
+    public String getHttpCaKey() {
+        return httpCaKey;
     }
 
-    public String getTransportKeystore() {
-        return transportKeystore;
+    public String getHttpCaCert() {
+        return httpCaCert;
+    }
+
+    public String getTransportKey() {
+        return transportKey;
+    }
+
+    public String getTransportCert() {
+        return transportCert;
     }
 
     public String getClusterName() {
@@ -63,16 +80,20 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
     }
 
     @Override public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(httpCaKeystore);
-        out.writeString(transportKeystore);
+        out.writeString(httpCaKey);
+        out.writeString(httpCaCert);
+        out.writeString(transportKey);
+        out.writeString(transportCert);
         out.writeString(clusterName);
         out.writeStringCollection(nodesAddresses);
     }
 
     @Override public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.field(HTTP_CA_KEYSTORE.getPreferredName(), httpCaKeystore);
-        builder.field(TRANSPORT_KEYSTORE.getPreferredName(), transportKeystore);
+        builder.field(HTTP_CA_KEY.getPreferredName(), httpCaKey);
+        builder.field(HTTP_CA_CERT.getPreferredName(), httpCaCert);
+        builder.field(TRANSPORT_KEY.getPreferredName(), transportKey);
+        builder.field(TRANSPORT_CERT.getPreferredName(), transportCert);
         builder.field(CLUSTER_NAME.getPreferredName(), clusterName);
         builder.field(NODES_ADDRESSES.getPreferredName(), nodesAddresses);
         return builder.endObject();
@@ -81,12 +102,13 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
     @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        NodeEnrollmentResponse response = (NodeEnrollmentResponse) o;
-        return httpCaKeystore.equals(response.httpCaKeystore) && transportKeystore.equals(response.transportKeystore) && clusterName.equals(
-            response.clusterName) && nodesAddresses.equals(response.nodesAddresses);
+        NodeEnrollmentResponse that = (NodeEnrollmentResponse) o;
+        return httpCaKey.equals(that.httpCaKey) && httpCaCert.equals(that.httpCaCert) && transportKey.equals(that.transportKey)
+            && transportCert.equals(that.transportCert) && clusterName.equals(that.clusterName)
+            && nodesAddresses.equals(that.nodesAddresses);
     }
 
     @Override public int hashCode() {
-        return Objects.hash(httpCaKeystore, transportKeystore, clusterName, nodesAddresses);
+        return Objects.hash(httpCaKey, httpCaCert, transportKey, transportCert, clusterName, nodesAddresses);
     }
 }

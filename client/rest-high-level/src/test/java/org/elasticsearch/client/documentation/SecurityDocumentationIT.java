@@ -2573,10 +2573,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::node-enrollment-execute
 
             // tag::node-enrollment-response
-            String httpCaKeystore = response.getHttpCaKeystore(); // <1>
-            String transportKeyStore = response.getTransportKeystore(); // <2>
-            String clusterName = response.getClusterName(); // <3>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <4>
+            String httpCaKey = response.getHttpCaKey(); // <1>
+            String httpCaCert = response.getHttpCaCert(); // <2>
+            String transportKey = response.getTransportKey(); // <3>
+            String transportCert = response.getTransportCert(); // <4>
+            String clusterName = response.getClusterName(); // <5>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <6>
             // end::node-enrollment-response
         }
 

@@ -19,24 +19,37 @@ import java.util.Objects;
 
 public class NodeEnrollmentResponse {
 
-    private final String httpCaKeystore;
-    private final String transportKeystore;
+    private final String httpCaKey;
+    private final String httpCaCert;
+    private final String transportKey;
+    private final String transportCert;
     private final String clusterName;
     private final List<String> nodesAddresses;
 
-    public NodeEnrollmentResponse( String httpCaKeystore, String transportKeystore, String clusterName, List<String> nodesAddresses){
-        this.httpCaKeystore = httpCaKeystore;
-        this.transportKeystore = transportKeystore;
+    public NodeEnrollmentResponse(String httpCaKey, String httpCaCert, String transportKey, String transportCert, String clusterName,
+                                  List<String> nodesAddresses){
+        this.httpCaKey = httpCaKey;
+        this.httpCaCert = httpCaCert;
+        this.transportKey = transportKey;
+        this.transportCert = transportCert;
         this.clusterName = clusterName;
         this.nodesAddresses = Collections.unmodifiableList(nodesAddresses);
     }
 
-    public String getHttpCaKeystore() {
-        return httpCaKeystore;
+    public String getHttpCaKey() {
+        return httpCaKey;
     }
 
-    public String getTransportKeystore() {
-        return transportKeystore;
+    public String getHttpCaCert() {
+        return httpCaCert;
+    }
+
+    public String getTransportKey() {
+        return transportKey;
+    }
+
+    public String getTransportCert() {
+        return transportCert;
     }
 
     public String getClusterName() {
@@ -47,19 +60,31 @@ public class NodeEnrollmentResponse {
         return nodesAddresses;
     }
 
-    private static final ParseField HTTP_CA_KEYSTORE = new ParseField("http_ca_keystore");
-    private static final ParseField TRANSPORT_KEYSTORE = new ParseField("transport_keystore");
+    private static final ParseField HTTP_CA_KEY = new ParseField("http_ca_key");
+    private static final ParseField HTTP_CA_CERT = new ParseField("http_ca_cert");
+    private static final ParseField TRANSPORT_KEY = new ParseField("transport_key");
+    private static final ParseField TRANSPORT_CERT = new ParseField("transport_cert");
     private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<NodeEnrollmentResponse, Void> PARSER =
-        new ConstructingObjectParser<>(NodeEnrollmentResponse.class.getName(), true,
-            a -> new NodeEnrollmentResponse((String)a[0], (String) a[1], (String) a[2], (List<String>) a[3]));
+    public static final ConstructingObjectParser<NodeEnrollmentResponse, Void>
+        PARSER =
+        new ConstructingObjectParser<>(NodeEnrollmentResponse.class.getName(), true, a -> {
+            final String httpCaKey = (String) a[0];
+            final String httpCaCert = (String) a[1];
+            final String transportKey = (String) a[2];
+            final String transportCert = (String) a[3];
+            final String clusterName = (String) a[4];
+            final List<String> nodesAddresses = (List<String>) a[5];
+            return new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportKey, transportCert, clusterName, nodesAddresses);
+        });
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_KEYSTORE);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_KEYSTORE);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_KEY);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_CERT);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_KEY);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_CERT);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), NODES_ADDRESSES);
     }
@@ -72,11 +97,12 @@ public class NodeEnrollmentResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeEnrollmentResponse that = (NodeEnrollmentResponse) o;
-        return httpCaKeystore.equals(that.httpCaKeystore) && transportKeystore.equals(that.transportKeystore)
-            && clusterName.equals(that.clusterName) && nodesAddresses.equals(that.nodesAddresses);
+        return httpCaKey.equals(that.httpCaKey) && httpCaCert.equals(that.httpCaCert) && transportKey.equals(that.transportKey)
+            && transportCert.equals(that.transportCert) && clusterName.equals(that.clusterName)
+            && nodesAddresses.equals(that.nodesAddresses);
     }
 
     @Override public int hashCode() {
-        return Objects.hash(httpCaKeystore, transportKeystore, clusterName, nodesAddresses);
+        return Objects.hash(httpCaKey, httpCaCert, transportKey, transportCert, clusterName, nodesAddresses);
     }
 }

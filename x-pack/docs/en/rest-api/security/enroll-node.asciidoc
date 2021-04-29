@@ -37,18 +37,24 @@ The API returns a response such as
 [source,console-result]
 --------------------------------------------------
 {
-  "http_ca_keystore" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <1>
-  "transport_keystore" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <2>
-  "cluster_name" : "cluster-name",               <3>
-  "nodes_addresses" : [                          <4>
+  "http_ca_key" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <1>
+  "http_ca_cert" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <2>
+  "transport_key" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <3>
+  "transport_cert" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <4>
+  "cluster_name" : "cluster-name",               <5>
+  "nodes_addresses" : [                          <6>
     "192.168.1.2:9300"
   ]
 }
 --------------------------------------------------
-<1> The keystore containing the CA private key and X509 certificate that can be used by the
-    new node in order to sign its certificate for the HTTP layer, as a Base64 encoded string.
-<2> The keystore containing the private key and X509 certificate that the node can use for
-    TLS for its transport layer, as a Base64 encoded string.
-<3> The name of the cluster the new node is joining
-<4> A list of transport addresses in the form of `host:port` for the nodes that are already
+<1> The CA private key that can be used by the new node in order to sign its certificate
+    for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the key.
+<2> The CA certificate that can be used by the new node in order to sign its certificate
+    for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the certificate.
+<3> The private key that the node can use for  TLS for its transport layer, as a Base64 encoded
+    string of the ASN.1 DER encoding of the key.
+<4> The certificate that the node can use for  TLS for its transport layer, as a Base64 encoded
+    string of the ASN.1 DER encoding of the certificate.
+<5> The name of the cluster the new node is joining
+<6> A list of transport addresses in the form of `host:port` for the nodes that are already
     members of the cluster.

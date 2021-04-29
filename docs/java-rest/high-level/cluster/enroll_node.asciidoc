@@ -21,10 +21,17 @@ executed operation as follows:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 --------------------------------------------------
-<1> The keystore that contains the CA key and certificate that can be used to sign the certificate the new node uses for TLS on the HTTP layer
-<2> The keystore that contains the key and certificate that the new node should use for transport layer TLS.
-<3> The name of the cluster
-<4> A list of addresses (`<hostname>:<port>`) where the nodes of the cluster listen for transport layer connections
+<1> The CA private key that can be used by the new node in order to sign its certificate
+for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the key.
+<2> The CA certificate that can be used by the new node in order to sign its certificate
+for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the certificate.
+<3> The private key that the node can use for  TLS for its transport layer, as a Base64
+encoded string of the ASN.1 DER encoding of the key.
+<4> The certificate that the node can use for  TLS for its transport layer, as a Base64
+encoded string of the ASN.1 DER encoding of the certificate.
+<5> The name of the cluster the new node is joining
+<6> A list of transport addresses in the form of `host:port` for the nodes that are already
+members of the cluster.
 
 
 [id="{upid}-{api}-execute-async"]

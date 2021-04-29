@@ -161,8 +161,10 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         final NodeEnrollmentResponse nodeEnrollmentResponse =
             execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);
         assertThat(nodeEnrollmentResponse, notNullValue());
-        assertThat(nodeEnrollmentResponse.getHttpCaKeystore(), endsWith("ECAwGGoA=="));
-        assertThat(nodeEnrollmentResponse.getTransportKeystore(), endsWith("fSI09on8AgMBhqA="));
+        assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("ECAwGGoA=="));
+        assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("ECAwGGoA=="));
+        assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("fSI09on8AgMBhqA="));
+        assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("fSI09on8AgMBhqA="));
         List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
         assertThat(nodesAddresses.size(), equalTo(1));
     }

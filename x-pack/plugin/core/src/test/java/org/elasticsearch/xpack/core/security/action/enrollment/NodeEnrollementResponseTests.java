@@ -27,8 +27,10 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
             response.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 NodeEnrollmentResponse serialized = new NodeEnrollmentResponse(in);
-                assertThat(response.getHttpCaKeystore(), is(serialized.getHttpCaKeystore()));
-                assertThat(response.getTransportKeystore(), is(serialized.getTransportKeystore()));
+                assertThat(response.getHttpCaKey(), is(serialized.getHttpCaKey()));
+                assertThat(response.getHttpCaCert(), is(serialized.getHttpCaCert()));
+                assertThat(response.getTransportKey(), is(serialized.getTransportKey()));
+                assertThat(response.getTransportCert(), is(serialized.getTransportCert()));
                 assertThat(response.getClusterName(), is(serialized.getClusterName()));
                 assertThat(response.getNodesAddresses(), is(serialized.getNodesAddresses()));
             }
@@ -37,6 +39,8 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
 
     @Override protected NodeEnrollmentResponse createTestInstance() {
         return new NodeEnrollmentResponse(
+            randomAlphaOfLengthBetween(50, 100),
+            randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLengthBetween(50, 100),
             randomAlphaOfLength(10),
@@ -51,8 +55,10 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
         return false;
     }
 
-    private static final ParseField HTTP_CA_KEYSTORE = new ParseField("http_ca_keystore");
-    private static final ParseField TRANSPORT_KEYSTORE = new ParseField("transport_keystore");
+    private static final ParseField HTTP_CA_KEY = new ParseField("http_ca_key");
+    private static final ParseField HTTP_CA_CERT = new ParseField("http_ca_cert");
+    private static final ParseField TRANSPORT_KEY = new ParseField("transport_key");
+    private static final ParseField TRANSPORT_CERT = new ParseField("transport_cert");
     private static final ParseField CLUSTER_NAME = new ParseField("cluster_name");
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
@@ -60,16 +66,20 @@ public class NodeEnrollementResponseTests extends AbstractXContentTestCase<NodeE
     public static final ConstructingObjectParser<NodeEnrollmentResponse, Void>
         PARSER =
         new ConstructingObjectParser<>("node_enrollment_response", true, a -> {
-            final String httpCaKeystore = (String) a[0];
-            final String transportKeystore = (String) a[1];
-            final String clusterName = (String) a[2];
-            final List<String> nodesAddresses = (List<String>) a[3];
-            return new NodeEnrollmentResponse(httpCaKeystore, transportKeystore, clusterName, nodesAddresses);
+            final String httpCaKey = (String) a[0];
+            final String httpCaCert = (String) a[1];
+            final String transportKey = (String) a[2];
+            final String transportCert = (String) a[3];
+            final String clusterName = (String) a[4];
+            final List<String> nodesAddresses = (List<String>) a[5];
+            return new NodeEnrollmentResponse(httpCaKey, httpCaCert, transportKey, transportCert, clusterName, nodesAddresses);
         });
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_KEYSTORE);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_KEYSTORE);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_KEY);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), HTTP_CA_CERT);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_KEY);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TRANSPORT_CERT);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), CLUSTER_NAME);
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), NODES_ADDRESSES);
     }

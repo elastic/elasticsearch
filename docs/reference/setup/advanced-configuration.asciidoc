@@ -68,10 +68,9 @@ as valid JVM arguments are rejected and {es} will fail to start.
 [[jvm-options-env]]
 ===== Use environment variables to set JVM options
 
-In production, you should use JVM options files if you need to override the
-default settings. However, you can also set the JVM options through the
- `ES_JAVA_OPTS` environment variable, which can be useful for development and
- testing. For example:
+In production, use JVM options files to override the
+default settings. In testing and development environments, 
+you can also set JVM options through the `ES_JAVA_OPTS` environment variable.
 
 [source,sh]
 ---------------------------------
@@ -79,7 +78,7 @@ export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 ./bin/elasticsearch
 ---------------------------------
 
-If you're using the RPM or Debian packages, you can also specify
+If you're using the RPM or Debian packages, you can specify
 `ES_JAVA_OPTS` in the <<sysconfig,system configuration file>>.
 
 NOTE: {es} ignores the `JAVA_TOOL_OPTIONS` and `JAVA_OPTS` environment variables.

@@ -150,6 +150,7 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.create/20_mix_typeless_typeful/Create a typeless index while there is a typed template',
     'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
     'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
+    //
     'indices.flush/10_basic/Index synced flush rest test',
     'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set',
     'indices.get_field_mapping/10_basic/Get field mapping with local is deprecated',// awaits #41676

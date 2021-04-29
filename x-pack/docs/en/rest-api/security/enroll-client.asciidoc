@@ -62,7 +62,7 @@ POST /_security/enroll_client
   "client_password" : "ar4nd0mstr0ngp4ssw0rd"  <2>
 }
 --------------------------------------------------
-// TEST[skip:until we enable security for the docs cluster]
+// TEST[skip:we need to enable HTTP TLS for the docs cluster]
 <1> Indicates that this is a kibana instance enrolling
 <2> The password for the `kibana_system` user
 
@@ -90,4 +90,5 @@ POST /_security/enroll_client
   "client_type" : "generic_client"            <1>
 }
 --------------------------------------------------
+// TEST[skip:we need to enable HTTP TLS for the docs cluster]
 <1> Indicates that this is a generic client instance enrolling

@@ -67,7 +67,6 @@ tasks.named('forbiddenApisMain').configure {
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
-File httpCaCert = file("./httpCa.crt")
 
 tasks.named("integTest").configure {
   systemProperty 'tests.rest.async', 'false'
@@ -97,7 +96,6 @@ testClusters.all {
   setting 'xpack.security.http.ssl.enabled', 'false'
   setting 'xpack.security.transport.ssl.enabled', 'false'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
-  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
   setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
   setting 'xpack.security.authc.realms.file.default_file.order', '0'
   setting 'xpack.security.authc.realms.native.default_native.order', '1'
@@ -117,7 +115,6 @@ testClusters.all {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile nodeTrustStore.name, nodeTrustStore
   extraConfigFile pkiTrustCert.name, pkiTrustCert
-  extraConfigFile httpCaCert.name, httpCaCert
 
   setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'

@@ -157,7 +157,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteRoleResponse.isFound(), is(true));
     }
 
-
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
     public void testEnrollClient() throws Exception {
         ClientEnrollmentRequest genericClientRequest = new ClientEnrollmentRequest("kibana", null);
         ClientEnrollmentResponse genericClientResponse =

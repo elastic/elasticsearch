@@ -169,8 +169,8 @@ public class Environment {
     /**
      * The data location.
      */
-    public Path[] dataFiles() {
-        return new Path[] { dataFile };
+    public Path dataFile() {
+        return dataFile;
     }
 
     /**
@@ -320,7 +320,7 @@ public class Environment {
      * object which may contain different setting)
      */
     public static void assertEquivalent(Environment actual, Environment expected) {
-        assertEquals(actual.dataFiles(), expected.dataFiles(), "dataFiles");
+        assertEquals(actual.dataFile(), expected.dataFile(), "dataFiles");
         assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
         assertEquals(actual.configFile(), expected.configFile(), "configFile");
         assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");

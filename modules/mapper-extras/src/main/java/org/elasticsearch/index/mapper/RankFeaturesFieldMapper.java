@@ -56,7 +56,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
 
     public static final class RankFeaturesFieldType extends MappedFieldType {
 
@@ -117,9 +117,6 @@ public class RankFeaturesFieldMapper extends FieldMapper {
 
     @Override
     public void parse(ParseContext context) throws IOException {
-        if (context.externalValueSet()) {
-            throw new IllegalArgumentException("[rank_features] fields can't be used in multi-fields");
-        }
 
         if (context.parser().currentToken() != Token.START_OBJECT) {
             throw new IllegalArgumentException("[rank_features] fields must be json objects, expected a START_OBJECT but got: " +

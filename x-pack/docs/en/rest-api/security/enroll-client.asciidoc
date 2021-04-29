@@ -75,8 +75,8 @@ POST /_security/enroll_client
   ]
 }
 --------------------------------------------------
-<1> The PEM encoded CA certificate that is used to sign the certificates that {es}
-nodes use for TLS on the HTTP layer.
+<1> The CA certificate that is used to sign the certificates that {es}
+nodes use for TLS on the HTTP layer as a Base64 encoded string of the ASN.1 DER encoding of the certificate
 <2> The list of addresses and ports for the HTTP layer for all nodes that are
 members of the {es} cluster.
 

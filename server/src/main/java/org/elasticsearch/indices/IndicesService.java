@@ -976,7 +976,7 @@ public class IndicesService extends AbstractLifecycleComponent
             throw new IllegalStateException("Can't delete shard " + shardId + " (cause: " + shardDeletionCheckResult + ")");
         }
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths));
+            path -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, path));
         logger.debug("{} deleted shard reason [{}]", shardId, reason);
 
         if (canDeleteIndexContents(shardId.getIndex(), indexSettings)) {

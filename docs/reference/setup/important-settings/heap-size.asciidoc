@@ -1,15 +1,13 @@
 [[heap-size-settings]]
 [discrete]
-=== Heap size settings
+==== Heap size settings
 
-By default, {es} automatically sizes JVM heap based on a node's
-<<node-roles,roles>> and total memory. We recommend this default sizing for most
-production environments. If needed, you can override default sizing by manually
-<<setting-jvm-heap-size,setting JVM heap size>>.
+By default, {es} automatically sets the JVM heap size based on a node's
+<<node-roles,roles>> and total memory.
+We recommend the default sizing for most production environments.
 
 NOTE: Automatic heap sizing requires the <<jvm-version,bundled JDK>> or, if using
 a custom JRE location, a Java 14 or later JRE.
 
-NOTE: When running in a container, such as <<docker,Docker>>, total memory is
-defined as the amount of memory visible to the container, not the total system
-memory on the host.
+If needed, you can override the default sizing by manually
+<<set-jvm-heap-size,setting the JVM heap size>>.

@@ -8,7 +8,7 @@ Allows you to use the mustache language to pre render search requests.
 
 [source,console]
 ------------------------------------------
-GET my-index-000001/_search/template
+GET _search/template
 {
   "source" : {
     "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },

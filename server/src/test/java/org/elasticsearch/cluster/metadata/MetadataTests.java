@@ -1370,9 +1370,10 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
 
-        expectThrows(ResourceNotFoundException.class, () -> mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-nz", true));
-        Metadata.Builder r = mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-nz", false);
-        assertThat(r, sameInstance(mdBuilder));
+        Metadata.Builder mdBuilder2 = Metadata.builder(metadata);
+        expectThrows(ResourceNotFoundException.class, () -> mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", true));
+        Metadata.Builder r = mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", false);
+        assertThat(r, sameInstance(mdBuilder2));
     }
 
     public static Metadata randomMetadata() {

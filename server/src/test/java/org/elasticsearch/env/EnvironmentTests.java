@@ -62,7 +62,7 @@ public class EnvironmentTests extends ESTestCase {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings, null);
-        assertThat(environment.dataFiles(), equalTo(new Path[]{pathHome.resolve("data")}));
+        assertThat(environment.dataFile(), equalTo(pathHome.resolve("data")));
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
@@ -140,9 +140,8 @@ public class EnvironmentTests extends ESTestCase {
 
         final Path home = PathUtils.get(homePath);
 
-        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(environment.settings());
-        assertThat(dataPaths, hasSize(1));
-        assertPath(dataPaths.get(0), home.resolve("data"));
+        final String dataPath = Environment.PATH_DATA_SETTING.get(environment.settings());
+        assertPath(dataPath, home.resolve("data"));
 
         final String logPath = Environment.PATH_LOGS_SETTING.get(environment.settings());
         assertPath(logPath, home.resolve("logs"));

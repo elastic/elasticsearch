@@ -91,7 +91,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()));
+    public static final TypeParser PARSER
+        = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated()), notInMultiFields(CONTENT_TYPE));
 
     public static final class DenseVectorFieldType extends MappedFieldType {
         private final int dims;
@@ -170,9 +171,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     public void parse(ParseContext context) throws IOException {
-        if (context.externalValueSet()) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
-        }
         int dims = fieldType().dims(); //number of vector dimensions
 
         // encode array of floats as array of integers and store into buf

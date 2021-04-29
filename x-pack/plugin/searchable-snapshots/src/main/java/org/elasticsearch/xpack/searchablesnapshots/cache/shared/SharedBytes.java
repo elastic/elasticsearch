@@ -85,9 +85,7 @@ public class SharedBytes extends AbstractRefCounted {
             }
         } else {
             this.fileChannel = null;
-            for (Path path : environment.nodeDataPath()) {
-                Files.deleteIfExists(path.resolve(CACHE_FILE_NAME));
-            }
+            Files.deleteIfExists(environment.nodeDataPath().resolve(CACHE_FILE_NAME));
         }
         this.path = cacheFile;
         this.writeBytes = writeBytes;

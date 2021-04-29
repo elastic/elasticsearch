@@ -625,6 +625,7 @@ public class SystemIndices {
             plugin::cleanUpFeature);
     }
 
+    // this is a bad name for the class. Maybe DescriptorThreadPoolNameHolder?
     public static class ThreadPools {
         private final String getPoolName;
         private final String searchPoolName;

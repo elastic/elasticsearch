@@ -52,7 +52,12 @@ deprecated:[7.5.0,"Replaced by <<built-in-roles-transform-user,`transform_user`>
 [[built-in-roles-editor]] `editor` ::
 Grants full access to all features in {kib} (including Solutions) and read-only access to data indices.
 +
-NOTE: This role provides read access to any index that is not prefixed with a dot.
+--
+[NOTE]
+===============================
+* This role is experimental and may change between releases.
+* This role provides read access to any index that is not prefixed with a dot.
+===============================
 
 [[built-in-roles-enrich-user]] `enrich_user` ::
 Grants access to manage *all* enrich indices (`.enrich-*`) and *all* operations on
@@ -189,7 +194,12 @@ However, this role does not grant permission to view the data in all indices.
 [[built-in-roles-viewer]] `viewer` ::
 Grants read-only access to all features in {kib} (including Solutions) and to data indices.
 +
-NOTE: This role provides read access to any index that is not prefixed with a dot.
+--
+[NOTE]
+===============================
+* This role is experimental and may change between releases.
+* This role provides read access to any index that is not prefixed with a dot.
+===============================
 
 [[built-in-roles-watcher-admin]] `watcher_admin`::
 +

@@ -169,7 +169,7 @@ public class JobNodeSelector {
                 continue;
             }
             // Assuming the node is eligible at all, check loading
-            boolean allocateByMemory = currentLoad.isUseMemory();
+            boolean canAllocateByMemory = currentLoad.isUseMemory();
             int maxNumberOfOpenJobs = currentLoad.getMaxJobs();
 
             if (currentLoad.getNumAllocatingJobs() >= maxConcurrentJobAllocations) {

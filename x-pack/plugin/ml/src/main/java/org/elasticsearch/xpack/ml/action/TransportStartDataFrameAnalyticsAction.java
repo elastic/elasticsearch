@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -607,7 +608,9 @@ public class TransportStartDataFrameAnalyticsAction
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params, ClusterState clusterState) {
+        public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params,
+                                                                      Collection<DiscoveryNode> candidateNodes,
+                                                                      ClusterState clusterState) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
                 getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
@@ -617,6 +620,7 @@ public class TransportStartDataFrameAnalyticsAction
             JobNodeSelector jobNodeSelector =
                 new JobNodeSelector(
                     clusterState,
+                    candidateNodes,
                     params.getId(),
                     MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                     memoryTracker,

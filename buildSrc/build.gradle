@@ -92,7 +92,7 @@ dependencies {
   api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
   api 'org.apache.rat:apache-rat:0.11'
   api "org.elasticsearch:jna:5.7.0-1"
-  api 'com.github.jengelman.gradle.plugins:shadow:6.1.0'
+  api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api 'de.thetaphi:forbiddenapis:3.1'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
@@ -232,10 +232,10 @@ if (project != rootProject) {
     naming.clear()
     naming {
       Tests {
-        baseClass 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+        baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
       }
       IT {
-        baseClass 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
+        baseClass 'org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase'
       }
     }
   }
@@ -251,9 +251,9 @@ if (project != rootProject) {
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
+    onlyIf { org.elasticsearch.gradle.internal.info.BuildParams.inFipsJvm == false }
     it.executable = Jvm.current().getJavaExecutable()
-    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
+    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.internal.info.BuildParams.defaultParallel.toString()) as Integer
   }
 
   publishing.publications.named("elastic").configure {

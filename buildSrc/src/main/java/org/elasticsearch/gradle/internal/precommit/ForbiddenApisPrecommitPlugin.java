@@ -11,8 +11,8 @@ package org.elasticsearch.gradle.internal.precommit;
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis;
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin;
 import groovy.lang.Closure;
-import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask;
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
@@ -44,6 +44,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements Int
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
             t.copy("forbidden/es-server-signatures.txt");
+            t.copy("forbidden/snakeyaml-signatures.txt");
         });
         project.getTasks().withType(CheckForbiddenApis.class).configureEach(t -> {
             t.dependsOn(resourcesTask);

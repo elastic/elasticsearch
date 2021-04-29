@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.TestDistribution
 
 // Common config when running with a FIPS-140 runtime JVM

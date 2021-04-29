@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,7 +21,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.index.RandomCreateIndexGenerator;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,9 +30,9 @@ import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class CreateIndexRequestTests extends ESTestCase {
+public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<CreateIndexRequest> {
 
-    public void testSerialization() throws IOException {
+    public void testSimpleSerialization() throws IOException {
         CreateIndexRequest request = new CreateIndexRequest("foo");
         String mapping = Strings.toString(JsonXContent.contentBuilder().startObject().startObject("_doc").endObject().endObject());
         request.mapping(mapping);
@@ -144,5 +146,13 @@ public class CreateIndexRequestTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    @Override
+    protected Writeable.Reader<CreateIndexRequest> instanceReader() { return CreateIndexRequest::new; }
+
+    @Override
+    protected CreateIndexRequest createTestInstance() {
+        return RandomCreateIndexGenerator.randomCreateIndexRequest();
     }
 }

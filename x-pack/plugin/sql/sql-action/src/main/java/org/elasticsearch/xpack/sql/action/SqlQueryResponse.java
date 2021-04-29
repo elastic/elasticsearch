@@ -81,6 +81,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
+        columnar = in.readBoolean();
         asyncExecutionId = in.readOptionalString();
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
@@ -183,6 +184,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 }
             }
         }
+        out.writeBoolean(columnar);
         out.writeOptionalString(asyncExecutionId);
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);

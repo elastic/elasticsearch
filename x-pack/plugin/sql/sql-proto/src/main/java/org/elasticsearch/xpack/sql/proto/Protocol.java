@@ -89,6 +89,7 @@ public final class Protocol {
     public static final String SQL_TRANSLATE_REST_ENDPOINT = "/_sql/translate";
     public static final String SQL_STATS_REST_ENDPOINT = "/_sql/stats";
     // async
-    public static final String SQL_ASYNC_STATUS_REST_ENDPOINT = "/_sql/async_status";
-    public static final String SQL_ASYNC_DELETE_REST_ENDPOINT = "/_sql/async_delete";
+    public static final String SQL_ASYNC_REST_ENDPOINT = "/_sql/async/";
+    public static final String SQL_ASYNC_STATUS_REST_ENDPOINT = SQL_ASYNC_REST_ENDPOINT + "status/";
+    public static final String SQL_ASYNC_DELETE_REST_ENDPOINT = SQL_ASYNC_REST_ENDPOINT + "delete/";
 }

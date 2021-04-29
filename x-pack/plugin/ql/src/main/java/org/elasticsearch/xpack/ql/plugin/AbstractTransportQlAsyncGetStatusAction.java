@@ -4,16 +4,16 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.sql.plugin;
+package org.elasticsearch.xpack.ql.plugin;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
@@ -25,30 +25,35 @@ import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.ql.async.StoredAsyncResponse;
-import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
-import org.elasticsearch.xpack.sql.action.SqlQueryTask;
+import org.elasticsearch.xpack.ql.async.StoredAsyncTask;
 
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 
-public class TransportSqlAsyncStatusAction extends HandledTransportAction<GetAsyncStatusRequest, QlStatusResponse> {
+public abstract class AbstractTransportQlAsyncGetStatusAction<Response extends ActionResponse & QlStatusResponse.AsyncStatus,
+    AsyncTask extends StoredAsyncTask<Response>> extends HandledTransportAction<GetAsyncStatusRequest, QlStatusResponse> {
+    private final String actionName;
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private final AsyncTaskIndexService<StoredAsyncResponse<SqlQueryResponse>> store;
+    private final Class<? extends AsyncTask> asyncTaskClass;
+    private final AsyncTaskIndexService<StoredAsyncResponse<Response>> store;
 
-    @Inject
-    public TransportSqlAsyncStatusAction(TransportService transportService,
-                                         ActionFilters actionFilters,
-                                         ClusterService clusterService,
-                                         NamedWriteableRegistry registry,
-                                         Client client,
-                                         ThreadPool threadPool) {
-        super(SqlAsyncStatusAction.NAME, transportService, actionFilters, GetAsyncStatusRequest::new);
+    public AbstractTransportQlAsyncGetStatusAction(String actionName,
+                                                   TransportService transportService,
+                                                   ActionFilters actionFilters,
+                                                   ClusterService clusterService,
+                                                   NamedWriteableRegistry registry,
+                                                   Client client,
+                                                   ThreadPool threadPool,
+                                                   Class<? extends AsyncTask> asyncTaskClass) {
+        super(actionName, transportService, actionFilters, GetAsyncStatusRequest::new);
+        this.actionName = actionName;
         this.transportService = transportService;
         this.clusterService = clusterService;
-        Writeable.Reader<StoredAsyncResponse<SqlQueryResponse>> reader = in -> new StoredAsyncResponse<>(SqlQueryResponse::new, in);
+        this.asyncTaskClass = asyncTaskClass;
+        Writeable.Reader<StoredAsyncResponse<Response>> reader = in -> new StoredAsyncResponse<>(responseReader(), in);
         this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
             threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry);
     }
@@ -62,14 +67,16 @@ public class TransportSqlAsyncStatusAction extends HandledTransportAction<GetAsy
             store.retrieveStatus(
                 request,
                 taskManager,
-                SqlQueryTask.class,
-                SqlQueryTask::getStatusResponse,
+                asyncTaskClass,
+                AsyncTask::getStatusResponse,
                 QlStatusResponse::getStatusFromStoredSearch,
                 listener
             );
         } else {
-            transportService.sendRequest(node, SqlAsyncStatusAction.NAME, request,
+            transportService.sendRequest(node, actionName, request,
                 new ActionListenerResponseHandler<>(listener, QlStatusResponse::new, ThreadPool.Names.SAME));
         }
     }
+
+    protected abstract Writeable.Reader<Response> responseReader();
 }

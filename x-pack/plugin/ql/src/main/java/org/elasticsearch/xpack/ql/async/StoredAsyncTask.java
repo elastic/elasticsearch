@@ -95,4 +95,15 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {
         taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
     }
+
+    public static QlStatusResponse getStatusResponse(StoredAsyncTask<?> asyncTask) {
+        return new QlStatusResponse(
+            asyncTask.getExecutionId().getEncoded(),
+            true,
+            true,
+            asyncTask.getStartTime(),
+            asyncTask.getExpirationTimeMillis(),
+            null
+        );
+    }
 }

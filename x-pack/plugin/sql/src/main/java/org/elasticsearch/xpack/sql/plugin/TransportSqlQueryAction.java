@@ -12,16 +12,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -30,12 +26,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.AsyncResultsService;
-import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
-import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.ql.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
@@ -79,7 +71,6 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     private final SqlLicenseChecker sqlLicenseChecker;
     private final TransportService transportService;
     private final AsyncTaskManagementService<SqlQueryRequest, SqlQueryResponse, SqlQueryTask> asyncTaskManagementService;
-    private final AsyncResultsService<SqlQueryTask, StoredAsyncResponse<SqlQueryResponse>> asyncResultsService;
 
     @Inject
     public TransportSqlQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -97,16 +88,12 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, planExecutor.client(),
             ASYNC_SEARCH_ORIGIN, planExecutor.writeableRegistry(), taskManager, SqlQueryAction.INSTANCE.name(), this, SqlQueryTask.class,
             clusterService, threadPool);
-        asyncResultsService = createResultsService(transportService, clusterService, planExecutor.writeableRegistry(),
-            planExecutor.client(), threadPool);
     }
 
     @Override
     protected void doExecute(Task task, SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
-        if (Strings.hasText(request.id())) {
-            asyncOperation(request, listener);
-        } else if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
+        if (request.waitForCompletionTimeout() != null && request.waitForCompletionTimeout().getMillis() >= 0) {
             asyncTaskManagementService.asyncExecute(request, request.waitForCompletionTimeout(), request.keepAlive(),
                 request.keepOnCompletion(), listener);
         } else {
@@ -223,35 +210,5 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     @Override
     public SqlQueryResponse readResponse(StreamInput inputStream) throws IOException {
         return new SqlQueryResponse(inputStream);
-    }
-
-    protected void asyncOperation(SqlQueryRequest request, ActionListener<SqlQueryResponse> listener) {
-        DiscoveryNode node = asyncResultsService.getNode(request.id());
-        if (node == null || asyncResultsService.isLocalNode(node)) {
-            asyncResultsService.retrieveResult(new GetAsyncResultRequest(request.id()), ActionListener.wrap(
-                r -> {
-                    if (r.getException() != null) {
-                        listener.onFailure(r.getException());
-                    } else {
-                        listener.onResponse(r.getResponse());
-                    }
-                },
-                listener::onFailure
-            ));
-        } else {
-            transportService.sendRequest(node, SqlQueryAction.NAME, request,
-                new ActionListenerResponseHandler<>(listener, SqlQueryResponse::new, ThreadPool.Names.SAME));
-        }
-    }
-
-    private static AsyncResultsService<SqlQueryTask, StoredAsyncResponse<SqlQueryResponse>> createResultsService(
-        TransportService transportService, ClusterService clusterService, NamedWriteableRegistry registry, Client client,
-        ThreadPool threadPool) {
-        Writeable.Reader<StoredAsyncResponse<SqlQueryResponse>> reader = in -> new StoredAsyncResponse<>(SqlQueryResponse::new, in);
-        AsyncTaskIndexService<StoredAsyncResponse<SqlQueryResponse>> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX,
-            clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry);
-        return new AsyncResultsService<>(store, false, SqlQueryTask.class,
-            (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
-            transportService.getTaskManager(), clusterService);
     }
 }

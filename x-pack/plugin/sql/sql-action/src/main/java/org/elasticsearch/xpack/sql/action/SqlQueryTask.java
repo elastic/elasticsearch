@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.ql.async.StoredAsyncTask;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -41,16 +40,5 @@ public class SqlQueryTask extends StoredAsyncTask<SqlQueryResponse> {
         // NB: the schema is only returned in the actual first (and currently last) response to the query
         return new SqlQueryResponse("", mode, sqlVersion, columnar, null, emptyList(),
             getExecutionId().getEncoded(), true, true);
-    }
-
-    public static QlStatusResponse getStatusResponse(SqlQueryTask asyncTask) {
-        return new QlStatusResponse(
-            asyncTask.getExecutionId().getEncoded(),
-            true,
-            true,
-            asyncTask.getStartTime(),
-            asyncTask.getExpirationTimeMillis(),
-            null
-        );
     }
 }

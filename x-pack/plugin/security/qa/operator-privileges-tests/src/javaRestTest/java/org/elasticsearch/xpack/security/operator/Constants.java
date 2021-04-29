@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.security.operator;
 
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME;
+import static org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_STATUS_ACTION_NAME;
+
 public class Constants {
 
     public static final Set<String> NON_OPERATOR_ACTIONS = Set.of(
@@ -299,7 +302,7 @@ public class Constants {
         "cluster:monitor/xpack/searchable_snapshots/stats",
         "cluster:monitor/xpack/security/saml/metadata",
         "cluster:monitor/xpack/spatial/stats",
-        "cluster:monitor/xpack/sql/async/status",
+        SQL_ASYNC_GET_STATUS_ACTION_NAME,
         "cluster:monitor/xpack/sql/stats/dist",
         "cluster:monitor/xpack/ssl/certificates/get",
         "cluster:monitor/xpack/usage",
@@ -411,6 +414,7 @@ public class Constants {
         "indices:data/read/sql",
         "indices:data/read/sql/close_cursor",
         "indices:data/read/sql/translate",
+        SQL_ASYNC_GET_RESULT_ACTION_NAME,
         "indices:data/read/tv",
         "indices:data/read/xpack/ccr/shard_changes",
         "indices:data/read/xpack/enrich/coordinate_lookups",

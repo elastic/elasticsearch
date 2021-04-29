@@ -57,7 +57,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
 
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
-        PARSER.declareString(SqlQueryRequest::id, ID);
         PARSER.declareBoolean(SqlQueryRequest::columnar, COLUMNAR);
         PARSER.declareBoolean(SqlQueryRequest::fieldMultiValueLeniency, FIELD_MULTI_VALUE_LENIENCY);
         PARSER.declareBoolean(SqlQueryRequest::indexIncludeFrozen, INDEX_INCLUDE_FROZEN);
@@ -71,7 +70,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     }
 
     private String cursor = "";
-    private String id = "";
     /*
      * Using the Boolean object here so that SqlTranslateRequest to set this to null (since it doesn't need a "columnar" or
      * binary parameter).
@@ -109,9 +107,8 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (Strings.hasText(query()) == false && Strings.hasText(cursor) == false && Strings.hasText(id()) == false) {
-            validationException = addValidationError("one of [query], [cursor] or [" + Protocol.ID_NAME + "] is required",
-                validationException);
+        if (Strings.hasText(query()) == false && Strings.hasText(cursor) == false) {
+            validationException = addValidationError("one of [query] or [cursor] is required", validationException);
         }
         return validationException;
     }
@@ -133,18 +130,6 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
             throw new IllegalArgumentException("cursor may not be null.");
         }
         this.cursor = cursor;
-        return this;
-    }
-
-    public String id() {
-        return id;
-    }
-
-    public SqlQueryRequest id(String id) {
-        if (id == null) {
-            throw new IllegalArgumentException("cursor may not be null.");
-        }
-        this.id = id;
         return this;
     }
 

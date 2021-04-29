@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
-public class SqlAsyncStatusAction extends ActionType<QlStatusResponse> {
-    public static final SqlAsyncStatusAction INSTANCE = new SqlAsyncStatusAction();
-    public static final String NAME = "cluster:monitor/xpack/sql/async/status";
+import static org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_STATUS_ACTION_NAME;
 
-    private SqlAsyncStatusAction() {
+public class SqlAsyncGetStatusAction extends ActionType<QlStatusResponse> {
+    public static final SqlAsyncGetStatusAction INSTANCE = new SqlAsyncGetStatusAction();
+    public static final String NAME = SQL_ASYNC_GET_STATUS_ACTION_NAME;
+
+    private SqlAsyncGetStatusAction() {
         super(NAME, QlStatusResponse::new);
     }
 }

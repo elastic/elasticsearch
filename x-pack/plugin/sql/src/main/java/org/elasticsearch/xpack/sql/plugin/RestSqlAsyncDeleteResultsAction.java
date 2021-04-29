@@ -7,39 +7,32 @@
 package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
-import org.elasticsearch.xpack.sql.action.SqlManageAsyncRequest;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 
-import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT;
 
-public class RestSqlAsyncDeleteAction extends BaseRestHandler {
+public class RestSqlAsyncDeleteResultsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, Protocol.SQL_ASYNC_DELETE_REST_ENDPOINT));
+        return List.of(new Route(DELETE, SQL_ASYNC_DELETE_REST_ENDPOINT + "{" + ID_NAME + "}"));
     }
 
     @Override
     public String getName() {
-        return "sql_post_async_delete";
+        return "sql_delete_async_result";
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        SqlManageAsyncRequest asyncRequest;
-        try (XContentParser parser = request.contentParser()) {
-            asyncRequest = SqlManageAsyncRequest.fromXContent(parser);
-
-        }
-        DeleteAsyncResultRequest delete = new DeleteAsyncResultRequest(asyncRequest.id());
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        DeleteAsyncResultRequest delete = new DeleteAsyncResultRequest(request.param(ID_NAME));
         return channel -> client.execute(DeleteAsyncResultAction.INSTANCE, delete, new RestToXContentListener<>(channel));
     }
 }

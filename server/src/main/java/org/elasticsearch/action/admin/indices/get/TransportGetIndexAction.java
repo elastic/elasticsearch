@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -71,7 +72,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             switch (feature) {
             case MAPPINGS:
                     if (doneMappings == false) {
-                        mappingsResult = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
+                        mappingsResult = state.metadata()
+                            .findMappings(concreteIndices, indicesService.getFieldFilter(), Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
                         doneMappings = true;
                     }
                     break;

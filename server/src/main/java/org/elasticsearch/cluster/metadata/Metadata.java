@@ -76,7 +76,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
-    private static final Runnable ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = () -> { };
+    public static final Runnable ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = () -> { };
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
 
@@ -363,19 +363,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
         return mapBuilder.build();
-    }
-
-    /**
-     * Finds all mappings for concrete indices. Only fields that match the provided field
-     * filter will be returned (default is a predicate that always returns true, which can be
-     * overridden via plugins)
-     *
-     * @see MapperPlugin#getFieldFilter()
-     *
-     */
-    public ImmutableOpenMap<String, MappingMetadata> findMappings(String[] concreteIndices,
-                                                                  Function<String, Predicate<String>> fieldFilter) {
-        return findMappings(concreteIndices, fieldFilter, ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
     }
 
     /**

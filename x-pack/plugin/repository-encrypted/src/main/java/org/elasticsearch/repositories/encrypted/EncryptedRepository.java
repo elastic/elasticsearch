@@ -13,7 +13,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
@@ -54,11 +56,17 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -79,6 +87,8 @@ public class EncryptedRepository extends BlobStoreRepository {
     // this is relative to the root base path holding the encrypted blobs (i.e. the repository root base path)
     static final String DEK_ROOT_CONTAINER = ".encryption-metadata"; // package private for tests
     static final String DEKS_GEN_CONTAINER = "deks"; // package private for tests
+    // these blobs indicate the generational container where the encrypted DEKs are stored
+    static final String DEKS_GEN_MARKER_BLOB = ".done-"; // package private for tests
     static final int DEK_ID_LENGTH = 22; // {@code org.elasticsearch.common.UUIDS} length
 
     // the snapshot metadata (residing in the cluster state for the lifetime of the snapshot)
@@ -157,6 +167,12 @@ public class EncryptedRepository extends BlobStoreRepository {
                 new IllegalStateException("The encrypted repository must be read-only iff the delegate repository is read-only")
             );
         }
+    }
+
+    @Override
+    public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        // this is only called on master
+        get
     }
 
     @Override
@@ -288,10 +304,84 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository.close();
     }
 
+    protected void updateMetadata(
+            BiConsumer<RepositoryMetadata, ActionListener<RepositoryMetadata>> updateAction,
+            String source,
+            ActionListener<Void> listener
+    ) {
+        super.executeConsistentStateUpdate(
+                (latestRepositoryMetadata, updateTaskListener) -> updateAction.accept(
+                        latestRepositoryMetadata,
+                        ActionListener.wrap(newRepositoryMetadata -> {
+                            if (false == newRepositoryMetadata.name().equals(latestRepositoryMetadata.name())) {
+                                listener.onFailure(
+                                        new IllegalArgumentException(
+                                                "Repository name cannot be changed ["
+                                                        + latestRepositoryMetadata.name()
+                                                        + "] ["
+                                                        + newRepositoryMetadata.name()
+                                                        + "]"
+                                        )
+                                );
+                                return;
+                            }
+                            updateTaskListener.onResponse(new ClusterStateUpdateTask() {
+                                @Override
+                                public ClusterState execute(ClusterState currentState) {
+                                    final RepositoriesMetadata repositories = currentState.metadata()
+                                            .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+                                    final List<RepositoryMetadata> newRepositoriesMetadata = new ArrayList<>(repositories.repositories().size());
+                                    boolean found = false;
+                                    for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
+                                        if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+                                            if (found) {
+                                                throw new IllegalStateException(
+                                                        "Found multiple repositories with the same name ["
+                                                                + newRepositoryMetadata.name()
+                                                                + "] when updating repository metadata"
+                                                );
+                                            }
+                                            found = true;
+                                            newRepositoriesMetadata.add(newRepositoryMetadata);
+                                        } else {
+                                            newRepositoriesMetadata.add(repositoryMetadata);
+                                        }
+                                    }
+                                    if (found == false) {
+                                        throw new IllegalStateException(
+                                                "Missing repository with name ["
+                                                        + latestRepositoryMetadata.name()
+                                                        + "] when updating repository metadata"
+                                        );
+                                    }
+                                    Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
+                                    mdBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(newRepositoriesMetadata));
+                                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                                }
+
+                                @Override
+                                public void onFailure(String source, Exception e) {
+                                    logger.warn("failed to update metadata from source: " + source, e);
+                                    listener.onFailure(e);
+                                }
+
+                                @Override
+                                public void clusterStateProcessed(String source, ClusterState oldState, final ClusterState newState) {
+                                    logger.info("Repository [" + newRepositoryMetadata.name() + "] metadata updated from source: " + source);
+                                    listener.onResponse(null);
+                                }
+                            });
+                        }, listener::onFailure)
+                ),
+                source,
+                listener::onFailure
+        );
+    }
+
     private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() throws GeneralSecurityException {
         // DEK and DEK Ids MUST be generated randomly (with independent random instances)
         // the rand algo is not pinned so that it goes well with various providers (eg FIPS)
-        // TODO maybe we can make this a setting for rigurous users
+        // TODO maybe we can make this configurable for rigorous users
         final SecureRandom dekSecureRandom = new SecureRandom();
         final SecureRandom dekIdSecureRandom = new SecureRandom();
         final KeyGenerator dekGenerator = KeyGenerator.getInstance(DATA_ENCRYPTION_SCHEME.split("/")[0]);
@@ -363,7 +453,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final BlobStore delegatedBlobStore;
         private final BlobPath delegatedBasePath;
         private final String repositoryName;
-        private final long passwordGeneration;
+        private final Integer passwordGeneration;
         private final Function<String, SecretKey> getKEKforDEK;
         private final Cache<String, SecretKey> dekCache;
         private final CheckedSupplier<SingleUseKey, IOException> singleUseDEKSupplier;
@@ -388,6 +478,21 @@ public class EncryptedRepository extends BlobStoreRepository {
                 storeDEK(newDEK.v1().utf8ToString(), newDEK.v2());
                 return newDEK;
             });
+        }
+
+        String detectCurrentPasswordGeneration() throws IOException {
+            BlobPath deksBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(DEKS_GEN_CONTAINER);
+            BlobContainer deksBlobContainer = delegatedBlobStore.blobContainer(deksBlobPath);
+            Set<String> allDeksGenSet = deksBlobContainer.listBlobsByPrefix(DEKS_GEN_MARKER_BLOB).keySet();
+            if (allDeksGenSet.isEmpty()) {
+                return null;
+            } else {
+                return Collections.max(allDeksGenSet,
+                        Comparator.comparingInt(doneMarker ->
+                                // TODO compare only the "generation" part
+                                Integer.parseInt(doneMarker.substring(DEKS_GEN_MARKER_BLOB.length()))
+                        ));
+            }
         }
 
         // pkg-private for tests

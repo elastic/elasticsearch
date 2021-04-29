@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.client.xpack;
+package org.elasticsearch.client.security;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;

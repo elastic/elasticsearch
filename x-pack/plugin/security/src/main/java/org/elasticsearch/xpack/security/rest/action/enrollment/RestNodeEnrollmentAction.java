@@ -5,24 +5,34 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.rest.action;
+package org.elasticsearch.xpack.security.rest.action.enrollment;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.action.NodeEnrollmentAction;
-import org.elasticsearch.xpack.core.action.NodeEnrollmentRequest;
-import org.elasticsearch.xpack.core.action.NodeEnrollmentResponse;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentRequest;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentResponse;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
 
-public final class RestNodeEnrollmentAction extends BaseRestHandler {
+public final class RestNodeEnrollmentAction extends SecurityBaseRestHandler {
+
+    /**
+     * @param settings the node's settings
+     * @param licenseState the license state that will be used to determine if security is licensed
+     */
+    public RestNodeEnrollmentAction(Settings settings, XPackLicenseState licenseState) {
+        super(settings, licenseState);
+    }
 
     @Override public String getName() {
         return "node_enroll_action";
@@ -30,11 +40,11 @@ public final class RestNodeEnrollmentAction extends BaseRestHandler {
 
     @Override public List<Route> routes() {
         return List.of(
-            new Route(RestRequest.Method.GET, "_cluster/enroll_node")
+            new Route(RestRequest.Method.GET, "_security/enroll_node")
         );
     }
 
-    @Override protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+    @Override protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         return restChannel -> client.execute(NodeEnrollmentAction.INSTANCE,
             new NodeEnrollmentRequest(),
             new RestBuilderListener<NodeEnrollmentResponse>(restChannel) {

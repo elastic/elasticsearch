@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.action;
+package org.elasticsearch.xpack.security.action.enrollment;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
@@ -20,6 +20,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentRequest;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentResponse;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

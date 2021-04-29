@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.PutLicenseAction;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.action.NodeEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 
 import java.util.List;
 import java.util.Set;

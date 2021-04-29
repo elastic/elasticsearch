@@ -1,4 +1,4 @@
-[[cluster-enroll-node]]
+[[security-api-node-enrollment]]
 === Enroll Node API
 ++++
 <titleabbrev>Enroll Node</titleabbrev>
@@ -6,17 +6,17 @@
 
 Allows a new node to join an existing cluster with security enabled.
 
-[[cluster-enroll-node-api-request]]
+[[security-api-node-enrollment-api-request]]
 ==== {api-request-title}
 
-`GET /_cluster/enroll_node`
+`GET /_security/enroll_node`
 
-[[cluster-enroll-node-api-prereqs]]
+[[security-api-node-enrollment-api-prereqs]]
 ==== {api-prereq-title}
 
 * You must have the `enroll` <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[cluster-enroll-node-api-desc]]
+[[security-api-node-enrollment-api-desc]]
 ==== {api-description-title}
 
 The purpose of the enroll node API is to allow a new node to join an existing cluster
@@ -24,14 +24,14 @@ where security is enabled. The enroll node API response contains all the necessa
 for the joining node to bootstrap discovery and security related settings so that it
 can successfully join the cluster.
 
-[[cluster-enroll-node-api-examples]]
+[[security-api-node-enrollment-api-examples]]
 ==== {api-examples-title}
 
 [source,console]
 --------------------------------------------------
-GET /_cluster/enroll_node
+GET /security/enroll_node
 --------------------------------------------------
-
+// TEST[skip:Determine behavior for keystore with multiple keys]
 The API returns a response such as
 
 [source,console-result]
@@ -45,10 +45,6 @@ The API returns a response such as
   ]
 }
 --------------------------------------------------
-// TESTRESPONSE[s/MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=/$body.http_ca_keystore/]
-// TESTRESPONSE[s/MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==/$body.transport_keystore/]
-// TESTRESPONSE[s/cluster-name/$body.cluster_name/]
-// TESTRESPONSE[s/192.168.1.2:9300/$body.nodes_addresses.0/]
 <1> The keystore containing the CA private key and X509 certificate that can be used by the
     new node in order to sign its certificate for the HTTP layer, as a Base64 encoded string.
 <2> The keystore containing the private key and X509 certificate that the node can use for

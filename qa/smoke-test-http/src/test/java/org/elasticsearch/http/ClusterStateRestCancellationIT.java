@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
+
 public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
 
     @Override

@@ -167,8 +167,7 @@ Discontinue use of the removed settings. If needed, use
 cluster recovery pending a certain number of data nodes.
 ====
 
-.Setting the searchable snapshots shared cache size on non-frozen nodes is no
-longer permitted.
+.Setting the searchable snapshots shared cache size on non-frozen nodes is no longer permitted.
 [%collapsible]
 ====
 *Details* +
@@ -202,7 +201,7 @@ If you would like to use wildcard patterns for destructive actions, set
 cluster settings>> API.
 ====
 
-.Legacy role settings are removed
+.Legacy role settings have been removed.
 [%collapsible]
 ====
 *Details* +

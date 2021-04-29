@@ -165,4 +165,16 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     protected boolean allowsNullValues() {
         return false;       // TODO should this allow null values?
     }
+
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("vectors");
+            minimalMapping(b);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [vectors] of type [dense_vector] can't be used in multifields"));
+    }
 }

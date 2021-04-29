@@ -19,13 +19,9 @@ Deletes a trained model alias.
 [[ml-delete-trained-models-aliases-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-built-in roles and privileges:
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
-* `machine_learning_admin`
-
-For more information, see <<built-in-roles>>, <<security-privileges>>, and
-{ml-docs-setup-privileges}.
 
 [[ml-delete-trained-models-aliases-desc]]
 == {api-description-title}

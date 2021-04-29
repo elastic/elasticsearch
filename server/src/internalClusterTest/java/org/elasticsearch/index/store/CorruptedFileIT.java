@@ -607,14 +607,12 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     private List<Path> findFilesToCorruptOnNode(final String nodeName, final ShardId shardId) throws IOException {
         List<Path> files = new ArrayList<>();
-        for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
-            path = path.resolve("index");
-            if (Files.exists(path)) { // multi data path might only have one path in use
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
-                    for (Path item : stream) {
-                        if (item.getFileName().toString().startsWith("segments_")) {
-                            files.add(item);
-                        }
+        Path path = internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPath(shardId).resolve("index");
+        if (Files.exists(path)) { // multi data path might only have one path in use
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path item : stream) {
+                    if (item.getFileName().toString().startsWith("segments_")) {
+                        files.add(item);
                     }
                 }
             }

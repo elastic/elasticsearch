@@ -90,7 +90,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         final Environment environment = TestEnvironment.newEnvironment(settings);
         Files.createDirectories(environment.dataFile());
         SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
-        final Path shardDir = randomShardPath(SHARD_ID);
+        final Path shardDir = shardPath(SHARD_ID);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, SHARD_ID);
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
         try (

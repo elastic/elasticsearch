@@ -352,23 +352,23 @@ public class NodeEnvironmentTests extends ESTestCase {
         Index index = new Index("myindex", "myindexUUID");
         ShardId sid = new ShardId(index, 0);
 
-        assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
+        assertThat(env.availableShardPath(sid), equalTo(env.availableShardPath(sid)));
         assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
             equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-            env.availableShardPaths(sid)[0],
+            env.availableShardPath(sid),
             equalTo(dataPath.resolve("indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
             env.indexPaths(index)[0], equalTo(dataPath.resolve("indices/" + index.getUUID())));
 
-        assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
+        assertThat(env.availableShardPath(sid), equalTo(env.availableShardPath(sid)));
         assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
             equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-            env.availableShardPaths(sid)[0],
+            env.availableShardPath(sid),
             equalTo(dataPath.resolve("indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",

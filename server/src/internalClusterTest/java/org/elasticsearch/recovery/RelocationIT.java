@@ -424,18 +424,17 @@ public class RelocationIT extends ESIntegTestCase {
         logger.info("--> verifying no temporary recoveries are left");
         for (String node : internalCluster().getNodeNames()) {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
-            for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, "_na_", 0))) {
-                if (Files.exists(shardLoc)) {
-                    assertBusy(() -> {
-                        try {
-                            forEachFileRecursively(shardLoc,
-                                (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
-                                    not(startsWith("recovery."))));
-                        } catch (IOException e) {
-                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
-                        }
-                    });
-                }
+            final Path shardLoc = nodeEnvironment.availableShardPath(new ShardId(indexName, "_na_", 0));
+            if (Files.exists(shardLoc)) {
+                assertBusy(() -> {
+                    try {
+                        forEachFileRecursively(shardLoc,
+                            (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
+                                not(startsWith("recovery."))));
+                    } catch (IOException e) {
+                        throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
+                    }
+                });
             }
         }
     }

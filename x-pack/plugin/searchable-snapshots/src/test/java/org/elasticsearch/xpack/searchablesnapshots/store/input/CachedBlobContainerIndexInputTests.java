@@ -94,7 +94,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 }
 
                 final boolean recoveryFinalizedDone = randomBoolean();
-                final Path shardDir = randomShardPath(shardId);
+                final Path shardDir = shardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
                 final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
@@ -198,7 +198,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final Path shardDir = randomShardPath(shardId);
+            final Path shardDir = shardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             final FrozenCacheService frozenCacheService = defaultFrozenCacheService();

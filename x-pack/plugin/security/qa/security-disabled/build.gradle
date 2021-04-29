@@ -1,5 +1,5 @@
 /*
- * This QA project tests the security plugin when security is explicitlt disabled.
+ * This QA project tests the security plugin when security is explicitly disabled.
  * It is intended to cover security functionality which is supposed to
  * function in a specific way even if security is disabled on the cluster
  * For example: If a cluster has a pipeline with the set_security_user processor

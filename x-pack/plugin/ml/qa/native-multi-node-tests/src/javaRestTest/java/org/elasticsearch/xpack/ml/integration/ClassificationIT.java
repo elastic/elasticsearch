@@ -493,7 +493,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70698")
     public void testStopAndRestart() throws Exception {
         initialize("classification_stop_and_restart");
         String predictedClassField = KEYWORD_FIELD + "_prediction";

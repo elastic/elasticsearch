@@ -201,7 +201,7 @@ If you would like to use wildcard patterns for destructive actions, set
 cluster settings>> API.
 ====
 
-.Legacy role settings are removed
+.Legacy role settings have been removed.
 [%collapsible]
 ====
 *Details* +

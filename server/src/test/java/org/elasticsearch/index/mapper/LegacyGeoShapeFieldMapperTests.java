@@ -106,10 +106,16 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         return createMapperService(version, mappings);
     }
 
+    @Override
+    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+        assumeFalse("Version is too new", version.onOrAfter(Version.V_8_0_0));
+        return super.createMapperService(version, mapping);
+    }
+
     public void testInvalidCurrentVersion() {
         MapperParsingException e =
             expectThrows(MapperParsingException.class,
-                () -> createMapperService(Version.CURRENT, fieldMapping((b) -> {
+                () -> super.createMapperService(Version.CURRENT, fieldMapping((b) -> {
                     b.field("type", "geo_shape").field("strategy", "recursive");
                 })));
         assertThat(e.getMessage(),

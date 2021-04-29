@@ -73,16 +73,12 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
             ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState ->
-                cancellableTask.isCancelled() || clusterState.nodes().isLocalNodeElectedMaster() == false);
+            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
-            // It is possible that the task is cancelled after the predicate has been executed, therefore we should take
-            // that into account as well for the assertion
-            assert acceptableClusterStateOrFailedPredicate.test(state) == false
-                || request.local() == false && cancellableTask.isCancelled();
+            assert acceptableClusterStateOrFailedPredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
                 .waitForNextChange(new ClusterStateObserver.Listener() {
 
@@ -115,7 +111,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         listener.onFailure(e);
                     }
                 }
-            }, acceptableClusterStateOrFailedPredicate);
+            }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }
     }
 

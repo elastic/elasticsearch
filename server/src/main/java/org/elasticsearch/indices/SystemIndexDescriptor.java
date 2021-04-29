@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -677,5 +678,44 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             throw new IllegalArgumentException("mappings do not have a version in _meta." + versionMetaKey);
         }
         return Version.fromString(value);
+    }
+
+    public static class ThreadPools {
+        private final String getPoolName;
+        private final String searchPoolName;
+        private final String writePoolName;
+
+        public static ThreadPools DEFAULT_SYSTEM_INDEX_THREAD_POOLS = new ThreadPools(
+            ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE
+        );
+
+        public static ThreadPools DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS = new ThreadPools(
+            ThreadPool.Names.GET, ThreadPool.Names.SEARCH, ThreadPool.Names.WRITE
+        );
+
+        public static ThreadPools CRITICAL_SYSTEM_INDEX_THREAD_POOLS = new ThreadPools(
+            ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_CRITICAL_WRITE
+        );
+
+        public ThreadPools(String getPoolName, String searchPoolName, String writePoolName) {
+            assert ThreadPool.THREAD_POOL_TYPES.containsKey(getPoolName);
+            assert ThreadPool.THREAD_POOL_TYPES.containsKey(searchPoolName);
+            assert ThreadPool.THREAD_POOL_TYPES.containsKey(writePoolName);
+            this.getPoolName = getPoolName;
+            this.searchPoolName = searchPoolName;
+            this.writePoolName = writePoolName;
+        }
+
+        public String getGetPoolName() {
+            return getPoolName;
+        }
+
+        public String getSearchPoolName() {
+            return searchPoolName;
+        }
+
+        public String getWritePoolName() {
+            return writePoolName;
+        }
     }
 }

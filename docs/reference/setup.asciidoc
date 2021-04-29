@@ -41,7 +41,8 @@ include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
-include::setup/jvm-options.asciidoc[]
+include::setup/important-settings.asciidoc[]
+
 
 include::setup/secure-settings.asciidoc[]
 
@@ -96,11 +97,7 @@ include::modules/threadpool.asciidoc[]
 include::settings/notification-settings.asciidoc[]
 
 include::setup/advanced-configuration.asciidoc[]
-
-include::setup/important-settings.asciidoc[]
-
 include::setup/sysconfig.asciidoc[]
-
 include::setup/bootstrap-checks.asciidoc[]
 
 include::setup/bootstrap-checks-xes.asciidoc[]

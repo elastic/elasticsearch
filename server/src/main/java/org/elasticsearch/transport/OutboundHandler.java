@@ -120,7 +120,7 @@ final class OutboundHandler {
                               ActionListener<Void> listener) {
         final long startTime = threadPool.relativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
-        final long messageSize = reference.length();;
+        final long messageSize = reference.length();
         TransportLogger.logOutboundMessage(channel, reference);
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {

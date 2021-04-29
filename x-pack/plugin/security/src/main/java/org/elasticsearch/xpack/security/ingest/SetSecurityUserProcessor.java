@@ -135,13 +135,10 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     if (apiKeyId != null) {
                         apiKeyField.put("id", apiKeyId);
                     }
-                    final Object apiKeyMetadata = authentication.getMetadata().get(ApiKeyService.API_KEY_METADATA_KEY);
-                    if (apiKeyMetadata != null) {
-                        final Tuple<XContentType, Map<String, Object>> tuple =
-                            XContentHelper.convertToMap((BytesReference) apiKeyMetadata, false, XContentType.JSON);
-                        if (false == tuple.v2().isEmpty()) {
-                            apiKeyField.put("metadata", tuple.v2());
-                        }
+                    final Map<String,Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
+                    if (apiKeyMetadata.isEmpty() == false) {
+                        apiKeyField.put("metadata", apiKeyMetadata);
+                    }
                     }
                     if (false == apiKeyField.isEmpty()) {
                         userObject.put(apiKey, apiKeyField);

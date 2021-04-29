@@ -9,7 +9,7 @@ Sets user-related details (such as `username`,  `roles`, `email`, `full_name`,
 authenticated user to the current document by pre-processing the ingest.
 The `api_key` property exists only if the user authenticates with an
 API key. It is an object containing the `id`, `name` and `metadata`
-(if exists and non-empty) fields of the API key.
+(if it exists and is non-empty) fields of the API key.
 The `realm` property is also an object with two fields, `name` and `type`.
 When using API key authentication, the `realm` property refers to the realm
 from which the API key is created.

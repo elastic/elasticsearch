@@ -14,7 +14,9 @@
  * */
 import org.elasticsearch.gradle.Architecture
 
-apply plugin:'elasticsearch.internal-distribution-download'
+// gradle has an open issue of failing applying plugins in
+// precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
+// apply plugin:'elasticsearch.internal-distribution-download'
 
 elasticsearch_distributions {
   local {

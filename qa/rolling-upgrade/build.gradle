@@ -12,7 +12,7 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {

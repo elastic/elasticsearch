@@ -1,6 +1,6 @@
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-test'
 
 import org.elasticsearch.gradle.Version

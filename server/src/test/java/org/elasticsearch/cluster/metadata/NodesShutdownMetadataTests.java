@@ -37,8 +37,8 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
 
         nodesShutdownMetadata = nodesShutdownMetadata.putSingleNodeMetadata(newNodeMetadata);
 
-        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().get(newNodeMetadata.getNodeId()), equalTo(newNodeMetadata));
-        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().values(), contains(newNodeMetadata));
+        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().get(newNodeMetadata.getNodeId()), equalTo(newNodeMetadata));
+        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), contains(newNodeMetadata));
     }
 
     public void testRemoveShutdownMetadata() {
@@ -52,9 +52,9 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
         SingleNodeShutdownMetadata nodeToRemove = randomFrom(nodes);
         nodesShutdownMetadata = nodesShutdownMetadata.removeSingleNodeMetadata(nodeToRemove.getNodeId());
 
-        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().get(nodeToRemove.getNodeId()), nullValue());
-        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().values(), hasSize(nodes.size() - 1));
-        assertThat(nodesShutdownMetadata.getAllNodeMetdataMap().values(), not(hasItem(nodeToRemove)));
+        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().get(nodeToRemove.getNodeId()), nullValue());
+        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), hasSize(nodes.size() - 1));
+        assertThat(nodesShutdownMetadata.getAllNodeMetadataMap().values(), not(hasItem(nodeToRemove)));
     }
 
     @Override

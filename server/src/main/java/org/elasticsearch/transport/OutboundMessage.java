@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,8 +46,7 @@ abstract class OutboundMessage extends NetworkMessage {
         }
 
         final boolean compress = TransportStatus.isCompress(status);
-        final StreamOutput stream = compress ?
-                new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bytesStream)) : bytesStream;
+        final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
         final BytesReference zeroCopyBuffer;
         try {
             stream.setVersion(version);
@@ -82,6 +82,12 @@ abstract class OutboundMessage extends NetworkMessage {
         final int contentSize = reference.length() - TcpHeader.headerSize(version);
         TcpHeader.writeHeader(bytesStream, requestId, status, version, contentSize, variableHeaderLength);
         return reference;
+    }
+
+    // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
+    // resources and write EOS marker bytes but must not yet release the bytes themselves
+    private OutputStreamStreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
+        return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
     }
 
     protected void writeVariableHeader(StreamOutput stream) throws IOException {

@@ -313,15 +313,7 @@ public abstract class ParseContext {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        public InternalParseContext(MappingLookup lookup,
-                                    Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
-                                    SourceToParse source,
-                                    XContentParser parser) {
-            this(lookup, lookup.getIndexSettings().getMappingNestedDocsLimit(), parserContextFunction, source, parser);
-        }
-
         public InternalParseContext(MappingLookup mappingLookup,
-                                    long maxAllowedNumNestedDocs,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
                                     SourceToParse source,
                                     XContentParser parser) {
@@ -332,7 +324,7 @@ public abstract class ParseContext {
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.maxAllowedNumNestedDocs = maxAllowedNumNestedDocs;
+            this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 

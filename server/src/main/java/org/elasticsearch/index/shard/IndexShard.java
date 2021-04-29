@@ -3497,11 +3497,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
             public ParsedDocument newDeleteTombstoneDoc(String id) {
-                return ParsedDocument.deleteTombstone(shardId.getIndexName(), id);
+                return ParsedDocument.deleteTombstone(id);
             }
             @Override
             public ParsedDocument newNoopTombstoneDoc(String reason) {
-                return ParsedDocument.noopTombstone(shardId.getIndexName(), reason);
+                return ParsedDocument.noopTombstone(reason);
             }
         };
     }

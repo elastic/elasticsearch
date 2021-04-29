@@ -113,7 +113,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
                     b.field("type", "geo_shape").field("strategy", "recursive");
                 })));
         assertThat(e.getMessage(),
-            containsString("using deprecated parameter [strategy] " +
+            containsString("using deprecated parameters [strategy] " +
                 "in mapper [field] of type [geo_shape] is no longer allowed"));
     }
 

@@ -125,10 +125,18 @@ public final class DataStreamTestHelper {
         return randomInstance(System::currentTimeMillis);
     }
 
+    public static DataStream randomInstance(String name) {
+        return randomInstance(name, System::currentTimeMillis);
+    }
+
     public static DataStream randomInstance(LongSupplier timeProvider) {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        return randomInstance(dataStreamName, timeProvider);
+    }
+
+    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider) {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
         Map<String, Object> metadata = null;
         if (randomBoolean()) {

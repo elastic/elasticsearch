@@ -1175,10 +1175,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder put(String name, String dataStream, Boolean isWriteDataStream) {
+            Map<String, DataStream> existingDataStream =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
+                    .orElse(new HashMap<>());
             Map<String, DataStreamAlias> dataStreamAliases =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
                     .orElse(new HashMap<>());
+
+            if (existingDataStream.containsKey(dataStream) == false) {
+                throw new IllegalArgumentException("alias [" + name + "] refers to a non existing data stream [" + dataStream + "]");
+            }
 
             DataStreamAlias alias = dataStreamAliases.get(name);
             if (alias == null) {
@@ -1198,10 +1206,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
             dataStreamAliases.put(name, alias);
 
-            Map<String, DataStream> existingDataStream =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
-                    .orElse(new HashMap<>());
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
             return this;
         }
@@ -1251,14 +1255,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             DataStreamAlias existing = dataStreamAliases.get(aliasName);
             if (mustExist && existing == null) {
                 throw new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
+            } else if (existing == null) {
+                return this;
             }
-            List<String> dataStreams = new ArrayList<>(existing.getDataStreams());
+            Set<String> dataStreams = new HashSet<>(existing.getDataStreams());
             dataStreams.remove(dataStreamName);
             if (dataStreams.isEmpty()) {
                 dataStreamAliases.remove(aliasName);
             } else {
                 dataStreamAliases.put(aliasName,
-                    new DataStreamAlias(existing.getName(), dataStreams, existing.getWriteDataStream()));
+                    new DataStreamAlias(existing.getName(), List.copyOf(dataStreams), existing.getWriteDataStream()));
             }
 
             Map<String, DataStream> existingDataStream =

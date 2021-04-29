@@ -166,6 +166,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
                 .build())
             .setOrigin("geoip")
             .setVersionMetaKey("version")

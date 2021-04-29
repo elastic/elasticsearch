@@ -8,12 +8,14 @@
 
 package org.elasticsearch.common.regex;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -57,9 +59,29 @@ public class Regex {
         if (patterns.length < 1) {
             throw new IllegalArgumentException("There must be at least one pattern, zero given");
         }
+
+        List<BytesRef> simpleStrings = new ArrayList<>();
         List<Automaton> automata = new ArrayList<>();
         for (String pattern : patterns) {
-            automata.add(simpleMatchToAutomaton(pattern));
+            // Strings longer than 1000 characters aren't supported by makeStringUnion
+            if (isSimpleMatchPattern(pattern) || pattern.length() >= 1000) {
+                automata.add(simpleMatchToAutomaton(pattern));
+            } else {
+                simpleStrings.add(new BytesRef(pattern));
+            }
+        }
+        if (false == simpleStrings.isEmpty()) {
+            Automaton simpleStringsAutomaton;
+            if (simpleStrings.size() > 0) {
+                Collections.sort(simpleStrings);
+                simpleStringsAutomaton = Automata.makeStringUnion(simpleStrings);
+            } else {
+                simpleStringsAutomaton = Automata.makeString(simpleStrings.get(0).utf8ToString());
+            }
+            if (automata.isEmpty()) {
+                return simpleStringsAutomaton;
+            }
+            automata.add(simpleStringsAutomaton);
         }
         return Operations.union(automata);
     }

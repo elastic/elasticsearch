@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -90,7 +91,9 @@ public class Packages {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
 
-        ServerUtils.disableGeoIpDownloader(installation);
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
+            ServerUtils.disableGeoIpDownloader(installation);
+        }
         return installation;
     }
 
@@ -172,9 +175,12 @@ public class Packages {
         assertThat(es.config, file(Directory, "root", "elasticsearch", p750));
         assertThat(sh.run("find \"" + es.config + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
 
-        final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
-        assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
-        assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        // We introduced the jvm.options.d folder in 7.7
+        if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_7_0)) {
+            final Path jvmOptionsDirectory = es.config.resolve("jvm.options.d");
+            assertThat(jvmOptionsDirectory, file(Directory, "root", "elasticsearch", p750));
+            assertThat(sh.run("find \"" + jvmOptionsDirectory + "\" -maxdepth 0 -printf \"%m\"").stdout, containsString("2750"));
+        }
 
         Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
             .forEach(configFile -> assertThat(es.config(configFile), file(File, "root", "elasticsearch", p660)));

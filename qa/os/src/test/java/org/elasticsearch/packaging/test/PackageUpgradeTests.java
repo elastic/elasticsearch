@@ -75,9 +75,9 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test20InstallUpgradedVersion() throws Exception {
         if (bwcDistribution.path.equals(distribution.path)) {
             // the old and new distributions are the same, so we are testing force upgrading
-            installation = Packages.forceUpgradePackage(sh, distribution);
+            Packages.forceUpgradePackage(sh, distribution);
         } else {
-            installation = Packages.upgradePackage(sh, distribution);
+            Packages.upgradePackage(sh, distribution);
         }
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);

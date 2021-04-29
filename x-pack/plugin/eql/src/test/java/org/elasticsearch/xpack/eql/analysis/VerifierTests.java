@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.analysis;
 
@@ -23,9 +24,9 @@ public class VerifierTests extends ESTestCase {
 
     private static final String INDEX_NAME = "test";
 
-    private EqlParser parser = new EqlParser();
+    private final EqlParser parser = new EqlParser();
 
-    private IndexResolution index = loadIndexResolution("mapping-default.json");
+    private final IndexResolution index = loadIndexResolution("mapping-default.json");
 
     private static Map<String, EsField> loadEqlMapping(String name) {
         return TypesTests.loadMapping(name);
@@ -37,7 +38,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG_CASE_INSENSITIVE, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -71,9 +72,18 @@ public class VerifierTests extends ESTestCase {
         accept("foo where true");
     }
 
+    public void testQueryCondition() {
+        accept("any where bool");
+        assertEquals("1:11: Condition expression needs to be boolean, found [LONG]", error("any where pid"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [DATETIME]", error("any where @timestamp"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where command_line"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [TEXT]", error("any where hostname"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where constant_keyword"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [IP]", error("any where source_address"));
+    }
+
     public void testQueryStartsWithNumber() {
         assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
-        assertEquals("1:1: no viable alternative at input ''42''", errorParsing("'42' where true"));
     }
 
     public void testMissingColumn() {
@@ -90,17 +100,17 @@ public class VerifierTests extends ESTestCase {
 
     public void testProcessRelationshipsUnsupported() {
         assertEquals("2:7: Process relationships are not supported",
-                errorParsing("process where opcode=1 and process_name == \"csrss.exe\"\n" +
-                        "  and descendant of [file where file_name == \"csrss.exe\" and opcode=0]"));
+                errorParsing("process where opcode==1 and process_name == \"csrss.exe\"\n" +
+                        "  and descendant of [file where file_name == \"csrss.exe\" and opcode==0]"));
         assertEquals("2:7: Process relationships are not supported",
-                errorParsing("process where process_name=\"svchost.exe\"\n" +
-                        "  and child of [file where file_name=\"svchost.exe\" and opcode=0]"));
+                errorParsing("process where process_name==\"svchost.exe\"\n" +
+                        "  and child of [file where file_name=\"svchost.exe\" and opcode==0]"));
     }
 
     // Some functions fail with "Unsupported" message at the parse stage
     public void testArrayFunctionsUnsupported() {
         assertEquals("1:16: Unknown function [arrayContains], did you mean [stringcontains]?",
-                error("registry where arrayContains(bytes_written_string_list, 'En')"));
+                error("registry where arrayContains(bytes_written_string_list, \"En\")"));
         assertEquals("1:16: Unknown function [arraySearch]",
             error("registry where arraySearch(bytes_written_string_list, bytes_written_string, true)"));
         assertEquals("1:16: Unknown function [arrayCount]",
@@ -116,16 +126,16 @@ public class VerifierTests extends ESTestCase {
     // Test unsupported array indexes
     public void testArrayIndexesUnsupported() {
         assertEquals("1:84: Array indexes are not supported",
-                errorParsing("registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == 'EN-us"));
+                errorParsing("registry where length(bytes_written_string_list) > 0 and bytes_written_string_list[0] == \"EN-us"));
     }
 
     // Test valid/supported queries
     public void testQueryOk() {
         // Mismatched type, still ok
-        accept("process where serial_event_id = 'abcdef'");
+        accept("process where serial_event_id == \"abcdef\"");
 
         // Equals condition
-        accept("process where serial_event_id = 1");
+        accept("process where serial_event_id == 1");
 
         // Less then condition
         accept("process where serial_event_id < 4");
@@ -136,14 +146,14 @@ public class VerifierTests extends ESTestCase {
 
         // Or and And/And Not
         accept("process where process_name == \"impossible name\" or (serial_event_id < 4.5 and serial_event_id >= 3.1)");
-        accept("process where (serial_event_id<=8 and not serial_event_id > 7) and (opcode=3 and opcode>2)");
+        accept("process where (serial_event_id<=8 and not serial_event_id > 7) and (opcode==3 and opcode>2)");
 
         // In statement
         accept("process where not (exit_code > -1)\n" +
                 "  and serial_event_id in (58, 64, 69, 74, 80, 85, 90, 93, 94)");
 
         // Combination
-        accept("file where serial_event_id == 82 and (true == (process_name in ('svchost.EXE', 'bad.exe', 'bad2.exe')))");
+        accept("file where serial_event_id == 82 and (true == (process_name in (\"svchost.EXE\", \"bad.exe\", \"bad2.exe\")))");
 
         // String handling
         accept("process where process_path == \"*\\\\MACHINE\\\\SAM\\\\SAM\\\\*\\\\Account\\\\Us*ers\\\\00*03E9\\\\F\"");
@@ -156,7 +166,7 @@ public class VerifierTests extends ESTestCase {
         accept("file where serial_event_id % 40 == 2");
     }
 
-    // Test mapping that doesn't have property event.category defined
+    // Test mapping that doesn\"t have property event.category defined
     public void testMissingEventCategory() {
         final IndexResolution idxr = loadIndexResolution("mapping-missing-event-category.json");
         assertEquals("1:1: Unknown column [event.category]", error(idxr, "foo where true"));
@@ -167,11 +177,11 @@ public class VerifierTests extends ESTestCase {
 
         // Check unsupported
         assertEquals("1:11: Cannot use field [user_name_alias] with unsupported type [alias]",
-                error(idxr, "foo where user_name_alias == 'bob'"));
+                error(idxr, "foo where user_name_alias == \"bob\""));
 
         // Check alias name typo
         assertEquals("1:11: Unknown column [user_name_alia], did you mean any of [user_name, user_domain]?",
-                error(idxr, "foo where user_name_alia == 'bob'"));
+                error(idxr, "foo where user_name_alia == \"bob\""));
     }
 
     // Test all elasticsearch numeric field types
@@ -193,45 +203,46 @@ public class VerifierTests extends ESTestCase {
 
     public void testNoDoc() {
         final IndexResolution idxr = loadIndexResolution("mapping-nodoc.json");
-        accept(idxr, "foo where description_nodoc == ''");
+        accept(idxr, "foo where description_nodoc == \"\"");
         // TODO: add sort test on nodoc field once we have pipes support
     }
 
     public void testDate() {
         final IndexResolution idxr = loadIndexResolution("mapping-date.json");
-        accept(idxr, "foo where date == ''");
-        accept(idxr, "foo where date == '2020-02-02'");
-        accept(idxr, "foo where date == '2020-02-41'");
-        accept(idxr, "foo where date == '20200241'");
+        accept(idxr, "foo where date == \"\"");
+        accept(idxr, "foo where date == \"2020-02-02\"");
+        accept(idxr, "foo where date == \"2020-02-41\"");
+        accept(idxr, "foo where date == \"20200241\"");
 
-        accept(idxr, "foo where date_with_format == ''");
-        accept(idxr, "foo where date_with_format == '2020-02-02'");
-        accept(idxr, "foo where date_with_format == '2020-02-41'");
-        accept(idxr, "foo where date_with_format == '20200241'");
+        accept(idxr, "foo where date_with_format == \"\"");
+        accept(idxr, "foo where date_with_format == \"2020-02-02\"");
+        accept(idxr, "foo where date_with_format == \"2020-02-41\"");
+        accept(idxr, "foo where date_with_format == \"20200241\"");
 
-        accept(idxr, "foo where date_with_multi_format == ''");
-        accept(idxr, "foo where date_with_multi_format == '2020-02-02'");
-        accept(idxr, "foo where date_with_multi_format == '2020-02-41'");
-        accept(idxr, "foo where date_with_multi_format == '20200241'");
-        accept(idxr, "foo where date_with_multi_format == '11:12:13'");
+        accept(idxr, "foo where date_with_multi_format == \"\"");
+        accept(idxr, "foo where date_with_multi_format == \"2020-02-02\"");
+        accept(idxr, "foo where date_with_multi_format == \"2020-02-41\"");
+        accept(idxr, "foo where date_with_multi_format == \"20200241\"");
+        accept(idxr, "foo where date_with_multi_format == \"11:12:13\"");
 
-        // Test query against unsupported field type date_nanos
-        assertEquals("1:11: Cannot use field [date_nanos_field] with unsupported type [date_nanos]",
-                error(idxr, "foo where date_nanos_field == ''"));
+        accept(idxr, "foo where date_nanos_field == \"\"");
+        accept(idxr, "foo where date_nanos_field == \"2020-02-02\"");
+        accept(idxr, "foo where date_nanos_field == \"2020-02-41\"");
+        accept(idxr, "foo where date_nanos_field == \"20200241\"");
     }
 
     public void testBoolean() {
         final IndexResolution idxr = loadIndexResolution("mapping-boolean.json");
         accept(idxr, "foo where boolean_field == true");
-        accept(idxr, "foo where boolean_field == 'bar'");
+        accept(idxr, "foo where boolean_field == \"bar\"");
         accept(idxr, "foo where boolean_field == 0");
         accept(idxr, "foo where boolean_field == 123456");
     }
 
     public void testBinary() {
         final IndexResolution idxr = loadIndexResolution("mapping-binary.json");
-        accept(idxr, "foo where blob == ''");
-        accept(idxr, "foo where blob == 'bar'");
+        accept(idxr, "foo where blob == \"\"");
+        accept(idxr, "foo where blob == \"bar\"");
         accept(idxr, "foo where blob == 0");
         accept(idxr, "foo where blob == 123456");
     }
@@ -239,23 +250,23 @@ public class VerifierTests extends ESTestCase {
     public void testRange() {
         final IndexResolution idxr = loadIndexResolution("mapping-range.json");
         assertEquals("1:11: Cannot use field [integer_range_field] with unsupported type [integer_range]",
-                error(idxr, "foo where integer_range_field == ''"));
+                error(idxr, "foo where integer_range_field == \"\""));
         assertEquals("1:11: Cannot use field [float_range_field] with unsupported type [float_range]",
-                error(idxr, "foo where float_range_field == ''"));
+                error(idxr, "foo where float_range_field == \"\""));
         assertEquals("1:11: Cannot use field [long_range_field] with unsupported type [long_range]",
-                error(idxr, "foo where long_range_field == ''"));
+                error(idxr, "foo where long_range_field == \"\""));
         assertEquals("1:11: Cannot use field [double_range_field] with unsupported type [double_range]",
-                error(idxr, "foo where double_range_field == ''"));
+                error(idxr, "foo where double_range_field == \"\""));
         assertEquals("1:11: Cannot use field [date_range_field] with unsupported type [date_range]",
-                error(idxr, "foo where date_range_field == ''"));
+                error(idxr, "foo where date_range_field == \"\""));
         assertEquals("1:11: Cannot use field [ip_range_field] with unsupported type [ip_range]",
-                error(idxr, "foo where ip_range_field == ''"));
+                error(idxr, "foo where ip_range_field == \"\""));
     }
 
     public void testMixedSet() {
         final IndexResolution idxr = loadIndexResolution("mapping-numeric.json");
-        assertEquals("1:11: 2nd argument of [long_field in (1, 'string')] must be [long], found value ['string'] type [keyword]",
-            error(idxr, "foo where long_field in (1, 'string')"));
+        assertEquals("1:11: 2nd argument of [long_field in (1, \"string\")] must be [long], found value [\"string\"] type [keyword]",
+            error(idxr, "foo where long_field in (1, \"string\")"));
     }
 
     public void testObject() {
@@ -297,32 +308,32 @@ public class VerifierTests extends ESTestCase {
 
     public void testMultiField() {
         final IndexResolution idxr = loadIndexResolution("mapping-multi-field.json");
-        accept(idxr, "foo where multi_field.raw == 'bar'");
+        accept(idxr, "foo where multi_field.raw == \"bar\"");
 
-        assertEquals("1:11: [multi_field.english == 'bar'] cannot operate on first argument field of data type [text]: " +
+        assertEquals("1:11: [multi_field.english == \"bar\"] cannot operate on first argument field of data type [text]: " +
                         "No keyword/multi-field defined exact matches for [english]; define one or use MATCH/QUERY instead",
-                error(idxr, "foo where multi_field.english == 'bar'"));
+                error(idxr, "foo where multi_field.english == \"bar\""));
 
-        accept(idxr, "foo where multi_field_options.raw == 'bar'");
-        accept(idxr, "foo where multi_field_options.key == 'bar'");
-        accept(idxr, "foo where multi_field_ambiguous.one == 'bar'");
-        accept(idxr, "foo where multi_field_ambiguous.two == 'bar'");
+        accept(idxr, "foo where multi_field_options.raw == \"bar\"");
+        accept(idxr, "foo where multi_field_options.key == \"bar\"");
+        accept(idxr, "foo where multi_field_ambiguous.one == \"bar\"");
+        accept(idxr, "foo where multi_field_ambiguous.two == \"bar\"");
 
-        assertEquals("1:11: [multi_field_ambiguous.normalized == 'bar'] cannot operate on first argument field of data type [keyword]: " +
+        assertEquals("1:11: [multi_field_ambiguous.normalized == \"bar\"] cannot operate on first argument field of data type [keyword]: " +
                         "Normalized keyword field cannot be used for exact match operations",
-                error(idxr, "foo where multi_field_ambiguous.normalized == 'bar'"));
+                error(idxr, "foo where multi_field_ambiguous.normalized == \"bar\""));
         assertEquals("1:11: Cannot use field [multi_field_nested.dep_name] type [text] with unsupported nested type in hierarchy " +
                         "(field [multi_field_nested])",
-                error(idxr, "foo where multi_field_nested.dep_name == 'bar'"));
+                error(idxr, "foo where multi_field_nested.dep_name == \"bar\""));
         assertEquals("1:11: Cannot use field [multi_field_nested.dep_id.keyword] type [keyword] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
-                error(idxr, "foo where multi_field_nested.dep_id.keyword == 'bar'"));
+                error(idxr, "foo where multi_field_nested.dep_id.keyword == \"bar\""));
         assertEquals("1:11: Cannot use field [multi_field_nested.end_date] type [datetime] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
-                error(idxr, "foo where multi_field_nested.end_date == ''"));
+                error(idxr, "foo where multi_field_nested.end_date == \"\""));
         assertEquals("1:11: Cannot use field [multi_field_nested.start_date] type [datetime] with unsupported nested type in " +
                         "hierarchy (field [multi_field_nested])",
-                error(idxr, "foo where multi_field_nested.start_date == 'bar'"));
+                error(idxr, "foo where multi_field_nested.start_date == \"bar\""));
     }
 
     public void testStringFunctionWithText() {
@@ -330,6 +341,33 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:15: [string(multi_field.english)] cannot operate on field " +
                 "of data type [text]: No keyword/multi-field defined exact matches for [english]; " +
                 "define one or use MATCH/QUERY instead",
-            error(idxr, "process where string(multi_field.english) == 'foo'"));
+            error(idxr, "process where string(multi_field.english) == \"foo\""));
     }
+
+    public void testIncorrectUsageOfStringEquals() {
+        final IndexResolution idxr = loadIndexResolution("mapping-default.json");
+        assertEquals("1:11: first argument of [:] must be [string], found value [pid] type [long]; consider using [==] instead",
+            error(idxr, "foo where pid : 123"));
+    }
+
+    public void testKeysWithDifferentTypes() throws Exception {
+        assertEquals("1:62: Sequence key [md5] type [keyword] is incompatible with key [pid] type [long]",
+            error(index, "sequence " +
+                "[process where true] by pid " +
+                "[process where true] by md5"));
+    }
+
+    public void testKeysWithDifferentButCompatibleTypes() throws Exception {
+        accept(index, "sequence " +
+                "[process where true] by hostname " +
+                "[process where true] by user_domain");
+    }
+
+    public void testKeysWithSimilarYetDifferentTypes() throws Exception {
+        assertEquals("1:69: Sequence key [opcode] type [long] is incompatible with key [@timestamp] type [date]",
+            error(index, "sequence " +
+                "[process where true] by @timestamp " +
+                "[process where true] by opcode"));
+    }
+
 }

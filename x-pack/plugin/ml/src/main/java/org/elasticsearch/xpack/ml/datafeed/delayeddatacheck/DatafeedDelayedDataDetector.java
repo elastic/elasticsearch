@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.delayeddatacheck;
 
@@ -49,9 +50,11 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     private final QueryBuilder datafeedQuery;
     private final String[] datafeedIndices;
     private final IndicesOptions indicesOptions;
+    private final Map<String, Object> runtimeMappings;
 
     DatafeedDelayedDataDetector(long bucketSpan, long window, String jobId, String timeField, QueryBuilder datafeedQuery,
-                                String[] datafeedIndices, IndicesOptions indicesOptions, Client client) {
+                                String[] datafeedIndices, IndicesOptions indicesOptions, Map<String, Object> runtimeMappings,
+                                Client client) {
         this.bucketSpan = bucketSpan;
         this.window = window;
         this.jobId = jobId;
@@ -59,6 +62,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
         this.datafeedQuery = datafeedQuery;
         this.datafeedIndices = datafeedIndices;
         this.indicesOptions = Objects.requireNonNull(indicesOptions);
+        this.runtimeMappings = Objects.requireNonNull(runtimeMappings);
         this.client = client;
     }
 
@@ -117,7 +121,8 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
             .size(0)
             .aggregation(new DateHistogramAggregationBuilder(DATE_BUCKETS)
                 .fixedInterval(new DateHistogramInterval(bucketSpan + "ms")).field(timeField))
-            .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end));
+            .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end))
+            .runtimeMappings(runtimeMappings);
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder).indicesOptions(indicesOptions);
         try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(ML_ORIGIN)) {

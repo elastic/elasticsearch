@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution;
@@ -9,6 +10,7 @@ package org.elasticsearch.xpack.eql.execution;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
@@ -33,6 +35,7 @@ public class PlanExecutor {
     private final FunctionRegistry functionRegistry;
 
     private final PreAnalyzer preAnalyzer;
+    private final PostAnalyzer postAnalyzer;
     private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
@@ -50,13 +53,14 @@ public class PlanExecutor {
         this.metrics = new Metrics();
 
         this.preAnalyzer = new PreAnalyzer();
+        this.postAnalyzer = new PostAnalyzer();
         this.verifier = new Verifier(metrics);
         this.optimizer = new Optimizer();
         this.planner = new Planner();
     }
 
     private EqlSession newSession(EqlConfiguration cfg) {
-        return new EqlSession(client, cfg, indexResolver, preAnalyzer, functionRegistry, verifier, optimizer, planner, this);
+        return new EqlSession(client, cfg, indexResolver, preAnalyzer, postAnalyzer, functionRegistry, verifier, optimizer, planner, this);
     }
 
     public void eql(EqlConfiguration cfg, String eql, ParserParams parserParams, ActionListener<Results> listener) {

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations;
@@ -51,9 +40,11 @@ import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistanceTes
 import org.elasticsearch.search.aggregations.bucket.range.InternalRangeTests;
 import org.elasticsearch.search.aggregations.bucket.sampler.InternalSamplerTests;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.LongRareTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantLongTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantStringTermsTests;
+import org.elasticsearch.search.aggregations.bucket.terms.StringRareTermsTests;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTermsTests;
 import org.elasticsearch.search.aggregations.metrics.InternalAvgTests;
 import org.elasticsearch.search.aggregations.metrics.InternalCardinalityTests;
@@ -132,6 +123,8 @@ public class AggregationsTests extends ESTestCase {
             new LongTermsTests(),
             new DoubleTermsTests(),
             new StringTermsTests(),
+            new LongRareTermsTests(),
+            new StringRareTermsTests(),
             new InternalMissingTests(),
             new InternalNestedTests(),
             new InternalReverseNestedTests(),
@@ -296,7 +289,7 @@ public class AggregationsTests extends ESTestCase {
                     singleBucketAggTestCase.subAggregationsSupplier = () -> InternalAggregations.EMPTY;
                 }
             }
-            aggs.add(testCase.createTestInstance());
+            aggs.add(testCase.createTestInstanceForXContent());
         }
         return InternalAggregations.from(aggs);
     }

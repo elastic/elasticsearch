@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.plan.physical;
 
@@ -10,6 +11,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.eql.execution.search.AsEventListener;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.ReverseListener;
@@ -53,7 +55,7 @@ public class EsQueryExec extends LeafExec {
     public SearchSourceBuilder source(EqlSession session) {
         EqlConfiguration cfg = session.configuration();
         // by default use the configuration size
-        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter());
+        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter(), cfg.fetchFields(), cfg.runtimeMappings());
     }
 
     @Override
@@ -61,7 +63,7 @@ public class EsQueryExec extends LeafExec {
         // endpoint - fetch all source
         QueryRequest request = () -> source(session).fetchSource(FetchSourceContext.FETCH_SOURCE);
         listener = shouldReverse(request) ? new ReverseListener(listener) : listener;
-        new BasicQueryClient(session).query(request, listener);
+        new BasicQueryClient(session).query(request, new AsEventListener(listener));
     }
 
     private boolean shouldReverse(QueryRequest query) {

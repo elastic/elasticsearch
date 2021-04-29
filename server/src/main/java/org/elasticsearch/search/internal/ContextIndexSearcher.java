@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
@@ -49,6 +38,7 @@ import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.CombinedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -70,7 +60,7 @@ import java.util.Set;
 /**
  * Context-aware extension of {@link IndexSearcher}.
  */
-public class ContextIndexSearcher extends IndexSearcher {
+public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     /**
      * The interval at which we check for search cancellation when we cannot use
      * a {@link CancellableBulkScorer}. See {@link #intersectScorerAndBitSet}.
@@ -116,6 +106,19 @@ public class ContextIndexSearcher extends IndexSearcher {
      */
     public void removeQueryCancellation(Runnable action) {
         this.cancellable.remove(action);
+    }
+
+    @Override
+    public void close() {
+        // clear the list of cancellables when closing the owning search context, since the ExitableDirectoryReader might be cached (for
+        // instance in fielddata cache).
+        // A cancellable can contain an indirect reference to the search context, which potentially retains a significant amount
+        // of memory.
+        this.cancellable.clear();
+    }
+
+    public boolean hasCancellations() {
+        return this.cancellable.isEnabled();
     }
 
     public void setAggregatedDfs(AggregatedDfs aggregatedDfs) {
@@ -361,6 +364,10 @@ public class ContextIndexSearcher extends IndexSearcher {
         @Override
         public boolean isEnabled() {
             return runnables.isEmpty() == false;
+        }
+
+        public void clear() {
+            runnables.clear();
         }
     }
 }

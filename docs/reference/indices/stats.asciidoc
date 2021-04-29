@@ -23,6 +23,12 @@ GET /my-index-000001/_stats
 
 `GET /_stats`
 
+[[index-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-indices,index privilege>> for the target data stream,
+index, or index alias.
 
 [[index-stats-api-desc]]
 ==== {api-description-title}
@@ -33,7 +39,7 @@ more data streams and indices.
 By default,
 the returned statistics are index-level
 with `primaries` and `total` aggregations.
-`primaries` are the values for only the primary shards. 
+`primaries` are the values for only the primary shards.
 `total` are the accumulated values for both primary and replica shards.
 
 To get shard-level statistics,
@@ -78,7 +84,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=completion-fields]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=fielddata-fields]
 
 `forbid_closed_indices`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, statistics are *not* collected from closed indices.
 Defaults to `true`.
 

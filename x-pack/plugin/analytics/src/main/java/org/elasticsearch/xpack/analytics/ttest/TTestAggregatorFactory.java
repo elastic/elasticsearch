@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.analytics.ttest;
@@ -12,17 +13,16 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSource;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,55 +39,53 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     TTestAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs, TTestType testType, int tails,
                            QueryBuilder filterA, QueryBuilder filterB,
-                           DocValueFormat format, QueryShardContext queryShardContext, AggregatorFactory parent,
+                           DocValueFormat format, AggregationContext context, AggregatorFactory parent,
                            AggregatorFactories.Builder subFactoriesBuilder,
                            Map<String, Object> metadata) throws IOException {
-        super(name, configs, format, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, configs, format, context, parent, subFactoriesBuilder, metadata);
         this.testType = testType;
         this.tails = tails;
-        this.filterA = filterA == null ? null : filterA.toQuery(queryShardContext);
-        this.filterB = filterB == null ? null : filterB.toQuery(queryShardContext);
+        this.filterA = filterA == null ? null : context.buildQuery(filterA);
+        this.filterB = filterB == null ? null : context.buildQuery(filterB);
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         switch (testType) {
             case PAIRED:
-                return new PairedTTestAggregator(name, null, tails, format, searchContext, parent, metadata);
+                return new PairedTTestAggregator(name, null, tails, format, context, parent, metadata);
             case HOMOSCEDASTIC:
-                return new UnpairedTTestAggregator(name, null, tails, true, this::getWeights, format, searchContext, parent, metadata);
+                return new UnpairedTTestAggregator(name, null, tails, true, this::getWeights, format, context, parent, metadata);
             case HETEROSCEDASTIC:
-                return new UnpairedTTestAggregator(name, null, tails, false, this::getWeights, format, searchContext, parent, metadata);
+                return new UnpairedTTestAggregator(name, null, tails, false, this::getWeights, format, context, parent, metadata);
             default:
                 throw new IllegalArgumentException("Unsupported t-test type " + testType);
         }
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Map<String, ValuesSourceConfig> configs,
-                                          DocValueFormat format,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        MultiValuesSource.NumericMultiValuesSource numericMultiVS
-            = new MultiValuesSource.NumericMultiValuesSource(configs, queryShardContext);
+    protected Aggregator doCreateInternal(
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        MultiValuesSource.NumericMultiValuesSource numericMultiVS = new MultiValuesSource.NumericMultiValuesSource(configs);
         if (numericMultiVS.areValuesSourcesEmpty()) {
-            return createUnmapped(searchContext, parent, metadata);
+            return createUnmapped(parent, metadata);
         }
         switch (testType) {
             case PAIRED:
                 if (filterA != null || filterB != null) {
                     throw new IllegalArgumentException("Paired t-test doesn't support filters");
                 }
-                return new PairedTTestAggregator(name, numericMultiVS, tails, format, searchContext, parent, metadata);
+                return new PairedTTestAggregator(name, numericMultiVS, tails, format, context, parent, metadata);
             case HOMOSCEDASTIC:
-                return new UnpairedTTestAggregator(name, numericMultiVS, tails, true, this::getWeights, format, searchContext, parent,
+                return new UnpairedTTestAggregator(name, numericMultiVS, tails, true, this::getWeights, format, context, parent,
                     metadata);
             case HETEROSCEDASTIC:
-                return new UnpairedTTestAggregator(name, numericMultiVS, tails, false, this::getWeights, format, searchContext,
+                return new UnpairedTTestAggregator(name, numericMultiVS, tails, false, this::getWeights, format, context,
                     parent, metadata);
             default:
                 throw new IllegalArgumentException("Unsupported t-test type " + testType);
@@ -112,7 +110,7 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
     public Weight getWeight(Query filter) {
         if (filter != null) {
-            IndexSearcher contextSearcher = queryShardContext.searcher();
+            IndexSearcher contextSearcher = context.searcher();
             try {
                 return contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {

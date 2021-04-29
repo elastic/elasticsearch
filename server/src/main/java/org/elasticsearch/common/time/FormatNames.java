@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
@@ -58,7 +47,7 @@ public enum FormatNames {
     WEEK_DATE("week_date"),
     WEEK_DATE_TIME("week_date_time"),
     WEEK_DATE_TIME_NO_MILLIS("week_date_time_no_millis"),
-    WEEK_YEAR("week_year"),
+    WEEKYEAR("weekyear"),
     WEEK_YEAR_WEEK("weekyear_week"),
     WEEKYEAR_WEEK_DAY("weekyear_week_day"),
     YEAR("year"),
@@ -102,13 +91,17 @@ public enum FormatNames {
     STRICT_YEAR_MONTH("strict_year_month"),
     STRICT_YEAR_MONTH_DAY("strict_year_month_day");
 
-    private final String snakeCaseName;
+    private final String name;
 
-    FormatNames(String snakeCaseName) {
-        this.snakeCaseName = snakeCaseName;
+    FormatNames(String name) {
+        this.name = name;
     }
 
     public boolean matches(String format) {
-        return format.equals(snakeCaseName);
+        return format.equals(name);
+    }
+
+    public String getName() {
+        return name;
     }
 }

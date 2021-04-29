@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_reindex_changes]]
-=== Reindex changes
+==== Reindex changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

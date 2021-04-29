@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -45,6 +34,7 @@ import org.apache.lucene.util.BitSetIterator;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
@@ -133,25 +123,8 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         @Override
         public StoredFieldsReader getFieldsReader() {
-            StoredFieldsReader fieldsReader = super.getFieldsReader();
-            return new FilterStoredFieldsReader(fieldsReader) {
-                @Override
-                public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-                    if (recoverySourceToKeep != null && recoverySourceToKeep.get(docID)) {
-                        super.visitDocument(docID, visitor);
-                    } else {
-                        super.visitDocument(docID, new FilterStoredFieldVisitor(visitor) {
-                            @Override
-                            public Status needsField(FieldInfo fieldInfo) throws IOException {
-                                if (recoverySourceField.equals(fieldInfo.name)) {
-                                    return Status.NO;
-                                }
-                                return super.needsField(fieldInfo);
-                            }
-                        });
-                    }
-                }
-            };
+            return new RecoverySourcePruningStoredFieldsReader(
+                    super.getFieldsReader(), recoverySourceToKeep, recoverySourceField);
         }
 
         @Override
@@ -212,38 +185,76 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             }
         }
 
-        private static class FilterStoredFieldsReader extends StoredFieldsReader {
+        private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {
 
-            private final StoredFieldsReader fieldsReader;
+            protected final StoredFieldsReader in;
 
             FilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
-                this.fieldsReader = fieldsReader;
+                this.in = fieldsReader;
             }
 
             @Override
             public long ramBytesUsed() {
-                return fieldsReader.ramBytesUsed();
+                return in.ramBytesUsed();
             }
 
             @Override
             public void close() throws IOException {
-                fieldsReader.close();
+                in.close();
             }
 
             @Override
             public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-                fieldsReader.visitDocument(docID, visitor);
+                in.visitDocument(docID, visitor);
+            }
+
+            @Override
+            public abstract StoredFieldsReader clone();
+
+            @Override
+            public void checkIntegrity() throws IOException {
+                in.checkIntegrity();
+            }
+        }
+
+        private static class RecoverySourcePruningStoredFieldsReader extends FilterStoredFieldsReader {
+
+            private final BitSet recoverySourceToKeep;
+            private final String recoverySourceField;
+
+            RecoverySourcePruningStoredFieldsReader(StoredFieldsReader in, BitSet recoverySourceToKeep, String recoverySourceField) {
+                super(in);
+                this.recoverySourceToKeep = recoverySourceToKeep;
+                this.recoverySourceField = Objects.requireNonNull(recoverySourceField);
+            }
+
+            @Override
+            public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
+                if (recoverySourceToKeep != null && recoverySourceToKeep.get(docID)) {
+                    super.visitDocument(docID, visitor);
+                } else {
+                    super.visitDocument(docID, new FilterStoredFieldVisitor(visitor) {
+                        @Override
+                        public Status needsField(FieldInfo fieldInfo) throws IOException {
+                            if (recoverySourceField.equals(fieldInfo.name)) {
+                                return Status.NO;
+                            }
+                            return super.needsField(fieldInfo);
+                        }
+                    });
+                }
+            }
+
+            @Override
+            public StoredFieldsReader getMergeInstance() {
+                return new RecoverySourcePruningStoredFieldsReader(in.getMergeInstance(), recoverySourceToKeep, recoverySourceField);
             }
 
             @Override
             public StoredFieldsReader clone() {
-                return fieldsReader.clone();
+                return new RecoverySourcePruningStoredFieldsReader(in.clone(), recoverySourceToKeep, recoverySourceField);
             }
 
-            @Override
-            public void checkIntegrity() throws IOException {
-                fieldsReader.checkIntegrity();
-            }
         }
 
         private static class FilterStoredFieldVisitor extends StoredFieldVisitor {

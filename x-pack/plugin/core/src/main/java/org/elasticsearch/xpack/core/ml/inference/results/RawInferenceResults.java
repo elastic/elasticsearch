@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,14 +54,10 @@ public class RawInferenceResults implements InferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String parentResultField) {
-        throw new UnsupportedOperationException("[raw] does not support writing inference results");
-    }
-
-    @Override
     public Map<String, Object> asMap() {
         throw new UnsupportedOperationException("[raw] does not support map conversion");
     }
+
     @Override
     public Object predictedValue() {
         return null;

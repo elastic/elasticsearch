@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.time;
@@ -158,11 +147,11 @@ public class DateFormatters {
         .appendLiteral('T')
         .append(STRICT_HOUR_MINUTE_SECOND_FORMATTER)
         .optionalStart()
-        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendFraction(NANO_OF_SECOND, 1, 9, true)
         .optionalEnd()
         .optionalStart()
         .appendLiteral(',')
-        .appendFraction(NANO_OF_SECOND, 3, 9, false)
+        .appendFraction(NANO_OF_SECOND, 1, 9, false)
         .optionalEnd()
         .optionalStart()
         .appendZoneOrOffsetId()
@@ -344,6 +333,13 @@ public class DateFormatters {
                                       .withResolverStyle(ResolverStyle.STRICT)
     );
 
+    private static final DateTimeFormatter BASIC_YEAR_MONTH_DAY_PRINTER = new DateTimeFormatterBuilder()
+        .appendValue(ChronoField.YEAR, 4, 10, SignStyle.NORMAL)
+        .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
+        .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
+        .toFormatter(Locale.ROOT)
+        .withResolverStyle(ResolverStyle.STRICT);
+
     private static final DateTimeFormatter BASIC_YEAR_MONTH_DAY_FORMATTER = new DateTimeFormatterBuilder()
         .appendValue(ChronoField.YEAR, 4, 4, SignStyle.NORMAL)
         .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
@@ -358,7 +354,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter BASIC_DATE_TIME_PRINTER = new DateTimeFormatterBuilder()
-        .append(BASIC_YEAR_MONTH_DAY_FORMATTER)
+        .append(BASIC_YEAR_MONTH_DAY_PRINTER)
         .append(BASIC_T_TIME_PRINTER)
         .toFormatter(Locale.ROOT)
         .withResolverStyle(ResolverStyle.STRICT);
@@ -380,12 +376,16 @@ public class DateFormatters {
         new DateTimeFormatterBuilder().append(BASIC_YEAR_MONTH_DAY_FORMATTER).appendLiteral("T").toFormatter(Locale.ROOT)
                                       .withResolverStyle(ResolverStyle.STRICT);
 
+    private static final DateTimeFormatter BASIC_DATE_T_PRINTER =
+        new DateTimeFormatterBuilder().append(BASIC_YEAR_MONTH_DAY_PRINTER).appendLiteral("T").toFormatter(Locale.ROOT)
+                                      .withResolverStyle(ResolverStyle.STRICT);
+
     /*
      * Returns a basic formatter that combines a basic date and time without millis,
      * separated by a 'T' (uuuuMMdd'T'HHmmssZ).
      */
     private static final DateFormatter BASIC_DATE_TIME_NO_MILLIS = new JavaDateFormatter("basic_date_time_no_millis",
-        new DateTimeFormatterBuilder().append(BASIC_DATE_T).append(BASIC_TIME_NO_MILLIS_BASE)
+        new DateTimeFormatterBuilder().append(BASIC_DATE_T_PRINTER).append(BASIC_TIME_NO_MILLIS_BASE)
                                       .appendOffset("+HH:MM", "Z").toFormatter(Locale.ROOT)
                                       .withResolverStyle(ResolverStyle.STRICT),
         new DateTimeFormatterBuilder().append(BASIC_DATE_T).append(BASIC_TIME_NO_MILLIS_BASE)
@@ -466,7 +466,7 @@ public class DateFormatters {
 
     private static final DateTimeFormatter STRICT_BASIC_WEEK_DATE_PRINTER = new DateTimeFormatterBuilder()
         .parseStrict()
-        .appendValue(IsoFields.WEEK_BASED_YEAR, 4)
+        .appendValue(IsoFields.WEEK_BASED_YEAR, 4, 10, SignStyle.NORMAL)
         .appendLiteral("W")
         .appendValue(IsoFields.WEEK_OF_WEEK_BASED_YEAR, 2, 2, SignStyle.NEVER)
         .appendValue(ChronoField.DAY_OF_WEEK)
@@ -999,7 +999,7 @@ public class DateFormatters {
      */
     private static final DateFormatter BASIC_DATE = new JavaDateFormatter("basic_date",
         new DateTimeFormatterBuilder()
-            .appendValue(ChronoField.YEAR, 4, 4, SignStyle.NORMAL)
+            .appendValue(ChronoField.YEAR, 4, 10, SignStyle.NORMAL)
             .appendValue(MONTH_OF_YEAR, 2, 2, SignStyle.NOT_NEGATIVE)
             .appendValue(DAY_OF_MONTH, 2, 2, SignStyle.NOT_NEGATIVE)
             .toFormatter(Locale.ROOT)
@@ -1170,10 +1170,9 @@ public class DateFormatters {
     /*
      * Returns a formatter for a four digit weekyear. (YYYY)
      */
-    private static final DateFormatter WEEK_YEAR = new JavaDateFormatter("week_year",
+    private static final DateFormatter WEEKYEAR = new JavaDateFormatter("weekyear",
         new DateTimeFormatterBuilder().appendValue(WEEK_FIELDS_ROOT.weekBasedYear()).toFormatter(Locale.ROOT)
-                                      .withResolverStyle(ResolverStyle.STRICT));
-
+            .withResolverStyle(ResolverStyle.STRICT));
     /*
      * Returns a formatter for a four digit year. (uuuu)
      */
@@ -1720,8 +1719,8 @@ public class DateFormatters {
             return WEEK_DATE_TIME;
         } else if (FormatNames.WEEK_DATE_TIME_NO_MILLIS.matches(input)) {
             return WEEK_DATE_TIME_NO_MILLIS;
-        } else if (FormatNames.WEEK_YEAR.matches(input)) {
-            return WEEK_YEAR;
+        } else if (FormatNames.WEEKYEAR.matches(input)) {
+            return WEEKYEAR;
         } else if (FormatNames.WEEK_YEAR_WEEK.matches(input)) {
             return WEEKYEAR_WEEK;
         } else if (FormatNames.WEEKYEAR_WEEK_DAY.matches(input)) {

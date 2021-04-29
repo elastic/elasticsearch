@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.tools.launchers;
@@ -79,8 +68,10 @@ final class JvmOptionsParser {
      * @param args the args to the program which should consist of a single option, the path to ES_PATH_CONF
      */
     public static void main(final String[] args) throws InterruptedException, IOException {
-        if (args.length != 1) {
-            throw new IllegalArgumentException("expected one argument specifying path to ES_PATH_CONF but was " + Arrays.toString(args));
+        if (args.length != 2) {
+            throw new IllegalArgumentException(
+                "Expected two arguments specifying path to ES_PATH_CONF and plugins directory, but was " + Arrays.toString(args)
+            );
         }
 
         final JvmOptionsParser parser = new JvmOptionsParser();
@@ -93,7 +84,12 @@ final class JvmOptionsParser {
         }
 
         try {
-            final List<String> jvmOptions = parser.jvmOptions(Paths.get(args[0]), System.getenv("ES_JAVA_OPTS"), substitutions);
+            final List<String> jvmOptions = parser.jvmOptions(
+                Paths.get(args[0]),
+                Paths.get(args[1]),
+                System.getenv("ES_JAVA_OPTS"),
+                substitutions
+            );
             Launchers.outPrintln(String.join(" ", jvmOptions));
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
@@ -123,10 +119,11 @@ final class JvmOptionsParser {
         Launchers.exit(0);
     }
 
-    private List<String> jvmOptions(final Path config, final String esJavaOpts, final Map<String, String> substitutions)
+    private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
         throws InterruptedException, IOException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
+        final MachineDependentHeap machineDependentHeap = new MachineDependentHeap(new DefaultSystemMemoryInfo());
 
         if (esJavaOpts != null) {
             jvmOptions.addAll(
@@ -135,14 +132,18 @@ final class JvmOptionsParser {
         }
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
+        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(config, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
+        final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(plugins);
+
         final List<String> finalJvmOptions = new ArrayList<>(
-            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size()
+            systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + bootstrapOptions.size()
         );
         finalJvmOptions.addAll(systemJvmOptions); // add the system JVM options first so that they can be overridden
         finalJvmOptions.addAll(substitutedJvmOptions);
         finalJvmOptions.addAll(ergonomicJvmOptions);
+        finalJvmOptions.addAll(bootstrapOptions);
 
         return finalJvmOptions;
     }

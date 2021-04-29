@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-pipeline-normalize-aggregation]]
-=== Normalize Aggregation
+=== Normalize aggregation
+++++
+<titleabbrev>Normalize</titleabbrev>
+++++
 
 A parent pipeline aggregation which calculates the specific normalized/rescaled value for a specific bucket value.
 Values that cannot be normalized, will be skipped using the <<gap-policy, skip gap policy>>.
@@ -46,7 +49,7 @@ _rescale_0_1_::
                 [0, 0, .1111, 1, .1111, .3333]
 
 _rescale_0_100_::
-                This method rescales the data such that the minimum number is zero, and the maximum number is 1, with the rest normalized
+                This method rescales the data such that the minimum number is zero, and the maximum number is 100, with the rest normalized
                 linearly in-between.
 
                 x' = 100 * (x - min_x) / (max_x - min_x)

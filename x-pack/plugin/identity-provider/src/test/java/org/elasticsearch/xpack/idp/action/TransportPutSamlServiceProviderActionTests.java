@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.action;
@@ -21,7 +22,7 @@ import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
-import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTests;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -64,7 +65,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     }
 
     public void testRegisterNewServiceProvider() throws Exception {
-        final SamlServiceProviderDocument document = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument document = SamlServiceProviderTestUtils.randomDocument();
 
         mockExistingDocuments(document.entityId, Set.of());
 
@@ -88,9 +89,9 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     }
 
     public void testUpdateExistingServiceProvider() throws Exception {
-        final SamlServiceProviderDocument document = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument document = SamlServiceProviderTestUtils.randomDocument();
 
-        final SamlServiceProviderDocument existingDocument = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument existingDocument = SamlServiceProviderTestUtils.randomDocument();
         existingDocument.entityId = document.entityId;
         existingDocument.docId = randomAlphaOfLength(42);
         mockExistingDocuments(document.entityId, Set.of(existingDocument));
@@ -116,7 +117,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     }
 
     public void testUnsupportedNameIDFormat() throws Exception {
-        final SamlServiceProviderDocument document = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument document = SamlServiceProviderTestUtils.randomDocument();
         final String invalidFormat = randomFrom(PERSISTENT, EMAIL, randomAlphaOfLength(12));
         document.setNameIdFormat(invalidFormat);
 
@@ -142,12 +143,13 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
                 doc.docId, randomLong(), randomLong(), randomLong(), created);
             writeResponse.set(docWriteResponse);
 
-            ActionListener listener = (ActionListener) args[args.length - 1];
+            @SuppressWarnings("unchecked")
+            ActionListener<DocWriteResponse> listener = (ActionListener<DocWriteResponse>) args[args.length - 1];
             listener.onResponse(docWriteResponse);
 
             return null;
         }).when(index).writeDocument(any(SamlServiceProviderDocument.class), any(DocWriteRequest.OpType.class),
-            any(WriteRequest.RefreshPolicy.class), any(ActionListener.class));
+            any(WriteRequest.RefreshPolicy.class), any());
 
         return writeResponse;
     }
@@ -165,10 +167,12 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
             String entityId = (String) args[0];
             assertThat(entityId, equalTo(expectedEntityId));
 
-            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener) args[args.length - 1];
+            @SuppressWarnings("unchecked")
+            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener<
+                Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
             listener.onResponse(documentSuppliers);
 
             return null;
-        }).when(index).findByEntityId(anyString(), any(ActionListener.class));
+        }).when(index).findByEntityId(anyString(), any());
     }
 }

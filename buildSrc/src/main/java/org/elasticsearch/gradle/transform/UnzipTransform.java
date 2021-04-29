@@ -1,54 +1,60 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.transform;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.tools.zip.ZipEntry;
+import org.apache.tools.zip.ZipFile;
+import org.gradle.api.artifacts.transform.TransformOutputs;
 import org.gradle.api.logging.Logging;
 
-import java.io.BufferedInputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.nio.file.Path;
+import java.util.Enumeration;
+import java.util.function.Function;
+
+import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class UnzipTransform implements UnpackTransform {
 
-    public void unpack(File zipFile, File targetDir) throws IOException {
+    public void unpack(File zipFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException {
         Logging.getLogger(UnzipTransform.class)
             .info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
-
-        try (ZipInputStream inputStream = new ZipInputStream(new BufferedInputStream(new FileInputStream(zipFile)))) {
-            ZipEntry entry;
-            while ((entry = inputStream.getNextEntry()) != null) {
-                if (entry.isDirectory()) {
+        Function<String, Path> pathModifier = pathResolver();
+        ZipFile zip = new ZipFile(zipFile);
+        try {
+            Enumeration<ZipEntry> entries = zip.getEntries();
+            while (entries.hasMoreElements()) {
+                ZipEntry zipEntry = entries.nextElement();
+                Path child = pathModifier.apply(zipEntry.getName());
+                if (child == null) {
                     continue;
                 }
-                String child = UnpackTransform.trimArchiveExtractPath(entry.getName()).toString();
-                File outFile = new File(targetDir, child);
-                outFile.getParentFile().mkdirs();
-                try (FileOutputStream outputStream = new FileOutputStream(outFile)) {
-                    IOUtils.copyLarge(inputStream, outputStream);
+                Path outputPath = targetDir.toPath().resolve(child);
+                if (zipEntry.isDirectory()) {
+                    outputPath.toFile().mkdirs();
+                    chmod(outputPath, zipEntry.getUnixMode());
+                    continue;
+                }
+                try (FileOutputStream outputStream = new FileOutputStream(outputPath.toFile())) {
+                    IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
+                }
+                chmod(outputPath, zipEntry.getUnixMode());
+                if (asFiletreeOutput) {
+                    outputs.file(outputPath.toFile());
                 }
             }
+        } finally {
+            zip.close();
         }
     }
+
 }

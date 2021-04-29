@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.inference;
@@ -29,13 +30,14 @@ import java.util.Objects;
 public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     private final DataFrameAnalyticsConfig config;
-    private String lastDocId;
+    private Long lastDocId;
     private final Map<String, String> docValueFieldAndFormatPairs;
 
-    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields) {
+    TestDocsIterator(OriginSettingClient client, DataFrameAnalyticsConfig config, ExtractedFields extractedFields, Long lastIncrementalId) {
         super(client, config.getDest().getIndex(), true);
         this.config = Objects.requireNonNull(config);
         this.docValueFieldAndFormatPairs = buildDocValueFieldAndFormatPairs(extractedFields);
+        this.lastDocId = lastIncrementalId;
     }
 
     private static Map<String, String> buildDocValueFieldAndFormatPairs(ExtractedFields extractedFields) {
@@ -54,7 +56,7 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected FieldSortBuilder sortField() {
-        return SortBuilders.fieldSort(DestinationIndex.ID_COPY).order(SortOrder.ASC);
+        return SortBuilders.fieldSort(DestinationIndex.INCREMENTAL_ID).order(SortOrder.ASC);
     }
 
     @Override
@@ -69,7 +71,7 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected void extractSearchAfterFields(SearchHit lastSearchHit) {
-        lastDocId = lastSearchHit.getId();
+        lastDocId = (long) lastSearchHit.getSortValues()[0];
     }
 
     @Override

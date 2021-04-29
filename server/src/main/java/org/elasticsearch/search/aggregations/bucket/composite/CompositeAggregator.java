@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -32,7 +21,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
@@ -40,7 +29,10 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.comparators.LongComparator;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
@@ -54,7 +46,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 
@@ -87,7 +79,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
     private boolean earlyTerminated;
 
-    CompositeAggregator(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
+    CompositeAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
                         Map<String, Object> metadata,
                         int size, CompositeValuesSourceConfig[] sourceConfigs, CompositeKey rawAfterKey) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
@@ -97,7 +89,7 @@ final class CompositeAggregator extends BucketsAggregator {
         this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
         this.sources = new SingleDimensionValuesSource[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
-        int bucketLimit = context.aggregations().multiBucketConsumer().getLimit();
+        int bucketLimit = context.multiBucketConsumer().getLimit();
         if (size > bucketLimit) {
             throw new MultiBucketConsumerService.TooManyBucketsException("Trying to create too many buckets. Must be less than or equal" +
                 " to: [" + bucketLimit + "] but was [" + size + "]. This limit can be set by changing the [" + MAX_BUCKET_SETTING.getKey() +
@@ -112,7 +104,15 @@ final class CompositeAggregator extends BucketsAggregator {
                 this::addRequestCircuitBreakerBytes
             );
         }
-        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
+        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
+        if (rawAfterKey != null) {
+            try {
+                this.queue.setAfterKey(rawAfterKey);
+            } catch (IllegalArgumentException ex) {
+                throw new ElasticsearchParseException("Cannot set after key in the composite aggregation [" + name + "] - " +
+                    ex.getMessage(), ex);
+            }
+        }
         this.rawAfterKey = rawAfterKey;
     }
 
@@ -127,8 +127,7 @@ final class CompositeAggregator extends BucketsAggregator {
 
     @Override
     protected void doPreCollection() throws IOException {
-        List<BucketCollector> collectors = Arrays.asList(subAggregators);
-        deferredCollectors = MultiBucketCollector.wrap(collectors);
+        deferredCollectors = MultiBucketCollector.wrap(false, Arrays.asList(subAggregators));
         collectableSubAggregators = BucketCollector.NO_OP_COLLECTOR;
     }
 
@@ -157,7 +156,7 @@ final class CompositeAggregator extends BucketsAggregator {
             int slot = queue.pop();
             CompositeKey key = queue.toCompositeKey(slot);
             InternalAggregations aggs = subAggsForBuckets[slot];
-            int docCount = queue.getDocCount(slot);
+            long docCount = queue.getDocCount(slot);
             buckets[queue.size()] = new InternalComposite.InternalBucket(sourceNames, formats, key, reverseMuls, docCount, aggs);
         }
         CompositeKey lastBucket = num > 0 ? buckets[num-1].getRawKey() : null;
@@ -289,40 +288,47 @@ final class CompositeAggregator extends BucketsAggregator {
 
                     @Override
                     public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new FieldComparator.LongComparator(1, delegate.getField(), (Long) missingValue) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), sortPos) {
                             @Override
-                            protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                                NumericDocValues dvs =  SortedNumericSelector.wrap(DocValues.getSortedNumeric(context.reader(), field),
-                                    delegate.getSelector(), delegate.getNumericType());
-                                return new NumericDocValues() {
+                            public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                                return new LongLeafComparator(context) {
                                     @Override
-                                    public long longValue() throws IOException {
-                                        return round.applyAsLong(dvs.longValue());
-                                    }
+                                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field)
+                                            throws IOException {
+                                        NumericDocValues dvs =  SortedNumericSelector.wrap(
+                                                DocValues.getSortedNumeric(context.reader(), field),
+                                            delegate.getSelector(), delegate.getNumericType());
+                                        return new NumericDocValues() {
+                                            @Override
+                                            public long longValue() throws IOException {
+                                                return round.applyAsLong(dvs.longValue());
+                                            }
 
-                                    @Override
-                                    public boolean advanceExact(int target) throws IOException {
-                                        return dvs.advanceExact(target);
-                                    }
+                                            @Override
+                                            public boolean advanceExact(int target) throws IOException {
+                                                return dvs.advanceExact(target);
+                                            }
 
-                                    @Override
-                                    public int docID() {
-                                        return dvs.docID();
-                                    }
+                                            @Override
+                                            public int docID() {
+                                                return dvs.docID();
+                                            }
 
-                                    @Override
-                                    public int nextDoc() throws IOException {
-                                        return dvs.nextDoc();
-                                    }
+                                            @Override
+                                            public int nextDoc() throws IOException {
+                                                return dvs.nextDoc();
+                                            }
 
-                                    @Override
-                                    public int advance(int target) throws IOException {
-                                        return dvs.advance(target);
-                                    }
+                                            @Override
+                                            public int advance(int target) throws IOException {
+                                                return dvs.advance(target);
+                                            }
 
-                                    @Override
-                                    public long cost() {
-                                        return dvs.cost();
+                                            @Override
+                                            public long cost() {
+                                                return dvs.cost();
+                                            }
+                                        };
                                     }
                                 };
                             }
@@ -348,18 +354,21 @@ final class CompositeAggregator extends BucketsAggregator {
             fieldDoc.doc = -1;
         }
         BooleanQuery newQuery = new BooleanQuery.Builder()
-            .add(context.query(), BooleanClause.Occur.MUST)
+            .add(topLevelQuery(), BooleanClause.Occur.MUST)
             .add(new SearchAfterSortedDocQuery(applySortFieldRounding(indexSortPrefix), fieldDoc), BooleanClause.Occur.FILTER)
             .build();
-        Weight weight = context.searcher().createWeight(context.searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
+        Weight weight = searcher().createWeight(searcher().rewrite(newQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
         Scorer scorer = weight.scorer(ctx);
         if (scorer != null) {
             DocIdSetIterator docIt = scorer.iterator();
             final LeafBucketCollector inner = queue.getLeafCollector(ctx,
                 getFirstPassCollector(docIdSetBuilder, indexSortPrefix.getSort().length));
             inner.setScorer(scorer);
+            final Bits liveDocs = ctx.reader().getLiveDocs();
             while (docIt.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                inner.collect(docIt.docID());
+                if (liveDocs == null || liveDocs.get(docIt.docID())) {
+                    inner.collect(docIt.docID());
+                }
             }
         }
     }
@@ -373,13 +382,13 @@ final class CompositeAggregator extends BucketsAggregator {
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
-        SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0  ?
-            sources[0].createSortedDocsProducerOrNull(ctx.reader(), context.query()) : null;
+        SortedDocsProducer sortedDocsProducer = (sortPrefixLen == 0 && parent == null) ?
+            sources[0].createSortedDocsProducerOrNull(ctx.reader(), topLevelQuery()) : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
             // when the leading source value is guaranteed to be greater than the lowest composite bucket
             // in the queue.
-            DocIdSet docIdSet = sortedDocsProducer.processLeaf(context.query(), queue, ctx, fillDocIdSet);
+            DocIdSet docIdSet = sortedDocsProducer.processLeaf(topLevelQuery(), queue, ctx, fillDocIdSet);
             if (fillDocIdSet) {
                 entries.add(new Entry(ctx, docIdSet));
             }
@@ -387,7 +396,7 @@ final class CompositeAggregator extends BucketsAggregator {
             // Throwing this exception will terminate the execution of the search for this root aggregation,
             // see {@link MultiCollector} for more details on how we handle early termination in aggregations.
             earlyTerminated = true;
-            throw new CollectionTerminatedException();
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         } else {
             if (fillDocIdSet) {
                 currentLeaf = ctx;
@@ -397,10 +406,22 @@ final class CompositeAggregator extends BucketsAggregator {
                 // We have an after key and index sort is applicable so we jump directly to the doc
                 // that is after the index sort prefix using the rawAfterKey and we start collecting
                 // document from there.
-                processLeafFromQuery(ctx, indexSortPrefix);
-                throw new CollectionTerminatedException();
+                try {
+                    processLeafFromQuery(ctx, indexSortPrefix);
+                } catch (CollectionTerminatedException e) {
+                    /*
+                     * Signal that there isn't anything to collect. We're going
+                     * to return noop collector anyway so we can ignore it.
+                     */
+                }
+                return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
-                final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                final LeafBucketCollector inner;
+                try {
+                    inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                } catch (CollectionTerminatedException e) {
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long zeroBucket) throws IOException {
@@ -422,7 +443,8 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 try {
-                    if (queue.addIfCompetitive(indexSortPrefix)) {
+                    int docCount = docCountProvider.getDocCount(doc);
+                    if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
                         if (builder != null && lastDoc != doc) {
                             builder.add(doc);
                             lastDoc = doc;
@@ -444,8 +466,7 @@ final class CompositeAggregator extends BucketsAggregator {
         final boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
-            Query query = context.query();
-            weight = context.searcher().createWeight(context.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
+            weight = searcher().createWeight(searcher().rewrite(topLevelQuery()), ScoreMode.COMPLETE, 1f);
         }
         deferredCollectors.preCollection();
         for (Entry entry : entries) {

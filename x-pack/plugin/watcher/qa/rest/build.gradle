@@ -1,39 +1,49 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
-  testImplementation project(':x-pack:qa')
-}
-
-configurations {
-  testArtifacts.extendsFrom testRuntime
-  testArtifacts.extendsFrom testImplementation
-}
-
-def testJar = tasks.register("testJar", Jar) {
-  appendix 'test'
-  from sourceSets.test.output
+  yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
+  javaRestTestImplementation project(':x-pack:qa')
 }
 
 artifacts {
-  testArtifacts testJar
-  restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
-                'index', 'put_script', 'ingest', 'count'
-    includeXpack 'watcher', 'xpack'
+    include '_common', 'cluster', 'nodes', 'search', 'get', 'indices',
+                'index', 'put_script', 'ingest', 'count', 'watcher', 'xpack'
   }
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'logger.org.elasticsearch.xpack.watcher', 'DEBUG'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'mustache/10_webhook/Test webhook action with mustache integration',
+    'mustache/25_array_compare/Basic array_compare watch',
+    'mustache/30_search_input/Test search input mustache integration (using request body and rest_total_hits_as_int)',
+    'mustache/30_search_input/Test search input mustache integration (using request body)',
+    'mustache/30_search_input/Test search input mustache integration (using request template and rest_total_hits_as_int)',
+    'mustache/30_search_input/Test search input mustache integration (using request template)',
+    'mustache/40_search_transform/Test search transform mustache integration (using request body)',
+    'mustache/40_search_transform/Test search transform mustache integration (using request template)',
+  ].join(',')
 }

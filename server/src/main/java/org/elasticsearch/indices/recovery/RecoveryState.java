@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -232,6 +220,14 @@ public class RecoveryState implements ToXContentFragment, Writeable {
                 throw new IllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
+    }
+
+    public synchronized RecoveryState setLocalTranslogStage() {
+        return setStage(Stage.TRANSLOG);
+    }
+
+    public synchronized RecoveryState setRemoteTranslogStage() {
+        return setStage(Stage.TRANSLOG);
     }
 
     public Index getIndex() {
@@ -491,9 +487,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             recovered = in.readVInt();
             total = in.readVInt();
             totalOnStart = in.readVInt();
-            if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
-                totalLocal = in.readVInt();
-            }
+            totalLocal = in.readVInt();
         }
 
         @Override
@@ -502,9 +496,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
             out.writeVInt(recovered);
             out.writeVInt(total);
             out.writeVInt(totalOnStart);
-            if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
-                out.writeVInt(totalLocal);
-            }
+            out.writeVInt(totalLocal);
         }
 
         public synchronized void reset() {
@@ -800,7 +792,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
     }
 
     public static class Index extends Timer implements ToXContentFragment, Writeable {
-        private final RecoveryFilesDetails fileDetails;
+        protected final RecoveryFilesDetails fileDetails;
 
         public static final long UNKNOWN = -1L;
 

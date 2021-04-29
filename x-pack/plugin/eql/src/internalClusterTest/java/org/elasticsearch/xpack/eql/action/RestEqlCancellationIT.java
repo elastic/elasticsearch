@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.action;
@@ -41,7 +42,6 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     private static String nodeHttpTypeKey;
 
-    @SuppressWarnings("unchecked")
     @BeforeClass
     public static void setUpTransport() {
         nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
@@ -53,9 +53,9 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
     }
 
@@ -100,7 +100,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         // We are cancelling during both mapping and searching but we cancel during mapping so we should never reach the second block
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
         org.elasticsearch.client.eql.EqlSearchRequest eqlSearchRequest =
-            new org.elasticsearch.client.eql.EqlSearchRequest("test", "my_event where val=1").eventCategoryField("event_type");
+            new org.elasticsearch.client.eql.EqlSearchRequest("test", "my_event where val==1").eventCategoryField("event_type");
         String id = randomAlphaOfLength(10);
 
         Request request = new Request("GET", "/test/_eql/search");

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -740,22 +729,22 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
 
     /** Add a new runLen to the register. Implementor should only keep the value if it is
      * bigger that the current value of the register provided. */
-    protected abstract void addRunLen(int register, int runLen);
+    protected abstract void addRunLen(long bucketOrd, int register, int runLen);
 
     /** Returns an iterator over all values of the register. */
-    protected abstract RunLenIterator getRunLens();
+    protected abstract RunLenIterator getRunLens(long bucketOrd);
 
-    public void collect(long hash) {
+    public void collect(long bucketOrd, long hash) {
         final int index = Math.toIntExact(index(hash, p));
         final int runLen = runLen(hash, p);
-        addRunLen(index, runLen);
+        addRunLen(bucketOrd, index, runLen);
     }
 
     @Override
-    public long cardinality() {
+    public long cardinality(long bucketOrd) {
         double inverseSum = 0;
         int zeros = 0;
-        RunLenIterator iterator = getRunLens();
+        RunLenIterator iterator = getRunLens(bucketOrd);
         while (iterator.next()) {
             final int runLen = iterator.value();
             inverseSum += 1. / (1L << runLen);
@@ -778,21 +767,10 @@ public abstract class AbstractHyperLogLog extends AbstractCardinalityAlgorithm {
         }
     }
 
-    public void collectEncoded(int encoded) {
+    public void collectEncoded(long bucketOrd, int encoded) {
         final int runLen = decodeRunLen(encoded, p);
         final int index = decodeIndex(encoded, p);
-        addRunLen(index, runLen);
-    }
-
-    public void merge(AbstractHyperLogLog other) {
-        if (p != other.p) {
-            throw new IllegalArgumentException();
-        }
-        RunLenIterator iterator = other.getRunLens();
-        for (int i = 0; i < m; ++i) {
-            iterator.next();
-            addRunLen(i, iterator.value());
-        }
+        addRunLen(bucketOrd, index, runLen);
     }
 
     static long index(long hash, int p) {

@@ -1,5 +1,9 @@
 [[csv-processor]]
-=== CSV Processor
+=== CSV processor
+++++
+<titleabbrev>CSV</titleabbrev>
+++++
+
 Extracts fields from CSV line out of a single text field within a document. Any empty field in CSV will be skipped.
 
 [[csv-options]]

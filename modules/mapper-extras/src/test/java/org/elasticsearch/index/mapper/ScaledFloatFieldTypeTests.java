@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -36,9 +25,10 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
-
 
     public void testTermQuery() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft
@@ -64,8 +54,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         // make sure the accuracy loss of scaled floats only occurs at index time
         // this test checks that searching scaled floats yields the same results as
         // searching doubles that are rounded to the closest half float
-        ScaledFloatFieldMapper.ScaledFloatFieldType ft
-            = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 0.1 + randomDouble() * 100);
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+                    "scaled_float", true, false, false, Collections.emptyMap(), 0.1 + randomDouble() * 100, null);
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         final int numDocs = 1000;
@@ -87,8 +77,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             Double u = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, MOCK_QSC);
-            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_QSC);
+            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, MOCK_CONTEXT);
+            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_CONTEXT);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
         }
         IOUtils.close(reader, dir);
@@ -97,36 +87,36 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     public void testRoundsUpperBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft
             = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
-        Query scaledFloatQ = ft.rangeQuery(null, 0.1, true, false, MOCK_QSC);
+        Query scaledFloatQ = ft.rangeQuery(null, 0.1, true, false, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.1, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.1, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.095, true, false, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.095, true, false, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.095, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.095, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.105, true, false, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.105, true, false, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 0.105, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 0.105, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(null, 79.99, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(null, 79.99, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9223372036854775808 TO 7999]", scaledFloatQ.toString());
     }
 
     public void testRoundsLowerBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft
             = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
-        Query scaledFloatQ = ft.rangeQuery(-0.1, null, false, true, MOCK_QSC);
+        Query scaledFloatQ = ft.rangeQuery(-0.1, null, false, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.1, null, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.1, null, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.095, null, false, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.095, null, false, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.095, null, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.095, null, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.105, null, false, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.105, null, false, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
-        scaledFloatQ = ft.rangeQuery(-0.105, null, true, true, MOCK_QSC);
+        scaledFloatQ = ft.rangeQuery(-0.105, null, true, true, MOCK_CONTEXT);
         assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
     }
 
@@ -150,7 +140,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             // single-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f1
                 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float1", scalingFactor);
-            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder("index").build(null, null, null);
+            IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder("index", () -> {
+                throw new UnsupportedOperationException();
+            }).build(null, null);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
@@ -161,7 +153,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             // multi-valued
             ScaledFloatFieldMapper.ScaledFloatFieldType f2
                 = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float2", scalingFactor);
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index").build(null, null, null);
+            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index", () -> {
+                throw new UnsupportedOperationException();
+            }).build(null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));
@@ -170,5 +164,22 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             assertEquals(12/f2.getScalingFactor(), values.nextValue(), 10e-5);
         }
         IOUtils.close(w, dir);
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = new ScaledFloatFieldMapper.Builder("field", false, false)
+            .scalingFactor(100)
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(List.of(3.14), fetchSourceValue(mapper, 3.1415926));
+        assertEquals(List.of(3.14), fetchSourceValue(mapper, "3.1415"));
+        assertEquals(List.of(), fetchSourceValue(mapper, ""));
+
+        MappedFieldType nullValueMapper = new ScaledFloatFieldMapper.Builder("field", false, false)
+            .scalingFactor(100)
+            .nullValue(2.71)
+            .build(new ContentPath())
+            .fieldType();
+        assertEquals(List.of(2.71), fetchSourceValue(nullValueMapper, ""));
     }
 }

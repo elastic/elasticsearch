@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.eql.session.Payload;
 
 import java.util.List;
 
@@ -17,7 +18,9 @@ import java.util.List;
  */
 public interface QueryClient {
 
-    void query(QueryRequest request, ActionListener<Payload> listener);
+    void query(QueryRequest request, ActionListener<SearchResponse> listener);
 
-    void get(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener);
+    default void close(ActionListener<Boolean> closed) {}
+
+    void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener);
 }

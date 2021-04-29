@@ -19,7 +19,7 @@ examples.
 
 Similar to the `geo_shape` query, the `shape` query uses
 http://geojson.org[GeoJSON] or
-https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Known Text]
+{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
 (WKT) to represent shapes.
 
 Given the following index:

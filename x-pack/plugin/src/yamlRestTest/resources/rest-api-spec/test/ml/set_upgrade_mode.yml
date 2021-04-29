@@ -1,0 +1,258 @@
+---
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+              number_of_shards: 1
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              airport:
+                type: text
+              responsetime:
+                type: float
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: set-upgrade-mode-job
+        body:  >
+          {
+            "job_id":"set-upgrade-mode-job",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+        body:  >
+          {
+            "job_id":"set-upgrade-mode-job",
+            "indexes":["airline-data"]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.open_job:
+        job_id: set-upgrade-mode-job
+
+  - do:
+      cluster.health:
+        index: airline-data
+        wait_for_status: green
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "transient": {
+              "logger.org.elasticsearch.xpack.ml.action.TransportSetUpgradeModeAction": "TRACE",
+              "logger.org.elasticsearch.xpack.ml.action.TransportCloseJobAction": "TRACE",
+              "logger.org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager": "TRACE"
+            }
+          }
+
+---
+teardown:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.set_upgrade_mode:
+        enabled: false
+
+---
+"Test setting upgrade_mode to false when it is already false":
+  - do:
+      ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
+  - do:
+      ml.set_upgrade_mode:
+        enabled: false
+  - match: { acknowledged: true }
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+             /.+job.+/
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+             /.+datafeed.+/
+  - do:
+      ml.info: {}
+  - match: { upgrade_mode: false }
+
+---
+"Setting upgrade_mode to enabled":
+  - do:
+      ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+job.+/
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+datafeed.+/
+
+  - do:
+      ml.info: {}
+  - match: { upgrade_mode: false }
+
+  - do:
+      ml.set_upgrade_mode:
+        enabled: true
+  - match: { acknowledged: true }
+
+  - do:
+      ml.get_job_stats:
+        job_id: set-upgrade-mode-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.assignment_explanation: "persistent task cannot be assigned while upgrade mode is enabled." }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: set-upgrade-mode-job-datafeed
+  - match: { datafeeds.0.state: "started" }
+  - match: { datafeeds.0.assignment_explanation: "persistent task cannot be assigned while upgrade mode is enabled." }
+
+  - do:
+      tasks.list:
+        actions: "xpack/ml/job*,xpack/ml/datafeed*"
+
+  - match: { nodes: { } }
+
+  - do:
+      ml.info: {}
+  - match: { upgrade_mode: true }
+
+---
+"Setting upgrade mode to disabled from enabled":
+  - do:
+      ml.start_datafeed:
+        datafeed_id: set-upgrade-mode-job-datafeed
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+job.+/
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+datafeed.+/
+
+  - do:
+      ml.set_upgrade_mode:
+        enabled: true
+  - match: { acknowledged: true }
+
+  - do:
+      ml.get_job_stats:
+        job_id: set-upgrade-mode-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.assignment_explanation: "persistent task cannot be assigned while upgrade mode is enabled." }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: set-upgrade-mode-job-datafeed
+  - match: { datafeeds.0.state: "started" }
+  - match: { datafeeds.0.assignment_explanation: "persistent task cannot be assigned while upgrade mode is enabled." }
+
+  - do:
+      tasks.list:
+        actions: "xpack/ml/job*,xpack/ml/datafeed*"
+
+  - match: { nodes: { } }
+
+  - do:
+      ml.info: {}
+  - match: { upgrade_mode: true }
+
+  - do:
+      ml.set_upgrade_mode:
+        enabled: false
+  - match: { acknowledged: true }
+
+  - do:
+      ml.get_job_stats:
+        job_id: set-upgrade-mode-job
+  - match: { jobs.0.state: "opened" }
+  - match: { jobs.0.assignment_explanation: "" }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: set-upgrade-mode-job-datafeed
+  - match: { datafeeds.0.state: "started" }
+  # The datafeed will not be assigned until the job has updated its status on the node it's assigned
+  # to, and that probably won't happen in time for this assertion.  That is indicated by an assignment
+  # reason ending "state is stale".  However, the datafeed should NOT be unassigned with a reason of
+  # "upgrade mode is enabled" - that reason should have gone away before this test.
+  - match: { datafeeds.0.assignment_explanation: /(^$|.+job.+state.is.stale)/ }
+
+  - do:
+      cat.tasks: {}
+  - match:
+      $body: |
+        /.+job.+/
+
+---
+"Attempt to open job when upgrade_mode is enabled":
+  - do:
+      ml.put_job:
+        job_id: failing-set-upgrade-mode-job
+        body:  >
+          {
+            "job_id":"failing-set-upgrade-mode-job",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+  - do:
+      ml.set_upgrade_mode:
+        enabled: true
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /Cannot perform cluster:admin/xpack/ml/job/open action while upgrade mode is enabled/
+      ml.open_job:
+        job_id: failing-set-upgrade-mode-job

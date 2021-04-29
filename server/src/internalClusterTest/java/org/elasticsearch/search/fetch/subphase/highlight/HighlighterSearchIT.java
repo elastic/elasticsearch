@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
@@ -41,6 +30,7 @@ import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -80,6 +70,7 @@ import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.combinedFieldsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
@@ -2124,6 +2115,44 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testCombinedFieldsQueryHighlight() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties")
+                    .startObject("field1")
+                        .field("type", "text")
+                        .field("index_options", "offsets")
+                        .field("term_vector", "with_positions_offsets")
+                    .endObject()
+                    .startObject("field2")
+                        .field("type", "text")
+                        .field("index_options", "offsets")
+                        .field("term_vector", "with_positions_offsets")
+                    .endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").setMapping(mapping));
+        ensureGreen();
+
+        client().prepareIndex("test")
+            .setSource("field1", "The quick brown fox jumps over", "field2", "The quick brown fox jumps over")
+            .get();
+        refresh();
+
+        for (String highlighterType : ALL_TYPES) {
+            CombinedFieldsQueryBuilder multiMatchQueryBuilder = combinedFieldsQuery("the quick brown fox", "field1", "field2");
+            SearchSourceBuilder source = searchSource()
+                    .query(multiMatchQueryBuilder)
+                    .highlighter(highlight()
+                            .highlighterType(highlighterType)
+                            .field(new Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>")));
+
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            assertHitCount(searchResponse, 1L);
+            assertHighlight(searchResponse, 0, "field1", 0,
+                    equalTo("<field1>The</field1> <field1>quick</field1> <field1>brown</field1> <field1>fox</field1> jumps over"));
+        }
+    }
+
     public void testPostingsHighlighterOrderByScore() throws Exception {
         assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
@@ -2720,6 +2749,34 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 equalTo("<em>some text</em>"));
     }
 
+    public void testCopyToFields() throws Exception {
+        XContentBuilder b = jsonBuilder().startObject().startObject("properties");
+        b.startObject("foo");
+        {
+            b.field("type", "text");
+            b.field("copy_to", "foo_copy");
+        }
+        b.endObject();
+        b.startObject("foo_copy").field("type", "text").endObject();
+        b.endObject().endObject();
+        prepareCreate("test").setMapping(b).get();
+
+        client().prepareIndex("test").setId("1")
+            .setSource(jsonBuilder().startObject().field("foo", "how now brown cow").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(matchQuery("foo_copy", "brown"))
+            .highlighter(new HighlightBuilder().field(new Field("foo_copy")))
+            .get();
+
+        assertHitCount(response, 1);
+        HighlightField field = response.getHits().getAt(0).getHighlightFields().get("foo_copy");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("how now <em>brown</em> cow"));
+    }
+
     public void testACopyFieldWithNestedQuery() throws Exception {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("properties")
                     .startObject("foo")
@@ -2931,7 +2988,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>hello world</em>"));
         }
     }
 

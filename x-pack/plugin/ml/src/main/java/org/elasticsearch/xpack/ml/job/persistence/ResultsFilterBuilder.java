@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -12,6 +13,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.ml.utils.QueryBuilderHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -85,6 +87,11 @@ public class ResultsFilterBuilder {
 
         TermQueryBuilder termQueryBuilder = QueryBuilders.termQuery(fieldName, fieldValue);
         addQuery(termQueryBuilder);
+        return this;
+    }
+
+    public ResultsFilterBuilder resourceTokenFilters(String fieldName, String[] tokens) {
+        QueryBuilderHelper.buildTokenFilterQuery(fieldName, tokens).ifPresent(this::addQuery);
         return this;
     }
 

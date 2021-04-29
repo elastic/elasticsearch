@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -54,8 +43,11 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -428,14 +420,14 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
 
                 assertEquals(2, buckets.size());
 
-                // The smaller cluster
-                assertEquals(4 <= buckets.get(0).getDocCount() && buckets.get(0).getDocCount() <= 6, true);
-                assertEquals(0 <= buckets.get(0).centroid() && buckets.get(0).centroid() <= 200d, true);
+                // The lower cluster
+                assertThat(buckets.get(0).getDocCount(), both(greaterThanOrEqualTo(4L)).and(lessThanOrEqualTo(7L)));
+                assertThat(buckets.get(0).centroid(), both(greaterThanOrEqualTo(0.0)).and(lessThanOrEqualTo(300.0)));
                 assertEquals(1, buckets.get(0).min(), deltaError);
 
-                // The bigger cluster
-                assertEquals(4 <= buckets.get(1).getDocCount() && buckets.get(1).getDocCount() <= 6, true);
-                assertEquals(800d <= buckets.get(1).centroid() && buckets.get(1).centroid() <= 1005d, true);
+                // The higher cluster
+                assertThat(buckets.get(1).getDocCount(), equalTo(dataset.size() - buckets.get(0).getDocCount()));
+                assertThat(buckets.get(1).centroid(), both(greaterThanOrEqualTo(800.0)).and(lessThanOrEqualTo(1005.0)));
                 assertEquals(1005, buckets.get(1).max(), deltaError);
             });
 
@@ -594,7 +586,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
     }
 
     private void indexSampleData(List<Number> dataset, RandomIndexWriter indexWriter, boolean multipleSegments) throws IOException {
-        if(!multipleSegments) {
+        if (multipleSegments == false) {
             // Put all of the documents into one segment
             List<Document> documents = new ArrayList<>();
             for (final Number doc : dataset) {

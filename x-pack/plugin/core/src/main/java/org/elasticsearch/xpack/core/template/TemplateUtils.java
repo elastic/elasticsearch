@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.template;
 
@@ -12,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.Streams;
@@ -165,9 +165,7 @@ public class TemplateUtils {
         // we have to parse the source here which is annoying
         if (mappings != null) {
             try {
-                Map<String, Object> typeMappingMap = convertToMap(
-                    new BytesArray(mappings.uncompressed()), false,
-                    XContentType.JSON).v2();
+                Map<String, Object> typeMappingMap = convertToMap(mappings.uncompressed(), false, XContentType.JSON).v2();
                 // should always contain one entry with key = typename
                 assert (typeMappingMap.size() == 1);
                 String key = typeMappingMap.keySet().iterator().next();

@@ -52,7 +52,7 @@ the job.
 NOTE: If you use the `force` query parameter, the request returns without performing
 the associated actions such as flushing buffers and persisting the model snapshots.
 Therefore, do not use this parameter if you want the job to be in a consistent state
-after the close job API returns.  The `force` query parameter should only be used in
+after the close job API returns. The `force` query parameter should only be used in
 situations where the job has already failed, or where you are not interested in
 results the job might have recently produced or might produce in the future.
 
@@ -67,11 +67,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildca
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `force`::
-  (Optional, boolean) Use to close a failed job, or to forcefully close a job
+  (Optional, Boolean) Use to close a failed job, or to forcefully close a job
   which has not responded to its initial close request.
 
 `timeout`::
@@ -92,7 +92,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 --------------------------------------------------
 POST _ml/anomaly_detectors/low_request_rate/_close
 --------------------------------------------------
-// TEST[skip:sometimes fails due to https://github.com/elastic/elasticsearch/pull/48583#issuecomment-552991325]
+// TEST[skip:Kibana sample data]
 
 When the job is closed, you receive the following results:
 

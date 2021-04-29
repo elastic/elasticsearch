@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
@@ -89,8 +78,12 @@ public class Strings {
 
             char ch = s.charAt(pos++);
             if (ch == '\\') {
-                if (!decode) sb.append(ch);
-                if (pos >= end) break;  // ERROR, or let it go?
+                if (decode == false) {
+                    sb.append(ch);
+                }
+                if (pos >= end) {
+                    break;  // ERROR, or let it go?
+                }
                 ch = s.charAt(pos++);
                 if (decode) {
                     switch (ch) {
@@ -185,7 +178,7 @@ public class Strings {
      * @return <code>true</code> if the CharSequence is either null or has a zero length
      */
     public static boolean isEmpty(CharSequence str) {
-        return !hasLength(str);
+        return hasLength(str) == false;
     }
 
 
@@ -207,12 +200,12 @@ public class Strings {
      * @see java.lang.Character#isWhitespace
      */
     public static boolean hasText(CharSequence str) {
-        if (!hasLength(str)) {
+        if (hasLength(str) == false) {
             return false;
         }
         int strLen = str.length();
         for (int i = 0; i < strLen; i++) {
-            if (!Character.isWhitespace(str.charAt(i))) {
+            if (Character.isWhitespace(str.charAt(i)) == false) {
                 return true;
             }
         }
@@ -241,7 +234,7 @@ public class Strings {
      * @return the trimmed String
      */
     public static String trimLeadingCharacter(String str, char leadingCharacter) {
-        if (!hasLength(str)) {
+        if (hasLength(str) == false) {
             return str;
         }
         StringBuilder sb = new StringBuilder(str);
@@ -279,7 +272,7 @@ public class Strings {
      * @return a String with the replacements
      */
     public static String replace(String inString, String oldPattern, String newPattern) {
-        if (!hasLength(inString) || !hasLength(oldPattern) || newPattern == null) {
+        if (hasLength(inString) == false || hasLength(oldPattern) == false || newPattern == null) {
             return inString;
         }
         StringBuilder sb = new StringBuilder();
@@ -318,7 +311,7 @@ public class Strings {
      * @return the resulting String
      */
     public static String deleteAny(String inString, String charsToDelete) {
-        if (!hasLength(inString) || !hasLength(charsToDelete)) {
+        if (hasLength(inString) == false || hasLength(charsToDelete) == false) {
             return inString;
         }
         StringBuilder sb = new StringBuilder();
@@ -412,6 +405,25 @@ public class Strings {
     }
 
     /**
+     * Concatenate two string arrays into a third
+     */
+    public static String[] concatStringArrays(String[] first, String[] second) {
+        if (first == null && second == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        if (first == null || first.length == 0) {
+            return second;
+        }
+        if (second == null || second.length == 0) {
+            return first;
+        }
+        String[] concat = new String[first.length + second.length];
+        System.arraycopy(first, 0, concat, 0, first.length);
+        System.arraycopy(second, 0, concat, first.length, second.length);
+        return concat;
+    }
+
+    /**
      * Tokenize the specified string by commas to a set, trimming whitespace and ignoring empty tokens.
      *
      * @param s the string to tokenize
@@ -445,7 +457,7 @@ public class Strings {
      *         or <code>null</code> if the delimiter wasn't found in the given input String
      */
     public static String[] split(String toSplit, String delimiter) {
-        if (!hasLength(toSplit) || !hasLength(delimiter)) {
+        if (hasLength(toSplit) == false || hasLength(delimiter) == false) {
             return null;
         }
         int offset = toSplit.indexOf(delimiter);
@@ -855,6 +867,21 @@ public class Strings {
         return s.substring(0, length);
     }
 
+    /**
+     * Checks that the supplied string is neither null nor empty, per {@link #isNullOrEmpty(String)}.
+     * If this check fails, then an {@link IllegalArgumentException} is thrown with the supplied message.
+     *
+     * @param str the <code>String</code> to check
+     * @param message the exception message to use if {@code str} is null or empty
+     * @return the supplied {@code str}
+     */
+    public static String requireNonEmpty(String str, String message) {
+        if (isNullOrEmpty(str)) {
+            throw new IllegalArgumentException(message);
+        }
+        return str;
+    }
+
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
     }
@@ -878,5 +905,19 @@ public class Strings {
             sb.append(s);
             return sb.toString();
         }
+    }
+
+    public static String toLowercaseAscii(String in) {
+        StringBuilder out = new StringBuilder();
+        Iterator<Integer> iter = in.codePoints().iterator();
+        while (iter.hasNext()) {
+            int codepoint = iter.next();
+            if (codepoint > 128) {
+                out.appendCodePoint(codepoint);
+            } else {
+                out.appendCodePoint(Character.toLowerCase(codepoint));
+            }
+        }
+        return out.toString();
     }
 }

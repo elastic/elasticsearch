@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
@@ -58,6 +47,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
     private final ThreadPool threadPool;
     private volatile boolean enabled;
+    private volatile boolean brokenLock;
     private final TimeValue refreshInterval;
     private volatile TimeValue slowPathLoggingThreshold;
     private final NodeEnvironment nodeEnv;
@@ -117,6 +107,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         Set<Path> unhealthyPaths = this.unhealthyPaths;
         if (enabled == false) {
             statusInfo = new StatusInfo(HEALTHY, "health check disabled");
+        } else if (brokenLock) {
+            statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
         } else {
@@ -150,7 +142,16 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
         private void monitorFSHealth() {
             Set<Path> currentUnhealthyPaths = null;
-            for (Path path : nodeEnv.nodeDataPaths()) {
+            Path[] paths = null;
+            try {
+                paths = nodeEnv.nodeDataPaths();
+            } catch (IllegalStateException e) {
+                logger.error("health check failed", e);
+                brokenLock = true;
+                return;
+            }
+
+            for (Path path : paths) {
                 long executionStartTime = currentTimeMillisSupplier.getAsLong();
                 try {
                     if (Files.exists(path)) {
@@ -176,6 +177,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 }
             }
             unhealthyPaths = currentUnhealthyPaths;
+            brokenLock = false;
         }
     }
 }

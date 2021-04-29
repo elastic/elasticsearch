@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.cli;
 
@@ -108,18 +109,11 @@ public abstract class ErrorsTestCase extends CliIntegrationTestCase implements o
     }
 
     @Override
-    public void testSelectScoreInScalar() throws Exception {
-        index("test", body -> body.field("foo", 1));
-        assertFoundOneProblem(command("SELECT SIN(SCORE()) FROM test"));
-        assertEquals("line 1:12: [SCORE()] cannot be an argument to a function" + END, readLine());
-    }
-
-    @Override
     public void testHardLimitForSortOnAggregate() throws Exception {
         index("test", body -> body.field("a", 1).field("b", 2));
         String commandResult = command("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000");
         assertEquals(
-            START + "Bad request [[3;33;22mThe maximum LIMIT for aggregate sorting is [65535], received [120000]" + END,
+            START + "Bad request [[3;33;22mThe maximum LIMIT for aggregate sorting is [65536], received [120000]" + END,
             commandResult
         );
     }

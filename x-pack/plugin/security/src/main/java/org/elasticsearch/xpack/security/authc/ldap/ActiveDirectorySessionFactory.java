@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
@@ -20,6 +21,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -75,14 +77,9 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
                         }
                     }
                     return config.getSetting(ActiveDirectorySessionFactorySettings.AD_USER_SEARCH_BASEDN_SETTING,
-                            () -> config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING));
+                        () -> config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING));
                 }, threadPool);
         String domainName = config.getSetting(ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING);
-        if (domainName == null) {
-            throw new IllegalArgumentException("missing [" +
-                    RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_DOMAIN_NAME_SETTING)
-                    + "] setting for active directory");
-        }
         String domainDN = buildDnFromDomain(domainName);
         final int ldapPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_LDAP_PORT_SETTING);
         final int ldapsPort = config.getSetting(ActiveDirectorySessionFactorySettings.AD_LDAPS_PORT_SETTING);
@@ -523,7 +520,8 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             super(config, timeout, ignoreReferralErrors, logger, groupsResolver, metadataResolver, domainDN,
                     ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING, UPN_USER_FILTER, threadPool);
             if (userSearchFilter.contains("{0}")) {
-                deprecationLogger.deprecate("ldap_settings", "The use of the account name variable {0} in the setting ["
+                deprecationLogger.deprecate(DeprecationCategory.SECURITY, "ldap_settings",
+                    "The use of the account name variable {0} in the setting ["
                     + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)
                     + "] has been deprecated and will be removed in a future version!");
             }

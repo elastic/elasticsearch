@@ -94,30 +94,36 @@ description = "Test the `concat` function"
 description = "Test the `endsWith` function with case matching"
 
     [[endswith.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'Baz')"
+    expression = 'endsWith("FooBarBaz", "Baz")'
     expected = true
 
     [[endswith.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'Foo')"
+    expression = 'endsWith("FooBarBaz", "Foo")'
     expected = false
 
 
 [endswith_insensitive]
 description = "Test the `endsWith` function with case insensitivity"
-case_insensitive = true
 
     [[endswith_insensitive.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'baz')"
+    expression = 'endsWith("FooBarBaz", "baz")'
+    expected = false
+
+    [[endswith_insensitive.fold.tests]]
+    expression = 'endsWith~("FooBarBaz", "baz")'
     expected = true
 
 
 [endswith_sensitive]
 description = "Test the `endsWith` function with case sensitivity"
-case_sensitive = true
 
     [[endswith_sensitive.fold.tests]]
-    expression = "endsWith('FooBarBaz', 'baz')"
+    expression = 'endsWith("FooBarBaz", "baz")'
     expected = false
+
+    [[endswith_sensitive.fold.tests]]
+    expression = 'endsWith~("FooBarBaz", "baz")'
+    expected = true
 
 
 [indexof]
@@ -182,47 +188,6 @@ description = "Test the folding of the `length` function."
     [[length.fold.tests]]
     expression = 'length("foo")'
     expected = 3
-
-
-[match]
-description = "Test the `match` function"
-
-    [match.verifier]
-
-        [[match.verifier.failures]]
-        expression = 'match(1, "*")'
-
-        [[match.verifier.failures]]
-        expression = 'match(1, "*")'
-
-        [[match.verifier.failures]]
-        expression = 'match("eql", 1)'
-
-    [match.fold]
-
-        [[match.fold.tests]]
-        expression = 'match(null, "[a-z]{3}")'
-        # expected = null
-
-        [[match.fold.tests]]
-        expression = 'match("foo", "[a-z]{3}")'
-        expected = true
-
-        [[match.fold.tests]]
-        expression = 'match("foo\nbarbaz", "[a-z]{3}\n[a-z]{6}")'
-        expected = true
-
-        [[match.fold.tests]]
-        expression = 'match("999", "[a-z]{3}")'
-        expected = false
-
-        [[match.fold.tests]]
-        expression = 'match("999", "[a-z]{3}", "[0-9]{5}")'
-        expected = false
-
-        [[match.fold.tests]]
-        expression = 'match("999", "[a-z]{3}", "[0-9]{5}", "[9][9][9]")'
-        expected = true
 
 
 [number]
@@ -295,50 +260,49 @@ description = "Test the `startsWith` function"
         expression = "startsWith()"
 
         [[startswith.verifier.failures]]
-        expression = "startsWith(1, 'FOO')"
+        expression = '''startsWith(1, "FOO")'''
 
         [[startswith.verifier.failures]]
-        expression = "startsWith('FOO', 123)"
+        expression = '''startsWith("FOO", 123)'''
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', null)"
+    expression = '''startsWith("FooBarBaz", null)'''
     # expected = null
 
     [[startswith.fold.tests]]
-    expression = "startsWith(null, 'Foo')"
+    expression = '''startsWith(null, "Foo")'''
     # expected = null
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', 'Foo')"
+    expression = '''startsWith("FooBarBaz", "Foo")'''
     expected = true
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', '')"
+    expression = '''startsWith("FooBarBaz", "")'''
     expected = true
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', 'FooBar')"
+    expression = '''startsWith("FooBarBaz", "FooBar")'''
     expected = true
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', 'Bar')"
+    expression = '''startsWith("FooBarBaz", "Bar")'''
     expected = false
 
     [[startswith.fold.tests]]
-    expression = "startsWith('FooBarBaz', 'Bar')"
+    expression = '''startsWith("FooBarBaz", "Bar")'''
     expected = false
 
 
 [startswith_case_sensitive]
 description = "Test the `startsWith` function with case-sensitive matching"
-case_sensitive = true
 
     [[startswith_case_sensitive.tests]]
-    expression = "startsWith('FooBar', 'Foo')"
+    expression = '''startsWith("FooBar", "Foo")'''
     expected = true
 
     [[startswith_case_sensitive.tests]]
-    expression = "startsWith('FooBar', 'foo')"
+    expression = '''startsWith("FooBar", "foo")'''
     expected = false
 
 
@@ -346,19 +310,19 @@ case_sensitive = true
 description = "Test the `startsWith` function with case-insensitive matching"
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'Foo')"
+    expression = '''startsWith~("FooBar", "Foo")'''
     expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'FOO')"
+    expression = '''startsWith~("FooBar", "FOO")'''
     expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'foo')"
+    expression = '''startsWith~("FooBar", "foo")'''
     expected = true
 
     [[startswith_case_insensitive.fold.tests]]
-    expression = "startsWith('FooBar', 'Bar')"
+    expression = '''startsWith~("FooBar", "Bar")'''
     expected = false
 
 
@@ -382,7 +346,7 @@ description = "Test the `string` function"
     expected = "2.1828"
 
     [[string.fold.tests]]
-    expression = "string('hello')"
+    expression = '''string("hello")'''
     expected = "hello"
 
 [substring]
@@ -397,55 +361,55 @@ description = "Test the `substring` function when the case already matches"
     # expected = null
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', null, null)"
+    expression = '''substring("hello world", null, null)'''
     expected = "hello world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 6, null)"
+    expression = '''substring("hello world", 6, null)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', null, 5)"
+    expression = '''substring("hello world", null, 5)'''
     expected = "hello"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 0, 5)"
+    expression = '''substring("hello world", 0, 5)'''
     expected = "hello"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 0, 500)"
+    expression = '''substring("hello world", 0, 500)'''
     expected = "hello world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 5, -1)"
+    expression = '''substring("hello world", 5, -1)'''
     expected = " worl"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', 3, 9)"
+    expression = '''substring("hello world", 3, 9)'''
     expected = "lo wor"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5, null)"
+    expression = '''substring("hello world", -5, null)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5, 11)"
+    expression = '''substring("hello world", -5, 11)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5, 100)"
+    expression = '''substring("hello world", -5, 100)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -60, 5)"
+    expression = '''substring("hello world", -60, 5)'''
     expected = "hello"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5)"
+    expression = '''substring("hello world", -5)'''
     expected = "world"
 
     [[substring.fold.tests]]
-    expression = "substring('hello world', -5, -1)"
+    expression = '''substring("hello world", -5, -1)'''
     expected = "worl"
 
 [wildcard]
@@ -497,11 +461,10 @@ description = "Test that `wildcard` folds with correct case matches."
 
 [wildcard_case_insensitive]
 description = "Test that `wildcard` function folds case insensitive as expected."
-case_insensitive = true
 
     [[wildcard_case_insensitive.fold.tests]]
     expression = 'wildcard("FOO", "f*o*o*")'
-    expected = true
+    expected = false
 
     [[wildcard_case_insensitive.fold.tests]]
     expression = 'wildcard("bar", "f*o*o*")'
@@ -510,7 +473,6 @@ case_insensitive = true
 
 [wildcard_case_sensitive]
 description = "Test that `wildcard` folds case-sensitive matches."
-case_sensitive = true
 
     [[wildcard_case_sensitive.fold.tests]]
     expression = 'wildcard("Foo", "F*o*o*")'

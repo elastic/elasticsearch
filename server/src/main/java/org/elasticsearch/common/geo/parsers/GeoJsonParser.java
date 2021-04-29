@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
@@ -50,14 +38,10 @@ abstract class GeoJsonParser {
         GeometryCollectionBuilder geometryCollections = null;
 
         Orientation orientation = (shapeMapper == null)
-            ? AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value()
+            ? Orientation.RIGHT
             : shapeMapper.orientation();
-        Explicit<Boolean> coerce = (shapeMapper == null)
-            ? AbstractShapeGeometryFieldMapper.Defaults.COERCE
-            : shapeMapper.coerce();
-        Explicit<Boolean> ignoreZValue = (shapeMapper == null)
-            ? AbstractShapeGeometryFieldMapper.Defaults.IGNORE_Z_VALUE
-            : shapeMapper.ignoreZValue();
+        boolean coerce = shapeMapper != null && shapeMapper.coerce();
+        boolean ignoreZValue = shapeMapper == null || shapeMapper.ignoreZValue();
 
         String malformedException = null;
 
@@ -78,7 +62,7 @@ abstract class GeoJsonParser {
                         }
                     } else if (ShapeParser.FIELD_COORDINATES.match(fieldName, subParser.getDeprecationHandler())) {
                         subParser.nextToken();
-                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue.value());
+                        CoordinateNode tempNode = parseCoordinates(subParser, ignoreZValue);
                         if (coordinateNode != null && tempNode.numDimensions() != coordinateNode.numDimensions()) {
                             throw new ElasticsearchParseException("Exception parsing coordinates: " +
                                 "number of dimensions do not match");
@@ -134,7 +118,7 @@ abstract class GeoJsonParser {
             return geometryCollections;
         }
 
-        return shapeType.getBuilder(coordinateNode, radius, orientation, coerce.value());
+        return shapeType.getBuilder(coordinateNode, radius, orientation, coerce);
     }
 
     /**

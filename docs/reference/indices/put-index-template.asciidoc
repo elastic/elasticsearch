@@ -1,7 +1,7 @@
 [[indices-put-template]]
-=== Put index template API
+=== Create or update index template API
 ++++
-<titleabbrev>Put index template</titleabbrev>
+<titleabbrev>Create or update index template</titleabbrev>
 ++++
 
 Creates or updates an index template.
@@ -38,6 +38,12 @@ DELETE _index_template/template_*
 
 `PUT /_index_template/<index-template>`
 
+[[put-index-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[put-index-template-api-desc]]
 ==== {api-description-title}
@@ -70,7 +76,7 @@ Name of the index template to create.
 ==== {api-query-parms-title}
 
 `create`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, this request cannot replace or update existing index templates. Defaults to `false`.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
@@ -83,15 +89,25 @@ include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 (Required, array of strings)
 Array of wildcard (`*`) expressions
 used to match the names of data streams and indices during creation.
++
+include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templates]
 
 [xpack]#`data_stream`#::
 (Optional, object)
-Indicates whether the template is used to create data streams and their backing
-indices. If so, use an empty object as the argument: +
-`data_stream: { }`.
+If this object is included, the template is used to create data streams and
+their backing indices. Supports an empty object: `data_stream: { }`
 +
 Data streams require a matching index template with a `data_stream` object.
-See <<create-a-data-stream-template>>.
+See <<create-index-template,create an index template>>.
++
+.Properties of `data_stream`
+[%collapsible%open]
+====
+[[data-stream-hidden]]
+`hidden`::
+(Optional, Boolean)
+If `true`, the data stream is <<hidden-indices,hidden>>. Defaults to `false`.
+====
 
 `template`::
 (Optional, object)
@@ -244,7 +260,7 @@ To check the `version`, you can use the <<indices-get-template, get index templa
 
 You can use the `_meta` parameter to add arbitrary metadata to an index template. 
 This user-defined object is stored in the cluster state,
-so keeping it short is preferrable.
+so keeping it short is preferable.
 
 The `_meta` parameter is optional and not automatically generated or used by {es}.
 
@@ -278,7 +294,7 @@ To check the `_meta`, you can use the <<indices-get-template, get index template
 To use an index template for a data stream, the template must include an empty `data_stream` object. 
 Data stream templates are only used for a stream's backing indices, 
 they are not applied to regular indices.
-See <<create-a-data-stream-template>>.
+See <<create-index-template,create an index template>>.
 
 [source,console]
 --------------------------------------------------

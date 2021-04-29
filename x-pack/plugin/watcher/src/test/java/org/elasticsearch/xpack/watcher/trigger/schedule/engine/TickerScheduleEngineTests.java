@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
@@ -83,7 +84,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             public void accept(Iterable<TriggerEvent> events) {
                 for (TriggerEvent event : events) {
                     int index = Integer.parseInt(event.jobName());
-                    if (!bits.get(index)) {
+                    if (bits.get(index) == false) {
                         logger.info("job [{}] first fire", index);
                         bits.set(index);
                         firstLatch.countDown();
@@ -97,12 +98,12 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         engine.start(watches);
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (!firstLatch.await(3 * count, TimeUnit.SECONDS)) {
+        if (firstLatch.await(3 * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
 
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (!secondLatch.await(3 * count, TimeUnit.SECONDS)) {
+        if (secondLatch.await(3 * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
         engine.stop();
@@ -138,7 +139,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
                 scheduledTime.getMinute()).build()));
         advanceClockIfNeeded(scheduledTime);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
     }
@@ -175,7 +176,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
                 scheduledTime.getMinute()).build()));
         advanceClockIfNeeded(scheduledTime);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
     }
@@ -220,7 +221,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
                 .build()));
         advanceClockIfNeeded(scheduledTime);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
     }
@@ -250,12 +251,12 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
 
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (!firstLatch.await(3, TimeUnit.SECONDS)) {
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
 
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (!secondLatch.await(3, TimeUnit.SECONDS)) {
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
 

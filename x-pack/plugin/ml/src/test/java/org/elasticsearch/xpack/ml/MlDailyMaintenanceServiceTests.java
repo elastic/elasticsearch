@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -210,7 +211,7 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
             .when(client).execute(same(GetJobsAction.INSTANCE), any(), any());
         doAnswer(withResponse(new ListTasksResponse(Collections.emptyList(), Collections.emptyList(), Collections.emptyList())))
             .when(client).execute(same(ListTasksAction.INSTANCE), any(), any());
-        doAnswer(withResponse(new AcknowledgedResponse(deleted)))
+        doAnswer(withResponse(AcknowledgedResponse.of(deleted)))
             .when(client).execute(same(DeleteJobAction.INSTANCE), any(), any());
 
         CountDownLatch latch = new CountDownLatch(2);
@@ -230,8 +231,16 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
 
     private MlDailyMaintenanceService createService(CountDownLatch latch, Client client) {
         return new MlDailyMaintenanceService(Settings.EMPTY, threadPool, client, clusterService, mlAssignmentNotifier, () -> {
-                latch.countDown();
-                return TimeValue.timeValueMillis(100);
+                // We need to be careful that an unexpected iteration doesn't get squeezed in by the maintenance threadpool in
+                // between the latch getting counted down to zero and the main test thread stopping the maintenance service.
+                // This could happen if the main test thread happens to be waiting for a CPU for the whole 100ms after the
+                // latch counts down to zero.
+                if (latch.getCount() > 0) {
+                    latch.countDown();
+                    return TimeValue.timeValueMillis(100);
+                } else {
+                    return TimeValue.timeValueHours(1);
+                }
             });
     }
 

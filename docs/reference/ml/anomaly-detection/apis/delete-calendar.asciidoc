@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-delete-calendar]]
-= Delete calendar API
+= Delete calendars API
 ++++
-<titleabbrev>Delete calendar</titleabbrev>
+<titleabbrev>Delete calendars</titleabbrev>
 ++++
 
 Deletes a calendar.

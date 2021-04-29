@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate;
 
@@ -57,9 +58,9 @@ public abstract class Predicates {
      *  /   \   /   \
      * A     B C     D
      * </pre>
-     * 
+     *
      * using the given combiner.
-     * 
+     *
      * While a bit longer, this method creates a balanced tree as oppose to a plain
      * recursive approach which creates an unbalanced one (either to the left or right).
      */
@@ -75,9 +76,11 @@ public abstract class Predicates {
             // combine (in place) expressions in pairs
             // NB: this loop modifies the list (just like an array)
             for (int i = 0; i < result.size() - 1; i++) {
-                Expression l = result.remove(i);
-                Expression r = result.remove(i);
-                result.add(i, combiner.apply(l, r));
+                // keep the current element to update it in place
+                Expression l = result.get(i);
+                // remove the next element due to combining
+                Expression r = result.remove(i + 1);
+                result.set(i, combiner.apply(l, r));
             }
         }
 

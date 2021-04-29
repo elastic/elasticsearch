@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.condition;
 
@@ -31,7 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherMockScriptPlugin;
 import org.junit.Before;
 
@@ -69,7 +69,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         scripts.put("null.foo", s -> {
             throw new ScriptException("Error evaluating null.foo", new IllegalArgumentException(), emptyList(),
-                    "null.foo", AbstractWatcherIntegrationTestCase.WATCHER_LANG);
+                    "null.foo", Script.DEFAULT_SCRIPT_LANG);
         });
 
         scripts.put("ctx.payload.hits.total.value > 1", vars -> {

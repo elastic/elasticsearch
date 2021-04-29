@@ -1,24 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.useragent;
 
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -48,16 +38,22 @@ public class UserAgentProcessor extends AbstractProcessor {
     private final String targetField;
     private final Set<Property> properties;
     private final UserAgentParser parser;
+    private final boolean extractDeviceType;
     private final boolean ignoreMissing;
 
     public UserAgentProcessor(String tag, String description, String field, String targetField, UserAgentParser parser,
-                              Set<Property> properties, boolean ignoreMissing) {
+                              Set<Property> properties, boolean extractDeviceType, boolean ignoreMissing) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.parser = parser;
         this.properties = properties;
+        this.extractDeviceType = extractDeviceType;
         this.ignoreMissing = ignoreMissing;
+    }
+
+    boolean isExtractDeviceType() {
+        return extractDeviceType;
     }
 
     boolean isIgnoreMissing() {
@@ -74,7 +70,7 @@ public class UserAgentProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot parse user-agent.");
         }
 
-        Details uaClient = parser.parse(userAgent);
+        Details uaClient = parser.parse(userAgent, extractDeviceType);
 
         Map<String, Object> uaDetails = new HashMap<>();
 
@@ -135,8 +131,18 @@ public class UserAgentProcessor extends AbstractProcessor {
                     Map<String, String> deviceDetails = new HashMap<>(1);
                     if (uaClient.device != null && uaClient.device.name != null) {
                         deviceDetails.put("name", uaClient.device.name);
+                        if (extractDeviceType) {
+                            deviceDetails.put("type", uaClient.deviceType);
+                        }
                     } else {
                         deviceDetails.put("name", "Other");
+                        if (extractDeviceType) {
+                            if (uaClient.deviceType != null) {
+                                deviceDetails.put("type", uaClient.deviceType);
+                            } else {
+                                deviceDetails.put("type", "Other");
+                            }
+                        }
                     }
                     uaDetails.put("device", deviceDetails);
                     break;
@@ -183,10 +189,11 @@ public class UserAgentProcessor extends AbstractProcessor {
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
+            boolean extractDeviceType = readBooleanProperty(TYPE, processorTag, config, "extract_device_type", false);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             Object ecsValue = config.remove("ecs");
             if (ecsValue != null) {
-                deprecationLogger.deprecate("ingest_useragent_ecs_settings",
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "ingest_useragent_ecs_settings",
                     "setting [ecs] is deprecated as ECS format is the default and only option");
             }
 
@@ -210,7 +217,8 @@ public class UserAgentProcessor extends AbstractProcessor {
                 properties = EnumSet.allOf(Property.class);
             }
 
-            return new UserAgentProcessor(processorTag, description, field, targetField, parser, properties, ignoreMissing);
+            return new
+                UserAgentProcessor(processorTag, description, field, targetField, parser, properties, extractDeviceType, ignoreMissing);
         }
     }
 

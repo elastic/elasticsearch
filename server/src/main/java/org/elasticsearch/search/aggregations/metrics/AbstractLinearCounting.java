@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -35,33 +24,34 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
     private static final int P2 = 25;
 
     public AbstractLinearCounting(int precision) {
-       super(precision);
+        super(precision);
     }
 
     /**
      * Add encoded value to the linear counting. Implementor should only accept the value if it has not been
      * seen before.
      */
-    protected abstract int addEncoded(int encoded);
+    protected abstract int addEncoded(long bucketOrd, int encoded);
 
     /**
      * number of values in the counter.
      */
-    protected abstract int size();
+    protected abstract int size(long bucketOrd);
 
     /**
      * return the current values in the counter.
      */
-    protected abstract HashesIterator values();
+    protected abstract HashesIterator values(long bucketOrd);
 
-    public int collect(long hash) {
+    public int collect(long bucketOrd, long hash) {
         final int k = encodeHash(hash, p);
-        return addEncoded(k);
+        return addEncoded(bucketOrd, k);
     }
 
-    public long cardinality() {
+    @Override
+    public long cardinality(long bucketOrd) {
         final long m = 1 << P2;
-        final long v = m - size();
+        final long v = m - size(bucketOrd);
         return linearCounting(m, v);
     }
 
@@ -92,7 +82,7 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
         /**
          * number of elements in the iterator
          */
-        long size();
+        int size();
 
         /**
          * Moves the iterator to the next element if it exists.

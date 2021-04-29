@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.execution;
 
@@ -161,6 +162,7 @@ public class ExecutionService {
         assert stoppedListener != null;
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
         this.clearExecutions(stoppedListener);
+        historyStore.flush();
         return cancelledTaskCount;
     }
 
@@ -450,12 +452,11 @@ public class ExecutionService {
      * Any existing watchRecord will be overwritten.
      */
     private void forcePutHistory(WatchRecord watchRecord) {
-        String index = HistoryStoreField.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try {
             try (XContentBuilder builder = XContentFactory.jsonBuilder();
                  ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
                 watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
-                IndexRequest request = new IndexRequest(index)
+                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM)
                     .id(watchRecord.id().value())
                     .source(builder)
                     .opType(IndexRequest.OpType.CREATE);
@@ -466,7 +467,7 @@ public class ExecutionService {
                     "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
                 try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
                      ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(WATCHER_ORIGIN)) {
-                    IndexRequest request = new IndexRequest(index)
+                    IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM)
                         .id(watchRecord.id().value())
                         .source(xContentBuilder.value(watchRecord));
                     client.index(request).get(30, TimeUnit.SECONDS);

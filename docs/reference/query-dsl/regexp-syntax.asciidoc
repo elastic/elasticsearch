@@ -1,7 +1,7 @@
 [[regexp-syntax]]
 == Regular expression syntax
 
-A https://en.wikipedia.org/wiki/Regular_expression[regular expression] is a way to
+A {wikipedia}/Regular_expression[regular expression] is a way to
 match patterns in data using placeholder characters, called operators.
 
 {es} supports regular expressions in the following queries:
@@ -44,7 +44,7 @@ backslash or surround it with double quotes. For example:
 === Standard operators
 
 Lucene's regular expression engine does not use the
-https://en.wikipedia.org/wiki/Perl_Compatible_Regular_Expressions[Perl
+{wikipedia}/Perl_Compatible_Regular_Expressions[Perl
 Compatible Regular Expressions (PCRE)] library, but it does support the
 following standard operators.
 

@@ -1,0 +1,41 @@
+{
+  "ccr.follow":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-put-follow.html",
+      "description": "Creates a new follower index configured to follow the referenced leader index."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_ccr/follow",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the follower index"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_active_shards":{
+        "type":"string",
+        "description":"Sets the number of shard copies that must be active before returning. Defaults to 0. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)",
+        "default":"0"
+      }
+    },
+    "body":{
+      "description":"The name of the leader index and other optional ccr related parameters",
+      "required":true
+    }
+  }
+}

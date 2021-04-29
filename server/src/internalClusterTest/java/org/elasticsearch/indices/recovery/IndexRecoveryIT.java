@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.recovery;
@@ -974,11 +963,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final CountDownLatch requestFailed = new CountDownLatch(1);
 
         if (randomBoolean()) {
+            final StubbableTransport.SendRequestBehavior sendRequestBehavior = (connection, requestId, action, request, options) -> {
+                if (recoveryActionToBlock.equals(action) || requestFailed.getCount() == 0) {
+                    requestFailed.countDown();
+                    logger.info("--> preventing {} request by throwing ConnectTransportException", action);
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            };
             // Fail on the sending side
-            blueMockTransportService.addSendBehavior(redTransportService,
-                new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestFailed));
-            redMockTransportService.addSendBehavior(blueTransportService,
-                new RecoveryActionBlocker(dropRequests, recoveryActionToBlock, requestFailed));
+            blueMockTransportService.addSendBehavior(redTransportService, sendRequestBehavior);
+            redMockTransportService.addSendBehavior(blueTransportService, sendRequestBehavior);
         } else {
             // Fail on the receiving side.
             blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
@@ -1011,34 +1006,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         ensureGreen();
         searchResponse = client(redNodeName).prepareSearch(indexName).setPreference("_local").get();
         assertHitCount(searchResponse, numDocs);
-    }
-
-    private class RecoveryActionBlocker implements StubbableTransport.SendRequestBehavior {
-        private final boolean dropRequests;
-        private final String recoveryActionToBlock;
-        private final CountDownLatch requestBlocked;
-
-        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, CountDownLatch requestBlocked) {
-            this.dropRequests = dropRequests;
-            this.recoveryActionToBlock = recoveryActionToBlock;
-            this.requestBlocked = requestBlocked;
-        }
-
-        @Override
-        public void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException {
-            if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
-                requestBlocked.countDown();
-                if (dropRequests) {
-                    logger.info("--> preventing {} request by dropping request", action);
-                    return;
-                } else {
-                    logger.info("--> preventing {} request by throwing ConnectTransportException", action);
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
-                }
-            }
-            connection.sendRequest(requestId, action, request, options);
-        }
     }
 
     /**
@@ -1705,6 +1672,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             assertThat(shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
         }
     }
+
     public void testPeerRecoveryTrimsLocalTranslog() throws Exception {
         internalCluster().startNode();
         List<String> dataNodes = internalCluster().startDataOnlyNodes(2);

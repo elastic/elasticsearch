@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -17,6 +19,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,10 +35,11 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.restoreRe
  * run concurrently to 1 and ensures that we pause the search progress when an {@link AsyncSearchResponse} is built.
  */
 class MutableSearchResponse {
+    private static final TotalHits EMPTY_TOTAL_HITS = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
     private final int totalShards;
     private final int skippedShards;
     private final Clusters clusters;
-    private final AtomicArray<ShardSearchFailure> shardFailures;
+    private final AtomicArray<ShardSearchFailure> queryFailures;
     private final ThreadContext threadContext;
 
     private boolean isPartial;
@@ -74,10 +78,10 @@ class MutableSearchResponse {
         this.totalShards = totalShards;
         this.skippedShards = skippedShards;
         this.clusters = clusters;
-        this.shardFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
+        this.queryFailures = totalShards == -1 ? null : new AtomicArray<>(totalShards-skippedShards);
         this.isPartial = true;
         this.threadContext = threadContext;
-        this.totalHits = new TotalHits(0L, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
+        this.totalHits = EMPTY_TOTAL_HITS;
     }
 
     /**
@@ -110,8 +114,6 @@ class MutableSearchResponse {
             "notified through onListShards";
         assert response.getSkippedShards() == skippedShards : "received number of skipped shards differs from the one " +
             "notified through onListShards";
-        assert response.getFailedShards() == buildShardFailures().length : "number of tracked failures differs from failed shards";
-        // copy the response headers from the current context
         this.responseHeaders = threadContext.getResponseHeaders();
         this.finalResponse = response;
         this.isPartial = false;
@@ -136,11 +138,11 @@ class MutableSearchResponse {
     /**
      * Adds a shard failure concurrently (non-blocking).
      */
-    void addShardFailure(int shardIndex, ShardSearchFailure failure) {
+    void addQueryFailure(int shardIndex, ShardSearchFailure failure) {
         synchronized (this) {
             failIfFrozen();
         }
-        shardFailures.set(shardIndex, failure);
+        queryFailures.set(shardIndex, failure);
     }
 
     private SearchResponse buildResponse(long taskStartTimeNanos, InternalAggregations reducedAggs) {
@@ -148,7 +150,7 @@ class MutableSearchResponse {
             new SearchHits(SearchHits.EMPTY, totalHits, Float.NaN), reducedAggs, null, null, false, false, reducePhase);
         long tookInMillis = TimeValue.timeValueNanos(System.nanoTime() - taskStartTimeNanos).getMillis();
         return new SearchResponse(internal, null, totalShards, successfulShards, skippedShards,
-            tookInMillis, buildShardFailures(), clusters);
+            tookInMillis, buildQueryFailures(), clusters);
     }
 
     /**
@@ -186,6 +188,58 @@ class MutableSearchResponse {
             failure, isPartial, frozen == false, task.getStartTime(), expirationTime);
     }
 
+
+    /**
+     * Creates an {@link AsyncStatusResponse} -- status of an async response.
+     * Response is created based on the current state of the mutable response or based on {@code finalResponse} if it is available.
+     * @param asyncExecutionId – id of async search request
+     * @param startTime – start time of task
+     * @param expirationTime – expiration time of async search request
+     * @return response representing the status of async search
+     */
+    synchronized AsyncStatusResponse toStatusResponse(String asyncExecutionId, long startTime, long expirationTime) {
+        if (finalResponse != null) {
+            return new AsyncStatusResponse(
+                asyncExecutionId,
+                false,
+                false,
+                startTime,
+                expirationTime,
+                finalResponse.getTotalShards(),
+                finalResponse.getSuccessfulShards(),
+                finalResponse.getSkippedShards(),
+                finalResponse.getShardFailures() != null ? finalResponse.getShardFailures().length : 0,
+                finalResponse.status()
+            );
+        }
+        if (failure != null) {
+            return new AsyncStatusResponse(
+                asyncExecutionId,
+                false,
+                true,
+                startTime,
+                expirationTime,
+                totalShards,
+                successfulShards,
+                skippedShards,
+                queryFailures == null ? 0 : queryFailures.nonNullLength(),
+                ExceptionsHelper.status(ExceptionsHelper.unwrapCause(failure))
+            );
+        }
+        return new AsyncStatusResponse(
+            asyncExecutionId,
+            true,
+            true,
+            startTime,
+            expirationTime,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            queryFailures == null ? 0 : queryFailures.nonNullLength(),
+            null  // for a still running search, completion status is null
+        );
+    }
+
     synchronized AsyncSearchResponse toAsyncSearchResponse(AsyncSearchTask task,
                                                            long expirationTime,
                                                            ElasticsearchException reduceException) {
@@ -202,13 +256,13 @@ class MutableSearchResponse {
         }
     }
 
-    private ShardSearchFailure[] buildShardFailures() {
-        if (shardFailures == null) {
+    private ShardSearchFailure[] buildQueryFailures() {
+        if (queryFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
         List<ShardSearchFailure> failures = new ArrayList<>();
-        for (int i = 0; i < shardFailures.length(); i++) {
-            ShardSearchFailure failure = shardFailures.get(i);
+        for (int i = 0; i < queryFailures.length(); i++) {
+            ShardSearchFailure failure = queryFailures.get(i);
             if (failure != null) {
                 failures.add(failure);
             }

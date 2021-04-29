@@ -1,20 +1,23 @@
 [[important-settings]]
-== Important Elasticsearch configuration
+=== Important {es} configuration
 
-While Elasticsearch requires very little configuration, there are a number of
-settings which need to be considered before going into production.
-
-The following settings *must* be considered before going to production:
+{es} requires very little configuration to get started, but there are a number
+of items which *must* be considered before using your cluster in production:
 
 * <<path-settings,Path settings>>
-* <<cluster.name,Cluster name>>
-* <<node.name,Node name>>
-* <<network.host,Network host>>
+* <<cluster-name,Cluster name setting>>
+* <<node-name,Node name setting>>
+* <<network.host,Network host settings>>
 * <<discovery-settings,Discovery settings>>
-* <<heap-size,Heap size>>
-* <<heap-dump-path,Heap dump path>>
-* <<gc-logging,GC logging>>
-* <<es-tmpdir,Temp directory>>
+* <<heap-size-settings,Heap size settings>>
+* <<heap-dump-path,JVM heap dump path setting>>
+* <<gc-logging,GC logging settings>>
+* <<es-tmpdir,Temporary directory settings>>
+* <<error-file-path,JVM fatal error log setting>>
+* <<important-settings-backups,Cluster backups>>
+
+Our {ess-trial}[{ecloud}] service configures these items automatically, making
+your cluster production-ready by default.
 
 include::important-settings/path-settings.asciidoc[]
 
@@ -35,3 +38,5 @@ include::important-settings/gc-logging.asciidoc[]
 include::important-settings/es-tmpdir.asciidoc[]
 
 include::important-settings/error-file.asciidoc[]
+
+include::important-settings/snapshot.asciidoc[]

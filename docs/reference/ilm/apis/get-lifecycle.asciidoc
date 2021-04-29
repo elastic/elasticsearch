@@ -12,6 +12,7 @@ Retrieves a lifecycle policy.
 ==== {api-request-title}
 
 `GET _ilm/policy`
+
 `GET _ilm/policy/<policy_id>`
 
 [[ilm-get-lifecycle-prereqs]]

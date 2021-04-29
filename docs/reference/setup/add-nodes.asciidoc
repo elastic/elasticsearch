@@ -67,9 +67,7 @@ to the voting configuration if it is appropriate to do so.
 
 During master election or when joining an existing formed cluster, a node
 sends a join request to the master in order to be officially added to the
-cluster. You can use the `cluster.join.timeout` setting to configure how long a
-node waits after sending a request to join a cluster. Its default value is `30s`.
-See <<modules-discovery-settings>>.
+cluster.
 
 [discrete]
 [[modules-discovery-removing-nodes]]

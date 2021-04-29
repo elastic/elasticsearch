@@ -9,8 +9,14 @@ Reloads the keystore on nodes in the cluster.
 [[cluster-nodes-reload-secure-settings-api-request]]
 ==== {api-request-title}
 
-`POST _nodes/reload_secure_settings` +
-`POST _nodes/<node_id>/reload_secure_settings`
+`POST /_nodes/reload_secure_settings` +
+`POST /_nodes/<node_id>/reload_secure_settings`
+
+[[cluster-nodes-reload-secure-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-nodes-reload-secure-settings-api-desc]]
 ==== {api-description-title}
@@ -57,11 +63,11 @@ node of the cluster:
 --------------------------------------------------
 POST _nodes/reload_secure_settings
 {
-  "secure_settings_password":"s3cr3t"
+  "secure_settings_password":"keystore-password"
 }
 POST _nodes/nodeId1,nodeId2/reload_secure_settings
 {
-  "secure_settings_password":"s3cr3t"
+  "secure_settings_password":"keystore-password"
 }
 --------------------------------------------------
 // TEST[setup:node]

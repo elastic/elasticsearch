@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots.mockstore;
@@ -33,10 +22,12 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -59,6 +50,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -74,9 +66,10 @@ public class MockRepository extends FsRepository {
 
         @Override
         public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                               ClusterService clusterService, BigArrays bigArrays,
+                                                               RecoverySettings recoverySettings) {
             return Collections.singletonMap("mock", (metadata) ->
-                new MockRepository(metadata, env, namedXContentRegistry, clusterService, recoverySettings));
+                new MockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
         }
 
         @Override
@@ -111,24 +104,43 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDeleteIndexN;
 
-    /** Allows blocking on writing the index-N blob; this is a way to enforce blocking the
-     *  finalization of a snapshot, while permitting other IO operations to proceed unblocked. */
+    /**
+     * Allows blocking on writing the index-N blob and subsequently failing it on unblock.
+     * This is a way to enforce blocking the finalization of a snapshot, while permitting other IO operations to proceed unblocked.
+     */
+    private volatile boolean blockAndFailOnWriteIndexFile;
+
+    /**
+     * Same as {@link #blockAndFailOnWriteIndexFile} but proceeds without error after unblock.
+     */
     private volatile boolean blockOnWriteIndexFile;
 
     /** Allows blocking on writing the snapshot file at the end of snapshot creation to simulate a died master node */
     private volatile boolean blockAndFailOnWriteSnapFile;
+
+    private volatile boolean blockOnWriteShardLevelMeta;
+
+    private volatile boolean blockOnReadIndexMeta;
+
+    private final AtomicBoolean blockOnceOnReadSnapshotInfo = new AtomicBoolean(false);
 
     /**
      * Writes to the blob {@code index.latest} at the repository root will fail with an {@link IOException} if {@code true}.
      */
     private volatile boolean failOnIndexLatest = false;
 
+    /**
+     * Reading blobs will fail with an {@link AssertionError} once the repository has been blocked once.
+     */
+    private volatile boolean failReadsAfterUnblock;
+    private volatile boolean throwReadErrorAfterUnblock = false;
+
     private volatile boolean blocked = false;
 
     public MockRepository(RepositoryMetadata metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
+                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays,
                           RecoverySettings recoverySettings) {
-        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, recoverySettings);
+        super(overrideSettings(metadata, environment), environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         randomControlIOExceptionRate = metadata.settings().getAsDouble("random_control_io_exception_rate", 0.0);
         randomDataFileIOExceptionRate = metadata.settings().getAsDouble("random_data_file_io_exception_rate", 0.0);
         useLuceneCorruptionException = metadata.settings().getAsBoolean("use_lucene_corruption", false);
@@ -180,30 +192,62 @@ public class MockRepository extends FsRepository {
         // Clean blocking flags, so we wouldn't try to block again
         blockOnDataFiles = false;
         blockOnAnyFiles = false;
+        blockAndFailOnWriteIndexFile = false;
         blockOnWriteIndexFile = false;
         blockAndFailOnWriteSnapFile = false;
         blockOnDeleteIndexN = false;
+        blockOnWriteShardLevelMeta = false;
+        blockOnReadIndexMeta = false;
+        blockOnceOnReadSnapshotInfo.set(false);
         this.notifyAll();
     }
 
-    public void blockOnDataFiles(boolean blocked) {
-        blockOnDataFiles = blocked;
+    public void blockOnDataFiles() {
+        blockOnDataFiles = true;
     }
 
-    public void setBlockOnAnyFiles(boolean blocked) {
-        blockOnAnyFiles = blocked;
+    public void setBlockOnAnyFiles() {
+        blockOnAnyFiles = true;
     }
 
-    public void setBlockAndFailOnWriteSnapFiles(boolean blocked) {
-        blockAndFailOnWriteSnapFile = blocked;
+    public void setBlockAndFailOnWriteSnapFiles() {
+        blockAndFailOnWriteSnapFile = true;
     }
 
-    public void setBlockOnWriteIndexFile(boolean blocked) {
-        blockOnWriteIndexFile = blocked;
+    public void setBlockAndFailOnWriteIndexFile() {
+        assert blockOnWriteIndexFile == false : "Either fail or wait after blocking on index-N not both";
+        blockAndFailOnWriteIndexFile = true;
+    }
+
+    public void setBlockOnWriteIndexFile() {
+        assert blockAndFailOnWriteIndexFile == false : "Either fail or wait after blocking on index-N not both";
+        blockOnWriteIndexFile = true;
     }
 
     public void setBlockOnDeleteIndexFile() {
         blockOnDeleteIndexN = true;
+    }
+
+    public void setBlockOnWriteShardLevelMeta() {
+        blockOnWriteShardLevelMeta = true;
+    }
+
+    public void setBlockOnReadIndexMeta() {
+        blockOnReadIndexMeta = true;
+    }
+
+    public void setFailReadsAfterUnblock(boolean failReadsAfterUnblock) {
+        this.failReadsAfterUnblock = failReadsAfterUnblock;
+    }
+
+    /**
+     * Enable blocking a single read of {@link org.elasticsearch.snapshots.SnapshotInfo} in case the repo is already blocked on another
+     * file. This allows testing very specific timing issues where a read of {@code SnapshotInfo} is much slower than another concurrent
+     * repository operation. See {@link #blockExecution()} for the exact mechanics of why we need a secondary block defined here.
+     * TODO: clean this up to not require a second block set
+     */
+    public void setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked() {
+        blockOnceOnReadSnapshotInfo.set(true);
     }
 
     public boolean blocked() {
@@ -218,8 +262,8 @@ public class MockRepository extends FsRepository {
         logger.debug("[{}] Blocking execution", metadata.name());
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnAnyFiles || blockOnWriteIndexFile ||
-                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN) {
+            while (blockOnDataFiles || blockOnAnyFiles || blockAndFailOnWriteIndexFile || blockOnWriteIndexFile ||
+                blockAndFailOnWriteSnapFile || blockOnDeleteIndexN || blockOnWriteShardLevelMeta || blockOnReadIndexMeta) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -228,6 +272,10 @@ public class MockRepository extends FsRepository {
             Thread.currentThread().interrupt();
         }
         logger.debug("[{}] Unblocking execution", metadata.name());
+        if (wasBlocked && failReadsAfterUnblock) {
+            logger.debug("[{}] Next read operations will fail", metadata.name());
+            this.throwReadErrorAfterUnblock = true;
+        }
         return wasBlocked;
     }
 
@@ -255,7 +303,6 @@ public class MockRepository extends FsRepository {
         }
 
         private class MockBlobContainer extends FilterBlobContainer {
-            private MessageDigest digest;
 
             private boolean shouldFail(String blobName, double probability) {
                 if (probability > 0.0) {
@@ -270,7 +317,7 @@ public class MockRepository extends FsRepository {
 
             private int hashCode(String path) {
                 try {
-                    digest = MessageDigest.getInstance("MD5");
+                    MessageDigest digest = MessageDigest.getInstance("MD5");
                     byte[] bytes = digest.digest(path.getBytes("UTF-8"));
                     int i = 0;
                     return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16)
@@ -309,9 +356,13 @@ public class MockRepository extends FsRepository {
                 }
             }
 
-            private void blockExecutionAndMaybeWait(final String blobName) {
+            private void blockExecutionAndMaybeWait(final String blobName) throws IOException {
                 logger.info("[{}] blocking I/O operation for file [{}] at path [{}]", metadata.name(), blobName, path());
-                if (blockExecution() && waitAfterUnblock > 0) {
+                final boolean wasBlocked = blockExecution();
+                if (wasBlocked && lifecycle.stoppedOrClosed()) {
+                    throw new IOException("already closed");
+                }
+                if (wasBlocked && waitAfterUnblock > 0) {
                     try {
                         // Delay operation after unblocking
                         // So, we can start node shutdown while this operation is still running.
@@ -331,6 +382,12 @@ public class MockRepository extends FsRepository {
                 throw new IOException("exception after block");
             }
 
+            private void maybeReadErrorAfterBlock(final String blobName) {
+                if (throwReadErrorAfterUnblock) {
+                    throw new AssertionError("Read operation are not allowed anymore at this point [blob=" + blobName + "]");
+                }
+            }
+
             MockBlobContainer(BlobContainer delegate) {
                 super(delegate);
             }
@@ -342,8 +399,23 @@ public class MockRepository extends FsRepository {
 
             @Override
             public InputStream readBlob(String name) throws IOException {
-                maybeIOExceptionOrBlock(name);
+                if (blockOnReadIndexMeta && name.startsWith(BlobStoreRepository.METADATA_PREFIX) && path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(name);
+                } else if (path().equals(basePath()) && name.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                        && blockOnceOnReadSnapshotInfo.compareAndSet(true, false)) {
+                    blockExecutionAndMaybeWait(name);
+                } else {
+                    maybeReadErrorAfterBlock(name);
+                    maybeIOExceptionOrBlock(name);
+                }
                 return super.readBlob(name);
+            }
+
+            @Override
+            public InputStream readBlob(String name, long position, long length) throws IOException {
+                maybeReadErrorAfterBlock(name);
+                maybeIOExceptionOrBlock(name);
+                return super.readBlob(name, position, length);
             }
 
             @Override
@@ -399,6 +471,10 @@ public class MockRepository extends FsRepository {
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
                 maybeIOExceptionOrBlock(blobName);
+                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                        && path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(blobName);
+                }
                 super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
@@ -408,19 +484,23 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
+            public void writeBlobAtomic(final String blobName, final BytesReference bytes,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
                 if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
                     throw new IOException("Random IOException");
                 }
-                if (blobName.startsWith("index-") && blockOnWriteIndexFile) {
-                    blockExecutionAndFail(blobName);
+                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
+                    if (blockAndFailOnWriteIndexFile) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blockOnWriteIndexFile) {
+                        blockExecutionAndMaybeWait(blobName);
+                    }
                 }
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
+                    super.writeBlob(tempBlobName, bytes, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
                     fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
@@ -428,7 +508,7 @@ public class MockRepository extends FsRepository {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+                    super.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
                 }
             }
         }

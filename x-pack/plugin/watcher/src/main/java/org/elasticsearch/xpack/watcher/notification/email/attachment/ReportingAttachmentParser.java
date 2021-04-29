@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
@@ -255,8 +256,8 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         HttpResponse response = httpClient.execute(request);
         if (response.status() != 200) {
             throw new ElasticsearchException("Watch[{}] reporting[{}] Error response when trying to trigger reporting generation " +
-                    "host[{}], port[{}] method[{}], path[{}], status[{}]", watchId, attachmentId, request.host(),
-                    request.port(), request.method(), request.path(), response.status());
+                    "host[{}], port[{}] method[{}], path[{}], response[{}]", watchId, attachmentId, request.host(),
+                    request.port(), request.method(), request.path(), response);
         }
 
         return response;

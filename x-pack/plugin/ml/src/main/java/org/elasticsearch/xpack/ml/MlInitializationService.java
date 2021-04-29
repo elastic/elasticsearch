@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml;
 
@@ -96,12 +97,7 @@ class MlInitializationService implements ClusterStateListener {
         // index if there is a flurry of cluster state updates in quick succession
         if (this.isMaster && isIndexCreationInProgress.compareAndSet(false, true)) {
             AnnotationIndex.createAnnotationsIndexIfNecessary(client, event.state(), ActionListener.wrap(
-                r -> {
-                    isIndexCreationInProgress.set(false);
-                    if (r) {
-                        logger.info("Created ML annotations index and aliases");
-                    }
-                },
+                r -> isIndexCreationInProgress.set(false),
                 e -> {
                     isIndexCreationInProgress.set(false);
                     logger.error("Error creating ML annotations index or aliases", e);

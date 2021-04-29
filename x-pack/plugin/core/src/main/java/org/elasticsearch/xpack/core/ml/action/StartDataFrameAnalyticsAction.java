@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -9,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,11 +26,8 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -60,7 +57,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             Request request = PARSER.apply(parser, null);
             if (request.getId() == null) {
                 request.setId(id);
-            } else if (!Strings.isNullOrEmpty(id) && !id.equals(request.getId())) {
+            } else if (Strings.isNullOrEmpty(id) == false && id.equals(request.getId()) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, DataFrameAnalyticsConfig.ID,
                     request.getId(), id));
             }
@@ -145,18 +142,15 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
     public static class TaskParams implements PersistentTaskParams {
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
+        public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
 
-        private static final ParseField PROGRESS_ON_START = new ParseField("progress_on_start");
-
-        @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<TaskParams, Void> PARSER = new ConstructingObjectParser<>(
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, true,
-            a -> new TaskParams((String) a[0], (String) a[1], (List<PhaseProgress>) a[2], (Boolean) a[3]));
+            a -> new TaskParams((String) a[0], (String) a[1], (Boolean) a[2]));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.ID);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), DataFrameAnalyticsConfig.VERSION);
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), PhaseProgress.PARSER, PROGRESS_ON_START);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DataFrameAnalyticsConfig.ALLOW_LAZY_START);
         }
 
@@ -166,34 +160,30 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
 
         private final String id;
         private final Version version;
-        private final List<PhaseProgress> progressOnStart;
         private final boolean allowLazyStart;
 
-        public TaskParams(String id, Version version, List<PhaseProgress> progressOnStart, boolean allowLazyStart) {
+        public TaskParams(String id, Version version, boolean allowLazyStart) {
             this.id = Objects.requireNonNull(id);
             this.version = Objects.requireNonNull(version);
-            this.progressOnStart = Collections.unmodifiableList(progressOnStart);
             this.allowLazyStart = allowLazyStart;
         }
 
-        private TaskParams(String id, String version, @Nullable List<PhaseProgress> progressOnStart, Boolean allowLazyStart) {
-            this(id, Version.fromString(version), progressOnStart == null ? Collections.emptyList() : progressOnStart,
-                allowLazyStart != null && allowLazyStart);
+        private TaskParams(String id, String version, Boolean allowLazyStart) {
+            this(id, Version.fromString(version), allowLazyStart != null && allowLazyStart);
         }
 
         public TaskParams(StreamInput in) throws IOException {
             this.id = in.readString();
             this.version = Version.readVersion(in);
-            progressOnStart = in.readList(PhaseProgress::new);
-            allowLazyStart = in.readBoolean();
+            this.allowLazyStart = in.readBoolean();
         }
 
         public String getId() {
             return id;
         }
 
-        public List<PhaseProgress> getProgressOnStart() {
-            return progressOnStart;
+        public Version getVersion() {
+            return version;
         }
 
         public boolean isAllowLazyStart() {
@@ -214,7 +204,6 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
             Version.writeVersion(version, out);
-            out.writeList(progressOnStart);
             out.writeBoolean(allowLazyStart);
         }
 
@@ -223,7 +212,6 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             builder.startObject();
             builder.field(DataFrameAnalyticsConfig.ID.getPreferredName(), id);
             builder.field(DataFrameAnalyticsConfig.VERSION.getPreferredName(), version);
-            builder.field(PROGRESS_ON_START.getPreferredName(), progressOnStart);
             builder.field(DataFrameAnalyticsConfig.ALLOW_LAZY_START.getPreferredName(), allowLazyStart);
             builder.endObject();
             return builder;
@@ -231,7 +219,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, version, progressOnStart, allowLazyStart);
+            return Objects.hash(id, version, allowLazyStart);
         }
 
         @Override
@@ -242,7 +230,6 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             TaskParams other = (TaskParams) o;
             return Objects.equals(id, other.id)
                 && Objects.equals(version, other.version)
-                && Objects.equals(progressOnStart, other.progressOnStart)
                 && Objects.equals(allowLazyStart, other.allowLazyStart);
         }
     }

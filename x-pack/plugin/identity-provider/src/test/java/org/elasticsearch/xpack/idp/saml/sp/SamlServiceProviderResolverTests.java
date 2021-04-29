@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.sp;
@@ -94,8 +95,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
     }
 
     public void testResolveReturnsCachedObject() throws Exception {
-        final SamlServiceProviderDocument document1 = SamlServiceProviderIndexTests.randomDocument(1);
-        final SamlServiceProviderDocument document2 = SamlServiceProviderIndexTests.randomDocument(2);
+        final SamlServiceProviderDocument document1 = SamlServiceProviderTestUtils.randomDocument(1);
+        final SamlServiceProviderDocument document2 = SamlServiceProviderTestUtils.randomDocument(2);
         document2.entityId = document1.entityId;
 
         final DocumentVersion docVersion = new DocumentVersion(randomAlphaOfLength(12), 1, 1);
@@ -110,8 +111,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
     }
 
     public void testResolveIgnoresCacheWhenDocumentVersionChanges() throws Exception {
-        final SamlServiceProviderDocument document1 = SamlServiceProviderIndexTests.randomDocument(1);
-        final SamlServiceProviderDocument document2 = SamlServiceProviderIndexTests.randomDocument(2);
+        final SamlServiceProviderDocument document1 = SamlServiceProviderTestUtils.randomDocument(1);
+        final SamlServiceProviderDocument document2 = SamlServiceProviderTestUtils.randomDocument(2);
         document2.entityId = document1.entityId;
 
         final DocumentVersion docVersion1 = new DocumentVersion(randomAlphaOfLength(12), 1, 1);

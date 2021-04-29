@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -17,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -52,19 +51,10 @@ public class TransportGetDatafeedsStatsAction extends TransportMasterNodeReadAct
                                             IndexNameExpressionResolver indexNameExpressionResolver,
                                             DatafeedConfigProvider datafeedConfigProvider, JobResultsProvider jobResultsProvider) {
         super(GetDatafeedsStatsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetDatafeedsStatsAction.Request::new, indexNameExpressionResolver);
+                GetDatafeedsStatsAction.Request::new, indexNameExpressionResolver, GetDatafeedsStatsAction.Response::new,
+                ThreadPool.Names.SAME);
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.jobResultsProvider = jobResultsProvider;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetDatafeedsStatsAction.Response read(StreamInput in) throws IOException {
-        return new GetDatafeedsStatsAction.Response(in);
     }
 
     @Override

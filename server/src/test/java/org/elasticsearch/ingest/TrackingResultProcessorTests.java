@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest;
@@ -510,6 +499,43 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(resultList.get(4).getIngestDocument(), equalTo(expectedResult.getIngestDocument()));
         assertThat(resultList.get(4).getFailure(), nullValue());
         assertThat(resultList.get(4).getProcessorTag(), nullValue());
+    }
+
+    public void testActualPipelineProcessorWithUnhandledFailure() throws Exception {
+        String pipelineId = "pipeline1";
+        IngestService ingestService = createIngestService();
+        Map<String, Object> pipelineConfig = new HashMap<>();
+        pipelineConfig.put("name", pipelineId);
+        PipelineProcessor.Factory factory = new PipelineProcessor.Factory(ingestService);
+
+        String key1 = randomAlphaOfLength(10);
+        IllegalStateException exception = new IllegalStateException("Not a pipeline cycle error");
+
+        Pipeline pipeline = new Pipeline(
+            pipelineId, null, null, new CompoundProcessor(
+            new TestProcessor(ingestDocument -> ingestDocument.setFieldValue(key1, randomInt())),
+            new TestProcessor(ingestDocument -> { throw exception; }))
+        );
+        when(ingestService.getPipeline(pipelineId)).thenReturn(pipeline);
+
+        PipelineProcessor pipelineProcessor = factory.create(Collections.emptyMap(), null, null, pipelineConfig);
+        CompoundProcessor actualProcessor = new CompoundProcessor(pipelineProcessor);
+
+        CompoundProcessor trackingProcessor = decorate(actualProcessor, null, resultList);
+
+        trackingProcessor.execute(ingestDocument, (result, e) -> {});
+
+        SimulateProcessorResult expectedResult = new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+            actualProcessor.getDescription(), ingestDocument, null);
+        expectedResult.getIngestDocument().getIngestMetadata().put("pipeline", pipelineId);
+
+        verify(ingestService, Mockito.atLeast(1)).getPipeline(pipelineId);
+
+        assertThat(resultList.size(), equalTo(3));
+        assertNull(resultList.get(0).getConditionalWithResult());
+        assertThat(resultList.get(0).getType(), equalTo("pipeline"));
+        assertTrue(resultList.get(1).getIngestDocument().hasField(key1));
+        assertThat(resultList.get(2).getFailure(), equalTo(exception));
     }
 
     public void testActualPipelineProcessorWithCycle() throws Exception {

@@ -35,6 +35,12 @@ DELETE /_ingest/pipeline/my-pipeline-id
 
 `DELETE /_ingest/pipeline/<pipeline>`
 
+[[delete-pipeline-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[delete-pipeline-api-path-params]]
 ==== {api-path-parms-title}

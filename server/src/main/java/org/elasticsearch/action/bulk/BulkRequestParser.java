@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -37,7 +26,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -64,12 +52,14 @@ public final class BulkRequestParser {
     private static final ParseField IF_SEQ_NO = new ParseField("if_seq_no");
     private static final ParseField IF_PRIMARY_TERM = new ParseField("if_primary_term");
     private static final ParseField REQUIRE_ALIAS = new ParseField(DocWriteRequest.REQUIRE_ALIAS);
+    private static final ParseField DYNAMIC_TEMPLATES = new ParseField("dynamic_templates");
 
     // TODO: Remove this parameter once the BulkMonitoring endpoint has been removed
     private final boolean errorOnType;
 
     /**
      * Create a new parser.
+     *
      * @param errorOnType whether to allow _type information in the index line; used by BulkMonitoring
      */
     public BulkRequestParser(boolean errorOnType) {
@@ -93,7 +83,7 @@ public final class BulkRequestParser {
      * if it is a carriage return and if so, the BytesReference is sliced so that the carriage return is ignored
      */
     private static BytesReference sliceTrimmingCarriageReturn(BytesReference bytesReference, int from, int nextMarker,
-            XContentType xContentType) {
+                                                              XContentType xContentType) {
         final int length;
         if (XContentType.JSON == xContentType && bytesReference.get(nextMarker - 1) == (byte) '\r') {
             length = nextMarker - from - 1;
@@ -132,10 +122,7 @@ public final class BulkRequestParser {
             line++;
 
             // now parse the action
-            // EMPTY is safe here because we never call namedObject
-            try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                    XContentParser parser = xContent
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (XContentParser parser = createParser(data, xContent, from, nextMarker)) {
                 // move pointers
                 from = nextMarker + 1;
 
@@ -169,6 +156,7 @@ public final class BulkRequestParser {
                 int retryOnConflict = 0;
                 String pipeline = defaultPipeline;
                 boolean requireAlias = defaultRequireAlias != null && defaultRequireAlias;
+                Map<String, String> dynamicTemplates = Map.of();
 
                 // at this stage, next token can either be END_OBJECT (and use default index and type, with auto generated id)
                 // or START_OBJECT which will have another set of parameters
@@ -180,15 +168,15 @@ public final class BulkRequestParser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (INDEX.match(currentFieldName, parser.getDeprecationHandler())){
-                                if (!allowExplicitIndex) {
+                            if (INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
+                                if (allowExplicitIndex == false) {
                                     throw new IllegalArgumentException("explicit index in bulk is not allowed");
                                 }
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (errorOnType) {
                                     throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter ["
-                                        + currentFieldName + "]");
+                                            + currentFieldName + "]");
                                 }
                                 type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -219,7 +207,10 @@ public final class BulkRequestParser {
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line +
-                                    "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
+                                "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
+                        } else if (token == XContentParser.Token.START_OBJECT &&
+                            DYNAMIC_TEMPLATES.match(currentFieldName, parser.getDeprecationHandler())) {
+                            dynamicTemplates = parser.mapStrings();
                         } else if (token == XContentParser.Token.START_OBJECT && SOURCE.match(currentFieldName,
                                 parser.getDeprecationHandler())) {
                             fetchSourceContext = FetchSourceContext.fromXContent(parser);
@@ -234,6 +225,10 @@ public final class BulkRequestParser {
                 }
 
                 if ("delete".equals(action)) {
+                    if (dynamicTemplates.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            "Delete request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName());
+                    }
                     deleteRequestConsumer.accept(new DeleteRequest(index).id(id).routing(routing)
                             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
                 } else {
@@ -250,7 +245,8 @@ public final class BulkRequestParser {
                             indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
                                     .version(version).versionType(versionType)
                                     .setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
-                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker,xContentType), xContentType)
+                                    .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                    .setDynamicTemplates(dynamicTemplates)
                                     .setRequireAlias(requireAlias), type);
                         } else {
                             indexRequestConsumer.accept(new IndexRequest(index).id(id).routing(routing)
@@ -265,21 +261,25 @@ public final class BulkRequestParser {
                                 .version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .source(sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContentType)
+                                .setDynamicTemplates(dynamicTemplates)
                                 .setRequireAlias(requireAlias), type);
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException("Update requests do not support versioning. " +
                                     "Please use `if_seq_no` and `if_primary_term` instead");
                         }
+                        // TODO: support dynamic_templates in update requests
+                        if (dynamicTemplates.isEmpty() == false) {
+                            throw new IllegalArgumentException(
+                                "Update request in line [" + line + "] does not accept " + DYNAMIC_TEMPLATES.getPreferredName());
+                        }
                         UpdateRequest updateRequest = new UpdateRequest().index(index).id(id).routing(routing)
                                 .retryOnConflict(retryOnConflict)
                                 .setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm)
                                 .setRequireAlias(requireAlias)
                                 .routing(routing);
-                        // EMPTY is safe here because we never call namedObject
-                        try (InputStream dataStream = sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType).streamInput();
-                                XContentParser sliceParser = xContent.createParser(NamedXContentRegistry.EMPTY,
-                                        LoggingDeprecationHandler.INSTANCE, dataStream)) {
+                        try (XContentParser sliceParser = createParser(
+                                sliceTrimmingCarriageReturn(data, from, nextMarker, xContentType), xContent)) {
                             updateRequest.fromXContent(sliceParser);
                         }
                         if (fetchSourceContext != null) {
@@ -299,4 +299,36 @@ public final class BulkRequestParser {
         }
     }
 
+    private static XContentParser createParser(BytesReference data, XContent xContent) throws IOException {
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, 0, data.length());
+        } else {
+            return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, data.streamInput());
+        }
+    }
+
+    // Create an efficient parser of the given bytes, trying to directly parse a byte array if possible and falling back to stream wrapping
+    // otherwise.
+    private static XContentParser createParser(BytesReference data, XContent xContent, int from, int nextMarker) throws IOException {
+        if (data.hasArray()) {
+            return parseBytesArray(xContent, data, from, nextMarker);
+        } else {
+            final int length = nextMarker - from;
+            final BytesReference slice = data.slice(from, length);
+            if (slice.hasArray()) {
+                return parseBytesArray(xContent, slice, 0, length);
+            } else {
+                // EMPTY is safe here because we never call namedObject
+                return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, slice.streamInput());
+            }
+        }
+    }
+
+    private static XContentParser parseBytesArray(XContent xContent, BytesReference array, int from, int nextMarker) throws IOException {
+        assert array.hasArray();
+        final int offset = array.arrayOffset();
+        // EMPTY is safe here because we never call namedObject
+        return xContent.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, array.array(),
+                offset + from, nextMarker - from);
+    }
 }

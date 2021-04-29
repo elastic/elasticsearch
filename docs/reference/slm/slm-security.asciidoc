@@ -1,7 +1,7 @@
 [[slm-and-security]]
 === Security and {slm-init}
 
-Two built-in cluster privileges control access to the {slm-init} actions when
+The following cluster privileges control access to the {slm-init} actions when
 {es} {security-features} are enabled:
 
 `manage_slm`:: Allows a user to perform all {slm-init} actions, including creating and updating policies

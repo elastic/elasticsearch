@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.transport;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -215,7 +216,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final User user = new User("test", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
+        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
                 mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
@@ -282,7 +283,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final User user = new User("joe", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
+        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
                 mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
@@ -323,7 +324,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         final User user = new User("joe", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
         authentication.writeToContext(threadContext);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
+        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
                 mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
@@ -368,15 +369,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadContext.putTransient("foo", "different_bar");
             threadContext.putHeader("key", "value2");
             TransportResponseHandler<Empty> handler = new TransportService.ContextRestoreResponseHandler<>(
-                    threadContext.wrapRestorable(storedContext), new TransportResponseHandler<Empty>() {
-
+                    threadContext.wrapRestorable(storedContext), new TransportResponseHandler.Empty() {
                 @Override
-                public Empty read(StreamInput in) {
-                    return Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(Empty response) {
+                public void handleResponse(TransportResponse.Empty response) {
                     assertEquals("bar", threadContext.getTransient("foo"));
                     assertEquals("value", threadContext.getHeader("key"));
                 }
@@ -385,11 +380,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 public void handleException(TransportException exp) {
                     assertEquals("bar", threadContext.getTransient("foo"));
                     assertEquals("value", threadContext.getHeader("key"));
-                }
-
-                @Override
-                public String executor() {
-                    return null;
                 }
             });
 
@@ -407,15 +397,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             threadContext.putTransient("foo", "different_bar");
             threadContext.putHeader("key", "value2");
             handler = new TransportService.ContextRestoreResponseHandler<>(threadContext.newRestorableContext(true),
-                    new TransportResponseHandler<Empty>() {
-
+                    new TransportResponseHandler.Empty() {
                         @Override
-                        public Empty read(StreamInput in) {
-                            return Empty.INSTANCE;
-                        }
-
-                        @Override
-                        public void handleResponse(Empty response) {
+                        public void handleResponse(TransportResponse.Empty response) {
                             assertEquals("different_bar", threadContext.getTransient("foo"));
                             assertEquals("value2", threadContext.getHeader("key"));
                         }
@@ -424,11 +408,6 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                         public void handleException(TransportException exp) {
                             assertEquals("different_bar", threadContext.getTransient("foo"));
                             assertEquals("value2", threadContext.getHeader("key"));
-                        }
-
-                        @Override
-                        public String executor() {
-                            return null;
                         }
                     });
         }

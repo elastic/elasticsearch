@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
@@ -11,6 +12,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -86,6 +88,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
         if (maxPageSearchSize != null) {
             deprecationLogger.deprecate(
+                DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
                 "[max_page_search_size] is deprecated inside pivot please use settings instead"
             );
@@ -110,16 +113,12 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return builder;
     }
 
-    public void toCompositeAggXContent(XContentBuilder builder, boolean forChangeDetection) throws IOException {
+    public void toCompositeAggXContent(XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field(CompositeAggregationBuilder.SOURCES_FIELD_NAME.getPreferredName());
         builder.startArray();
 
         for (Entry<String, SingleGroupSource> groupBy : groups.getGroups().entrySet()) {
-            // some group source do not implement change detection or not makes no sense, skip those
-            if (forChangeDetection && groupBy.getValue().supportsIncrementalBucketUpdate() == false) {
-                continue;
-            }
             builder.startObject();
             builder.startObject(groupBy.getKey());
             builder.field(groupBy.getValue().getType().value(), groupBy.getValue());
@@ -197,9 +196,8 @@ public class PivotConfig implements Writeable, ToXContentObject {
             return Collections.emptyList();
         }
         List<String> usedNames = new ArrayList<>();
-        // TODO this will need to change once we allow multi-bucket aggs + field merging
-        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
-        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames(agg, usedNames));
+        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames("", agg, usedNames));
+        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames("", agg, usedNames));
         usedNames.addAll(groups.getGroups().keySet());
         return aggFieldValidation(usedNames);
     }
@@ -251,13 +249,18 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return validationFailures;
     }
 
-    private static void addAggNames(AggregationBuilder aggregationBuilder, Collection<String> names) {
-        names.add(aggregationBuilder.getName());
-        aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(agg, names));
-        aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(agg, names));
+    private static void addAggNames(String namePrefix, AggregationBuilder aggregationBuilder, Collection<String> names) {
+        if (aggregationBuilder.getSubAggregations().isEmpty() && aggregationBuilder.getPipelineAggregations().isEmpty()) {
+            names.add(namePrefix + aggregationBuilder.getName());
+            return;
+        }
+
+        String newNamePrefix = namePrefix + aggregationBuilder.getName() + ".";
+        aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(newNamePrefix, agg, names));
+        aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(newNamePrefix, agg, names));
     }
 
-    private static void addAggNames(PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
-        names.add(pipelineAggregationBuilder.getName());
+    private static void addAggNames(String namePrefix, PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
+        names.add(namePrefix + pipelineAggregationBuilder.getName());
     }
 }

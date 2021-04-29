@@ -1,6 +1,9 @@
 [role="xpack"]
 [[condition-script]]
-=== Script condition
+=== {watcher} script condition
+++++
+<titleabbrev>Script condition</titleabbrev>
+++++
 
 A watch <<condition,condition>> that evaluates a script. The default scripting
 language is `painless`. You can use any of the scripting languages supported by
@@ -67,7 +70,7 @@ always returns `true`.
 ==== Stored scripts
 
 Stored scripts refer to scripts that were
-<<modules-scripting-stored-scripts,stored>> in Elasticsearch. The following
+<<modules-scripting-using,stored>> in Elasticsearch. The following
 snippet shows how to refer to a script by its `id`:
 
 [source,js]

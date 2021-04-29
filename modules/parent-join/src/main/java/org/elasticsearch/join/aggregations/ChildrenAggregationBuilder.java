@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.join.aggregations;
@@ -26,16 +15,16 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -74,7 +63,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
@@ -100,36 +89,29 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
         return BucketCardinality.ONE;
     }
 
-    protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
-        return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, queryShardContext, parent,
+        return new ChildrenAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
                 subFactoriesBuilder, metadata);
     }
 
     @Override
-    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         ValuesSourceConfig config;
 
-        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(queryShardContext.getMapperService());
-        if (parentJoinFieldMapper == null) {
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null || joiner.childTypeExists(childType) == false) {
             // Unmapped field case
-            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), queryShardContext);
+            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), context);
             return config;
         }
 
-        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
-        if (parentIdFieldMapper == null) {
-            // Unmapped field case
-            config = ValuesSourceConfig.resolveUnmapped(defaultValueSourceType(), queryShardContext);
-            return config;
-        }
-
-        parentFilter = parentIdFieldMapper.getParentFilter();
-        childFilter = parentIdFieldMapper.getChildFilter(childType);
-        MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-        config = ValuesSourceConfig.resolveFieldOnly(fieldType, queryShardContext);
+        parentFilter = joiner.parentFilter(childType);
+        childFilter = joiner.filter(childType);
+        MappedFieldType fieldType = context.getFieldType(joiner.parentJoinField(childType));
+        config = ValuesSourceConfig.resolveFieldOnly(fieldType, context);
         return config;
     }
 
@@ -184,5 +166,10 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<C
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return ValuesSourceRegistry.UNREGISTERED_KEY;
     }
 }

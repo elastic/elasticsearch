@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.annotations;
 
@@ -17,6 +18,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -40,6 +43,15 @@ public class AnnotationIndex {
      */
     public static void createAnnotationsIndexIfNecessary(Client client, ClusterState state, final ActionListener<Boolean> finalListener) {
 
+        final ActionListener<Boolean> checkMappingsListener = ActionListener.wrap(success -> {
+            ElasticsearchMappings.addDocMappingIfMissing(
+                WRITE_ALIAS_NAME,
+                AnnotationIndex::annotationsMapping,
+                client,
+                state,
+                finalListener);
+        }, finalListener::onFailure);
+
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
             final IndicesAliasesRequest request =
                 client.admin().indices().prepareAliases()
@@ -47,13 +59,17 @@ public class AnnotationIndex {
                     .addAliasAction(IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(WRITE_ALIAS_NAME).isHidden(true))
                     .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
-                ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
+                ActionListener.<AcknowledgedResponse>wrap(
+                    r -> checkMappingsListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
                 client.admin().indices()::aliases);
         }, finalListener::onFailure);
 
         // Only create the index or aliases if some other ML index exists - saves clutter if ML is never used.
+        // Also, don't do this if there's a reset in progress or if ML upgrade mode is enabled.
+        MlMetadata mlMetadata = MlMetadata.getMlMetadata(state);
         SortedMap<String, IndexAbstraction> mlLookup = state.getMetadata().getIndicesLookup().tailMap(".ml");
-        if (mlLookup.isEmpty() == false && mlLookup.firstKey().startsWith(".ml")) {
+        if (mlMetadata.isResetMode() == false && mlMetadata.isUpgradeMode() == false &&
+            mlLookup.isEmpty() == false && mlLookup.firstKey().startsWith(".ml")) {
 
             // Create the annotations index if it doesn't exist already.
             if (mlLookup.containsKey(INDEX_NAME) == false) {
@@ -88,6 +104,10 @@ public class AnnotationIndex {
                 createAliasListener.onResponse(true);
                 return;
             }
+
+            // Check the mappings
+            checkMappingsListener.onResponse(false);
+            return;
         }
 
         // Nothing to do, but respond to the listener

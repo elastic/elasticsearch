@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.cluster.state;
@@ -29,6 +18,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -36,10 +27,12 @@ import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -55,18 +48,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(ClusterStateAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
-              ClusterStateRequest::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // very lightweight operation in memory, no need to fork to a thread
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected ClusterStateResponse read(StreamInput in) throws IOException {
-        return new ClusterStateResponse(in);
+              ClusterStateRequest::new, indexNameExpressionResolver, ClusterStateResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override
@@ -82,24 +64,30 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     protected void masterOperation(Task task, final ClusterStateRequest request, final ClusterState state,
                                    final ActionListener<ClusterStateResponse> listener) throws IOException {
 
+        assert task instanceof CancellableTask : task + " not cancellable";
+        final CancellableTask cancellableTask = (CancellableTask) task;
+
         final Predicate<ClusterState> acceptableClusterStatePredicate
             = request.waitForMetadataVersion() == null ? clusterState -> true
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
 
-        final Predicate<ClusterState> acceptableClusterStateOrNotMasterPredicate = request.local()
+        final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
             ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
+            : acceptableClusterStatePredicate.or(clusterState ->
+                cancellableTask.isCancelled() || clusterState.nodes().isLocalNodeElectedMaster() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
-            assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
+            assert acceptableClusterStateOrFailedPredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
                 .waitForNextChange(new ClusterStateObserver.Listener() {
 
                 @Override
                 public void onNewClusterState(ClusterState newState) {
-                    if (acceptableClusterStatePredicate.test(newState)) {
+                    if (cancellableTask.isCancelled()) {
+                        listener.onFailure(new TaskCancelledException("task cancelled"));
+                    } else if (acceptableClusterStatePredicate.test(newState)) {
                         ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                     } else {
                         listener.onFailure(new NotMasterException(
@@ -115,12 +103,16 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     try {
-                        listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                        if (cancellableTask.isCancelled()) {
+                            listener.onFailure(new TaskCancelledException("task cancelled"));
+                        } else {
+                            listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
+                        }
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
                 }
-            }, acceptableClusterStateOrNotMasterPredicate);
+            }, acceptableClusterStateOrFailedPredicate);
         }
     }
 
@@ -161,9 +153,21 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 mdBuilder.version(currentState.metadata().version());
                 String[] indices = indexNameExpressionResolver.concreteIndexNames(currentState, request);
                 for (String filteredIndex : indices) {
-                    IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
-                    if (indexMetadata != null) {
-                        mdBuilder.put(indexMetadata, false);
+                    // If the requested index is part of a data stream then that data stream should also be included:
+                    IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(filteredIndex);
+                    if (indexAbstraction.getParentDataStream() != null) {
+                        DataStream dataStream = indexAbstraction.getParentDataStream().getDataStream();
+                        mdBuilder.put(dataStream);
+                        // Also the IMD of other backing indices need to be included, otherwise the cluster state api
+                        // can't create a valid cluster state instance:
+                        for (Index backingIndex : dataStream.getIndices()) {
+                            mdBuilder.put(currentState.metadata().index(backingIndex), false);
+                        }
+                    } else {
+                        IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
+                        if (indexMetadata != null) {
+                            mdBuilder.put(indexMetadata, false);
+                        }
                     }
                 }
             } else {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.support;
 
@@ -22,7 +23,11 @@ public class RestorableContextClassLoader implements AutoCloseable {
     private ClassLoader restore;
 
     public RestorableContextClassLoader(Class<?> fromClass) throws PrivilegedActionException {
-        this(Thread.currentThread(), fromClass.getClassLoader());
+        this(Thread.currentThread(), getClassLoader(fromClass));
+    }
+
+    private static ClassLoader getClassLoader(Class<?> fromClass) throws PrivilegedActionException {
+        return AccessController.doPrivileged((PrivilegedExceptionAction<ClassLoader>) fromClass::getClassLoader);
     }
 
     public RestorableContextClassLoader(Thread thread, ClassLoader setClassLoader) throws PrivilegedActionException {

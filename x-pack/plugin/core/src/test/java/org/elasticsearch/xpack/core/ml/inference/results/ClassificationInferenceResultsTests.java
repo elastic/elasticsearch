@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
@@ -18,20 +19,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ClassificationInferenceResultsTests extends AbstractWireSerializingTestCase<ClassificationInferenceResults> {
 
     public static ClassificationInferenceResults createRandomResults() {
-        Supplier<FeatureImportance> featureImportanceCtor = randomBoolean() ?
-            FeatureImportanceTests::randomClassification :
-            FeatureImportanceTests::randomRegression;
-
         ClassificationConfig config = ClassificationConfigTests.randomClassificationConfig();
         Double value = randomDouble();
         if (config.getPredictionFieldType() == PredictionFieldType.BOOLEAN) {
@@ -46,7 +43,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                     .limit(randomIntBetween(0, 10))
                     .collect(Collectors.toList()),
             randomBoolean() ? null :
-                Stream.generate(featureImportanceCtor)
+                Stream.generate(ClassificationFeatureImportanceTests::createRandomInstance)
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList()),
             config,
@@ -64,7 +61,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                 1.0,
                 1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
     }
@@ -78,9 +75,20 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             1.0,
             1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("1.0"));
+
+        result = new ClassificationInferenceResults(2.0,
+            null,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            ClassificationConfig.EMPTY_PARAMS,
+            1.0,
+            1.0);
+        writeResult(result, document, "result_field", "test");
+        assertThat(document.getFieldValue("result_field.0.predicted_value", String.class), equalTo("1.0"));
+        assertThat(document.getFieldValue("result_field.1.predicted_value", String.class), equalTo("2.0"));
     }
 
     @SuppressWarnings("unchecked")
@@ -97,7 +105,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             0.7,
             0.7);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         List<?> list = document.getFieldValue("result_field.bar", List.class);
         assertThat(list.size(), equalTo(3));
@@ -111,11 +119,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
     }
 
     public void testWriteResultsWithImportance() {
-        Supplier<FeatureImportance> featureImportanceCtor = randomBoolean() ?
-            FeatureImportanceTests::randomClassification :
-            FeatureImportanceTests::randomRegression;
-
-        List<FeatureImportance> importanceList = Stream.generate(featureImportanceCtor)
+        List<ClassificationFeatureImportance> importanceList = Stream.generate(ClassificationFeatureImportanceTests::createRandomInstance)
             .limit(5)
             .collect(Collectors.toList());
         ClassificationInferenceResults result = new ClassificationInferenceResults(0.0,
@@ -126,7 +130,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             1.0,
             1.0);
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.predicted_value", String.class), equalTo("foo"));
         @SuppressWarnings("unchecked")
@@ -134,14 +138,20 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             "result_field.feature_importance",
             List.class);
         assertThat(writtenImportance, hasSize(3));
-        importanceList.sort((l, r) -> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
+        importanceList.sort((l, r) -> Double.compare(Math.abs(r.getTotalImportance()), Math.abs(l.getTotalImportance())));
         for (int i = 0; i < 3; i++) {
             Map<String, Object> objectMap = writtenImportance.get(i);
-            FeatureImportance importance = importanceList.get(i);
+            ClassificationFeatureImportance importance = importanceList.get(i);
             assertThat(objectMap.get("feature_name"), equalTo(importance.getFeatureName()));
-            assertThat(objectMap.get("importance"), equalTo(importance.getImportance()));
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> classImportances = (List<Map<String, Object>>)objectMap.get("classes");
             if (importance.getClassImportance() != null) {
-                importance.getClassImportance().forEach((k, v) -> assertThat(objectMap.get(k), equalTo(v)));
+                for (int j = 0; j < importance.getClassImportance().size(); j++) {
+                    Map<String, Object> classMap = classImportances.get(j);
+                    ClassificationFeatureImportance.ClassImportance classImportance = importance.getClassImportance().get(j);
+                    assertThat(classMap.get("class_name"), equalTo(classImportance.getClassName()));
+                    assertThat(classMap.get("importance"), equalTo(classImportance.getImportance()));
+                }
             }
         }
     }
@@ -193,7 +203,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         expected = "{\"predicted_value\":\"label1\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);
 
-        FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyMap());
+        ClassificationFeatureImportance fi = new ClassificationFeatureImportance("foo", Collections.emptyList());
         TopClassEntry tp = new TopClassEntry("class", 1.0, 1.0);
         result = new ClassificationInferenceResults(1.0, "label1", Collections.singletonList(tp),
             Collections.singletonList(fi), config,

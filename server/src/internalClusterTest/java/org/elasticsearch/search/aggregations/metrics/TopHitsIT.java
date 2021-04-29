@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -166,6 +155,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .field(SORT_FIELD, i + 1)
                     .field("text", "some text to entertain")
                     .field("field1", 5)
+                    .field("field2", 2.71)
                     .endObject()));
         }
 
@@ -315,7 +305,7 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat((Long) hits.getAt(1).getSortValues()[0], equalTo(higestSortValue - 1));
             assertThat((Long) hits.getAt(2).getSortValues()[0], equalTo(higestSortValue - 2));
 
-            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
+            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
         }
     }
 
@@ -402,7 +392,7 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.getTotalHits().value, equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
 
-            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
+            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
         }
     }
 
@@ -433,7 +423,7 @@ public class TopHitsIT extends ESIntegTestCase {
             assertThat(hits.getTotalHits().value, equalTo(10L));
             assertThat(hits.getHits().length, equalTo(3));
 
-            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(4));
+            assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
             id--;
         }
     }
@@ -597,6 +587,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             .explain(true)
                                             .storedField("text")
                                             .docValueField("field1")
+                                            .fetchField("field2")
                                             .scriptField("script",
                                                 new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                             .fetchSource("text", null)
@@ -639,13 +630,16 @@ public class TopHitsIT extends ESIntegTestCase {
 
             assertThat(hit.getMatchedQueries()[0], equalTo("test"));
 
-            DocumentField field = hit.field("field1");
-            assertThat(field.getValue().toString(), equalTo("5"));
+            DocumentField field1 = hit.field("field1");
+            assertThat(field1.getValue(), equalTo(5L));
+
+            DocumentField field2 = hit.field("field2");
+            assertThat(field2.getValue(), equalTo(2.71f));
 
             assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
 
-            field = hit.field("script");
-            assertThat(field.getValue().toString(), equalTo("5"));
+            field2 = hit.field("script");
+            assertThat(field2.getValue().toString(), equalTo("5"));
 
             assertThat(hit.getSourceAsMap().size(), equalTo(1));
             assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
@@ -1230,7 +1224,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(
-                        topHits("hits").sort(SortBuilders.fieldSort("_type"))
+                        topHits("hits").sort(SortBuilders.fieldSort("_index"))
                     )
                 )
                 .get();
@@ -1252,7 +1246,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 .addAggregation(terms("terms")
                     .field(TERMS_AGGS_FIELD)
                     .subAggregation(
-                        topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_type"))
+                        topHits("hits").sort(SortBuilders.scoreSort()).sort(SortBuilders.fieldSort("_index"))
                     )
                 )
                 .get();

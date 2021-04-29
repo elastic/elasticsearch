@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -485,7 +474,7 @@ public class DefCastTests extends ScriptTestCase {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = Double.valueOf(0); Float b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = new ArrayList(); Float b = d;"));
     }
-    
+
     public void testdefToDoubleImplicit() {
         expectScriptThrows(ClassCastException.class, () -> exec("def d = 'string'; Double b = d;"));
         expectScriptThrows(ClassCastException.class, () -> exec("def d = true; Double b = d;"));
@@ -682,6 +671,19 @@ public class DefCastTests extends ScriptTestCase {
 
     public void testdefToStringExplicit() {
         assertEquals("s", exec("def d = (char)'s'; String b = (String)d; b"));
+    }
+
+    public void testConstFoldingDefCast() {
+        assertFalse((boolean)exec("def chr = 10; return (chr == (char)'x');"));
+        assertFalse((boolean)exec("def chr = 10; return (chr >= (char)'x');"));
+        assertTrue((boolean)exec("def chr = (char)10; return (chr <= (char)'x');"));
+        assertTrue((boolean)exec("def chr = 10; return (chr < (char)'x');"));
+        assertFalse((boolean)exec("def chr = (char)10; return (chr > (char)'x');"));
+        assertFalse((boolean)exec("def chr = 10L; return (chr > (char)'x');"));
+        assertFalse((boolean)exec("def chr = 10F; return (chr > (char)'x');"));
+        assertFalse((boolean)exec("def chr = 10D; return (chr > (char)'x');"));
+        assertFalse((boolean)exec("def chr = (char)10L; return (chr > (byte)10);"));
+        assertFalse((boolean)exec("def chr = (char)10L; return (chr > (double)(byte)(char)10);"));
     }
 
     // TODO: remove this when the transition from Joda to Java datetimes is completed

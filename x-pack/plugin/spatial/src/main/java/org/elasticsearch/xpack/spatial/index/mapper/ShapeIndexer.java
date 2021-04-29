@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.index.mapper;
 
@@ -19,33 +20,24 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
-public class ShapeIndexer implements AbstractShapeGeometryFieldMapper.Indexer<Geometry, Geometry> {
+public class ShapeIndexer  {
     private final String name;
 
     public ShapeIndexer(String name) {
         this.name = name;
     }
 
-    @Override
-    public Geometry prepareForIndexing(Geometry geometry) {
-        return geometry;
-    }
-
-    @Override
-    public Class<Geometry> processedClass() {
-        return Geometry.class;
-    }
-
-    @Override
-    public List<IndexableField> indexShape(ParseContext context, Geometry shape) {
+    public List<IndexableField> indexShape(Geometry shape) {
+        if (shape == null) {
+            return Collections.emptyList();
+        }
         LuceneGeometryVisitor visitor = new LuceneGeometryVisitor(name);
         shape.visit(visitor);
         return visitor.fields;

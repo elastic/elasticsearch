@@ -1,5 +1,8 @@
 [[script-processor]]
-=== Script Processor
+=== Script processor
+++++
+<titleabbrev>Script</titleabbrev>
+++++
 
 Allows inline and stored scripts to be executed within ingest pipelines.
 
@@ -7,7 +10,7 @@ See <<modules-scripting-using, How to use scripts>> to learn more about writing 
 leverages caching of compiled scripts for improved performance. Since the
 script specified within the processor is potentially re-compiled per document, it is important
 to understand how script caching works. To learn more about
-caching see <<modules-scripting-using-caching, Script Caching>>.
+caching see <<scripts-and-search-speed, Script Caching>>.
 
 [[script-options]]
 .Script Options

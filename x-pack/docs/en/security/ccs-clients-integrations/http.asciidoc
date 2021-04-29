@@ -2,7 +2,7 @@
 === HTTP/REST clients and security
 
 The {es} {security-features} work with standard HTTP
-https://en.wikipedia.org/wiki/Basic_access_authentication[basic authentication]
+{wikipedia}/Basic_access_authentication[basic authentication]
 headers to authenticate users. Since Elasticsearch is stateless, this header must
 be sent with every request:
 

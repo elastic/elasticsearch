@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
@@ -267,7 +268,7 @@ public class HttpInputTests extends ESTestCase {
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
         Map<String, String[]> headers = new HashMap<>(1);
-        String contentType = randomFrom("application/json", "application/json; charset=UTF-8", "text/html", "application/yaml",
+        String contentType = randomFrom("application/json", "application/json;charset=utf-8", "text/html", "application/yaml",
                 "application/smile", "application/cbor");
         headers.put("Content-Type", new String[] { contentType });
         String body = "{\"foo\":\"bar\"}";

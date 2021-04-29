@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.parser;
 
@@ -21,6 +22,12 @@ public class LikeEscapingParsingTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
+    private static LikePattern patternOfLike(Expression exp) {
+        assertThat(exp, instanceOf(Like.class));
+        Like l = (Like) exp;
+        return l.pattern();
+    }
+
     private String error(String pattern) {
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> parser.createExpression(format(null, "exp LIKE {}", pattern)));
@@ -36,9 +43,11 @@ public class LikeEscapingParsingTests extends ESTestCase {
         } else {
             exp = parser.createExpression(format(null, "exp LIKE '{}'", pattern));
         }
-        assertThat(exp, instanceOf(Like.class));
-        Like l = (Like) exp;
-        return l.pattern();
+        return patternOfLike(exp);
+    }
+
+    private LikePattern like(String pattern, Character escapeChar) {
+        return patternOfLike(parser.createExpression(format(null, "exp LIKE '{}' ESCAPE '{}'", pattern, escapeChar)));
     }
 
     public void testNoEscaping() {
@@ -55,16 +64,34 @@ public class LikeEscapingParsingTests extends ESTestCase {
 
     public void testEscapingWrongChar() {
         assertThat(error("'|string' ESCAPE '|'"),
-                is("line 1:11: Pattern [|string] is invalid as escape char [|] at position 0 can only escape wildcard chars; found [s]"));
+                is("line 1:11: Pattern [|string] is invalid as escape char [|] at position 0 can only escape "
+                   + "wildcard chars [%_]; found [s]"));
     }
 
-    public void testInvalidChar() {
-        assertThat(error("'%string' ESCAPE '%'"),
-                is("line 1:28: Char [%] cannot be used for escaping"));
+    public void testEscapingTheEscapeCharacter() {
+        assertThat(error("'||string' ESCAPE '|'"),
+            is("line 1:11: Pattern [||string] is invalid as escape char [|] at position 0 can only escape wildcard chars [%_]; found [|]"));
     }
 
-    public void testCannotUseStar() {
-        assertThat(error("'|*string' ESCAPE '|'"),
-                is("line 1:11: Invalid char [*] found in pattern [|*string] at position 1; use [%] or [_] instead"));
+    public void testEscapingWildcards() {
+        assertThat(error("'string' ESCAPE '%'"),
+                is("line 1:27: Char [%] cannot be used for escaping as it's one of the wildcard chars [%_]"));
+        assertThat(error("'string' ESCAPE '_'"),
+            is("line 1:27: Char [_] cannot be used for escaping as it's one of the wildcard chars [%_]"));
     }
+
+    public void testCanUseStarWithoutEscaping() {
+        LikePattern like = like("%string*");
+        assertThat(like.pattern(), is("%string*"));
+        assertThat(like.asJavaRegex(), is("^.*string\\*$"));
+        assertThat(like.asLuceneWildcard(), is("*string\\*"));
+    }
+
+    public void testEscapingWithStar() {
+        LikePattern like = like("*%%*__string", '*');
+        assertThat(like.pattern(), is("*%%*__string"));
+        assertThat(like.asJavaRegex(), is("^%.*_.string$"));
+        assertThat(like.asLuceneWildcard(), is("%*_?string"));
+    }
+
 }

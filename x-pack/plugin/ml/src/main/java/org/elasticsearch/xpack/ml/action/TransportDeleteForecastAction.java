@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -54,11 +55,11 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats.ForecastRequestStatus;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.QueryBuilderHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -96,22 +97,22 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
     protected void doExecute(Task task, DeleteForecastAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         final String jobId = request.getJobId();
 
-        String forecastsExpression = request.getForecastId();
-        final String[] forecastIds = Strings.tokenizeToStringArray(forecastsExpression, ",");
+        final String forecastsExpression = request.getForecastId();
+        final String[] forecastIds = Strings.splitStringByCommaToArray(forecastsExpression);
+
         ActionListener<SearchResponse> forecastStatsHandler = ActionListener.wrap(
             searchResponse -> deleteForecasts(searchResponse, request, listener),
-            e -> listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e)));
+            e -> handleFailure(e, request, listener)
+        );
 
         SearchSourceBuilder source = new SearchSourceBuilder();
 
-        BoolQueryBuilder builder = QueryBuilders.boolQuery();
-        BoolQueryBuilder innerBool = QueryBuilders.boolQuery().must(
-            QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
-        if (Strings.isAllOrWildcard(forecastIds) == false) {
-            innerBool.must(QueryBuilders.termsQuery(Forecast.FORECAST_ID.getPreferredName(), new HashSet<>(Arrays.asList(forecastIds))));
-        }
-
-        source.query(builder.filter(innerBool));
+        BoolQueryBuilder builder = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ForecastRequestStats.RESULT_TYPE_VALUE));
+        QueryBuilderHelper
+            .buildTokenFilterQuery(Forecast.FORECAST_ID.getPreferredName(), forecastIds)
+            .ifPresent(builder::filter);
+        source.query(builder);
 
         SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         searchRequest.source(source);
@@ -143,9 +144,9 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         }
 
         if (forecastsToDelete.isEmpty()) {
-            if (Strings.isAllOrWildcard(new String[]{request.getForecastId()}) &&
+            if (Strings.isAllOrWildcard(request.getForecastId()) &&
                 request.isAllowNoForecasts()) {
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
                 listener.onFailure(
                     new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), jobId)));
@@ -180,9 +181,9 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
                     return;
                 }
                 logger.info("Deleted forecast(s) [{}] from job [{}]", forecastIds, jobId);
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             },
-            listener::onFailure));
+            e -> handleFailure(e, request, listener)));
     }
 
     private static Tuple<RestStatus, Throwable> getStatusAndReason(final BulkByScrollResponse response) {
@@ -238,5 +239,21 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
         request.setQuery(query);
         request.setRefresh(true);
         return request;
+    }
+
+    private static void handleFailure(Exception e,
+                                      DeleteForecastAction.Request request,
+                                      ActionListener<AcknowledgedResponse> listener) {
+        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+            if (request.isAllowNoForecasts() && Strings.isAllOrWildcard(request.getForecastId())) {
+                listener.onResponse(AcknowledgedResponse.of(true));
+            } else {
+                listener.onFailure(new ResourceNotFoundException(
+                    Messages.getMessage(Messages.REST_NO_SUCH_FORECAST, request.getForecastId(), request.getJobId())
+                ));
+            }
+        } else {
+            listener.onFailure(new ElasticsearchException("An error occurred while searching forecasts to delete", e));
+        }
     }
 }

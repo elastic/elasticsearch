@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -24,7 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -36,7 +37,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -78,7 +78,6 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.utils.MlIndicesUtils;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -92,7 +91,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJobAction.Request, AcknowledgedResponse> {
+public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAction<DeleteJobAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportDeleteJobAction.class);
 
@@ -123,7 +122,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                                     JobConfigProvider jobConfigProvider, DatafeedConfigProvider datafeedConfigProvider,
                                     MlMemoryTracker memoryTracker) {
         super(DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                DeleteJobAction.Request::new, indexNameExpressionResolver);
+                DeleteJobAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.auditor = auditor;
@@ -133,16 +132,6 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         this.memoryTracker = memoryTracker;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
         this.listenersByJobId = new HashMap<>();
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -187,7 +176,9 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                 ack -> notifyListeners(request.getJobId(), ack, null),
                 e -> {
                     notifyListeners(request.getJobId(), null, e);
-                    auditor.error(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING_FAILED, e.getMessage()));
+                    if ((ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) == false) {
+                        auditor.error(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING_FAILED, e.getMessage()));
+                    }
                 }
         );
 
@@ -253,9 +244,9 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted");
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
             } else {
-                listener.onResponse(new AcknowledgedResponse(false));
+                listener.onResponse(AcknowledgedResponse.FALSE);
             }
         };
 
@@ -291,12 +282,12 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         ActionListener<BulkByScrollResponse> dbqHandler = ActionListener.wrap(
                 bulkByScrollResponse -> {
                     if (bulkByScrollResponse == null) { // no action was taken by DBQ, assume indices were deleted
-                        completionHandler.onResponse(new AcknowledgedResponse(true));
+                        completionHandler.onResponse(AcknowledgedResponse.TRUE);
                     } else {
                         if (bulkByScrollResponse.isTimedOut()) {
                             logger.warn("[{}] DeleteByQuery for indices [{}] timed out.", jobId, String.join(", ", indexNames.get()));
                         }
-                        if (!bulkByScrollResponse.getBulkFailures().isEmpty()) {
+                        if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
                             logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery on indices [{}].",
                                     jobId, bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts(),
                                     String.join(", ", indexNames.get()));
@@ -530,7 +521,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
                             if (removeRequest == null) {
                                 // don't error if the job's aliases have already been deleted - carry on and delete the
                                 // rest of the job's data
-                                finishedHandler.onResponse(new AcknowledgedResponse(true));
+                                finishedHandler.onResponse(AcknowledgedResponse.TRUE);
                                 return;
                             }
                             executeAsyncWithOrigin(parentTaskClient.threadPool().getThreadContext(), ML_ORIGIN, removeRequest,
@@ -615,18 +606,7 @@ public class TransportDeleteJobAction extends TransportMasterNodeAction<DeleteJo
         if (jobTask == null) {
             listener.onResponse(null);
         } else {
-            persistentTasksService.sendRemoveRequest(jobTask.getId(),
-                    new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
-                        @Override
-                        public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
-                            listener.onResponse(Boolean.TRUE);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+            persistentTasksService.sendRemoveRequest(jobTask.getId(), listener.delegateFailure((l, task) -> l.onResponse(Boolean.TRUE)));
         }
     }
 

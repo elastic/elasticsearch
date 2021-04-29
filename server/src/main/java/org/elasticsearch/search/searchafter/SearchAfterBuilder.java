@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.searchafter;
@@ -40,6 +29,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -91,6 +81,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
             if (values[i] instanceof Double) continue;
             if (values[i] instanceof Float) continue;
             if (values[i] instanceof Boolean) continue;
+            if (values[i] instanceof BigInteger) continue;
             throw new IllegalArgumentException("Can't handle " + SEARCH_AFTER + " field value of type [" + values[i].getClass() + "]");
         }
         sortValues = new Object[values.length];
@@ -181,7 +172,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                     return Double.parseDouble(value.toString());
 
                 case LONG:
-                    if (value instanceof Number) {
+                    // for unsigned_long field type we want to pass search_after value through formatting
+                    if (value instanceof Number && format != DocValueFormat.UNSIGNED_LONG_SHIFTED) {
                         return ((Number) value).longValue();
                     }
                     return format.parseLong(value.toString(), false,
@@ -243,6 +235,10 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
                             values.add(parser.floatValue());
                             break;
 
+                        case BIG_INTEGER:
+                            values.add(parser.text());
+                            break;
+
                         default:
                             throw new IllegalArgumentException("[search_after] does not accept numbers of type ["
                                 + parser.numberType() + "], got " + parser.text());
@@ -269,7 +265,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
     @Override
     public boolean equals(Object other) {
-        if (! (other instanceof SearchAfterBuilder)) {
+        if ((other instanceof SearchAfterBuilder) == false) {
             return false;
         }
         return Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);

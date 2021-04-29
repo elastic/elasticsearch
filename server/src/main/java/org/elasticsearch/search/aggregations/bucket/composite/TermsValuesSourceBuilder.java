@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -27,7 +16,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -49,7 +37,7 @@ import java.util.function.LongUnaryOperator;
 public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<TermsValuesSourceBuilder> {
 
     @FunctionalInterface
-    public interface TermsCompositeSupplier extends ValuesSourceRegistry.CompositeSupplier {
+    public interface TermsCompositeSupplier {
         CompositeValuesSourceConfig apply(
             ValuesSourceConfig config,
             String name,
@@ -95,7 +83,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     }
 
     static void register(ValuesSourceRegistry.Builder builder) {
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
@@ -150,12 +138,12 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
                     }
                 );
-            }
-        );
+            },
+            false);
 
-        builder.registerComposite(
+        builder.register(
             REGISTRY_KEY,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
                 name,
                 valuesSourceConfig.fieldType(),
@@ -171,7 +159,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     LongConsumer addRequestCircuitBreakerBytes,
                     CompositeValuesSourceConfig compositeValuesSourceConfig) -> {
 
-                    if (valuesSourceConfig.hasGlobalOrdinals() && reader instanceof DirectoryReader) {
+                    if (valuesSourceConfig.hasOrdinals() && reader instanceof DirectoryReader) {
                         ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig
                             .valuesSource();
                         return new GlobalOrdinalValuesSource(
@@ -197,19 +185,17 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                         );
                     }
                 }
-            )
-        );
+            ),
+            false);
     }
 
     @Override
     protected ValuesSourceType getDefaultValuesSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
-    protected CompositeValuesSourceConfig innerBuild(QueryShardContext queryShardContext, ValuesSourceConfig config) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
-            .getComposite(REGISTRY_KEY, config)
-            .apply(config, name, script() != null, format(), missingBucket(), order());
+    protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
+        return registry.getAggregator(REGISTRY_KEY, config).apply(config, name, script() != null, format(), missingBucket(), order());
     }
 }

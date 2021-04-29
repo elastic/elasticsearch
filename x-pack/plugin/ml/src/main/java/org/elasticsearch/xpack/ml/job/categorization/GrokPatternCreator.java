@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
@@ -118,10 +119,12 @@ public final class GrokPatternCreator {
                     groupsMatchesFromExamples.get(groupNum - 1).add(matcher.group(groupNum));
                 }
             } else {
-                // We should never get here.  If we do it implies a bug in the original categorization,
-                // as it's produced a regex that doesn't match the examples.
-                assert matcher.matches() : exampleProcessor.pattern() + " did not match " + example;
-                logger.error("[{}] Pattern [{}] did not match example [{}]", jobId, exampleProcessor.pattern(), example);
+                // If we get here it implies the original categorization has produced a
+                // regex that doesn't match one of the examples.  This can happen when
+                // the message was very long, and the example was truncated.  In this
+                // case we will have appended an ellipsis to indicate truncation.
+                assert example.endsWith("...") : exampleProcessor.pattern() + " did not match non-truncated example " + example;
+                logger.warn("[{}] Pattern [{}] did not match example [{}]", jobId, exampleProcessor.pattern(), example);
             }
         }
 
@@ -271,7 +274,7 @@ public final class GrokPatternCreator {
         GrokPatternCandidate(String grokPatternName, String fieldName, String preBreak, String postBreak) {
             this.grokPatternName = grokPatternName;
             this.fieldName = fieldName;
-            this.grok = new Grok(Grok.getBuiltinPatterns(), "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" +
+            this.grok = new Grok(Grok.BUILTIN_PATTERNS, "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" +
                     postBreak + "%{GREEDYDATA:" + EPILOGUE + "}", logger::warn);
         }
     }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.suggest;
 
@@ -141,12 +130,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      * this parsing method assumes that the leading "suggest" field name has already been parsed by the caller
      */
     public static Suggest fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String currentField = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
             Suggestion<? extends Entry<? extends Option>> suggestion = Suggestion.fromXContent(parser);
             if (suggestion != null) {
                 suggestions.add(suggestion);
@@ -238,17 +227,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         public void addTerm(T entry) {
             entries.add(entry);
-        }
-
-        /**
-         * Returns a integer representing the type of the suggestion. This is used for
-         * internal serialization over the network.
-         *
-         * This class is now serialized as a NamedWriteable and this method only remains for backwards compatibility
-         */
-        @Deprecated
-        public int getWriteableType() {
-            return TYPE;
         }
 
         @Override
@@ -378,7 +356,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         @SuppressWarnings("unchecked")
         public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
             SetOnce<Suggestion> suggestion = new SetOnce<>();
             XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestion::set);
             return suggestion.get();
@@ -387,7 +365,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         protected static <E extends Suggestion.Entry<?>> void parseEntries(XContentParser parser, Suggestion<E> suggestion,
                                                                            CheckedFunction<XContentParser, E, IOException> entryParser)
                 throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 suggestion.addTerm(entryParser.apply(parser));
             }
@@ -450,7 +428,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 final Map<O, O> entries = new HashMap<>();
                 Entry<O> leader = toReduce.get(0);
                 for (Entry<O> entry : toReduce) {
-                    if (!leader.text.equals(entry.text)) {
+                    if (leader.text.equals(entry.text) == false) {
                         throw new IllegalStateException("Can't merge suggest entries, this might be caused by suggest calls " +
                                 "across multiple indices with different analysis chains. Suggest entries have different text actual [" +
                                 entry.text + "] expected [" + leader.text +"]");

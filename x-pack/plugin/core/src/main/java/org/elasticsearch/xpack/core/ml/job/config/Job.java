@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
@@ -14,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -96,7 +99,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      * and the <code>normalize</code> process is not instrumented at all.)  But this overhead does NOT
      * include the memory used by loading the executable code.
      */
-    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = new ByteSizeValue(10, ByteSizeUnit.MB);
+    public static final ByteSizeValue PROCESS_MEMORY_OVERHEAD = ByteSizeValue.ofMb(10);
 
     public static final long DEFAULT_MODEL_SNAPSHOT_RETENTION_DAYS = 10;
     public static final long DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS = 1;
@@ -238,10 +241,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
      * @return The id of document the job is persisted in
      */
     public static String documentId(String jobId) {
-        if (!MlStrings.isValidId(jobId)) {
+        if (MlStrings.isValidId(jobId) == false) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), jobId));
         }
-        if (!MlStrings.hasValidLengthForId(jobId)) {
+        if (MlStrings.hasValidLengthForId(jobId) == false) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
         }
 
@@ -256,7 +259,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         String jobId = docId.replaceAll("^" + ANOMALY_DETECTOR_JOB_TYPE +"-", "");
         return jobId.equals(docId) ? null : jobId;
     }
-
 
     /**
      * Return the Job Id.
@@ -513,22 +515,41 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         final String humanReadableSuffix = "_string";
-
         builder.field(ID.getPreferredName(), jobId);
-        builder.field(JOB_TYPE.getPreferredName(), jobType);
-        if (jobVersion != null) {
-            builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+        if (params.paramAsBoolean(EXCLUDE_GENERATED, false) == false) {
+            builder.field(JOB_TYPE.getPreferredName(), jobType);
+            if (jobVersion != null) {
+                builder.field(JOB_VERSION.getPreferredName(), jobVersion);
+            }
+            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
+            if (finishedTime != null) {
+                builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
+                    finishedTime.getTime());
+            }
+            if (modelSnapshotId != null) {
+                builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
+            }
+            if (deleting) {
+                builder.field(DELETING.getPreferredName(), deleting);
+            }
+            if (modelSnapshotMinVersion != null) {
+                builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
+            }
+            if (customSettings != null) {
+                builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
+            }
+        } else {
+            if (customSettings != null) {
+                HashMap<String, Object> newCustomSettings = new HashMap<>(customSettings);
+                newCustomSettings.remove("created_by");
+                builder.field(CUSTOM_SETTINGS.getPreferredName(), newCustomSettings);
+            }
         }
         if (groups.isEmpty() == false) {
             builder.field(GROUPS.getPreferredName(), groups);
         }
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
-        }
-        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
-        if (finishedTime != null) {
-            builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
-                    finishedTime.getTime());
         }
         builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
         if (analysisLimits != null) {
@@ -555,19 +576,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         if (resultsRetentionDays != null) {
             builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
         }
-        if (customSettings != null) {
-            builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
-        }
-        if (modelSnapshotId != null) {
-            builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
-        }
-        if (modelSnapshotMinVersion != null) {
-            builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
-        }
         builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
-        if (deleting) {
-            builder.field(DELETING.getPreferredName(), deleting);
-        }
         builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
         return builder;
     }
@@ -1050,10 +1059,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
             checkValueNotLessThan(0, RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
 
-            if (!MlStrings.isValidId(id)) {
+            if (MlStrings.isValidId(id) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
             }
-            if (!MlStrings.hasValidLengthForId(id)) {
+            if (MlStrings.hasValidLengthForId(id) == false) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MlStrings.ID_LENGTH_LIMIT));
             }
 
@@ -1062,7 +1071,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             validateGroups();
 
             // Results index name not specified in user input means use the default, so is acceptable in this validation
-            if (!Strings.isNullOrEmpty(resultsIndexName) && !MlStrings.isValidId(resultsIndexName)) {
+            if (Strings.isNullOrEmpty(resultsIndexName) == false && MlStrings.isValidId(resultsIndexName) == false) {
                 throw new IllegalArgumentException(
                         Messages.getMessage(Messages.INVALID_ID, RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName));
             }
@@ -1174,7 +1183,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
             if (Strings.isNullOrEmpty(resultsIndexName)) {
                 resultsIndexName = AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT;
-            } else if (!resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT)) {
+            } else if (resultsIndexName.equals(AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT) == false) {
                 // User-defined names are prepended with "custom"
                 // Conditional guards against multiple prepending due to updates instead of first creation
                 resultsIndexName = resultsIndexName.startsWith("custom-")

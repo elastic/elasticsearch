@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
@@ -16,6 +17,7 @@ import java.io.IOException;
 import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.writeResult;
 import static org.hamcrest.Matchers.equalTo;
 
 public class WarningInferenceResultsTests extends AbstractSerializingTestCase<WarningInferenceResults> {
@@ -36,9 +38,15 @@ public class WarningInferenceResultsTests extends AbstractSerializingTestCase<Wa
     public void testWriteResults() {
         WarningInferenceResults result = new WarningInferenceResults("foo");
         IngestDocument document = new IngestDocument(new HashMap<>(), new HashMap<>());
-        result.writeResult(document, "result_field");
+        writeResult(result, document, "result_field", "test");
 
         assertThat(document.getFieldValue("result_field.warning", String.class), equalTo("foo"));
+
+        result = new WarningInferenceResults("bar");
+        writeResult(result, document, "result_field", "test");
+
+        assertThat(document.getFieldValue("result_field.0.warning", String.class), equalTo("foo"));
+        assertThat(document.getFieldValue("result_field.1.warning", String.class), equalTo("bar"));
     }
 
     @Override

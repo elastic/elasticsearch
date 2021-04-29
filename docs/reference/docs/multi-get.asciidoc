@@ -31,6 +31,12 @@ GET /_mget
 
 `GET /<index>/_mget`
 
+[[docs-multi-get-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
 [[docs-multi-get-api-desc]]
 ==== {api-description-title}
 
@@ -97,7 +103,7 @@ Required if no index is specified in the request URI.
 Required if routing is used during indexing.
 
 `_source`::
-(Optional, boolean) If `false`,  excludes all `_source` fields. Defaults to `true`.
+(Optional, Boolean) If `false`,  excludes all `_source` fields. Defaults to `true`.
 `source_include`:::
 (Optional, array) The fields to extract and return from the `_source` field.
 `source_exclude`:::

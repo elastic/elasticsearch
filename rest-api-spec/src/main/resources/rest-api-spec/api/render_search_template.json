@@ -1,8 +1,8 @@
 {
   "render_search_template":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html#_validating_templates",
-      "description":"Allows to use the Mustache language to pre-render a search definition."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/render-search-template-api.html",
+      "description":"Renders a search template as a search request body."
     },
     "stability":"stable",
     "visibility":"public",

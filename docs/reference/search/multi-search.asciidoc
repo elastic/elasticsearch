@@ -168,9 +168,10 @@ respective types in the response.
 The request body contains a newline-delimited list of search `<header>` and
 search `<body>` objects.
 
+// tag::header-params[]
 `<header>`::
 (Required, object)
-Contains parameters used to limit or change the subsequent search body request.
+Parameters used to limit or change the search.
 +
 This object is required for each search body but can be empty (`{}`) or a blank
 line.
@@ -235,6 +236,7 @@ Documents are scored using global term and document frequencies across all
 shards. This is usually slower but more accurate.
 --
 ====
+// end::header-params[]
 
 `<body>`::
 (Optional, object)
@@ -333,76 +335,6 @@ all search requests.
 ==== Security
 
 See <<url-access-control>>
-
-
-[[template-msearch]]
-==== Template support
-
-Much like described in <<search-template>> for the _search resource, _msearch
-also provides support for templates. Submit them like follows for inline
-templates:
-
-[source,console]
------------------------------------------------
-GET _msearch/template
-{"index" : "my-index-000001"}
-{ "source" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
-{"index" : "my-index-000001"}
-{ "source" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
------------------------------------------------
-// TEST[setup:my_index]
-
-
-You can also create search templates:
-
-[source,console]
-------------------------------------------
-POST /_scripts/my_template_1
-{
-  "script": {
-    "lang": "mustache",
-    "source": {
-      "query": {
-        "match": {
-          "message": "{{query_string}}"
-        }
-      }
-    }
-  }
-}
-------------------------------------------
-// TEST[setup:my_index]
-
-
-[source,console]
-------------------------------------------
-POST /_scripts/my_template_2
-{
-  "script": {
-    "lang": "mustache",
-    "source": {
-      "query": {
-        "term": {
-          "{{field}}": "{{value}}"
-        }
-      }
-    }
-  }
-}
-------------------------------------------
-// TEST[continued]
-
-You can use search templates in a _msearch:
-
-[source,console]
------------------------------------------------
-GET _msearch/template
-{"index" : "main"}
-{ "id": "my_template_1", "params": { "query_string": "some message" } }
-{"index" : "main"}
-{ "id": "my_template_2", "params": { "field": "user", "value": "test" } }
------------------------------------------------
-// TEST[continued]
 
 
 [[multi-search-partial-responses]]

@@ -395,6 +395,13 @@ fields from the search API like any other field, and {es} sees runtime fields no
 differently. See {ref}/runtime.html[Runtime fields].
 // end::runtime-fields-def[]
 
+[[glossary-search-template]] search template::
+// tag::searchable-snapshot-def[]
+A stored search you can reuse with different input variables. {es} stores search
+templates as Mustache scripts in the cluster state. See
+{ref}/search-template.html[Search templates].
+// end::searchable-snapshot-def[]
+
 [[glossary-searchable-snapshot]] searchable snapshot::
 // tag::searchable-snapshot-def[]
 <<glossary-snapshot,Snapshot>> of an <<glossary-index,index>> mounted as a

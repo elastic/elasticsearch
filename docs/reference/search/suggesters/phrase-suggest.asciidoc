@@ -206,8 +206,8 @@ The response contains suggestions scored by the most likely spelling correction 
     Checks each suggestion against the specified `query` to prune suggestions
     for which no matching docs exist in the index. The collate query for a
     suggestion is run only on the local shard from which the suggestion has
-    been generated from. The `query` must be specified and it can be templated,
-    see <<search-template,search templates>> for more information.
+    been generated from. The `query` must be specified and it can be templated.
+    See <<search-template>>.
     The current suggestion is automatically made available as the `{{suggestion}}`
     variable, which should be used in your query. You can still specify
     your own template `params` -- the `suggestion` value will be added to the

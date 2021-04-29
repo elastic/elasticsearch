@@ -1015,7 +1015,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"*inner1"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index"},
-                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
+                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             ImmutableOpenMap<String, MappingMetadata> index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1052,7 +1052,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"object*"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index"},
-                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
+                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             ImmutableOpenMap<String, MappingMetadata> index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1088,7 +1088,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"object"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index"},
-                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
+                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             ImmutableOpenMap<String, MappingMetadata> index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
             assertEquals(1, sourceAsMap.size());
@@ -1114,7 +1114,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
             FieldPermissionsDefinition definition = new FieldPermissionsDefinition(new String[]{"nested.inner2"}, Strings.EMPTY_ARRAY);
             FieldPermissions fieldPermissions = new FieldPermissions(definition);
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappings = metadata.findMappings(new String[]{"index"},
-                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo);
+                    new String[]{"doc"}, index -> fieldPermissions::grantsAccessTo, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
             ImmutableOpenMap<String, MappingMetadata> index = mappings.get("index");
             Map<String, Object> sourceAsMap = index.get("doc").getSourceAsMap();
             assertEquals(1, sourceAsMap.size());

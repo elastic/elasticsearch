@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -54,7 +56,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     }
 
     @Override
-    protected void doMasterOperation(final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
+    protected void doMasterOperation(Task task, final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetIndexResponse> listener) {
         ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
@@ -73,7 +75,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     if (doneMappings == false) {
                         try {
                             mappingsResult = state.metadata().findMappings(concreteIndices, request.types(),
-                                    indicesService.getFieldFilter());
+                                    indicesService.getFieldFilter(), Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
                             doneMappings = true;
                         } catch (IOException e) {
                             listener.onFailure(e);

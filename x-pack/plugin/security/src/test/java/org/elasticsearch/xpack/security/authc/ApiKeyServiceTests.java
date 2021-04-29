@@ -95,6 +95,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_METADATA_KEY;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -995,6 +997,32 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
+    public void testGetApiKeyMetadata() throws IOException {
+        final Authentication apiKeyAuthentication = mock(Authentication.class);
+        when(apiKeyAuthentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
+        final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
+        if (apiKeyMetadata == null) {
+            when(apiKeyAuthentication.getMetadata()).thenReturn(Map.of());
+        } else {
+            final BytesReference metadataBytes = XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON);
+            when(apiKeyAuthentication.getMetadata()).thenReturn(Map.of(API_KEY_METADATA_KEY, metadataBytes));
+        }
+
+        final Map<String, Object> restoredApiKeyMetadata = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);
+        if (apiKeyMetadata == null) {
+            assertThat(restoredApiKeyMetadata, anEmptyMap());
+        } else {
+            assertThat(restoredApiKeyMetadata, equalTo(apiKeyMetadata));
+        }
+
+        final Authentication authentication = mock(Authentication.class);
+        when(authentication.getAuthenticationType()).thenReturn(
+            randomValueOtherThan(AuthenticationType.API_KEY, () -> randomFrom(AuthenticationType.values())));
+        final IllegalArgumentException e =
+            expectThrows(IllegalArgumentException.class, () -> ApiKeyService.getApiKeyMetadata(authentication));
+        assertThat(e.getMessage(), containsString("authentication type must be [api_key]"));
+    }
+
     public static class Utils {
 
         private static final AuthenticationContextSerializer authenticationContextSerializer = new AuthenticationContextSerializer();
@@ -1134,11 +1162,11 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     private void checkAuthApiKeyMetadata(Object metadata, AuthenticationResult authResult1) throws IOException {
         if (metadata == null) {
-            assertThat(authResult1.getMetadata().containsKey(ApiKeyService.API_KEY_METADATA_KEY), is(false));
+            assertThat(authResult1.getMetadata().containsKey(API_KEY_METADATA_KEY), is(false));
         } else {
             //noinspection unchecked
             assertThat(
-                authResult1.getMetadata().get(ApiKeyService.API_KEY_METADATA_KEY),
+                authResult1.getMetadata().get(API_KEY_METADATA_KEY),
                 equalTo(XContentTestUtils.convertToXContent((Map<String, Object>) metadata, XContentType.JSON)));
         }
     }

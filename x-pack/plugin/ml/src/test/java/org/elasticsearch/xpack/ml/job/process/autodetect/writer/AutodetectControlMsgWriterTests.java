@@ -159,7 +159,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         StringBuilder spaces = new StringBuilder();
-        IntStream.rangeClosed(1, 8192).forEach(i -> spaces.append(' '));
+        IntStream.rangeClosed(1, 2048).forEach(i -> spaces.append(' '));
         inOrder.verify(lengthEncodedWriter).writeField(spaces.toString());
 
         inOrder.verify(lengthEncodedWriter).flush();

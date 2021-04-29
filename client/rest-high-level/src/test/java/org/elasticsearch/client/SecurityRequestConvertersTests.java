@@ -511,11 +511,11 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         final Request request = SecurityRequestConverters.getServiceAccounts(getServiceAccountsRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         if (namespace == null) {
-            assertEquals("_security/service", request.getEndpoint());
+            assertEquals("/_security/service", request.getEndpoint());
         } else if (serviceName == null) {
-            assertEquals("_security/service/" + namespace, request.getEndpoint());
+            assertEquals("/_security/service/" + namespace, request.getEndpoint());
         } else {
-            assertEquals("_security/service/" + namespace + "/" + serviceName, request.getEndpoint());
+            assertEquals("/_security/service/" + namespace + "/" + serviceName, request.getEndpoint());
         }
     }
 

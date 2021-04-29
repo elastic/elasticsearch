@@ -79,7 +79,7 @@ public class FsRepositoryTests extends ESTestCase {
             Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put("location", repo)
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES).build();

@@ -288,9 +288,9 @@ By default, {es} automatically sizes JVM heap based on a nodes's
 recommend this default sizing for most production environments. If needed, you
 can override default sizing by manually setting JVM heap size.
 
-To manually set the heap size in production, bind mount a <<jvm-options,JVM
+To manually set the heap size in production, bind mount a <<set-jvm-options,JVM
 options>> file under `/usr/share/elasticsearch/config/jvm.options.d` that
-includes your desired <<setting-jvm-heap-size,heap size>> settings.
+includes your desired <<set-jvm-heap-size,heap size>> settings.
 
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e

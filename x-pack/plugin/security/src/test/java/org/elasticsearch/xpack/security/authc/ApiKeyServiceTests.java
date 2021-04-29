@@ -1034,7 +1034,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             when(apiKeyAuthentication.getMetadata()).thenReturn(org.elasticsearch.common.collect.Map.of());
         } else {
             final BytesReference metadataBytes = XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON);
-            when(apiKeyAuthentication.getMetadata()).thenReturn(org.elasticsearch.common.collect.Map.of(API_KEY_METADATA_KEY, metadataBytes));
+            when(apiKeyAuthentication.getMetadata()).thenReturn(
+                org.elasticsearch.common.collect.Map.of(API_KEY_METADATA_KEY, metadataBytes));
         }
 
         final Map<String, Object> restoredApiKeyMetadata = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);

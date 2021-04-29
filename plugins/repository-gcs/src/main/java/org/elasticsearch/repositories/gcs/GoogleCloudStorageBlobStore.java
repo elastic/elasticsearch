@@ -21,8 +21,6 @@ import com.google.cloud.storage.StorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -45,7 +43,6 @@ import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
@@ -231,14 +228,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // Compute md5 here so #writeBlobResumable forces the integrity check on the resumable upload.
             // This is needed since we rely on atomic write behavior when writing BytesReferences in BlobStoreRepository which is not
             // guaranteed for resumable uploads.
-            MessageDigest md5 = MessageDigests.md5();
-            final BytesRefIterator iterator = bytes.iterator();
-            BytesRef ref;
-            while ((ref = iterator.next()) != null) {
-                md5.update(ref.bytes, ref.offset, ref.length);
-            }
             writeBlobResumable(
-                    BlobInfo.newBuilder(bucketName, blobName).setMd5(Base64.getEncoder().encodeToString(md5.digest())).build(),
+                    BlobInfo.newBuilder(bucketName, blobName)
+                            .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(bytes, MessageDigests.md5()))).build(),
                 bytes.streamInput(), bytes.length(), failIfAlreadyExists);
         } else {
             writeBlob(bytes.streamInput(), bytes.length(), failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());

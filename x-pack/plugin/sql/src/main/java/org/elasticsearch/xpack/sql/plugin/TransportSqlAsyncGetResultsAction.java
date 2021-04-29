@@ -27,7 +27,8 @@ public class TransportSqlAsyncGetResultsAction extends AbstractTransportQlAsyncG
                                              NamedWriteableRegistry registry,
                                              Client client,
                                              ThreadPool threadPool) {
-        super(SqlAsyncGetResultsAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool, SqlQueryTask.class);
+        super(SqlAsyncGetResultsAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool,
+              SqlQueryTask.class);
     }
 
     @Override

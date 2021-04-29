@@ -83,7 +83,7 @@ class AntFixture extends AntTask implements Fixture {
     }
 
     @Override
-    protected void runAnt(AntBuilder ant) {
+    protected void runAnt(org.gradle.api.AntBuilder ant) {
         // reset everything
         getFileSystemOperations().delete {
             it.delete(baseDir)

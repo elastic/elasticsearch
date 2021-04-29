@@ -154,7 +154,6 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertEquals(Collections.singleton("test_1"), indices.get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71424")
     public void testDoesNotSubmitRerouteTaskTooFrequently() {
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2"))).build();
@@ -198,7 +197,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
             currentTime.addAndGet(randomLongBetween(0,
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis()));
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() - 1));
             monitor.onNewInfo(clusterInfo(allDisksOk));
             assertNull(listenerReference.get());
         }

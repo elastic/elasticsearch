@@ -19,7 +19,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,32 +43,6 @@ public class IpFieldScriptTests extends FieldScriptTestCase<IpFieldScript.Factor
     @Override
     protected IpFieldScript.Factory dummyScript() {
         return DUMMY;
-    }
-
-    public void testAsDocValues() {
-        IpFieldScript script = new IpFieldScript(
-                "test",
-                Collections.emptyMap(),
-                new SearchLookup(field -> null, (ft, lookup) -> null),
-                null
-        ) {
-            @Override
-            public void execute() {
-                emit("192.168.0.1");
-                emit("127.0.0.1");
-                emit("255.255.255.255");
-                emit("0.0.0.0");
-            }
-        };
-        script.execute();
-
-        assertArrayEquals(new BytesRef[] {
-                new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,-1,-1,0,0,0,0}),
-                new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,-1,-1,127,0,0,1}),
-                new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,-1,-1,-64,-88,0,1}),
-                new BytesRef(new byte[] {0,0,0,0,0,0,0,0,0,0,-1,-1,-1,-1,-1,-1})},
-                script.asDocValues()
-        );
     }
 
     public void testTooManyValues() throws IOException {

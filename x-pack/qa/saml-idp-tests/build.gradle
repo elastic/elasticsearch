@@ -48,7 +48,7 @@ tasks.named("integTest").configure {
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'

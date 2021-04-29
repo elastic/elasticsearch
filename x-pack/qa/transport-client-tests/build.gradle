@@ -6,7 +6,7 @@ dependencies {
   testImplementation project(path: xpackProject('transport-client').path)
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = "DEFAULT"
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

@@ -79,7 +79,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         deprecationLogger.deprecate(DeprecationCategory.API, "sparse_vector", DEPRECATION_MESSAGE);
         return new Builder(n, c.indexVersionCreated());
-    });
+    }, notInMultiFields(CONTENT_TYPE));
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
@@ -150,9 +150,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public void parse(ParseContext context) throws IOException {
-        if (context.externalValueSet()) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
-        }
         ensureExpectedToken(Token.START_OBJECT, context.parser().currentToken(), context.parser());
         int[] dims = new int[0];
         float[] values = new float[0];

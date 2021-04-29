@@ -685,17 +685,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String dateAsString;
-        if (context.externalValueSet()) {
-            Object dateAsObject = context.externalValue();
-            if (dateAsObject == null) {
-                dateAsString = null;
-            } else {
-                dateAsString = dateAsObject.toString();
-            }
-        } else {
-            dateAsString = context.parser().textOrNull();
-        }
+        String dateAsString = context.parser().textOrNull();
 
         long timestamp;
         if (dateAsString == null) {
@@ -726,7 +716,7 @@ public final class DateFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));
         } else if (store || indexed) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
         if (store) {
             context.doc().add(new StoredField(fieldType().name(), timestamp));

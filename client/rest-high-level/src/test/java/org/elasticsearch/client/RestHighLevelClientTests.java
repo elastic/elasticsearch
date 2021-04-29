@@ -710,7 +710,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 categories.put(namedXContent.categoryClass, counter + 1);
             }
         }
-        assertEquals("Had: " + categories, 15, categories.size());
+        assertEquals("Had: " + categories, 16, categories.size());
         assertEquals(Integer.valueOf(3), categories.get(Aggregation.class));
         assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
         assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
@@ -797,7 +797,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 NGram.NAME,
                 Multi.NAME
             ));
-        assertEquals(Integer.valueOf(4), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
+        assertEquals(Integer.valueOf(3), categories.get(org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel.class));
         assertThat(names, hasItems(Tree.NAME, Ensemble.NAME, LangIdentNeuralNetwork.NAME));
         assertEquals(Integer.valueOf(4),
             categories.get(org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggregator.class));

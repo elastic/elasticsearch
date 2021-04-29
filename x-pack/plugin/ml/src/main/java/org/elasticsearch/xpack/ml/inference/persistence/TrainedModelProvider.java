@@ -76,6 +76,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
@@ -146,14 +147,20 @@ public class TrainedModelProvider {
         }
 
         TrainedModelDefinition definition = trainedModelConfig.getModelDefinition();
-        if (definition == null) {
-            listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] is required",
+        TrainedModelLocation location = trainedModelConfig.getLocation();
+        if (definition == null && location == null) {
+            listener.onFailure(ExceptionsHelper.badRequestException("Unable to store [{}]. [{}] or [{}] is required",
                 trainedModelConfig.getModelId(),
-                TrainedModelConfig.DEFINITION.getPreferredName()));
+                TrainedModelConfig.DEFINITION.getPreferredName(),
+                TrainedModelConfig.LOCATION.getPreferredName()));
             return;
         }
 
-        storeTrainedModelAndDefinition(trainedModelConfig, listener);
+        if (definition != null) {
+            storeTrainedModelAndDefinition(trainedModelConfig, listener);
+        } else {
+            storeTrainedModelConfig(trainedModelConfig, listener);
+        }
     }
 
     public void storeTrainedModelConfig(TrainedModelConfig trainedModelConfig, ActionListener<Boolean> listener) {
@@ -164,10 +171,14 @@ public class TrainedModelProvider {
         }
         assert trainedModelConfig.getModelDefinition() == null;
 
+        IndexRequest request =
+            createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig);
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
         executeAsyncWithOrigin(client,
             ML_ORIGIN,
             IndexAction.INSTANCE,
-            createRequest(trainedModelConfig.getModelId(), InferenceIndexConstants.LATEST_INDEX_NAME, trainedModelConfig),
+            request,
             ActionListener.wrap(
                 indexResponse -> listener.onResponse(true),
                 e -> {
@@ -176,10 +187,9 @@ public class TrainedModelProvider {
                             Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelConfig.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -206,10 +216,9 @@ public class TrainedModelProvider {
                                 trainedModelDefinitionDoc.getDocNum())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelDefinitionDoc.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelDefinitionDoc.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -234,10 +243,9 @@ public class TrainedModelProvider {
                                 trainedModelMetadata.getModelId())));
                     } else {
                         listener.onFailure(
-                            new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA,
-                                RestStatus.INTERNAL_SERVER_ERROR,
-                                e,
-                                trainedModelMetadata.getModelId()));
+                            new ElasticsearchStatusException(
+                                Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL_METADATA, trainedModelMetadata.getModelId()),
+                                RestStatus.INTERNAL_SERVER_ERROR, e));
                     }
                 }
             ));
@@ -335,10 +343,9 @@ public class TrainedModelProvider {
                         Messages.getMessage(Messages.INFERENCE_TRAINED_MODEL_EXISTS, trainedModelConfig.getModelId())));
                 } else {
                     listener.onFailure(
-                        new ElasticsearchStatusException(Messages.INFERENCE_FAILED_TO_STORE_MODEL,
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            e,
-                            trainedModelConfig.getModelId()));
+                        new ElasticsearchStatusException(
+                            Messages.getMessage(Messages.INFERENCE_FAILED_TO_STORE_MODEL, trainedModelConfig.getModelId()),
+                            RestStatus.INTERNAL_SERVER_ERROR, e));
                 }
             }
         );
@@ -689,7 +696,8 @@ public class TrainedModelProvider {
                 // Otherwise, treat it as if it was never expanded to begin with.
                 Set<String> missingConfigs = Sets.difference(modelIds.keySet(), observedIds);
                 if (missingConfigs.isEmpty() == false && allowNoResources == false) {
-                    getTrainedModelListener.onFailure(new ResourceNotFoundException(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs));
+                    getTrainedModelListener.onFailure(new ResourceNotFoundException(
+                        Messages.getMessage(Messages.INFERENCE_NOT_FOUND_MULTIPLE, missingConfigs)));
                     return;
                 }
                 // Ensure sorted even with the injection of locally resourced models
@@ -1124,12 +1132,13 @@ public class TrainedModelProvider {
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
             TrainedModelConfig.Builder builder = TrainedModelConfig.fromXContent(parser, true);
+
             if (builder.getModelType() == null) {
                 // before TrainedModelConfig::modelType was added tree ensembles and the
                 // lang ident model were the only models supported. Models created after
-                // VERSION_MODEL_TYPE_ADDED must have modelType set, if not set modelType
+                // VERSION_3RD_PARTY_CONFIG_ADDED must have modelType set, if not set modelType
                 // is a tree ensemble
-                assert builder.getVersion().before(TrainedModelConfig.VERSION_MODEL_TYPE_ADDED);
+                assert builder.getVersion().before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED);
                 builder.setModelType(TrainedModelType.TREE_ENSEMBLE);
             }
             return builder;

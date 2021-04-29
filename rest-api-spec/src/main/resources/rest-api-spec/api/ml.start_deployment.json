@@ -1,0 +1,30 @@
+{
+  "ml.start_deployment":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-deployment.html",
+      "description":"Start a trained model deployment."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/deployment/{model_id}/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the model to deploy"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

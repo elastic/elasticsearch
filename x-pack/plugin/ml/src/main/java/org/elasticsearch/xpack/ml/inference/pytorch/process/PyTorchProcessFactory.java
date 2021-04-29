@@ -12,5 +12,5 @@ import java.util.function.Consumer;
 
 public interface PyTorchProcessFactory {
 
-    PyTorchProcess createProcess(String modelId, ExecutorService executorService, Consumer<String> onProcessCrash);
+    NativePyTorchProcess createProcess(String modelId, ExecutorService executorService, Consumer<String> onProcessCrash);
 }

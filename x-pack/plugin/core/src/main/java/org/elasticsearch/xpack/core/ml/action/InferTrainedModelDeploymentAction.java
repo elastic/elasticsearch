@@ -10,22 +10,17 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 
 public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedModelDeploymentAction.Response> {
@@ -41,65 +36,53 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
-        private static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
-        public static final ParseField INPUTS = new ParseField("inputs");
-
-        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("infer_trained_model_request", Request::new);
-
-        static {
-            PARSER.declareString((request, deploymentId) -> request.deploymentId = deploymentId, DEPLOYMENT_ID);
-            PARSER.declareDoubleArray(Request::setInputs, INPUTS);
-        }
-
-        public static Request parseRequest(String deploymentId, XContentParser parser) {
-            Request request = PARSER.apply(parser, null);
-            if (deploymentId != null) {
-                request.deploymentId = deploymentId;
-            }
-            return request;
-        }
+        public static final String REQUEST_ID = "request_id";
+        public static final String DEPLOYMENT_ID = "deployment_id";
+        public static final String JSON_REQUEST = "json_request";
 
         private String deploymentId;
-        private double[] inputs;
+        private String requestId;
+        private String jsonDoc;
 
-        private Request() {
-        }
-
-        public Request(String deploymentId) {
+        public Request(String deploymentId, String requestId, String jsonDoc) {
             this.deploymentId = Objects.requireNonNull(deploymentId);
+            this.requestId = requestId;
+            this.jsonDoc = Objects.requireNonNull(jsonDoc);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            inputs = in.readDoubleArray();
+            requestId = in.readOptionalString();
+            jsonDoc = in.readString();
         }
 
         public String getDeploymentId() {
             return deploymentId;
         }
 
-        public void setInputs(List<Double> inputs) {
-            ExceptionsHelper.requireNonNull(inputs, INPUTS);
-            this.inputs = inputs.stream().mapToDouble(d -> d).toArray();
+        public String getRequestId() {
+            return requestId;
         }
 
-        public double[] getInputs() {
-            return inputs;
+        public String getJsonDoc() {
+            return jsonDoc;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            out.writeDoubleArray(inputs);
+            out.writeOptionalString(requestId);
+            out.writeString(jsonDoc);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field(DEPLOYMENT_ID.getPreferredName(), deploymentId);
-            builder.array(INPUTS.getPreferredName(), inputs);
+            builder.field(DEPLOYMENT_ID, deploymentId);
+            builder.field(REQUEST_ID, requestId);
+            builder.field(JSON_REQUEST, jsonDoc);
             builder.endObject();
             return builder;
         }
@@ -107,6 +90,21 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         @Override
         public boolean match(Task task) {
             return StartTrainedModelDeploymentAction.TaskMatcher.match(task, deploymentId);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
+            return Objects.equals(deploymentId, that.deploymentId)
+                && Objects.equals(requestId, that.requestId)
+                && Objects.equals(jsonDoc, that.jsonDoc);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(deploymentId, requestId, jsonDoc);
         }
     }
 

@@ -33,7 +33,7 @@ public class PyTorchResultProcessor {
         this.deploymentId = Objects.requireNonNull(deploymentId);
     }
 
-    public void process(PyTorchProcess process) {
+    public void process(NativePyTorchProcess process) {
         try {
             Iterator<PyTorchResult> iterator = process.readResults();
             while (iterator.hasNext()) {
@@ -48,9 +48,8 @@ public class PyTorchResultProcessor {
                 }
             }
         } catch (Exception e) {
-            if (isStopping) {
-                // No need to report error as we're stopping
-            } else {
+            // No need to report error as we're stopping
+            if (isStopping == false) {
                 logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
             }
         }

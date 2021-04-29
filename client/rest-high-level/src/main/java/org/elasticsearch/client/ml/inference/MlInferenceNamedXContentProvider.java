@@ -11,9 +11,11 @@ import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.client.ml.inference.preprocessing.Multi;
 import org.elasticsearch.client.ml.inference.preprocessing.NGram;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Exponent;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
@@ -21,7 +23,6 @@ import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.OutputAggrega
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
-import org.elasticsearch.client.ml.inference.trainedmodel.pytorch.PyTorchModel;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
@@ -60,9 +61,6 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class,
             new ParseField(LangIdentNeuralNetwork.NAME),
             LangIdentNeuralNetwork::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class,
-            new ParseField(PyTorchModel.NAME),
-            PyTorchModel::fromXContent));
 
         // Inference Config
         namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class,
@@ -85,6 +83,11 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
             new ParseField(Exponent.NAME),
             Exponent::fromXContent));
+
+        // location
+        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModelLocation.class,
+            new ParseField(IndexLocation.INDEX),
+            IndexLocation::fromXContent));
 
         return namedXContent;
     }

@@ -54,7 +54,8 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
 
         AtomicReference<Boolean> onSuccess = new AtomicReference<>();
         AtomicReference<Exception> onFailure = new AtomicReference<>();
-        blockingCall(listener -> stateStreamer.writeStateToStream(modelId, outputStream, listener),
+        blockingCall(listener ->
+                stateStreamer.writeStateToStream(modelId, InferenceIndexConstants.LATEST_INDEX_NAME, outputStream, listener),
             onSuccess, onFailure);
 
         byte[] writtenData = outputStream.toByteArray();
@@ -69,7 +70,6 @@ public class PyTorchStateStreamerIT extends MlSingleNodeTestCase {
             assertArrayEquals(chunks.get(i), writtenChunk);
         }
     }
-
 
     private List<TrainedModelDefinitionDoc> createModelDefinitionDocs(List<byte[]> binaryChunks, String modelId) {
 

@@ -37,6 +37,10 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         return params.getModelId();
     }
 
+    public String getIndex() {
+        return params.getIndex();
+    }
+
     public void stop(String reason) {
         isStopping = true;
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
@@ -56,7 +60,7 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         stop(reason);
     }
 
-    public void infer(double[] inputs, ActionListener<PyTorchResult> listener) {
-        manager.infer(this, inputs, listener);
+    public void infer(String requestId, String jsonDoc, ActionListener<PyTorchResult> listener) {
+        manager.infer(this, requestId, jsonDoc, listener);
     }
 }

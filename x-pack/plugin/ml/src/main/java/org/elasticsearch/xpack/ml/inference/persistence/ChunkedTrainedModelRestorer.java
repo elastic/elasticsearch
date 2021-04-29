@@ -115,6 +115,7 @@ public class ChunkedTrainedModelRestorer {
                                        Consumer<Boolean> successConsumer,
                                        Consumer<Exception> errorConsumer) {
 
+        logger.debug("[{}] restoring model", modelId);
         SearchRequest searchRequest = buildSearch(client, modelId, index, searchSize);
 
         executorService.execute(() -> doSearch(searchRequest, modelConsumer, successConsumer, errorConsumer));
@@ -133,7 +134,7 @@ public class ChunkedTrainedModelRestorer {
                     return;
                 }
 
-                // Set lastNum to a non-zero to prevent an infinite loop
+                // Set lastNum to a non-zero to prevent an infinite loop of
                 // search after requests in the absolute worse case where
                 // it has all gone wrong.
                 // Docs are numbered 0..N. we must have seen at least
@@ -147,7 +148,7 @@ public class ChunkedTrainedModelRestorer {
 
                         boolean continueSearching = modelConsumer.apply(doc);
                         if (continueSearching == false) {
-                            // signal we are finished
+                            // signal the search has finished early
                             successConsumer.accept(Boolean.FALSE);
                             return;
                         }
@@ -161,8 +162,10 @@ public class ChunkedTrainedModelRestorer {
 
                 numDocsWritten += searchResponse.getHits().getHits().length;
 
-                if (searchResponse.getHits().getHits().length < searchSize) {
-                    // end of search
+                boolean endOfSearch = searchResponse.getHits().getHits().length < searchSize ||
+                    searchResponse.getHits().getTotalHits().value == numDocsWritten;
+
+                if (endOfSearch) {
                     successConsumer.accept(Boolean.TRUE);
                 } else {
                     // search again with after
@@ -192,7 +195,7 @@ public class ChunkedTrainedModelRestorer {
                 .filter(QueryBuilders.termQuery(InferenceIndexConstants.DOC_TYPE.getPreferredName(),
                     TrainedModelDefinitionDoc.NAME))))
             .setSize(searchSize)
-            .setTrackTotalHits(false)
+            .setTrackTotalHits(true)
             // First find the latest index
             .addSort("_index", SortOrder.DESC)
             // Then, sort by doc_num

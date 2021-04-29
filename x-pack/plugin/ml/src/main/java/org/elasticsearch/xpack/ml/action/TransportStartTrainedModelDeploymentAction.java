@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -43,6 +44,8 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
@@ -54,7 +57,6 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -67,18 +69,21 @@ public class TransportStartTrainedModelDeploymentAction
     private final XPackLicenseState licenseState;
     private final Client client;
     private final PersistentTasksService persistentTasksService;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(TransportService transportService, Client client, ClusterService clusterService,
                                                       ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
                                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                                      PersistentTasksService persistentTasksService) {
+                                                      PersistentTasksService persistentTasksService,
+                                                      NamedXContentRegistry xContentRegistry) {
         super(StartTrainedModelDeploymentAction.NAME, transportService, clusterService, threadPool, actionFilters,
             StartTrainedModelDeploymentAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new,
             ThreadPool.Names.SAME);
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = Objects.requireNonNull(client);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
+        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }
 
     @Override
@@ -114,18 +119,33 @@ public class TransportStartTrainedModelDeploymentAction
                         request.getModelId(), getModelResponse.getResources().results().size()));
                     return;
                 }
+
+
+                TrainedModelConfig trainedModelConfig = getModelResponse.getResources().results().get(0);
+                if (trainedModelConfig.getModelType() != TrainedModelType.PYTORCH) {
+                    listener.onFailure(ExceptionsHelper.badRequestException(
+                        "model [{}] of type [{}] cannot be deployed. Only PyTorch models can be deployed",
+                        trainedModelConfig.getModelId(), trainedModelConfig.getModelType()));
+                    return;
+                }
+
+                if (trainedModelConfig.getLocation() == null) {
+                    listener.onFailure(ExceptionsHelper.serverError(
+                        "model [{}] does not have location", trainedModelConfig.getModelId()));
+                    return;
+                }
+
                 persistentTasksService.sendStartRequest(
                     MlTasks.trainedModelDeploymentTaskId(request.getModelId()),
                     MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
-                    new TaskParams(request.getModelId()),
+                    new TaskParams(trainedModelConfig.getLocation().getModelId(), trainedModelConfig.getLocation().getResourceName()),
                     waitForDeploymentToStart
                 );
             },
             listener::onFailure
         );
 
-        GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(
-            request.getModelId(), null, Collections.emptySet());
+        GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(request.getModelId());
         client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
     }
 

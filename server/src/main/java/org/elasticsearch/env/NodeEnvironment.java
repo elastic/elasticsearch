@@ -1300,9 +1300,7 @@ public final class NodeEnvironment  implements Closeable {
      * This prevents disasters if nodes are started under the wrong username etc.
      */
     private void assertCanWrite() throws IOException {
-        for (Path path : nodeDataPath()) { // check node-paths are writable
-            tryWriteTempFile(path);
-        }
+        tryWriteTempFile(nodeDataPath());
         for (String indexFolderName : this.availableIndexFolders()) {
             for (Path indexPath : this.resolveIndexFolder(indexFolderName)) { // check index paths are writable
                 Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);

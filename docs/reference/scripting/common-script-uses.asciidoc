@@ -165,7 +165,7 @@ field. This string contains several pieces of data:
 ----
 // NOTCONSOLE
 
-You can define a dissect pattern in a  runtime field to extract the https://developer.mozilla.org/en-US/docs/Web/HTTP/Status[HTTP response code], which is
+You can define a dissect pattern in a runtime field to extract the https://developer.mozilla.org/en-US/docs/Web/HTTP/Status[HTTP response code], which is
 `304` in the previous example.
 
 [source,console]

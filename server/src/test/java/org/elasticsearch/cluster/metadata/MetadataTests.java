@@ -57,7 +57,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MetadataTests extends ESTestCase {
@@ -1236,11 +1235,12 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder();
 
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-eu"));
-        mdBuilder.put("logs-postgres", "logs-postgres-eu", null);
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-eu", null), is(true));
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-us"));
-        mdBuilder.put("logs-postgres", "logs-postgres-us", null);
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-us", null), is(true));
         mdBuilder.put(DataStreamTestHelper.randomInstance("logs-postgres-au"));
-        mdBuilder.put("logs-postgres", "logs-postgres-au", null);
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au", null), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-au", null), is(false));
 
         Metadata metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
@@ -1259,7 +1259,7 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
 
         mdBuilder = Metadata.builder(metadata);
-        mdBuilder.put("logs-postgres", "logs-postgres-replicated", true);
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true), is(true));
 
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
@@ -1339,20 +1339,20 @@ public class MetadataTests extends ESTestCase {
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-us", "logs-postgres-au"));
 
         mdBuilder = Metadata.builder(metadata);
-        mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-us", true);
+        assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-us", true), is(true));
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(),
             containsInAnyOrder("logs-postgres-eu", "logs-postgres-au"));
 
         mdBuilder = Metadata.builder(metadata);
-        mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-au", true);
+        assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-au", true), is(true));
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-eu"));
 
         mdBuilder = Metadata.builder(metadata);
-        mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-eu", true);
+        assertThat(mdBuilder.removeDataStreamAlias("logs-postgres", "logs-postgres-eu", true), is(true));
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), nullValue());
     }
@@ -1372,8 +1372,7 @@ public class MetadataTests extends ESTestCase {
 
         Metadata.Builder mdBuilder2 = Metadata.builder(metadata);
         expectThrows(ResourceNotFoundException.class, () -> mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", true));
-        Metadata.Builder r = mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", false);
-        assertThat(r, sameInstance(mdBuilder2));
+        assertThat(mdBuilder2.removeDataStreamAlias("logs-mysql", "logs-postgres-us", false), is(false));
     }
 
     public static Metadata randomMetadata() {

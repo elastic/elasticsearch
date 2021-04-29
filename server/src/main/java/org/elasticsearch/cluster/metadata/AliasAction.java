@@ -241,8 +241,7 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             aliasValidator.validate(aliasName, null, null, isWriteDataStream);
-            metadata.put(aliasName, dataStreamName, isWriteDataStream);
-            return true;
+            return metadata.put(aliasName, dataStreamName, isWriteDataStream);
         }
     }
 
@@ -272,8 +271,7 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             boolean mustExist = this.mustExist != null ? this.mustExist : false;
-            metadata.removeDataStreamAlias(aliasName, dataStreamName, mustExist);
-            return true;
+            return metadata.removeDataStreamAlias(aliasName, dataStreamName, mustExist);
         }
     }
 }

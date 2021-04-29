@@ -1174,7 +1174,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public Builder put(String name, String dataStream, Boolean isWriteDataStream) {
+        public boolean put(String name, String dataStream, Boolean isWriteDataStream) {
             Map<String, DataStream> existingDataStream =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
@@ -1193,7 +1193,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 alias = new DataStreamAlias(name, List.of(dataStream), isWriteDataStream != null && isWriteDataStream ? dataStream : null);
             } else {
                 Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
-                dataStreams.add(dataStream);
                 String writeDataStream = alias.getWriteDataStream();
                 if (isWriteDataStream != null){
                     if (isWriteDataStream) {
@@ -1202,12 +1201,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         writeDataStream = null;
                     }
                 }
+                boolean added = dataStreams.add(dataStream);
+                if (added == false && Objects.equals(alias.getWriteDataStream(), writeDataStream)) {
+                    return false;
+                }
                 alias = new DataStreamAlias(name, List.copyOf(dataStreams), writeDataStream);
             }
             dataStreamAliases.put(name, alias);
 
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
-            return this;
+            return true;
         }
 
         public Builder removeDataStream(String name) {
@@ -1246,7 +1249,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public Builder removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
+        public boolean removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
             Map<String, DataStreamAlias> dataStreamAliases =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
@@ -1256,7 +1259,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (mustExist && existing == null) {
                 throw new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
             } else if (existing == null) {
-                return this;
+                return false;
             }
             Set<String> dataStreams = new HashSet<>(existing.getDataStreams());
             dataStreams.remove(dataStreamName);
@@ -1272,7 +1275,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
                     .orElse(new HashMap<>());
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
-            return this;
+            return true;
         }
 
         public Custom getCustom(String type) {

@@ -36,6 +36,152 @@ gradlePlugin {
   // We already configure publication and we don't need or want the one that comes
   // with the java-gradle-plugin
   automatedPublishing = false
+  plugins {
+    build {
+      id = 'elasticsearch.build'
+      implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
+    }
+    distributionDownload {
+      id = 'elasticsearch.distribution-download'
+      implementationClass = 'org.elasticsearch.gradle.DistributionDownloadPlugin'
+    }
+    distroTest {
+      id = 'elasticsearch.distro-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.DistroTestPlugin'
+    }
+    dockerSupport {
+      id = 'elasticsearch.docker-support'
+      implementationClass = 'org.elasticsearch.gradle.internal.docker.DockerSupportPlugin'
+    }
+    docsTest {
+      id = 'elasticsearch.docs-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.doc.DocsTestPlugin'
+    }
+    esPlugin {
+      id = 'elasticsearch.esplugin'
+      implementationClass = 'org.elasticsearch.gradle.plugin.PluginBuildPlugin'
+    }
+    globalBuildInfo {
+      id = 'elasticsearch.global-build-info'
+      implementationClass = 'org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin'
+    }
+    internalAvailablePorts {
+      id = 'elasticsearch.internal-available-ports'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalAvailableTcpPortProviderPlugin'
+    }
+    internalClusterTest {
+      id = 'elasticsearch.internal-cluster-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin'
+    }
+    internalDistributionArchiveCheck {
+      id = 'elasticsearch.internal-distribution-archive-check'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionArchiveCheckPlugin'
+    }
+    internalDistributionArchiveSetup {
+      id = 'elasticsearch.internal-distribution-archive-setup'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionArchiveSetupPlugin'
+    }
+    internalDistributionBwcSetup {
+      id = 'elasticsearch.internal-distribution-bwc-setup'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPlugin'
+    }
+    internalDistributionDownload {
+      id = 'elasticsearch.internal-distribution-download'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin'
+    }
+    internalLicenseheaders {
+      id = 'elasticsearch.internal-licenseheaders'
+      implementationClass = 'org.elasticsearch.gradle.internal.precommit.LicenseHeadersPrecommitPlugin'
+    }
+    internalPlugin {
+      id = 'elasticsearch.internal-es-plugin'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalPluginBuildPlugin'
+    }
+    internalTestArtifact {
+      id = 'elasticsearch.internal-test-artifact'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalTestArtifactPlugin'
+    }
+    internalTestArtifactBase {
+      id = 'elasticsearch.internal-test-artifact-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalTestArtifactBasePlugin'
+    }
+    internalTestRerun {
+      id = 'elasticsearch.internal-test-rerun'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'
+    }
+    java {
+      id = 'elasticsearch.java'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
+    }
+    javaRestTest {
+      id = 'elasticsearch.java-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin'
+    }
+    jdkDownload {
+      id = 'elasticsearch.jdk-download'
+      implementationClass = 'org.elasticsearch.gradle.internal.JdkDownloadPlugin'
+    }
+    publish {
+      id = 'elasticsearch.publish'
+      implementationClass = 'org.elasticsearch.gradle.internal.PublishPlugin'
+    }
+    reaper {
+      id = 'elasticsearch.reaper'
+      implementationClass = 'org.elasticsearch.gradle.ReaperPlugin'
+    }
+    repositories {
+      id = 'elasticsearch.repositories'
+      implementationClass = 'org.elasticsearch.gradle.internal.RepositoriesSetupPlugin'
+    }
+    restResources {
+      id = 'elasticsearch.rest-resources'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin'
+    }
+    restTest {
+      id = 'elasticsearch.rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.RestTestPlugin'
+    }
+    standaloneRestTest {
+      id = 'elasticsearch.standalone-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneRestTestPlugin'
+    }
+    standaloneTest {
+      id = 'elasticsearch.standalone-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.StandaloneTestPlugin'
+    }
+    testFixtures {
+      id = 'elasticsearch.test.fixtures'
+      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
+    }
+    testBase {
+      id = 'elasticsearch.test-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin'
+    }
+    testWithDependencies {
+      id = 'elasticsearch.test-with-dependencies'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.TestWithDependenciesPlugin'
+    }
+    testWithSsl {
+      id = 'elasticsearch.test-with-ssl'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.TestWithSslPlugin'
+    }
+    testclusters {
+      id = 'elasticsearch.testclusters'
+      implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'
+    }
+    validateRestSpec {
+      id = 'elasticsearch.validate-rest-spec'
+      implementationClass = 'org.elasticsearch.gradle.internal.precommit.ValidateRestSpecPlugin'
+    }
+    yamlRestCompatTest {
+      id = 'elasticsearch.yaml-rest-compat-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.rest.compat.YamlRestCompatTestPlugin'
+    }
+    yamlRestTest {
+      id = 'elasticsearch.yaml-rest-test'
+      implementationClass = 'org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin'
+    }
+  }
 }
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
   outputFile = "${buildDir}/version.properties"

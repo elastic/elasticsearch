@@ -51,7 +51,7 @@ public class RestTestUtil {
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
             testTask.setClasspath(sourceSet.getRuntimeClasspath());
             // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
-            project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
+            project.getPluginManager().withPlugin("elasticsearch.internal-es-plugin", plugin -> {
                 TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named("bundlePlugin");
                 testTask.dependsOn(bundle);
                 if (GradleUtils.isModuleProject(project.getPath())) {

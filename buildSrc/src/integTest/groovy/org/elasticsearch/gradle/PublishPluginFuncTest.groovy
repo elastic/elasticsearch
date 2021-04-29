@@ -57,7 +57,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file('notice.txt') << "Notice file"
         buildFile << """
             plugins {
-                id 'elasticsearch.esplugin'
+                id 'elasticsearch.internal-es-plugin'
                 id 'elasticsearch.publish'
                 id 'com.github.johnrengelman.shadow'
             }
@@ -115,7 +115,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file('notice.txt') << "Notice file"
         buildFile << """
             plugins {
-                id 'elasticsearch.esplugin'
+                id 'elasticsearch.internal-es-plugin'
                 id 'elasticsearch.publish'
             }
             

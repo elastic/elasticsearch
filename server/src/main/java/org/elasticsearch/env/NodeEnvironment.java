@@ -547,7 +547,7 @@ public final class NodeEnvironment  implements Closeable {
     public void deleteShardDirectorySafe(
         ShardId shardId,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException, ShardLockObtainFailedException {
         final Path path = availableShardPath(shardId);
         logger.trace("deleting shard {} directory, path: [{}]", shardId, path);
@@ -600,21 +600,21 @@ public final class NodeEnvironment  implements Closeable {
     public void deleteShardDirectoryUnderLock(
         ShardLock lock,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path path = availableShardPath(shardId);
         logger.trace("acquiring locks for {}, path: [{}]", shardId, path);
         acquireFSLockForPaths(indexSettings, path);
-        listener.accept(new Path[] { path });
+        listener.accept(path);
         IOUtils.rm(path);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
             acquireFSLockForPaths(indexSettings, customLocation);
             logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
-            listener.accept(new Path[]{customLocation});
+            listener.accept(customLocation);
             IOUtils.rm(customLocation);
         }
         logger.trace("deleted shard {} directory, path: [{}]", shardId, path);
@@ -670,7 +670,7 @@ public final class NodeEnvironment  implements Closeable {
         Index index,
         long lockTimeoutMS,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException, ShardLockObtainFailedException {
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, "deleting index directory", lockTimeoutMS);
         try {
@@ -683,19 +683,19 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Deletes an indexes data directory recursively.
      * Note: this method assumes that the shard lock is acquired
-     *
-     * @param index the index to delete
+     *  @param index the index to delete
      * @param indexSettings settings for the index being deleted
+     * @param listener
      */
-    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path[]> listener) throws IOException {
+    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path> listener) throws IOException {
         final Path indexPath = indexPath(index);
         logger.trace("deleting index {} directory: [{}]", index, indexPath);
-        listener.accept(new Path[] { indexPath });
+        listener.accept(indexPath);
         IOUtils.rm(indexPath);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
-            listener.accept(new Path[]{customLocation});
+            listener.accept(customLocation);
             IOUtils.rm(customLocation);
         }
     }

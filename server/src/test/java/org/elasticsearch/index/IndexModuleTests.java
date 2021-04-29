@@ -122,11 +122,11 @@ public class IndexModuleTests extends ESTestCase {
 
     private IndexStorePlugin.IndexFoldersDeletionListener indexDeletionListener = new IndexStorePlugin.IndexFoldersDeletionListener() {
         @Override
-        public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
+        public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path indexPath) {
         }
 
         @Override
-        public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
+        public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path shardPath) {
         }
     };
 

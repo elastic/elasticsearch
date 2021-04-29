@@ -93,7 +93,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .build();
 
         // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier((action, r) -> new GetMappingsResponse(ImmutableOpenMap.of()));
+        verifyingClient.setExecuteLocallyVerifier((action, r) -> new GetMappingsResponse(ImmutableOpenMap.of()));
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

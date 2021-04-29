@@ -47,14 +47,22 @@ public final class ParentIdFieldMapper extends FieldMapper {
     }
 
     public static final class ParentIdFieldType extends StringFieldType {
+
+        private final boolean eagerGlobalOrdinals;
+
         public ParentIdFieldType(String name, boolean eagerGlobalOrdinals) {
             super(name, true, false, true, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
-            setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean eagerGlobalOrdinals() {
+            return eagerGlobalOrdinals;
         }
 
         @Override
@@ -84,10 +92,10 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) {
-        if (context.externalValueSet() == false) {
-            throw new IllegalStateException("external value not set");
-        }
-        String refId = (String) context.externalValue();
+        throw new UnsupportedOperationException("Cannot directly call parse() on a ParentIdFieldMapper");
+    }
+
+    public void indexValue(ParseContext context, String refId) {
         BytesRef binaryValue = new BytesRef(refId);
         Field field = new Field(fieldType().name(), binaryValue, Defaults.FIELD_TYPE);
         context.doc().add(field);

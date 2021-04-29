@@ -36,11 +36,11 @@ This tool has a number of modes:
   prevents the cluster state from being loaded.
 
 * `elasticsearch-node unsafe-bootstrap` can be used to perform _unsafe cluster
-  bootstrapping_.  It forces one of the nodes to form a brand-new cluster on
+  bootstrapping_. It forces one of the nodes to form a brand-new cluster on
   its own, using its local copy of the cluster metadata.
 
 * `elasticsearch-node detach-cluster` enables you to move nodes from one
-  cluster to another.  This can be used to move nodes into a new cluster
+  cluster to another. This can be used to move nodes into a new cluster
   created with the `elasticsearch-node unsafe-bootstrap` command. If unsafe
   cluster bootstrapping was not possible, it also enables you to move nodes
   into a brand-new cluster.
@@ -137,10 +137,10 @@ repaired. If the cluster is still available then you can start up a fresh node
 on another host and {es} will bring this node into the cluster in place of the
 failed node.
 
-Each node stores its data in the data directories defined by the
+Each node stores its data in the data directory defined by the
 <<path-settings,`path.data` setting>>. This means that in a disaster you can
-also restart a node by moving its data directories to another host, presuming
-that those data directories can be recovered from the faulty host.
+also restart a node by moving its data directory to another host, presuming
+that that data directory can be recovered from the faulty host.
 
 {es} <<modules-discovery-quorums,requires a response from a majority of the
 master-eligible nodes>> in order to elect a master and to update the cluster
@@ -218,7 +218,7 @@ node with the same term, pick the one with the largest version.
 This information identifies the node with the freshest cluster state, which minimizes the
 quantity of data that might be lost. For example, if the first node reports
 `(4, 12)` and a second node reports `(5, 3)`, then the second node is preferred
-since its term is larger.  However if the second node reports `(3, 17)` then
+since its term is larger. However if the second node reports `(3, 17)` then
 the first node is preferred since its term is larger. If the second node
 reports `(4, 10)` then it has the same term as the first node, but has a
 smaller version, so the first node is preferred.

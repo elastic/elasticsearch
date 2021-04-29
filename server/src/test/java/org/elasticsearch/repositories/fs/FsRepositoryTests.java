@@ -40,12 +40,15 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.SnapshotShardContext;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -76,7 +79,7 @@ public class FsRepositoryTests extends ESTestCase {
             Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put(Environment.PATH_REPO_SETTING.getKey(), repo.toAbsolutePath())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
                 .put("location", repo)
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES).build();
@@ -95,16 +98,17 @@ public class FsRepositoryTests extends ESTestCase {
             IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
 
             IndexCommit indexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
-            final PlainActionFuture<String> future1 = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future1 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
-                repository.snapshotShard(store, null, snapshotId, indexId, indexCommit, null,
-                    snapshotStatus, Version.CURRENT, Collections.emptyMap(), future1);
+                repository.snapshotShard(new SnapshotShardContext(store, null, snapshotId, indexId,
+                    new Engine.IndexCommitRef(indexCommit, () -> {}), null, snapshotStatus, Version.CURRENT, Collections.emptyMap(),
+                    future1));
                 future1.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(copy.getTotalFileCount(), copy.getIncrementalFileCount());
             });
-            final String shardGeneration = future1.actionGet();
+            final String shardGeneration = future1.actionGet().getGeneration();
             Lucene.cleanLuceneIndex(directory);
             expectThrows(org.apache.lucene.index.IndexNotFoundException.class, () -> Lucene.readSegmentInfos(directory));
             DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
@@ -124,11 +128,12 @@ public class FsRepositoryTests extends ESTestCase {
             SnapshotId incSnapshotId = new SnapshotId("test1", "test1");
             IndexCommit incIndexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
-            final PlainActionFuture<String> future2 = PlainActionFuture.newFuture();
+            final PlainActionFuture<ShardSnapshotResult> future2 = PlainActionFuture.newFuture();
             runGeneric(threadPool, () -> {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
-                repository.snapshotShard(store, null, incSnapshotId, indexId, incIndexCommit,
-                    null, snapshotStatus, Version.CURRENT, Collections.emptyMap(), future2);
+                repository.snapshotShard(new SnapshotShardContext(store, null, incSnapshotId, indexId,
+                    new Engine.IndexCommitRef(incIndexCommit, () -> {}), null, snapshotStatus, Version.CURRENT,
+                    Collections.emptyMap(), future2));
                 future2.actionGet();
                 IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
                 assertEquals(2, copy.getIncrementalFileCount());

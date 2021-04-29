@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.BeforeClass;
 
 import java.net.InetAddress;
@@ -21,6 +20,8 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = TEST, supportsDedicatedMasters = false, numDataNodes = 1)
@@ -41,10 +42,10 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put("xpack.security.transport.filter.deny", "127.0.0.200")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 .build();
@@ -120,6 +121,41 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
             assertConnectionAccepted(".http", "127.0.0.8");
+        }
+    }
+
+    public void testThatInvalidDynamicIpFilterConfigurationIsRejected() {
+        final Settings.Builder initialSettingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            initialSettingsBuilder.put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), randomBoolean());
+        }
+        if (randomBoolean()) {
+            initialSettingsBuilder.put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), randomBoolean());
+        }
+        final Settings initialSettings = initialSettingsBuilder.build();
+        if (initialSettings.isEmpty() == false) {
+            updateSettings(initialSettings);
+        }
+
+        final String invalidValue = "http://";
+
+        for (final String settingPrefix : new String[] {
+                "xpack.security.transport.filter",
+                "xpack.security.http.filter",
+                "transport.profiles.default.xpack.security.filter",
+                "transport.profiles.anotherprofile.xpack.security.filter"
+        }) {
+            for (final String settingSuffix : new String[]{"allow", "deny"}) {
+                final String settingName = settingPrefix + "." + settingSuffix;
+                final Settings settings = Settings.builder().put(settingName, invalidValue).build();
+                assertThat(
+                        settingName,
+                        expectThrows(
+                                IllegalArgumentException.class,
+                                settingName,
+                                () -> updateSettings(settings)).getMessage(),
+                        allOf(containsString("invalid IP filter"), containsString(invalidValue)));
+            }
         }
     }
 

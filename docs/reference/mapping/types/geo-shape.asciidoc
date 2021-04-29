@@ -189,8 +189,8 @@ number of levels for the quad trees in Elasticsearch is 29; the default is 21.
 [discrete]
 ===== Spatial strategies
 deprecated[6.6, PrefixTrees no longer used]  The indexing implementation
-selected relies on a  SpatialStrategy for choosing how to decompose the shapes
-(either as grid  squares or a tessellated triangular mesh). Each strategy
+selected relies on a SpatialStrategy for choosing how to decompose the shapes
+(either as grid squares or a tessellated triangular mesh). Each strategy
 answers the following:
 
 * What type of Shapes can be indexed?
@@ -342,7 +342,7 @@ POST /example/_doc
 
 A `linestring` defined by an array of two or more positions. By
 specifying only two points, the `linestring` will represent a straight
-line.  Specifying more than two points creates an arbitrary path. The
+line. Specifying more than two points creates an arbitrary path. The
 following is an example of a LineString in GeoJSON.
 
 [source,console]
@@ -443,7 +443,7 @@ but for polygons that do cross the dateline (or for other polygons wider than
 GeoJSON specifications. Otherwise, an unintended polygon may be created and
 unexpected query/filter results will be returned.
 
-The following provides an example of an ambiguous polygon.  Elasticsearch will
+The following provides an example of an ambiguous polygon. Elasticsearch will
 apply the GeoJSON standard to eliminate ambiguity resulting in a polygon that
 crosses the dateline.
 
@@ -463,7 +463,7 @@ POST /example/_doc
 // TEST[catch:/mapper_parsing_exception/]
 
 An `orientation` parameter can be defined when setting the geo_shape mapping (see <<geo-shape-mapping-options>>). This will define vertex
-order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document.  The following is an example for
+order for the coordinate list on the mapped geo_shape field. It can also be overridden on each document. The following is an example for
 overriding the orientation on a document:
 
 [source,console]

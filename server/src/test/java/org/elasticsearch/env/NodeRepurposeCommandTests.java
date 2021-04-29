@@ -32,7 +32,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -71,8 +70,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
             }
         }
         dataNoMasterSettings = nonMasterNode(dataMasterSettings);
-        noDataNoMasterSettings = removeRoles(dataMasterSettings, Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
-
+        noDataNoMasterSettings = removeRoles(nonDataNode(dataMasterSettings), Set.of(DiscoveryNodeRole.MASTER_ROLE));
         noDataMasterSettings = masterNode(nonDataNode(dataMasterSettings));
     }
 
@@ -122,7 +120,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
         String messageText = NodeRepurposeCommand.noMasterMessage(
             1,
-            environment.dataFiles().length*shardCount,
+            shardCount,
             0);
 
         Matcher<String> outputMatcher = allOf(
@@ -149,7 +147,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         createIndexDataFiles(dataMasterSettings, shardCount, hasClusterState);
 
         Matcher<String> matcher = allOf(
-            containsString(NodeRepurposeCommand.shardMessage(environment.dataFiles().length * shardCount, 1)),
+            containsString(NodeRepurposeCommand.shardMessage(shardCount, 1)),
             conditionalNot(containsString("testUUID"), verbose == false),
             conditionalNot(containsString("testIndex"), verbose == false || hasClusterState == false),
             conditionalNot(containsString("no name for uuid: testUUID"), verbose == false || hasClusterState)
@@ -246,8 +244,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     }
 
     private long digestPaths() {
-        // use a commutative digest to avoid dependency on file system order.
-        return Arrays.stream(environment.dataFiles()).mapToLong(this::digestPath).sum();
+        return digestPath(environment.dataFile());
     }
 
     private long digestPath(Path path) {

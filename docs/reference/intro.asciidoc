@@ -95,7 +95,7 @@ metadata, the real power comes from being able to easily access the full suite
 of search capabilities built on the Apache Lucene search engine library.
 
 {es} provides a simple, coherent REST API for managing your cluster and indexing
-and searching your data.  For testing purposes, you can easily submit requests
+and searching your data. For testing purposes, you can easily submit requests
 directly from the command line or through the Developer Console in {kib}. From
 your applications, you can use the
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} client]

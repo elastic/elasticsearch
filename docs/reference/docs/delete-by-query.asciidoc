@@ -84,7 +84,10 @@ and all failed requests are returned in the response. Any delete requests that
 completed successfully still stick, they are not rolled back.
 
 You can opt to count version conflicts instead of halting and returning by
-setting `conflicts` to `proceed`.
+setting `conflicts` to `proceed`. Note that if you opt to count version conflicts
+the operation could attempt to delete more documents from the source
+than `max_docs` until it has successfully deleted `max_docs` documents, or it has gone through
+every document in the source query.
 
 ===== Refreshing shards
 
@@ -125,7 +128,7 @@ to disable throttling.
 Throttling uses a wait time between batches so that the internal scroll requests
 can be given a timeout that takes the request padding into account. The padding
 time is the difference between the batch size divided by the
-`requests_per_second` and the time spent writing.  By default the batch size is
+`requests_per_second` and the time spent writing. By default the batch size is
 `1000`, so if `requests_per_second` is set to `500`:
 
 [source,txt]

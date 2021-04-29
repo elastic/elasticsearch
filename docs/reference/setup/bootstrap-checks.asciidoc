@@ -57,8 +57,7 @@ bootstrap checks (either by not binding transport to an external interface, or
 by binding transport to an external interface and setting the discovery type to
 `single-node`). For this situation, you can force execution of the bootstrap
 checks by setting the system property `es.enforce.bootstrap.checks` to `true`
-(set this in <<jvm-options>>, or by adding `-Des.enforce.bootstrap.checks=true`
-to the environment variable `ES_JAVA_OPTS`). We strongly encourage you to do
+in the <<set-jvm-options,JVM options>>. We strongly encourage you to do
 this if you are in this specific situation. This system property can be used to
 force execution of the bootstrap checks independent of the node configuration.
 
@@ -228,7 +227,7 @@ release build of the JVM.
 
 Early versions of the HotSpot JVM that shipped with JDK 8 are known to
 have issues that can lead to index corruption when the G1GC collector is
-enabled.  The versions impacted are those earlier than the version of
+enabled. The versions impacted are those earlier than the version of
 HotSpot that shipped with JDK 8u40. The G1GC check detects these early
 versions of the HotSpot JVM.
 

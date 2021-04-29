@@ -31,6 +31,7 @@ templates.
 * If a new data stream or index matches more than one index template, the index
 template with the highest priority is used.
 
+[[avoid-index-pattern-collisions]]
 .Avoid index pattern collisions
 ****
 // tag::built-in-index-templates[]
@@ -45,13 +46,13 @@ following index patterns:
 - `synthetics-*-*`
 // end::built-in-index-template-patterns[]
 
-The {fleet-guide}/fleet-overview.html[{agent}] uses these templates to create
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to create
 data streams. Index templates created by {fleet} integrations use similar
 overlapping index patterns and have a priority up to `200`.
 
-If you use {fleet} or the {agent}, assign your index templates a priority
-lower than `100` to avoid overriding these templates. Otherwise, to avoid
-accidentally applying the templates, do one or more of the following:
+If you use {fleet} or {agent}, assign your index templates a priority lower than
+`100` to avoid overriding these templates. Otherwise, to avoid accidentally
+applying the templates, do one or more of the following:
 
 - To disable all built-in index and component templates, set
 <<stack-templates-enabled,`stack.templates.enabled`>> to `false` using the
@@ -60,10 +61,10 @@ accidentally applying the templates, do one or more of the following:
 - Use a non-overlapping index pattern.
 
 - Assign templates with an overlapping pattern a `priority` higher than `200`.
-For example, if you don't use {fleet} or the {agent} and want to create a
-template for the `logs-*` index pattern, assign your template a priority of
-`500`. This ensures your template is applied instead of the built-in template
-for `logs-*-*`.
+For example, if you don't use {fleet} or {agent} and want to create a template
+for the `logs-*` index pattern, assign your template a priority of `500`. This
+ensures your template is applied instead of the built-in template for
+`logs-*-*`.
 ====
 // end::built-in-index-templates[]
 ****

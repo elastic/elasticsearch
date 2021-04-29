@@ -82,7 +82,7 @@ bin/elasticsearch-users useradd <user_name> \
 --
 
 . Use these credentials when you reindex the `.security*` index. That is to say,
-use them to log into {kib} and run the Upgrade Assistant or to call the
+use them to log in to {kib} and run the Upgrade Assistant or to call the
 reindex API. You can use your regular administration credentials to
 reindex the other internal indices.
 

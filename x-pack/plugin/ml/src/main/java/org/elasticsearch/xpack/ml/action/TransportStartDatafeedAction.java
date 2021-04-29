@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -88,6 +89,7 @@ import static org.elasticsearch.xpack.core.common.validation.SourceDestValidator
  */
 public class TransportStartDatafeedAction extends TransportMasterNodeAction<StartDatafeedAction.Request, NodeAcknowledgedResponse> {
 
+    private static final Version COMPOSITE_AGG_SUPPORT = Version.V_7_13_0;
     private static final Logger logger = LogManager.getLogger(TransportStartDatafeedAction.class);
 
     private final Client client;
@@ -251,6 +253,21 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                         params.setJobId(datafeedConfig.getJobId());
                         params.setIndicesOptions(datafeedConfig.getIndicesOptions());
                         datafeedConfigHolder.set(datafeedConfig);
+                        if (datafeedConfig.hasCompositeAgg(xContentRegistry)) {
+                            if (state.nodes()
+                                .mastersFirstStream()
+                                .filter(MachineLearning::isMlNode)
+                                .map(DiscoveryNode::getVersion)
+                                .anyMatch(COMPOSITE_AGG_SUPPORT::after)) {
+                                listener.onFailure(ExceptionsHelper.badRequestException(
+                                    "cannot start datafeed [{}] as [{}] requires all machine learning nodes to be at least version [{}]",
+                                    datafeedConfig.getId(),
+                                    "composite aggs",
+                                    COMPOSITE_AGG_SUPPORT
+                                ));
+                                return;
+                            }
+                        }
                         jobConfigProvider.getJob(datafeedConfig.getJobId(), jobListener);
                     } catch (Exception e) {
                         listener.onFailure(e);
@@ -410,7 +427,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         @Override
         public PersistentTasksCustomMetadata.Assignment getAssignment(StartDatafeedAction.DatafeedParams params,
+                                                                      Collection<DiscoveryNode> candidateNodes,
                                                                       ClusterState clusterState) {
+            // 'candidateNodes' is not actually used here because the assignment for the task is
+            // already filtered elsewhere (JobNodeSelector), this is only finding the node a task
+            // has already been assigned to.
             return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId(), params.getJobId(),
                     params.getDatafeedIndices(), params.getIndicesOptions()).selectNode();
         }

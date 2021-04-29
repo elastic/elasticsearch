@@ -9,8 +9,6 @@
 
 Retrieves configuration information for {dfanalytics-jobs}.
 
-beta::[]
-
 
 [[ml-get-dfanalytics-request]]
 == {api-request-title}
@@ -27,12 +25,8 @@ beta::[]
 [[ml-get-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
-
-* cluster: `monitor_ml`
-
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 
 [[ml-get-dfanalytics-desc]]

@@ -40,13 +40,13 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                // Check that only geo-shape queries on legacy PrefixTree based
-                // geo shapes are disallowed.
-                .put("search.allow_expensive_queries", false)
-                .put(super.nodeSettings(nodeOrdinal))
-                .build();
+            // Check that only geo-shape queries on legacy PrefixTree based
+            // geo shapes are disallowed.
+            .put("search.allow_expensive_queries", false)
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .build();
     }
 
     /**
@@ -191,21 +191,21 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
     public void testIndexPolygonDateLine() throws Exception {
         String mappingVector = "{\n" +
-                "    \"properties\": {\n" +
-                "      \"shape\": {\n" +
-                "        \"type\": \"geo_shape\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }";
+            "    \"properties\": {\n" +
+            "      \"shape\": {\n" +
+            "        \"type\": \"geo_shape\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }";
 
         String mappingQuad = "{\n" +
-                "    \"properties\": {\n" +
-                "      \"shape\": {\n" +
-                "        \"type\": \"geo_shape\",\n" +
-                "        \"tree\": \"quadtree\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "  }";
+            "    \"properties\": {\n" +
+            "      \"shape\": {\n" +
+            "        \"type\": \"geo_shape\",\n" +
+            "        \"tree\": \"quadtree\"\n" +
+            "      }\n" +
+            "    }\n" +
+            "  }";
 
 
         // create index
@@ -218,8 +218,8 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         ensureGreen();
 
         String source = "{\n" +
-                "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\""+
-                "}";
+            "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\""+
+            "}";
 
         indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, XContentType.JSON));
         indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, XContentType.JSON));
@@ -230,25 +230,25 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
             SearchResponse searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(-179.75, 1))
+                geoShapeQuery("shape", new PointBuilder(-179.75, 1))
             ).get();
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
             searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(90, 1))
+                geoShapeQuery("shape", new PointBuilder(90, 1))
             ).get();
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
 
             searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(-180, 1))
+                geoShapeQuery("shape", new PointBuilder(-180, 1))
             ).get();
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
             searchResponse = client().prepareSearch("quad").setQuery(
-                    geoShapeQuery("shape", new PointBuilder(180, 1))
+                geoShapeQuery("shape", new PointBuilder(180, 1))
             ).get();
 
             assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));

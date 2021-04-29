@@ -34,7 +34,6 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
@@ -42,11 +41,10 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -363,11 +361,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    @AfterClass
-    public static void clearAdditionalRoles() {
-        DiscoveryNode.setAdditionalRoles(Set.of());
-    }
-
     /**
      * Whether or not we check after each test whether it has left warnings behind. That happens if any deprecated feature or syntax
      * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
@@ -407,12 +400,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            if (warnings != null && JvmInfo.jvmInfo().getBundledJdk() == false) {
+            if (warnings != null) {
                 // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
                 final List<String> filteredWarnings = warnings
                     .stream()
-                    .filter(k -> k.contains(
-                        "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release") == false)
+                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
                     .collect(Collectors.toList());
                 assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
@@ -420,6 +412,14 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         } finally {
             resetDeprecationLogger();
+        }
+    }
+
+    protected List<String> filteredWarnings() {
+        if (JvmInfo.jvmInfo().getBundledJdk() == false) {
+            return List.of("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
+        } else {
+            return List.of();
         }
     }
 
@@ -1041,16 +1041,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    /** Returns a random number of temporary paths. */
-    public String[] tmpPaths() {
-        final int numPaths = TestUtil.nextInt(random(), 1, 3);
-        final String[] absPaths = new String[numPaths];
-        for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = createTempDir().toAbsolutePath().toString();
-        }
-        return absPaths;
-    }
-
     public NodeEnvironment newNodeEnvironment() throws IOException {
         return newNodeEnvironment(Settings.EMPTY);
     }
@@ -1059,7 +1049,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Settings.builder()
                 .put(settings)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath()).build();
     }
 
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
@@ -1144,6 +1134,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public String randomCompatibleMediaType(RestApiVersion version) {
         XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
+        return compatibleMediaType(type, version);
+    }
+
+    public String compatibleMediaType(XContentType type, RestApiVersion version) {
         return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
     }

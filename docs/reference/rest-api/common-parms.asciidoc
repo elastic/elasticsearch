@@ -215,11 +215,6 @@ The number of documents that have been processed from the source index of
 the {transform}.
 end::docs-processed[]
 
-tag::enrich-policy[]
-Enrich policy name
-used to limit the request.
-end::enrich-policy[]
-
 tag::ds-expand-wildcards[]
 `expand_wildcards`::
 +
@@ -424,7 +419,7 @@ end::index-ignore-unavailable[]
 
 tag::include-defaults[]
 `include_defaults`::
-(Optional, string) If `true`, return all default settings in the response.
+(Optional, Boolean) If `true`, return all default settings in the response.
 Defaults to `false`.
 end::include-defaults[]
 
@@ -432,7 +427,7 @@ tag::include-segment-file-sizes[]
 `include_segment_file_sizes`::
 (Optional, Boolean)
 If `true`, the call reports the aggregated disk usage of
-each one  of the Lucene index files (only applies if segment stats are
+each one of the Lucene index files (only applies if segment stats are
 requested). Defaults to `false`.
 end::include-segment-file-sizes[]
 
@@ -631,6 +626,15 @@ If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults 
 `false`.
 end::require-alias[]
 
+tag::bulk-dynamic-templates[]
+`dynamic_templates`::
+(Optional, map)
+A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+Defaults to an empty map. If a name matches a dynamic template, then that template will be 
+applied regardless of other match predicates defined in the template. And if a field is 
+already defined in the mapping, then this parameter won't be used.
+end::bulk-dynamic-templates[]
+
 tag::node-filter[]
 `<node_filter>`::
 (Optional, string)
@@ -712,8 +716,10 @@ currently supported:
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
+* <<search-aggregations-metrics-stats-aggregation,Stats>>
 * <<search-aggregations-metrics-sum-aggregation,Sum>>
 * <<search-aggregations-bucket-terms-aggregation, Terms>>
+* <<search-aggregations-metrics-top-metrics,Top Metrics>>
 * <<search-aggregations-metrics-valuecount-aggregation,Value count>>
 * <<search-aggregations-metrics-weight-avg-aggregation,Weighted average>>
 
@@ -1021,7 +1027,7 @@ Defines optional {transform} settings.
 end::transform-settings[]
 
 tag::transform-settings-dates-as-epoch-milli[]
-Defines if dates in the ouput should be written as ISO formatted string (default)
+Defines if dates in the output should be written as ISO formatted string (default)
 or as millis since epoch. `epoch_millis` has been the default for transforms created
 before version `7.11`. For compatible output set this to `true`.
 The default value is `false`.
@@ -1073,8 +1079,14 @@ end::term_statistics[]
 
 tag::terminate_after[]
 `terminate_after`::
-(Optional, integer) The maximum number of documents to collect for each shard,
-upon reaching which the query execution will terminate early.
+(Optional, integer) Maximum number of documents to collect for each shard. If a
+query reaches this limit, {es} terminates the query early. {es} collects
+documents before sorting.
++
+IMPORTANT: Use with caution. {es} applies this parameter to each shard handling
+the request. When possible, let {es} perform early termination automatically.
+Avoid specifying this parameter for requests that target data streams with
+backing indices across multiple data tiers.
 end::terminate_after[]
 
 tag::time[]
@@ -1143,7 +1155,7 @@ end::segment-version[]
 
 tag::version_type[]
 `version_type`::
-(Optional, enum) Specific version type: `internal`, `external`,
+(Optional, enum) Specific version type: `external`,
 `external_gte`.
 end::version_type[]
 

@@ -10,8 +10,6 @@
 
 Evaluates the {dfanalytics} for an annotated index.
 
-beta::[]
-
 
 [[ml-evaluate-dfanalytics-request]]
 == {api-request-title}
@@ -22,13 +20,11 @@ beta::[]
 [[ml-evaluate-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and 
-{ml-docs-setup-privileges}.
+* cluster: `monitor_ml` (the `machine_learning_user` built-in role grants this 
+  privilege)
+* destination index: `read`
 
 
 [[ml-evaluate-dfanalytics-desc]]

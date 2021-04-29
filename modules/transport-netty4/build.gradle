@@ -7,12 +7,13 @@
  */
 
 
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.rest.JavaRestTestPlugin
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.JavaRestTestPlugin
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
@@ -40,7 +41,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes'
+    include '_common', 'cluster', 'nodes'
   }
 }
 

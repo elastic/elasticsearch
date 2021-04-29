@@ -109,13 +109,14 @@ The API request body must contain the search definition template and its paramet
 
 
 [[search-template-api-example]]
-==== {api-response-codes-title}
+==== {api-examples-title}
 
 
 [[pre-registered-templates]]
 ===== Store a search template
 
-You can store a search template using the stored scripts API.
+To store a search template, use the <<create-stored-script-api,create stored
+script API>>. Specify `mustache` as the `lang`.
 
 [source,console]
 ------------------------------------------
@@ -535,7 +536,7 @@ for `end`:
 ===== Conditional clauses
 
 Conditional clauses cannot be expressed using the JSON form of the template.
-Instead, the template *must* be passed as a string.  For instance, let's say
+Instead, the template *must* be passed as a string. For instance, let's say
 we wanted to run a `match` query on the `line` field, and optionally wanted
 to filter by line numbers, where `start` and `end` are optional.
 

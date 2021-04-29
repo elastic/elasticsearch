@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
+
 public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
 
     @Override
@@ -84,11 +86,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             }
         });
 
-        logger.info("--> waiting for task to start");
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().anyMatch(t -> t.getAction().equals(ClusterStateAction.NAME)));
-        });
+        awaitTaskWithPrefix(ClusterStateAction.NAME);
 
         logger.info("--> cancelling cluster state request");
         cancellable.cancel();

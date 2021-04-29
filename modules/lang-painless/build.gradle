@@ -9,6 +9,7 @@
 import org.elasticsearch.gradle.testclusters.DefaultTestClustersTask;
 apply plugin: 'elasticsearch.validate-rest-spec'
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'An easy, safe and fast scripting language for Elasticsearch'
@@ -38,7 +39,7 @@ tasks.named("dependencyLicenses").configure {
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
                 'scripts_painless_execute', 'put_script', 'delete_script'
   }
 }
@@ -46,6 +47,23 @@ restResources {
 tasks.named("test").configure {
   // in WhenThingsGoWrongTests we intentionally generate an out of memory error, this prevents the heap from being dumped to disk
   jvmArgs '-XX:-OmitStackTraceInFastThrow', '-XX:-HeapDumpOnOutOfMemoryError'
+}
+
+tasks.named("yamlRestCompatTest").configure {
+    systemProperty 'tests.rest.blacklist', [
+            'painless/70_execute_painless_scripts/Execute with date field context (single-value)',
+            'painless/70_execute_painless_scripts/Execute with date field context (multi-value)',
+            'painless/70_execute_painless_scripts/Execute with double field context (single-value)',
+            'painless/70_execute_painless_scripts/Execute with double field context (multi-value)',
+            'painless/70_execute_painless_scripts/Execute with geo point field context (single-value)',
+            'painless/70_execute_painless_scripts/Execute with geo point field context (multi-value)',
+            'painless/70_execute_painless_scripts/Execute with ip field context (single-value)',
+            'painless/70_execute_painless_scripts/Execute with ip field context (multi-value)',
+            'painless/70_execute_painless_scripts/Execute with long field context (single-value)',
+            'painless/70_execute_painless_scripts/Execute with long field context (multi-value)',
+            'painless/70_execute_painless_scripts/Execute with keyword field context (single-value)',
+            'painless/70_execute_painless_scripts/Execute with keyword field context (multi-value)',
+    ].join(',')
 }
 
 /* Build Javadoc for the Java classes in Painless's public API that are in the

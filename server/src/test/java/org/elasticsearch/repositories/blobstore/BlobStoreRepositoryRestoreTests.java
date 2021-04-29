@@ -184,7 +184,8 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         Collections.emptyList(),
                         true,
                         Collections.emptyMap(),
-                        0L
+                        0L,
+                        Collections.emptyMap()
                     ),
                     Version.CURRENT, Function.identity(), f));
             IndexShardSnapshotFailedException isfe = expectThrows(IndexShardSnapshotFailedException.class,

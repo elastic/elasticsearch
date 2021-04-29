@@ -9,6 +9,7 @@ package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -93,11 +94,24 @@ public class SizeMappingIT extends ESIntegTestCase {
 
     public void testBasic() throws Exception {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
-        final String source = "{\"f\":10}";
+        final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100)+ "\"}";
         indexRandom(true,
                 client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
         GetResponse getResponse = client().prepareGet("test", "1").setStoredFields("_size").get();
         assertNotNull(getResponse.getField("_size"));
         assertEquals(source.length(), (int) getResponse.getField("_size").getValue());
+    }
+
+    public void testGetWithFields() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("_size", "enabled=true"));
+        final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100)+ "\"}";
+        indexRandom(true,
+                client().prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
+        SearchResponse searchResponse = client().prepareSearch("test").addFetchField("_size").get();
+        assertEquals(source.length(), ((Long) searchResponse.getHits().getHits()[0].getFields().get("_size").getValue()).intValue());
+
+        // this should not work when requesting fields via wildcard expression
+        searchResponse = client().prepareSearch("test").addFetchField("*").get();
+        assertNull(searchResponse.getHits().getHits()[0].getFields().get("_size"));
     }
 }

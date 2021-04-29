@@ -8,12 +8,17 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -730,9 +735,8 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }
         }
 
-        assertBusy(() -> {
-            Request statsRequest = new Request("GET", "/_ccr/stats");
-            Map<?, ?> response = toMap(client().performRequest(statsRequest));
+        assertLongBusy(() -> {
+            Map<?, ?> response = toMap(getAutoFollowStats());
             assertThat(eval("auto_follow_stats.number_of_successful_follow_indices", response),
                 equalTo(initialNumberOfSuccessfulFollowedIndicesInFollowCluster + 2));
             assertThat(eval("auto_follow_stats.recent_auto_follow_errors", response),
@@ -769,5 +773,33 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         Request deleteTemplateRequest = new Request("DELETE", "/_data_stream/" + name);
         assertOK(client.performRequest(deleteTemplateRequest));
     }
+  
+    private Response getAutoFollowStats() throws IOException {
+        final Request statsRequest = new Request("GET", "/_ccr/stats");
+        statsRequest.addParameter("pretty", Boolean.TRUE.toString());
+        return client().performRequest(statsRequest);
+    }
 
+    private void assertLongBusy(CheckedRunnable<Exception> runnable) throws Exception {
+        try {
+            assertBusy(runnable, 120L, TimeUnit.SECONDS);
+        } catch (AssertionError ae) {
+            try {
+                final String autoFollowStats = EntityUtils.toString(getAutoFollowStats().getEntity());
+                logger.warn(() -> new ParameterizedMessage("AssertionError when waiting for auto-follower, auto-follow stats are: {}",
+                    autoFollowStats), ae);
+            } catch (Exception e) {
+                ae.addSuppressed(e);
+            }
+            throw ae;
+        }
+    }
+  
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
+    }
 }

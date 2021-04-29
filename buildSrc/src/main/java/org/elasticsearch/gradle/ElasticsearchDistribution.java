@@ -8,7 +8,8 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.docker.DockerSupportService;
+import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.gradle.api.Action;
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;
@@ -42,7 +43,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         DEB,
         DOCKER,
         // This is a different flavour of Docker image
-        DOCKER_UBI;
+        DOCKER_UBI,
+        // Like UBI, but a little different.
+        DOCKER_IRON_BANK;
 
         @Override
         public String toString() {
@@ -54,11 +57,24 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
                 case DEB:
                 case DOCKER:
                 case DOCKER_UBI:
+                case DOCKER_IRON_BANK:
                 case RPM:
                     return false;
 
                 default:
                     return true;
+            }
+        }
+
+        public boolean isDocker() {
+            switch (this) {
+                case DOCKER:
+                case DOCKER_UBI:
+                case DOCKER_IRON_BANK:
+                    return true;
+
+                default:
+                    return false;
             }
         }
     }
@@ -141,8 +157,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     }
 
     public boolean isDocker() {
-        final Type type = this.type.get();
-        return type == Type.DOCKER || type == Type.DOCKER_UBI;
+        return this.type.get().isDocker();
     }
 
     public void setBundledJdk(Boolean bundledJdk) {
@@ -194,6 +209,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             case DEB:
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
             case RPM:
                 throw new UnsupportedOperationException(
                     "distribution type [" + getType() + "] for " + "elasticsearch distribution [" + name + "] cannot be extracted"

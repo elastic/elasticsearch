@@ -30,6 +30,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -206,6 +207,7 @@ public final class DatabaseRegistry implements Closeable {
             String remoteMd5 = metadata.getMd5();
             String localMd5 = reference != null ? reference.getMd5() : null;
             if (Objects.equals(localMd5, remoteMd5)) {
+                reference.setLastUpdate(metadata.getLastUpdate());
                 LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
                 return;
             }
@@ -258,12 +260,31 @@ public final class DatabaseRegistry implements Closeable {
             bytes -> Files.write(databaseTmpGzFile, bytes, StandardOpenOption.APPEND),
             () -> {
                 LOGGER.debug("decompressing [{}]", databaseTmpGzFile.getFileName());
-                decompress(databaseTmpGzFile, databaseTmpFile);
 
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
+                // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
+                // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
+                try (TarInputStream is =
+                         new TarInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpGzFile)), 8192))) {
+                    TarInputStream.TarEntry entry;
+                    while ((entry = is.getNextEntry()) != null) {
+                        //there might be ./ entry in tar, we should skip it
+                        if (entry.isNotFile()) {
+                            continue;
+                        }
+                        // flatten structure, remove any directories present from the path (should be ./ only)
+                        String name = entry.getName().substring(entry.getName().lastIndexOf('/') + 1);
+                        if (name.startsWith(databaseName)) {
+                            Files.copy(is, databaseTmpFile, StandardCopyOption.REPLACE_EXISTING);
+                        } else {
+                            Files.copy(is, geoipTmpDirectory.resolve(databaseName + "_" + name), StandardCopyOption.REPLACE_EXISTING);
+                        }
+                    }
+                }
+
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
                 Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                updateDatabase(databaseName, recordedMd5, databaseFile);
+                updateDatabase(databaseName, recordedMd5, databaseFile, metadata.getLastUpdate());
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
@@ -278,10 +299,11 @@ public final class DatabaseRegistry implements Closeable {
             });
     }
 
-    void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
+    void updateDatabase(String databaseFileName, String recordedMd5, Path file, long lastUpdate) {
         try {
             LOGGER.info("database file changed [{}], reload database...", file);
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
+            loader.setLastUpdate(lastUpdate);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();
@@ -321,7 +343,7 @@ public final class DatabaseRegistry implements Closeable {
                 // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
                 for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
                     SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-                    String id = String.format(Locale.ROOT, "%s_%d", databaseName, chunk);
+                    String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.getLastUpdate());
                     searchRequest.source().query(new TermQueryBuilder("_id", id));
 
                     // At most once a day a few searches may be executed to fetch the new files,
@@ -329,7 +351,7 @@ public final class DatabaseRegistry implements Closeable {
                     // This makes the code easier to understand and maintain.
                     SearchResponse searchResponse = client.search(searchRequest).actionGet();
                     SearchHit[] hits = searchResponse.getHits().getHits();
-                    assert hits.length == 1 : "expected 1 hit, but instead got [" + hits.length + "]";
+
                     if (searchResponse.getHits().getHits().length == 0) {
                         failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
                         return;
@@ -349,12 +371,6 @@ public final class DatabaseRegistry implements Closeable {
                 failureHandler.accept(e);
             }
         });
-    }
-
-    static void decompress(Path source, Path target) throws IOException {
-        try (GZIPInputStream in = new GZIPInputStream(Files.newInputStream(source), 8192)) {
-            Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
-        }
     }
 
     public Set<String> getAvailableDatabases() {

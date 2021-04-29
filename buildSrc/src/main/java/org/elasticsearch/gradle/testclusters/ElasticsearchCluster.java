@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
-import org.elasticsearch.gradle.http.WaitForHttpResource;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
@@ -127,8 +126,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Internal
-    ElasticsearchNode getFirstNode() {
+    public ElasticsearchNode getFirstNode() {
         return nodes.getAt(clusterName + "-0");
+    }
+
+    @Internal
+    public ElasticsearchNode getLastNode() {
+        int index = nodes.size() - 1;
+        return nodes.getAt(clusterName + "-" + index);
     }
 
     @Internal

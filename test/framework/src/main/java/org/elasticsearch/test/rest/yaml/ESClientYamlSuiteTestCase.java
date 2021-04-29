@@ -157,6 +157,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         restTestExecutionContext.clear();
     }
 
+    /**
+     * Allows test suites to return another version then the lowest version returned from the cat node api.
+     *
+     * For example, in rolling upgrade bwc tests, the version of the old cluster should be used, and if
+     * the cluster is fully upgraded then the cat api doesn't return the version of the old cluster. These
+     * tests provide the es version via system property.
+     */
     protected Version overwriteEsVersion(Version esVersionFromApi) {
         return esVersionFromApi;
     }

@@ -917,9 +917,9 @@ public final class InternalTestCluster extends TestCluster {
             if (callback.clearData(name)) {
                 NodeEnvironment nodeEnv = node.getNodeEnvironment();
                 if (nodeEnv.hasNodeFile()) {
-                    final Path[] locations = nodeEnv.nodeDataPaths();
-                    logger.debug("removing node data paths: [{}]", Arrays.toString(locations));
-                    IOUtils.rm(locations);
+                    final Path location = nodeEnv.nodeDataPath();
+                    logger.debug("removing node data path: [{}]", location);
+                    IOUtils.rm(location);
                 }
             }
         }
@@ -970,7 +970,7 @@ public final class InternalTestCluster extends TestCluster {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
-                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
+                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPath()));
             }
         }
 
@@ -978,7 +978,7 @@ public final class InternalTestCluster extends TestCluster {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
-                dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));
+                dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPath()));
             }
         }
     }

@@ -666,8 +666,8 @@ public class PersistentCache implements Closeable {
             super(
                 "Persistent cache index not found for cache file path ["
                     + cacheFile.getFile()
-                    + "] using node paths "
-                    + Arrays.toString(nodeEnvironment.nodeDataPaths())
+                    + "] using node path "
+                    + nodeEnvironment.nodeDataPath()
             );
         }
     }

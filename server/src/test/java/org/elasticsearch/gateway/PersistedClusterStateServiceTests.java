@@ -267,7 +267,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState);
             }
 
-            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
+            final Path brokenPath = nodeEnvironment.nodeDataPath();
             try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);

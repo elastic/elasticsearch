@@ -95,15 +95,15 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
     }
 
-    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path[], Exception> onNodeStopped) {
+    private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path, Exception> onNodeStopped) {
         internalCluster().startNode();
-        final Path[] dataPaths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
+        final Path dataPath = internalCluster().getInstance(NodeEnvironment.class).nodeDataPath();
         return expectThrows(IllegalStateException.class,
             () -> internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                 @Override
                 public Settings onNodeStopped(String nodeName) {
                     try {
-                        onNodeStopped.accept(dataPaths);
+                        onNodeStopped.accept(dataPath);
                     } catch (Exception e) {
                         throw new AssertionError(e);
                     }

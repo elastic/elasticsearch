@@ -13,8 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -55,8 +55,7 @@ final class OutboundHandler {
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        SendContext sendContext = new SendContext(channel, null, bytes.length(), listener);
-        internalSend(channel, bytes, sendContext);
+        internalSend(channel, bytes, null, listener);
     }
 
     /**
@@ -110,22 +109,53 @@ final class OutboundHandler {
         try {
             message = networkMessage.serialize(bytesStreamOutput);
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
+            logger.warn(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
             wrappedListener.onFailure(e);
             throw e;
         }
-        internalSend(channel, message, new SendContext(channel, networkMessage, message.length(), wrappedListener));
+        internalSend(channel, message, networkMessage, listener);
     }
 
-    private void internalSend(TcpChannel channel, BytesReference reference, SendContext sendContext) {
-        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
+    private void internalSend(TcpChannel channel, BytesReference reference, @Nullable OutboundMessage message,
+                              ActionListener<Void> listener) {
+        final long startTime = threadPool.relativeTimeInMillis();
+        channel.getChannelStats().markAccessed(startTime);
+        final long messageSize = reference.length();;
         TransportLogger.logOutboundMessage(channel, reference);
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
-            sendContext.startTime = threadPool.relativeTimeInMillis();
-            channel.sendMessage(reference, sendContext);
+            channel.sendMessage(reference, new ActionListener<>() {
+                @Override
+                public void onResponse(Void v) {
+                    statsTracker.markBytesWritten(messageSize);
+                    listener.onResponse(v);
+                    maybeLogSlowMessage(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+                        logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                    } else {
+                        logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                    }
+                    listener.onFailure(e);
+                    maybeLogSlowMessage(false);
+                }
+
+                private void maybeLogSlowMessage(boolean success) {
+                    final long logThreshold = slowLogThresholdMs;
+                    if (logThreshold > 0) {
+                        final long took = threadPool.relativeTimeInMillis() - startTime;
+                        if (took > logThreshold) {
+                            logger.warn("sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn " +
+                                    "threshold of [{}ms] with success [{}]", message, messageSize, channel, took, logThreshold, success);
+                        }
+                    }
+                }
+            });
         } catch (RuntimeException ex) {
-            sendContext.onFailure(ex);
+            listener.onFailure(ex);
             CloseableChannel.closeChannel(channel);
             throw ex;
         }
@@ -139,50 +169,4 @@ final class OutboundHandler {
         }
     }
 
-    private class SendContext extends NotifyOnceListener<Void> {
-
-        private final TcpChannel channel;
-        private final OutboundMessage message;
-        private final ActionListener<Void> listener;
-        private final long messageSize;
-        private long startTime;
-
-        private SendContext(TcpChannel channel, OutboundMessage message, long messageSize, ActionListener<Void> listener) {
-            this.channel = channel;
-            this.message = message;
-            this.messageSize = messageSize;
-            this.listener = listener;
-        }
-
-        private void maybeLogSlowMessage(boolean success) {
-            final long logThreshold = slowLogThresholdMs;
-            if (logThreshold > 0) {
-                final long took = threadPool.relativeTimeInMillis() - startTime;
-                if (took > logThreshold) {
-                    logger.warn(
-                    "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn threshold of [{}ms] with " +
-                            "success [{}]", message, messageSize, channel, took, logThreshold, success);
-                }
-            }
-        }
-
-        @Override
-        protected void innerOnResponse(Void v) {
-            assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
-            statsTracker.markBytesWritten(messageSize);
-            listener.onResponse(v);
-            this.maybeLogSlowMessage(true);
-        }
-
-        @Override
-        protected void innerOnFailure(Exception e) {
-            if (NetworkExceptionHelper.isCloseConnectionException(e)) {
-                logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
-            } else {
-                logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
-            }
-            listener.onFailure(e);
-            this.maybeLogSlowMessage(false);
-        }
-    }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.util;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;

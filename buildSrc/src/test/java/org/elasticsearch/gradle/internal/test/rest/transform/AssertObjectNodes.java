@@ -31,8 +31,8 @@ public class AssertObjectNodes {
             if (expected.equals(actual) == false) {
                 throw new ComparisonFailure(
                     "The actual transformation is different than expected in _transformed.yml file.",
-                    toString(actualTests),
-                    toString(expectedTests)
+                    toString(expectedTests),
+                    toString(actualTests)
                 );
             }
         }

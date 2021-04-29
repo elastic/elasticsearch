@@ -20,7 +20,7 @@ import org.gradle.api.tasks.Internal;
 public class ReplaceKeyInLength extends ReplaceByKey {
 
     public ReplaceKeyInLength(String replaceKey, String newKeyName, String testName) {
-        super(replaceKey, newKeyName,null,  testName);
+        super(replaceKey, newKeyName, null, testName);
     }
 
     @Override

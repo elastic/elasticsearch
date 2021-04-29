@@ -20,7 +20,6 @@ public class ReplaceKeyInLengthTests extends TransformTests {
 
     @Test
     public void testLengthKeyChange() throws Exception {
-
         String test_original = "/rest/transform/length/length_replace_original.yml";
         List<ObjectNode> tests = getTests(test_original);
 

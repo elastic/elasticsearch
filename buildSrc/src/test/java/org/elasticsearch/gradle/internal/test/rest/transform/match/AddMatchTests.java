@@ -28,7 +28,7 @@ public class AddMatchTests extends TransformTests {
 
     @Test
     public void testAddAllNotSupported() throws Exception {
-        String testName = "/rest/transform/match/match.yml";
+        String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
         JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
         assertEquals(
@@ -42,7 +42,7 @@ public class AddMatchTests extends TransformTests {
 
     @Test
     public void testAddByTest() throws Exception {
-        String testName = "/rest/transform/match/match.yml";
+        String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
         JsonNode addNode = MAPPER.convertValue(123456789, JsonNode.class);
         validateTest(tests, true);

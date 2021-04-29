@@ -30,7 +30,7 @@ public class RemoveMatchTests extends TransformTests {
 
     @Test
     public void testRemoveAll() throws Exception {
-        String testName = "/rest/transform/match/match.yml";
+        String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
         validateTest(tests, true, true);
         List<ObjectNode> transformedTests = transformTests(tests, Collections.singletonList(new RemoveMatch("_type")));
@@ -40,7 +40,7 @@ public class RemoveMatchTests extends TransformTests {
 
     @Test
     public void testRemoveByTest() throws Exception {
-        String testName = "/rest/transform/match/match.yml";
+        String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
         validateTest(tests, true, false);
         List<ObjectNode> transformedTests = transformTests(tests, Collections.singletonList(new RemoveMatch("_type", "Last test")));

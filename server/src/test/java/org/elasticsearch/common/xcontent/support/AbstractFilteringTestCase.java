@@ -10,6 +10,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,7 +20,6 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
@@ -1438,10 +1438,10 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
             .endObject()
             .endObject()
             .endObject();
-        Set<String> manyFilters = Files.lines(
-            Path.of(AbstractFilteringTestCase.class.getResource("many_filters.txt").toURI()),
+        Set<String> manyFilters = Files.readAllLines(
+            PathUtils.get(AbstractFilteringTestCase.class.getResource("many_filters.txt").toURI()),
             StandardCharsets.UTF_8
-        ).filter(s -> false == s.startsWith("#")).collect(toSet());
+        ).stream().filter(s -> false == s.startsWith("#")).collect(toSet());
         testFilter(deep, deep, manyFilters, emptySet());
     }
 }

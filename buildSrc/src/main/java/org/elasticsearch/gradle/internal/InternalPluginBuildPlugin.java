@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal;
 
 import groovy.lang.Closure;
-import org.elasticsearch.gradle.NoticeTask;
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.internal.util.Util;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
@@ -23,7 +22,8 @@ import java.util.Optional;
 public class InternalPluginBuildPlugin implements InternalPlugin {
     @Override
     public void apply(Project project) {
-        project.getPlugins().apply(PluginBuildPlugin.class);
+        project.getPluginManager().apply(BuildPlugin.class);
+        project.getPluginManager().apply(PluginBuildPlugin.class);
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         // We've ported this from multiple build scripts where we see this pattern into

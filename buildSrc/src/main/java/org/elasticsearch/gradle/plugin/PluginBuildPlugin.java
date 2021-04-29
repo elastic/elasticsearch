@@ -12,12 +12,12 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.lang.Closure;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.internal.BuildPlugin;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -32,6 +32,7 @@ import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.publish.PublishingExtension;
@@ -56,7 +57,8 @@ import java.util.stream.Collectors;
 public class PluginBuildPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
-        project.getPluginManager().apply(BuildPlugin.class);
+        PrecommitTasks.create(project);
+        project.getPluginManager().apply(JavaPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
         project.getPluginManager().apply(CompileOnlyResolvePlugin.class);
 

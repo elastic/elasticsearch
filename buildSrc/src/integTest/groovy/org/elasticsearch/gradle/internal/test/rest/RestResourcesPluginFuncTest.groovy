@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.internal.test.rest
 
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.gradle.testkit.runner.TaskOutcome

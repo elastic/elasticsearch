@@ -8,10 +8,6 @@ package org.elasticsearch.xpack.security.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -136,9 +132,8 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                         apiKeyField.put("id", apiKeyId);
                     }
                     final Map<String,Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
-                    if (apiKeyMetadata.isEmpty() == false) {
+                    if (false == apiKeyMetadata.isEmpty()) {
                         apiKeyField.put("metadata", apiKeyMetadata);
-                    }
                     }
                     if (false == apiKeyField.isEmpty()) {
                         userObject.put(apiKey, apiKeyField);

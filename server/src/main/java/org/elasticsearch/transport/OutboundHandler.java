@@ -55,7 +55,7 @@ final class OutboundHandler {
     }
 
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        SendContext sendContext = new SendContext(channel, null, listener);
+        SendContext sendContext = new SendContext(channel, null, bytes.length(), listener);
         internalSend(channel, bytes, sendContext);
     }
 
@@ -105,20 +105,20 @@ final class OutboundHandler {
 
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
         final BytesStreamOutput bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-        SendContext sendContext = new SendContext(channel, networkMessage, ActionListener.runBefore(listener, bytesStreamOutput::close));
+        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, bytesStreamOutput::close);
         final BytesReference message;
         try {
             message = networkMessage.serialize(bytesStreamOutput);
         } catch (Exception e) {
-            sendContext.onFailure(e);
+            logger.error(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
+            wrappedListener.onFailure(e);
             throw e;
         }
-        internalSend(channel, message, sendContext);
+        internalSend(channel, message, new SendContext(channel, networkMessage, message.length(), wrappedListener));
     }
 
     private void internalSend(TcpChannel channel, BytesReference reference, SendContext sendContext) {
         channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        sendContext.messageSize = reference.length();
         TransportLogger.logOutboundMessage(channel, reference);
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
@@ -144,18 +144,19 @@ final class OutboundHandler {
         private final TcpChannel channel;
         private final OutboundMessage message;
         private final ActionListener<Void> listener;
-        private long messageSize = -1;
+        private final long messageSize;
         private long startTime;
 
-        private SendContext(TcpChannel channel, OutboundMessage message, ActionListener<Void> listener) {
+        private SendContext(TcpChannel channel, OutboundMessage message, long messageSize, ActionListener<Void> listener) {
             this.channel = channel;
             this.message = message;
+            this.messageSize = messageSize;
             this.listener = listener;
         }
 
         private void maybeLogSlowMessage(boolean success) {
             final long logThreshold = slowLogThresholdMs;
-            if (logThreshold > 0 && messageSize >= 0) {
+            if (logThreshold > 0) {
                 final long took = threadPool.relativeTimeInMillis() - startTime;
                 if (took > logThreshold) {
                     logger.warn(

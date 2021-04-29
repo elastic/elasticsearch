@@ -148,15 +148,15 @@ When prompted, enter the password for the `kibana_system` user.
 ./bin/kibana
 ----
 
-. Log in to {kib} as the `elastic` user.
+. Log in to {kib} as the `elastic` user. Use this superuser account to 
+{kibana-ref}/tutorial-secure-access-to-kibana.html[create new users and assign roles]. If you're running {kib} locally, go to `https://localhost:5601` to view the login page.
 
 [[minimal-security-whatsnext]]
 ==== What's next?
 
 Congratulations! You enabled password protection for your local cluster to
 prevent unauthorized access. You can log in to {kib} securely as the `elastic`
-user. If you're running a <<single-node-discovery,single-node cluster>>, then
-you can stop here.
+user and create additional users and roles. If you're running a <<single-node-discovery,single-node cluster>>, then you can stop here.
 
 If your cluster has multiple nodes, then you must configure Transport Layer
 Security (TLS) between nodes. <<dev-vs-prod-mode,Production mode>> clusters

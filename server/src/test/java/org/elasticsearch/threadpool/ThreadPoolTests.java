@@ -118,8 +118,8 @@ public class ThreadPoolTests extends ESTestCase {
         try {
             Loggers.addAppender(threadPoolLogger, appender);
 
-            long absoluteMillis = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - TimeValue.timeValueSeconds(10).millis());
-            long relativeNanos  = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE - TimeValue.timeValueSeconds(10).nanos());
+            long absoluteMillis = randomLong(); // overflow should still be handled correctly
+            long relativeNanos  = randomLong(); // overflow should still be handled correctly
 
             final ThreadPool.TimeChangeChecker timeChangeChecker = new ThreadPool.TimeChangeChecker(100, absoluteMillis, relativeNanos);
 
@@ -158,13 +158,17 @@ public class ThreadPoolTests extends ESTestCase {
 
 
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                    "expected warning for absolute clock",
+                    "expected warning for relative clock",
                     ThreadPool.class.getName(),
-                    Level.WARN,
+                    Level.ERROR,
                     "relative clock went backwards by [1nanos/1ns] while timer thread was sleeping"));
 
             relativeNanos -= 1;
-            timeChangeChecker.check(absoluteMillis, relativeNanos);
+            try {
+                timeChangeChecker.check(absoluteMillis, relativeNanos);
+            } catch (AssertionError e) {
+                // yeah really shouldn't happen but at least we should log the right warning
+            }
             appender.assertAllExpectationsMatched();
 
         } finally {

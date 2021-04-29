@@ -597,9 +597,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                             thresholdMillis);
                 } else if (deltaNanos < 0) {
                     final TimeValue delta = TimeValue.timeValueNanos(-deltaNanos);
-                    logger.warn("relative clock went backwards by [{}/{}ns] while timer thread was sleeping",
+                    logger.error("relative clock went backwards by [{}/{}ns] while timer thread was sleeping",
                             delta,
                             -deltaNanos);
+                    assert false : "System::nanoTime time should be monotonic";
                 }
             } finally {
                 absoluteMillis = newAbsoluteMillis;

@@ -92,7 +92,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             clusterState,
             candidateNodes,
             params.getJobId(),
-            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            // Use the job_task_name for the appropriate job size
+            MlTasks.JOB_TASK_NAME,
             memoryTracker,
             0,
             node -> null);

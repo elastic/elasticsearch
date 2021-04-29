@@ -141,9 +141,7 @@ public class JobNodeSelector {
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
         List<String> reasons = new LinkedList<>();
-        long maxAvailableCount = Long.MIN_VALUE;
         long maxAvailableMemory = Long.MIN_VALUE;
-        DiscoveryNode minLoadedNodeByCount = null;
         DiscoveryNode minLoadedNodeByMemory = null;
         for (DiscoveryNode node : candidateNodes) {
 
@@ -195,7 +193,7 @@ public class JobNodeSelector {
                 continue;
             }
 
-            if (allocateByMemory == false) {
+            if (canAllocateByMemory == false) {
                 reason = createReason(jobId,
                     nodeNameAndMlAttributes(node),
                     "This node is not providing accurate information to determine is load by memory.");

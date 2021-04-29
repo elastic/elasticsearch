@@ -88,4 +88,27 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         assertEquals(json, Operator.OR, parsed.operator());
         assertEquals(json, 2.0, parsed.boost, 1e-6);
     }
+
+    /**
+     * We parse `minimum_should_match` to a String but other queries supporting this parameter also accept integer values and null
+     */
+    public void testMinumumShouldMatchFromXContent() throws IOException {
+        Object[] testValues = new Object[] { 2, "\"2\"", "\"2%\"", null };
+        Object[] expectedValues = new Object[] { "2", "2", "2%", null };
+        int i = 0;
+        for (Object value : testValues) {
+            String json = "{\n"
+                + "  \"combined_fields\" : {\n"
+                + "    \"query\" : \"quick brown fox\",\n"
+                + "    \"minimum_should_match\" : " + value + "\n"
+                + "  }\n"
+                + "}";
+
+            CombinedFieldsQueryBuilder parsed = (CombinedFieldsQueryBuilder) parseQuery(json);
+
+            assertEquals(json, "quick brown fox", parsed.value());
+            assertEquals(json, expectedValues[i], parsed.minimumShouldMatch());
+            i++;
+        }
+    }
 }

@@ -222,7 +222,7 @@ To check the `version`, you can use the <<getting-component-templates,get compon
 
 You can use the `_meta` parameter to add arbitrary metadata to a component template.
 This user-defined object is stored in the cluster state,
-so keeping it short is preferrable.
+so keeping it short is preferable.
 
 The `_meta` parameter is optional and not automatically generated or used by {es}.
 

@@ -15,6 +15,8 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -322,6 +324,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
 
+        /**
+         * Wildcard queries on keyword fields use the normalizer of the underlying field, regardless of their case sensitivity option
+         */
+        @Override
+        public Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            return super.wildcardQuery(value, method, caseInsensitive, true, context);
+        }
+
         @Override
         public CollapseType collapseType() {
             return CollapseType.KEYWORD;
@@ -332,6 +347,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public int ignoreAbove() {
             return ignoreAbove;
         }
+
     }
 
     private final boolean indexed;
@@ -380,15 +396,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            value = nullValue;
         } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else {
-                value = parser.textOrNull();
-            }
+            value = parser.textOrNull();
         }
 
         indexValue(context, value);
@@ -417,7 +429,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.doc().add(field);
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                createFieldNamesField(context);
+                context.addToFieldNames(fieldType().name());
             }
         }
 

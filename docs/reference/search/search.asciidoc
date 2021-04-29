@@ -66,7 +66,7 @@ Defaults to `true`.
 [[search-partial-responses]]
 `allow_partial_search_results`::
 (Optional, Boolean)
-If `true`, returns partial results if there are request timeouts or
+If `true`, returns partial results if there are shard request timeouts or
 <<shard-failures,shard failures>>. If `false`, returns an error with
 no partial results. Defaults to `true`.
 +
@@ -287,7 +287,7 @@ Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait
-for a response. If no response is received before the timeout expires, the
+for a response from each shard. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
 
 `track_scores`::
@@ -578,7 +578,7 @@ Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait
-for a response. If no response is received before the timeout expires, the
+for a response from each shard. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
 
 [[request-body-search-version]]

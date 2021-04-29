@@ -162,7 +162,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
         executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, clock, parser,
-                clusterService, client, EsExecutors.newDirectExecutorService());
+                clusterService, client, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     public void testExecute() throws Exception {

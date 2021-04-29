@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -38,10 +39,9 @@ public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field").field("type", "rank_feature").endObject().endObject()
                 .endObject().endObject());
 
-        DocumentMapper mapper = mapperService.parse("type", new CompressedXContent(mapping));
-
-        assertEquals(mapping, mapper.mappingSource().toString());
-        assertNotNull(mapper.metadataMapper(RankFeatureMetaFieldMapper.class));
+        Mapping parsedMapping = mapperService.parseMapping("type", new CompressedXContent(mapping));
+        assertEquals(mapping, parsedMapping.toCompressedXContent().toString());
+        assertNotNull(parsedMapping.getMetadataMapperByClass(RankFeatureMetaFieldMapper.class));
     }
 
     /**
@@ -50,12 +50,12 @@ public class RankFeatureMetaFieldMapperTests extends ESSingleNodeTestCase {
      */
     public void testDocumentParsingFailsOnMetaField() throws Exception {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
-        DocumentMapper mapper = mapperService.parse("_doc", new CompressedXContent(mapping));
+        DocumentMapper mapper = mapperService.merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         String rfMetaField = RankFeatureMetaFieldMapper.CONTENT_TYPE;
         BytesReference bytes = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field(rfMetaField, 0).endObject());
         MapperParsingException e = expectThrows(MapperParsingException.class, () ->
             mapper.parse(new SourceToParse("test", "1", bytes, XContentType.JSON)));
-        assertTrue(
-            e.getCause().getMessage().contains("Field ["+ rfMetaField + "] is a metadata field and cannot be added inside a document."));
+        assertThat(e.getCause().getMessage(),
+            CoreMatchers.containsString("Field ["+ rfMetaField + "] is a metadata field and cannot be added inside a document."));
     }
 }

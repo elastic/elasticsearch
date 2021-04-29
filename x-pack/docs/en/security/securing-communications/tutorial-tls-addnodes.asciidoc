@@ -149,7 +149,7 @@ If you encounter errors, you can see some common problems and solutions in
 . Verify that your cluster now contains three nodes.
 +
 --
-For example, log into {kib} with the `elastic` built-in user. Go to
+For example, log in to {kib} with the `elastic` built-in user. Go to
 *Dev Tools > Console* and run the <<cluster-health,cluster health API>>:
 
 [source,console]

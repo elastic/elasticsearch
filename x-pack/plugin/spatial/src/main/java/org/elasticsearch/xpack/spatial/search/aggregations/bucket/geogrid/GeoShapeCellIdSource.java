@@ -21,13 +21,11 @@ import java.util.function.LongConsumer;
 
 public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
     private final GeoShapeValuesSource valuesSource;
-    private final int precision;
     private final GeoGridTiler encoder;
     private LongConsumer circuitBreakerConsumer;
 
-    public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, int precision, GeoGridTiler encoder) {
+    public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, GeoGridTiler encoder) {
         this.valuesSource = valuesSource;
-        this.precision = precision;
         this.encoder = encoder;
         this.circuitBreakerConsumer = (l) -> {};
     }
@@ -41,10 +39,6 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
         this.circuitBreakerConsumer = circuitBreakerConsumer;
     }
 
-    public int precision() {
-        return precision;
-    }
-
     @Override
     public boolean isFloatingPoint() {
         return false;
@@ -53,14 +47,14 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
         GeoShapeValues geoValues = valuesSource.geoShapeValues(ctx);
-        if (precision == 0) {
+        if (encoder.precision() == 0) {
             // special case, precision 0 is the whole world
-            return new AllCellValues(geoValues, encoder, circuitBreakerConsumer);
+            return new AllCellValues(geoValues, encoder.encode(0, 0), circuitBreakerConsumer);
         }
         ValuesSourceType vs = geoValues.valuesSourceType();
         if (GeoShapeValuesSourceType.instance() == vs) {
             // docValues are geo shapes
-            return new GeoShapeCellValues(geoValues, precision, encoder, circuitBreakerConsumer);
+            return new GeoShapeCellValues(geoValues, encoder, circuitBreakerConsumer);
         } else {
             throw new IllegalArgumentException("unsupported geo type");
         }

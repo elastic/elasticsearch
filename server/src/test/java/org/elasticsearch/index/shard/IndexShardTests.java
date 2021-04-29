@@ -10,6 +10,8 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
@@ -3098,7 +3100,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // Close the directory under the shard first because it's probably a MockDirectoryWrapper which throws exceptions when corrupt
         try {
             ((FilterDirectory) corruptedShard.store().directory()).getDelegate().close();
-        } catch (CorruptIndexException | RuntimeException e) {
+        } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException | RuntimeException e) {
             // ignored
         }
 

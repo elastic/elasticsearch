@@ -9,8 +9,8 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.AntFixture
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'

@@ -8,7 +8,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.apache.commons.io.FileUtils;
-import org.elasticsearch.gradle.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;

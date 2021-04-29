@@ -103,8 +103,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("ingest_admin", new RoleDescriptor("ingest_admin", new String[] { "manage_index_templates", "manage_pipeline" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
-                .put("reporting_user", new RoleDescriptor("reporting_user", null, null,
-                        null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("reporting_user", new RoleDescriptor(
+                    "reporting_user",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
+                    null))
                 .put("kibana_dashboard_only_user", new RoleDescriptor(
                         "kibana_dashboard_only_user",
                         null,

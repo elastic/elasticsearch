@@ -9,13 +9,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -111,19 +111,23 @@ final class FieldTypeLookup {
         if (fieldType != null) {
             return fieldType;
         }
+        return getDynamicField(field);
+    }
 
-        // Try parent fields instead!
+    private MappedFieldType getDynamicField(String field) {
         if (dynamicFieldTypes.isEmpty()) {
-            // nope, no parent fields defined
+            // no parent fields defined
             return null;
         }
         String parentField = longestPossibleParent(field);
         while (true) {
-            fieldType = fullNameToFieldType.get(parentField);
+            MappedFieldType fieldType = fullNameToFieldType.get(parentField);
             if (fieldType != null) {
                 if (dynamicFieldTypes.containsKey(fieldType.name())) {
                     DynamicFieldType dft = dynamicFieldTypes.get(fieldType.name());
-                    return dft.getChildFieldType(field.substring(parentField.length() + 1));
+                    if (Objects.equals(field, parentField) == false) {
+                        return dft.getChildFieldType(field.substring(parentField.length() + 1));
+                    }
                 }
             }
             if (parentField.contains(".") == false) {
@@ -176,9 +180,9 @@ final class FieldTypeLookup {
             return Set.of();
         }
 
-        // TODO there must be a nicer way of doing this...
-        MappedFieldType fieldType = get(field);
-        if (fieldType instanceof FlattenedFieldMapper.KeyedFlattenedFieldType) {
+        // If the field is dynamically generated then return its full path
+        MappedFieldType fieldType = getDynamicField(field);
+        if (fieldType != null) {
             return Set.of(field);
         }
 

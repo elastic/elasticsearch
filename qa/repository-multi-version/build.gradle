@@ -14,7 +14,7 @@ apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.bwc-test'
 
 dependencies {
   testImplementation project(':client:rest-high-level')

@@ -5,9 +5,12 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
 import org.elasticsearch.gradle.testclusters.RunTask
 
-apply plugin: 'elasticsearch.testclusters'
+// gradle has an open issue of failing applying plugins in
+// precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
+// apply plugin: 'elasticsearch.testclusters'
 
 testClusters {
   runTask {

@@ -293,7 +293,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true, Collections.singleton("strategy"))
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
                 .build(new ContentPath());
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();

@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -145,13 +144,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
-            Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
             builder = new LegacyGeoShapeFieldMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
                 ignoreMalformedByDefault,
-                coerceByDefault,
-                deprecatedParams);
+                coerceByDefault);
         } else {
             builder = new Builder(name, ignoreMalformedByDefault, coerceByDefault);
         }

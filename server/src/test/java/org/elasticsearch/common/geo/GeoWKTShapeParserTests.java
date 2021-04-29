@@ -328,7 +328,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true, Collections.singleton("strategy"))
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
                 .build(new ContentPath());
 
         // test store z disabled
@@ -353,7 +353,7 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true, Collections.singleton("strategy"))
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
                 .build(new ContentPath());
 
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, mapperBuilder);
@@ -369,14 +369,14 @@ public class GeoWKTShapeParserTests extends BaseGeoParsingTestCase {
 
         final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper defaultMapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true, Collections.singleton("strategy"))
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
                 .coerce(false).build(new ContentPath());
         ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class,
             () -> ShapeParser.parse(parser, defaultMapperBuilder));
         assertEquals("invalid LinearRing found (coordinates are not closed)", exception.getMessage());
 
         final LegacyGeoShapeFieldMapper coercingMapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true, Collections.singleton("strategy"))
+            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true)
                 .coerce(true).build(new ContentPath());
         ShapeBuilder<?, ?, ?> shapeBuilder = ShapeParser.parse(parser, coercingMapperBuilder);
         assertNotNull(shapeBuilder);

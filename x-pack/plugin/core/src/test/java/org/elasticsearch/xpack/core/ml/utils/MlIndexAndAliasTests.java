@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -282,7 +283,7 @@ public class MlIndexAndAliasTests extends ESTestCase {
     private void createIndexAndAliasIfNecessary(ClusterState clusterState) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client, clusterState, TestIndexNameExpressionResolver.newInstance(),
-            TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, listener);
+            TEST_INDEX_PREFIX, TEST_INDEX_ALIAS, MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, listener);
     }
 
     @SuppressWarnings("unchecked")

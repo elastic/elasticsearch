@@ -113,7 +113,7 @@ final class OutboundHandler {
             wrappedListener.onFailure(e);
             throw e;
         }
-        internalSend(channel, message, networkMessage, listener);
+        internalSend(channel, message, networkMessage, wrappedListener);
     }
 
     private void internalSend(TcpChannel channel, BytesReference reference, @Nullable OutboundMessage message,

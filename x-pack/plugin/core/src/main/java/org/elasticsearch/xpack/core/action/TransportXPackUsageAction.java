@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
@@ -27,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiConsumer;
@@ -45,13 +48,24 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
     }
 
     @Override
-    protected void masterOperation(XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
+    protected void masterOperation(final XPackUsageRequest request,
+                                   final ClusterState state,
+                                   final ActionListener<XPackUsageResponse> listener) {
+        throw new UnsupportedOperationException("The task parameter is required");
+    }
+
+    @Override
+    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
         final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener =
                 listener.delegateFailure((l, usages) -> l.onResponse(new XPackUsageResponse(usages)));
         final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(featureSets.size());
         final AtomicInteger position = new AtomicInteger(0);
         final BiConsumer<XPackFeatureSet, ActionListener<List<Usage>>> consumer = (featureSet, iteratingListener) -> {
             assert Transports.assertNotTransportThread("calculating usage can be more expensive than we allow on transport threads");
+            if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+                throw new CancellationException("Task cancelled");
+            }
+
             featureSet.usage(iteratingListener.delegateFailure((l, usage) -> {
                 featureSetUsages.set(position.getAndIncrement(), usage);
                 threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(ActionRunnable.supply(iteratingListener, Collections::emptyList));

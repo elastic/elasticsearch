@@ -468,6 +468,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     @Override
     protected void index(ParseContext context, ShapeBuilder<?, ?, ?> shapeBuilder) throws IOException {
+        if (shapeBuilder == null) {
+            return;
+        }
         Shape shape = shapeBuilder.buildS4J();
         if (fieldType().pointsOnly()) {
             // index configured for pointsOnly
@@ -485,7 +488,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             }
         }
         context.doc().addAll(Arrays.asList(fieldType().defaultPrefixTreeStrategy().createIndexableFields(shape)));
-        createFieldNamesField(context);
+        context.addToFieldNames(fieldType().name());
     }
 
     @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
@@ -153,7 +154,6 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertEquals(Collections.singleton("test_1"), indices.get());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71424")
     public void testDoesNotSubmitRerouteTaskTooFrequently() {
         final ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(DiscoveryNodes.builder().add(newNormalNode("node1")).add(newNormalNode("node2"))).build();
@@ -197,7 +197,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             // should not re-route again within the reroute interval
             currentTime.addAndGet(randomLongBetween(0,
-                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis()));
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(Settings.EMPTY).millis() - 1));
             monitor.onNewInfo(clusterInfo(allDisksOk));
             assertNull(listenerReference.get());
         }
@@ -450,7 +450,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         final ImmutableOpenMap.Builder<String, DiskUsage> allDisksOkBuilder;
         allDisksOkBuilder = ImmutableOpenMap.builder();
         allDisksOkBuilder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(15, 100)));
-        allDisksOkBuilder.put("frozen", new DiskUsage("frozen", "frozen", "/foo/bar", 100, between(15, 100)));
+        if (randomBoolean()) {
+            allDisksOkBuilder.put("frozen", new DiskUsage("frozen", "frozen", "/foo/bar", 100, between(15, 100)));
+        } else {
+            allDisksOkBuilder.put("frozen", new DiskUsage("frozen", "frozen", "/foo/bar", ByteSizeValue.ofGb(1000).getBytes(),
+                (randomBoolean() ? ByteSizeValue.ofGb(between(20, 1000)) : ByteSizeValue.ofGb(between(20, 50))).getBytes()));
+        }
         final ImmutableOpenMap<String, DiskUsage> allDisksOk = allDisksOkBuilder.build();
 
         final ImmutableOpenMap.Builder<String, DiskUsage> aboveLowWatermarkBuilder = ImmutableOpenMap.builder();
@@ -474,6 +479,13 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         frozenAboveFloodStageWatermarkBuilder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(15, 100)));
         frozenAboveFloodStageWatermarkBuilder.put("frozen", new DiskUsage("frozen", "frozen", "/foo/bar", 100, between(0, 4)));
         final ImmutableOpenMap<String, DiskUsage> frozenAboveFloodStageWatermark = frozenAboveFloodStageWatermarkBuilder.build();
+
+        final ImmutableOpenMap.Builder<String, DiskUsage> frozenAboveFloodStageMaxHeadroomBuilder = ImmutableOpenMap.builder();
+        // node1 is below low watermark, so no logging from it.
+        frozenAboveFloodStageMaxHeadroomBuilder.put("node1", new DiskUsage("node1", "node1", "/foo/bar", 100, between(15, 100)));
+        frozenAboveFloodStageMaxHeadroomBuilder.put("frozen", new DiskUsage("frozen", "frozen", "/foo/bar",
+            ByteSizeValue.ofGb(1000).getBytes(), ByteSizeValue.ofGb(between(0, 19)).getBytes()));
+        final ImmutableOpenMap<String, DiskUsage> frozenAboveFloodStageMaxHeadroom = frozenAboveFloodStageMaxHeadroomBuilder.build();
 
         assertNoLogging(monitor, allDisksOk);
 
@@ -545,6 +557,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             "low disk watermark [85%] no longer exceeded on *node1*");
 
         assertRepeatedWarningMessages(monitor, frozenAboveFloodStageWatermark, "flood stage disk watermark [95%] exceeded on *frozen*");
+
+        assertRepeatedWarningMessages(monitor, frozenAboveFloodStageMaxHeadroom,
+            "flood stage disk watermark [max_headroom=20gb] exceeded on *frozen*");
 
         assertNoLogging(monitor, allDisksOk);
     }
@@ -631,7 +646,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     private static ClusterInfo clusterInfo(ImmutableOpenMap<String, DiskUsage> diskUsages,
                                            ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace) {
-        return new ClusterInfo(diskUsages, null, null, null, reservedSpace);
+        return new ClusterInfo(diskUsages, null, null, null, null, reservedSpace);
     }
 
     private static DiscoveryNode newFrozenOnlyNode(String nodeId) {

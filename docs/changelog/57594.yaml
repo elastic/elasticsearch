@@ -1,0 +1,7 @@
+pr: 57594
+issues: []
+area: SQL
+type: enhancement
+summary: Use java String methods for LTRIM/RTRIM
+versions:
+  - v8.0.0

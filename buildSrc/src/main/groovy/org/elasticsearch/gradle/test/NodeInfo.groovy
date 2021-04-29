@@ -12,7 +12,7 @@ import com.sun.jna.Native
 import com.sun.jna.WString
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.VersionProperties
 import org.gradle.api.Project
 
 import java.nio.file.Files

@@ -73,4 +73,26 @@ public class ShardSnapshotResult implements Writeable {
         size.writeTo(out);
         out.writeVInt(segmentCount);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ShardSnapshotResult that = (ShardSnapshotResult) o;
+        return segmentCount == that.segmentCount && generation.equals(that.generation) && size.equals(that.size);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(generation, size, segmentCount);
+    }
+
+    @Override
+    public String toString() {
+        return "ShardSnapshotResult{" +
+                "generation='" + generation + '\'' +
+                ", size=" + size +
+                ", segmentCount=" + segmentCount +
+                '}';
+    }
 }

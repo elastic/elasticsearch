@@ -62,7 +62,7 @@ public final class AutoCreateIndex {
         }
 
         // Always auto-create system indexes
-        if (systemIndices.isSystemIndex(index)) {
+        if (systemIndices.isSystemName(index)) {
             return true;
         }
 

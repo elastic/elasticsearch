@@ -72,7 +72,7 @@ Which returns
       },
       "device" : {
         "name" : "Mac"
-      },
+      }
     }
   }
 }

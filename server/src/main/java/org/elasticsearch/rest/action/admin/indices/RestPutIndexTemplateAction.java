@@ -30,8 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
-    public static final String DEPRECATION_WARNING = "Legacy index templates are deprecated and will be removed completely in a " +
-        "future version. Please use composable templates instead.";
+    public static final String DEPRECATION_WARNING = "Legacy index templates are deprecated in favor of composable templates.";
     private static final RestApiVersion DEPRECATION_VERSION = RestApiVersion.V_7;
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +

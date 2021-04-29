@@ -303,8 +303,8 @@ include::repository-shared-settings.asciidoc[]
     setting a buffer size lower than `5mb` is not allowed since it will prevent
     the use of the Multipart API and may result in upload errors. It is also not
     possible to set a buffer size greater than `5gb` as it is the maximum upload
-    size allowed by S3. Defaults to the minimum between `100mb` and `5%` of the
-    heap size.
+    size allowed by S3. Defaults to `100mb` or `5%` of JVM heap, whichever is
+    smaller.
 
 `canned_acl`::
 

@@ -12,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -24,7 +23,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
      */
     public static final long MAX_CHARS = 1024 * 1024;
 
-    public static final ScriptContext<Factory> CONTEXT = newContext("string_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("keyword_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -60,17 +59,6 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public final void runForDoc(int docId, Consumer<String> consumer) {
         resultsForDoc(docId).forEach(consumer);
-    }
-
-    /**
-     * Reorders the values from the last time {@link #resultsForDoc(int)} was called to
-     * how this would appear in doc-values order.
-     */
-    public final String[] asDocValues() {
-        String[] values = new String[results.size()];
-        results.toArray(values);
-        Arrays.sort(values);
-        return values;
     }
 
     public final void emit(String v) {

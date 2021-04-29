@@ -37,11 +37,9 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -130,7 +128,7 @@ public class RecoverySourceHandler {
     }
 
     public void addListener(ActionListener<RecoveryResponse> listener) {
-        future.addListener(listener, EsExecutors.newDirectExecutorService());
+        future.addListener(listener);
     }
 
     /**
@@ -250,7 +248,7 @@ public class RecoverySourceHandler {
                     sendFileStep.whenComplete(r -> IOUtils.close(safeCommitRef, releaseStore), e -> {
                         try {
                             IOUtils.close(safeCommitRef, releaseStore);
-                        } catch (final IOException ex) {
+                        } catch (Exception ex) {
                             logger.warn("releasing snapshot caused exception", ex);
                         }
                     });
@@ -897,71 +895,70 @@ public class RecoverySourceHandler {
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
         ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetadata::length)); // send smallest first
 
-        final MultiChunkTransfer<StoreFileMetadata, FileChunk>multiFileSender = new MultiChunkTransfer<StoreFileMetadata, FileChunk>(
-            logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
+        Releasable temporaryStoreRef = acquireStore(store);
+        try {
+            final Releasable storeRef = temporaryStoreRef;
+            final MultiChunkTransfer<StoreFileMetadata, FileChunk>multiFileSender = new MultiChunkTransfer<StoreFileMetadata, FileChunk>(
+                logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
-                final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
-                InputStreamIndexInput currentInput = null;
-                long offset = 0;
+                    final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
+                    IndexInput currentInput = null;
+                    long offset = 0;
 
-                @Override
-                protected void onNewResource(StoreFileMetadata md) throws IOException {
-                    offset = 0;
-                    IOUtils.close(currentInput, () -> currentInput = null);
-                    final IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE);
-                    currentInput = new InputStreamIndexInput(indexInput, md.length()) {
-                        @Override
-                        public void close() throws IOException {
-                            IOUtils.close(indexInput, super::close); // InputStreamIndexInput's close is a noop
+                    @Override
+                    protected void onNewResource(StoreFileMetadata md) throws IOException {
+                        offset = 0;
+                        IOUtils.close(currentInput);
+                        currentInput = store.directory().openInput(md.name(), IOContext.READONCE);
+                    }
+
+                    private byte[] acquireBuffer() {
+                        final byte[] buffer = buffers.pollFirst();
+                        if (buffer != null) {
+                            return buffer;
                         }
-                    };
-                }
-
-                private byte[] acquireBuffer() {
-                    final byte[] buffer = buffers.pollFirst();
-                    if (buffer != null) {
-                        return buffer;
+                        return new byte[chunkSizeInBytes];
                     }
-                    return new byte[chunkSizeInBytes];
-                }
 
-                @Override
-                protected FileChunk nextChunkRequest(StoreFileMetadata md) throws IOException {
-                    assert Transports.assertNotTransportThread("read file chunk");
-                    cancellableThreads.checkForCancel();
-                    final byte[] buffer = acquireBuffer();
-                    final int bytesRead = currentInput.read(buffer);
-                    if (bytesRead == -1) {
-                        throw new CorruptIndexException("file truncated; length=" + md.length() + " offset=" + offset, md.name());
+                    @Override
+                    protected FileChunk nextChunkRequest(StoreFileMetadata md) throws IOException {
+                        assert Transports.assertNotTransportThread("read file chunk");
+                        cancellableThreads.checkForCancel();
+                        final byte[] buffer = acquireBuffer();
+                        final int toRead = Math.toIntExact(Math.min(md.length() - offset, buffer.length));
+                        currentInput.readBytes(buffer, 0, toRead, false);
+                        final boolean lastChunk = offset + toRead == md.length();
+                        final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, toRead), offset, lastChunk,
+                            () -> buffers.addFirst(buffer));
+                        offset += toRead;
+                        return chunk;
                     }
-                    final boolean lastChunk = offset + bytesRead == md.length();
-                    final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, bytesRead), offset, lastChunk,
-                        () -> buffers.addFirst(buffer));
-                    offset += bytesRead;
-                    return chunk;
-                }
 
-                @Override
-                protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
-                    cancellableThreads.checkForCancel();
-                    final ReleasableBytesReference content = new ReleasableBytesReference(request.content, request);
-                    recoveryTarget.writeFileChunk(
-                        request.md, request.position, content, request.lastChunk,
-                            translogOps.getAsInt(), ActionListener.runBefore(listener, content::close));
-                }
+                    @Override
+                    protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
+                        cancellableThreads.checkForCancel();
+                        final ReleasableBytesReference content = new ReleasableBytesReference(request.content, request);
+                        recoveryTarget.writeFileChunk(
+                            request.md, request.position, content, request.lastChunk,
+                                translogOps.getAsInt(), ActionListener.runBefore(listener, content::close));
+                    }
 
-                @Override
-                protected void handleError(StoreFileMetadata md, Exception e) throws Exception {
-                    handleErrorOnSendFiles(store, e, new StoreFileMetadata[]{md});
-                }
+                    @Override
+                    protected void handleError(StoreFileMetadata md, Exception e) throws Exception {
+                        handleErrorOnSendFiles(store, e, new StoreFileMetadata[]{md});
+                    }
 
-                @Override
-                public void close() throws IOException {
-                    IOUtils.close(currentInput, () -> currentInput = null);
-                }
-            };
-        resources.add(multiFileSender);
-        multiFileSender.start();
+                    @Override
+                    public void close() throws IOException {
+                        IOUtils.close(currentInput, storeRef);
+                    }
+                };
+            resources.add(multiFileSender);
+            temporaryStoreRef = null; // now owned by multiFileSender, tracked in resources, so won't be leaked
+            multiFileSender.start();
+        } finally {
+            Releasables.close(temporaryStoreRef);
+        }
     }
 
     private void cleanFiles(Store store, Store.MetadataSnapshot sourceMetadata, IntSupplier translogOps,

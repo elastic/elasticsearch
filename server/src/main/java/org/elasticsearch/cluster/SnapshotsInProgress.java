@@ -376,6 +376,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public ShardSnapshotStatus(@Nullable String nodeId, ShardState state, String reason, @Nullable String generation) {
             this(nodeId, assertNotSuccess(state), reason, generation, null);
         }
+
         private ShardSnapshotStatus(
                 @Nullable String nodeId,
                 ShardState state,
@@ -482,8 +483,11 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ShardSnapshotStatus status = (ShardSnapshotStatus) o;
-            return Objects.equals(nodeId, status.nodeId) && Objects.equals(reason, status.reason)
-                    && Objects.equals(generation, status.generation) && state == status.state;
+            return Objects.equals(nodeId, status.nodeId)
+                    && Objects.equals(reason, status.reason)
+                    && Objects.equals(generation, status.generation)
+                    && state == status.state
+                    && Objects.equals(shardSnapshotResult, status.shardSnapshotResult);
         }
 
         @Override
@@ -492,12 +496,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             result = 31 * result + (nodeId != null ? nodeId.hashCode() : 0);
             result = 31 * result + (reason != null ? reason.hashCode() : 0);
             result = 31 * result + (generation != null ? generation.hashCode() : 0);
+            result = 31 * result + (shardSnapshotResult != null ? shardSnapshotResult.hashCode() : 0);
             return result;
         }
 
         @Override
         public String toString() {
-            return "ShardSnapshotStatus[state=" + state + ", nodeId=" + nodeId + ", reason=" + reason + ", generation=" + generation + "]";
+            return "ShardSnapshotStatus[state=" + state + ", nodeId=" + nodeId + ", reason=" + reason + ", generation=" + generation +
+                    ", shardSnapshotResult=" + shardSnapshotResult + "]";
         }
     }
 

@@ -89,7 +89,7 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(factorialForked(1, threadPool.generic()), equalTo(1));
         assertThat(factorialForked(10, threadPool.generic()), equalTo(3628800));
         assertThat(expectThrows(AssertionError.class,
-            () -> factorialForked(between(2, 10), EsExecutors.newDirectExecutorService())).getMessage(),
+            () -> factorialForked(between(2, 10), EsExecutors.DIRECT_EXECUTOR_SERVICE)).getMessage(),
             equalTo("org.elasticsearch.threadpool.ThreadPoolTests#factorialForked is called recursively"));
         terminate(threadPool);
     }

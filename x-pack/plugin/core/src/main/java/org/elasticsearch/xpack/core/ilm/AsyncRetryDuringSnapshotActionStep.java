@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -35,7 +36,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
 
     @Override
     public final void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                                    ClusterStateObserver observer, Listener listener) {
+                                    ClusterStateObserver observer, ActionListener<Boolean> listener) {
         // Wrap the original listener to handle exceptions caused by ongoing snapshots
         SnapshotExceptionListener snapshotExceptionListener = new SnapshotExceptionListener(indexMetadata.getIndex(), listener, observer,
                 currentClusterState.nodes().getLocalNode());
@@ -45,22 +46,22 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
     /**
      * Method to be performed during which no snapshots for the index are already underway.
      */
-    abstract void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener);
+    abstract void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Boolean> listener);
 
     /**
      * SnapshotExceptionListener is an injected listener wrapper that checks to see if a particular
      * action failed due to a {@code SnapshotInProgressException}. If it did, then it registers a
      * ClusterStateObserver listener waiting for the next time the snapshot is not running,
-     * re-running the step's {@link #performAction(IndexMetadata, ClusterState, ClusterStateObserver, Listener)}
+     * re-running the step's {@link #performAction(IndexMetadata, ClusterState, ClusterStateObserver, ActionListener)}
      * method when the snapshot is no longer running.
      */
-    class SnapshotExceptionListener implements AsyncActionStep.Listener {
+    class SnapshotExceptionListener implements ActionListener<Boolean> {
         private final Index index;
-        private final Listener originalListener;
+        private final ActionListener<Boolean> originalListener;
         private final ClusterStateObserver observer;
         private final DiscoveryNode localNode;
 
-        SnapshotExceptionListener(Index index, Listener originalListener, ClusterStateObserver observer,
+        SnapshotExceptionListener(Index index, ActionListener<Boolean> originalListener, ClusterStateObserver observer,
                                   DiscoveryNode localNode) {
             this.index = index;
             this.originalListener = originalListener;
@@ -69,7 +70,7 @@ public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep
         }
 
         @Override
-        public void onResponse(boolean complete) {
+        public void onResponse(Boolean complete) {
             originalListener.onResponse(complete);
         }
 

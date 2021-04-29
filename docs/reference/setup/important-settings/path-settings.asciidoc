@@ -1,6 +1,6 @@
 [[path-settings]]
 [discrete]
-=== Path settings
+==== Path settings
 
 {es} writes the data you index to indices and data streams to a `data`
 directory. {es} writes its own application logs, which contain information about

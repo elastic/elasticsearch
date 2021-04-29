@@ -534,4 +534,26 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
         assertThat(issue, nullValue());
     }
+
+    public void testDataPathsList() {
+        final Settings settings = Settings.builder().putList("path.data", "d1").build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(
+            issue.getMessage(),
+            equalTo("[path.data] in a list is deprecated, use a string value"));
+        assertThat(
+            issue.getDetails(),
+            equalTo("Configuring [path.data] with a list is deprecated. Instead specify as a string value."));
+        String url =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoDataPathsListDefault() {
+        final Settings settings = Settings.builder().build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null);
+        assertThat(issue, nullValue());
+    }
 }

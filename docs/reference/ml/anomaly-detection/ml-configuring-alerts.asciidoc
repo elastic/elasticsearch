@@ -16,11 +16,10 @@ an email. To learn more about {kib} {alert-features}, refer to
 [[creating-anomaly-alert-rules]]
 == Creating a rule
 
-You can create {ml} rules in the {anomaly-job} wizard after 
-you start the job, from the job list, or under **{stack-manage-app} > 
-{alerts-ui}**. On the *Create rule* window, select *{anomaly-detect-cap} alert* 
-under the {ml} section, then give a name to the rule and optionally provide 
-tags.
+You can create {ml} rules in the {anomaly-job} wizard after you start the job, 
+from the job list, or under **{stack-manage-app} > {alerts-ui}**. On the *Create 
+rule* window, select *{anomaly-detect-cap} alert* under the {ml} section, then 
+give a name to the rule and optionally provide tags.
 
 Specify the time interval for the rule to check detected anomalies. It is 
 recommended to select an interval that is close to the bucket span of the 
@@ -57,6 +56,16 @@ disappear after the bucket is fully processed. Include interim results if you
 want to be notified earlier about a potential anomaly even if it might be a 
 false positive. If you want to get notified only about anomalies of fully 
 processed buckets, do not include interim results.
+
+You can also configure advanced settings. _Lookback interval_ sets an interval 
+that is used to query previous anomalies during each condition check. Its value 
+is derived from the bucket span of the job and the query delay of the {dfeed} by 
+default. It is not recommended to set the lookback interval lower than the 
+default value as it might result in missed anomalies. _Number of latest buckets_ 
+sets how many buckets to check to obtain the highest anomaly from all the 
+anomalies that are found during the _Lookback interval_. An alert is created 
+based on the anomaly with the highest anomaly score from the most anomalous 
+bucket.
 
 You can also test the configured conditions against your existing data and check 
 the sample results by providing a valid interval for your data. The generated 

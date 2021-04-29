@@ -20,6 +20,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -140,9 +142,26 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
                 "the same document", e.getCause().getMessage());
     }
 
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("feature");
+            b.field("type", "rank_features");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [feature] of type [rank_features] can't be used in multifields"));
+    }
+
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;       // TODO should this allow null values?
     }
 }

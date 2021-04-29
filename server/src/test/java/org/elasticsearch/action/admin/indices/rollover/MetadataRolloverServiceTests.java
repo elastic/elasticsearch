@@ -336,7 +336,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .build();
         rolloverRequest.getCreateIndexRequest().settings(settings);
         final CreateIndexClusterStateUpdateRequest createIndexRequest = MetadataRolloverService.prepareDataStreamCreateIndexRequest(
-            dataStream.getName(), newWriteIndexName, rolloverRequest.getCreateIndexRequest());
+            dataStream.getName(), newWriteIndexName, rolloverRequest.getCreateIndexRequest(), null);
         for (String settingKey : settings.keySet()) {
             assertThat(settings.get(settingKey), equalTo(createIndexRequest.settings().get(settingKey)));
         }
@@ -504,7 +504,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -609,7 +609,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -718,7 +718,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -781,7 +781,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
         MetadataRolloverService rolloverService = new MetadataRolloverService(null, createIndexService, metadataIndexAliasesService,
-            mockIndexNameExpressionResolver);
+            mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
         String newIndexName = useDataStream == false && randomBoolean() ? "logs-index-9" : null;
 
@@ -831,7 +831,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
             new AliasValidator(), null, xContentRegistry());
         MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-            mockIndexNameExpressionResolver);
+            mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
         List<Condition<?>> metConditions = Collections.singletonList(condition);

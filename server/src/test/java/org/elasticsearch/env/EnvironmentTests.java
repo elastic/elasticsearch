@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Simple unit-tests for Environment.java
@@ -195,6 +196,23 @@ public class EnvironmentTests extends ESTestCase {
 
         if (pidFileSetting.isDeprecated()) {
             assertSettingDeprecationsAndWarnings(new Setting<?>[] { pidFileSetting });
+        }
+    }
+
+    public void testSingleDataPathListCheck() {
+        {
+            final Settings settings = Settings.builder().build();
+            assertThat(Environment.dataPathUsesList(settings), is(false));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
         }
     }
 

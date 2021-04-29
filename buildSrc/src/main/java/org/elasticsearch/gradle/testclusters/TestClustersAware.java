@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.testclusters;
 
-import org.elasticsearch.gradle.Jdk;
+import org.elasticsearch.gradle.internal.Jdk;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.Nested;
@@ -38,5 +38,4 @@ public interface TestClustersAware extends Task {
     }
 
     default void beforeStart() {}
-
 }

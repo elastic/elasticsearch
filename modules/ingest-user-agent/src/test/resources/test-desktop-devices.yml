@@ -1,0 +1,177 @@
+# Apache License, Version 2.0
+# ===========================
+#
+# Copyright 2009 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+desktop_devices:
+  - type: Desktop
+    os: Windows
+    browser: Chrome
+  - type: Desktop
+    os: Mac OS X
+    browser: Chrome
+  - type: Desktop
+    os: Linux
+    browser: Cypress
+  - type: Desktop
+    os: Ubuntu
+    browser: Firefox
+  - type: Desktop
+    os: Chrome OS
+    browser: Chrome
+  - type: Desktop
+    os: Fedora
+    browser: Firefox
+  - type: Desktop
+    os: FreeBSD
+    browser: Chrome
+  - type: Desktop
+    os: OpenBSD
+    browser: Firefox
+  - type: Desktop
+    os: Arch Linux
+    browser: Firefox
+  - type: Desktop
+    os: Solaris
+    browser: Firefox
+  - type: Desktop
+    os: NetBSD
+    browser: Firefox
+  - type: Desktop
+    os: SUSE
+    browser: Epiphany
+  - type: Desktop
+    browser: Chrome
+    os: Mac OS X
+  - type: Desktop
+    browser: Firefox
+    os: Windows NT
+  - type: Desktop
+    browser: Edge
+    os: Windows NT
+  - type: Desktop
+    browser: HeadlessChrome
+    os: Linux
+  - type: Desktop
+    browser: Safari
+    os: Mac OS X
+  - type: Desktop
+    browser: Electron
+    os: Linux
+  - type: Desktop
+    browser: Opera
+    os: Linux
+  - type: Desktop
+    browser: Samsung Internet
+    os: Linux
+  - type: Desktop
+    browser: Chromium
+    os: Ubuntu
+  - type: Desktop
+    browser: Yandex Browser
+    os: Windows NT
+  - type: Desktop
+    browser: Whale
+    os: Windows NT
+  - type: Desktop
+    browser: Sogou Explorer
+    os: Windows NT
+  - type: Desktop
+    browser: QQ Browser
+    os: Windows NT
+  - type: Desktop
+    browser: IE
+    os: Windows NT
+  - type: Desktop
+    browser: Yeti
+    os: Windows NT
+  - type: Desktop
+    browser: Apple Mail
+    os: Mac OS X
+  - type: Desktop
+    browser: Coc Coc
+    os: Windows NT
+  - type: Desktop
+    browser: Maxthon
+    os: Windows NT
+  - type: Desktop
+    browser: Waterfox
+    os: Linux
+  - type: Desktop
+    browser: Iron
+    os: Mac OS X
+  - type: Desktop
+    browser: UC Browser
+    os: Windows NT
+  - type: Desktop
+    browser: Pale Moon
+    os: Linux
+  - type: Desktop
+    browser: WordPress
+    os: Linux
+  - type: Desktop
+    browser: Vivaldi
+    os: Windows NT
+  - type: Desktop
+    browser: Dragon
+    os: Windows NT
+  - type: Desktop
+    browser: SeaMonkey
+    os: Windows NT
+  - type: Desktop
+    browser: Sleipnir
+    os: Windows NT
+  - type: Desktop
+    browser: Thunderbird
+    os: Linux
+  - type: Desktop
+    browser: Epiphany
+    os: Linux
+  - type: Desktop
+    browser: Datanyze
+    os: Linux
+  - type: Desktop
+    browser: Basilisk
+    os: Windows NT
+  - type: Desktop
+    browser: Swiftfox
+    os: Linux
+  - type: Desktop
+    browser: Netscape
+    os: SunOS
+  - type: Desktop
+    browser: Puffin
+    os: Linux
+  - type: Desktop
+    browser: Seznam prohlížeč
+    os: Windows NT
+  - type: Desktop
+    browser: iCab
+    os: Mac OS X
+  - type: Desktop
+    browser: Opera Neon
+    os: Windows NT
+  - type: Desktop
+    browser: Mail.ru Chromium Browser
+    os: Windows NT
+  - type: Desktop
+    browser: Otter
+    os: BeOS/Haiku
+  - type: Desktop
+    browser: Iceweasel
+    os: Linux
+  - type: Desktop
+    browser: Chrome Mobile WebView
+    os: Linux

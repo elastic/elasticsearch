@@ -6,9 +6,9 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.util.ports.ReservedPortRange
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.util.ports.ReservedPortRange
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -66,7 +66,7 @@ String krb5conf = krbFixtureProject.ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures
 for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
-  project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+  project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, krbFixtureProject.tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"

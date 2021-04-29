@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 

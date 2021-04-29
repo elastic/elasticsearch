@@ -1,0 +1,38 @@
+{
+  "security.clear_cached_service_tokens":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-service-token-caches.html",
+      "description":"Evicts tokens from the service account token caches."
+    },
+    "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/service/{namespace}/{service}/credential/token/{name}/_clear_cache",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "namespace":{
+              "type":"string",
+              "description":"An identifier for the namespace"
+            },
+            "service":{
+              "type":"string",
+              "description":"An identifier for the service name"
+            },
+            "name":{
+              "type":"list",
+              "description":"A comma-separated list of service token names"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

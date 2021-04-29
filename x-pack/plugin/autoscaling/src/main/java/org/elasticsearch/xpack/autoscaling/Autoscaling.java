@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandle
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.shards.FrozenShardsDeciderService;
+import org.elasticsearch.xpack.autoscaling.storage.FrozenStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ProactiveStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
 
@@ -170,6 +171,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 FrozenShardsDeciderService.NAME,
                 FrozenShardsDeciderService.FrozenShardsReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FrozenStorageDeciderService.NAME,
+                FrozenStorageDeciderService.FrozenReason::new
             )
         );
     }
@@ -201,7 +207,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 clusterService.get().getClusterSettings(),
                 allocationDeciders.get()
             ),
-            new FrozenShardsDeciderService()
+            new FrozenShardsDeciderService(),
+            new FrozenStorageDeciderService()
         );
     }
 

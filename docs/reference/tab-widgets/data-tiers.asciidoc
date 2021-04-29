@@ -8,7 +8,7 @@ page.
 
 . To enable a data tier, click **Add capacity**.
 
-experimental:[] **Frozen tier** 
+**Frozen tier**
 
 The frozen tier is not yet available on {ess}. However, you can follow these
 steps to effectively recreate a frozen tier in your deployment:
@@ -61,7 +61,7 @@ node.roles: [ data_cold ]
 node.roles: [ data_frozen ]
 ----
 
-experimental:[] For nodes in the frozen tier, set
+For nodes in the frozen tier, set
 <<searchable-snapshots-shared-cache,`xpack.searchable.snapshot.shared_cache.size`>>
 to up to 90% of the node's available disk space. The frozen tier uses this space
 to create a <<shared-cache,shared, fixed-size cache>> for

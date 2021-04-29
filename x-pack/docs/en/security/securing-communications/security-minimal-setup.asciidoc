@@ -9,6 +9,8 @@ passwords for built-in users. You can add more users later, but using the
 built-in users simplifies the process of enabling security for your
 cluster.
 
+include::../configuring-stack-security.asciidoc[tag=minimal-security-note]
+
 ==== Prerequisites
 
 . Install and configure {es} and {kib}. See https://www.elastic.co/guide/en/elastic-stack-get-started/current/get-started-elastic-stack.html[Getting started with the Elastic Stack].
@@ -39,6 +41,16 @@ NOTE: The `ES_PATH_CONF` variable is the path for the {es}
 configuration files. If you installed {es} using archive distributions
 (`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.
+
+. If your cluster has a single node, add the `discovery.type` setting in the
+`ES_PATH_CONF/elasticsearch.yml` file and set the value to `single-node`. This
+setting ensures that your node does not inadvertently connect to other clusters
+that might be running on your network.
++
+[source,yaml]
+----
+discovery.type: single-node
+----
 
 [[security-create-builtin-users]]
 ==== Create passwords for built-in users
@@ -143,7 +155,12 @@ When prompted, enter the password for the `elastic` user.
 
 Congratulations! You enabled password protection for your local cluster to
 prevent unauthorized access. You can log in to {kib} securely as the `elastic`
-user.
+user. If you're running a <<single-node-discovery,single-node cluster>>, then
+you can stop here.
 
-To add another layer of security, <<security-basic-setup,Set up basic security for the Elastic Stack>>. You'll configure Transport Layer Security (TLS) to
+If your cluster has multiple nodes, then you must configure Transport Layer
+Security (TLS) between nodes. <<dev-vs-prod-mode,Production mode>> clusters
+will not start if you do not enable TLS.
+
+<<security-basic-setup,Set up basic security for the Elastic Stack>> to
 secure all internal communication between nodes in your cluster.

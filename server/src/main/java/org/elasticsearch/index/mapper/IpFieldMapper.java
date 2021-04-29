@@ -413,12 +413,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        Object addressAsObject;
-        if (context.externalValueSet()) {
-            addressAsObject = context.externalValue();
-        } else {
-            addressAsObject = context.parser().textOrNull();
-        }
+        Object addressAsObject = context.parser().textOrNull();
 
         if (addressAsObject == null) {
             addressAsObject = nullValue;
@@ -455,7 +450,7 @@ public class IpFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         } else if (stored || indexed) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));

@@ -300,9 +300,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // that the incoming mappings are the same as the current ones: we need to
             // parse the incoming mappings into a DocumentMapper and check that its
             // serialization is the same as the existing mapper
-            DocumentMapper newMapper = parse(mapping.type(), mapping.source(), false);
+            Mapping newMapping = parseMapping(mapping.type(), mapping.source(), false);
             final CompressedXContent currentSource = this.mapper.mappingSource();
-            final CompressedXContent newSource = newMapper.mappingSource();
+            final CompressedXContent newSource = newMapping.toCompressedXContent();
             if (Objects.equals(currentSource, newSource) == false) {
                 throw new IllegalStateException("expected current mapping [" + currentSource
                     + "] to be the same as new mapping [" + newSource + "]");
@@ -487,12 +487,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
-
-        if (newMapper.mappingSource().equals(mappingSource) == false) {
-            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
+        Mapping newMapping = parseMapping(mapper.type(), mappingSource, false);
+        if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
+            throw new IllegalStateException("Mapping serialization result is different from source. \n--> Source ["
                 + mappingSource + "]\n--> Result ["
-                + newMapper.mappingSource() + "]");
+                + newMapping.toCompressedXContent() + "]");
         }
         return true;
     }
@@ -518,11 +517,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (type.charAt(0) == '.') {
             throw new IllegalArgumentException("mapping type name [" + type + "] must not start with a '.'");
         }
-    }
-
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
-        Mapping mapping = mappingParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
-        return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
     }
 
     /**
@@ -596,7 +590,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mapper != null) {
             return new DocumentMapperForType(mapper, null);
         }
-        mapper = parse(type, null, true);
+        Mapping mapping = parseMapping(type, null, true);
+        mapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 
@@ -605,14 +600,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public MappedFieldType fieldType(String fullName) {
         return mappingLookup().fieldTypesLookup().get(fullName);
-    }
-
-    /**
-     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
-     * then the fields will be returned with a type prefix.
-     */
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return mappingLookup().simpleMatchToFullName(pattern);
     }
 
     /**

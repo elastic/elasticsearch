@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -426,7 +427,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
         @Override
         public PersistentTasksCustomMetadata.Assignment getAssignment(StartDatafeedAction.DatafeedParams params,
+                                                                      Collection<DiscoveryNode> candidateNodes,
                                                                       ClusterState clusterState) {
+            // 'candidateNodes' is not actually used here because the assignment for the task is
+            // already filtered elsewhere (JobNodeSelector), this is only finding the node a task
+            // has already been assigned to.
             return new DatafeedNodeSelector(clusterState, resolver, params.getDatafeedId(), params.getJobId(),
                     params.getDatafeedIndices(), params.getIndicesOptions()).selectNode();
         }

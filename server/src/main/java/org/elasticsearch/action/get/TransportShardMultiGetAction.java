@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorSelectorService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,14 +37,17 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     public static final ActionType<MultiGetShardResponse> TYPE = new ActionType<>(ACTION_NAME, MultiGetShardResponse::new);
 
     private final IndicesService indicesService;
+    private final ExecutorSelectorService executorSelectorService;
 
     @Inject
     public TransportShardMultiGetAction(ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+                                        IndexNameExpressionResolver indexNameExpressionResolver,
+                                        ExecutorSelectorService executorSelectorService) {
         super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiGetShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
+        this.executorSelectorService = executorSelectorService;
     }
 
     @Override
@@ -119,7 +123,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     protected String getExecutor(MultiGetShardRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
         if (clusterState.metadata().index(shardId.getIndex()).isSystem()) {
-            return ThreadPool.Names.SYSTEM_READ;
+            return executorSelectorService.getGetExecutor(shardId.getIndexName());
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
             return ThreadPool.Names.SEARCH_THROTTLED;
         } else {

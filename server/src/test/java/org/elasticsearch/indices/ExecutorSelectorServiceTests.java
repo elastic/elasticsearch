@@ -11,7 +11,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.List;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -21,9 +21,19 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
 
     private static SystemIndices SYSTEM_INDICES = new SystemIndices(
         Map.of(
-            "normal system index", new SystemIndices.Feature("hi", "there", List.of(
-                new SystemIndexDescriptor(".non-critical-system-index", "test index")
-            ))
+            "normal system index", new SystemIndices.Feature("normal", "normal system index",
+                Collections.singletonList(
+                    new SystemIndexDescriptor(".non-critical-system-index", "test index")
+                )),
+            "critical system index", new SystemIndices.Feature("critical", "critical system index",
+                Collections.singletonList(
+                    SystemIndexDescriptor.builder()
+                        .setDescription("critical system indices")
+                        .setIndexPattern(".critical-system-*")
+                        .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
+                        .setThreadPools(SystemIndices.ThreadPools.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+                        .build()
+                ))
         ));
 
     public void testNonCriticalSystemIndexThreadPools() {
@@ -34,7 +44,14 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
         assertThat(service.getWriteExecutor(index), equalTo(ThreadPool.Names.SYSTEM_WRITE));
     }
 
-    // TODO: critical thread pools
+    public void testCriticalSystemIndexThreadPools() {
+        ExecutorSelectorService service = new ExecutorSelectorService(SYSTEM_INDICES);
+        String index = ".critical-system-index";
+        assertThat(service.getGetExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
+        assertThat(service.getReadExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
+        assertThat(service.getWriteExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_WRITE));
+    }
+
 
     // TODO: data streams
 

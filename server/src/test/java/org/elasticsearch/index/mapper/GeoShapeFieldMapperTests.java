@@ -57,13 +57,13 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleValueForDocument() {
-        return "POINT (14.0 15.0)";
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     @Override
-    protected boolean allowsStore() {
-        return false;
+    protected Object getSampleValueForDocument() {
+        return "POINT (14.0 15.0)";
     }
 
     public void testDefaultConfiguration() throws IOException {

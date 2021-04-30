@@ -54,7 +54,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
     }
 
     @Override
-    protected boolean allowsStore() {
+    protected boolean supportsStoredFields() {
         return false;
     }
 

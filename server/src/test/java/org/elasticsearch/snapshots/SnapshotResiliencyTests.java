@@ -1525,7 +1525,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             shardStateAction,
                             actionFilters,
                             new IndexingPressure(settings),
-                            EmptySystemIndices.INSTANCE)),
+                            EmptySystemIndices.INSTANCE,
+                            new ExecutorSelectorService(EmptySystemIndices.INSTANCE))),
                     RetentionLeaseSyncer.EMPTY,
                     client);
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
@@ -1554,7 +1555,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     ));
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
-                    actionFilters, indexingMemoryLimits, EmptySystemIndices.INSTANCE);
+                    actionFilters, indexingMemoryLimits, EmptySystemIndices.INSTANCE,
+                    new ExecutorSelectorService(EmptySystemIndices.INSTANCE));
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,

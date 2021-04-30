@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.ExecutorSelectorService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -89,15 +90,16 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
-                Settings.EMPTY,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE);
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            new IndexingPressure(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE,
+            new ExecutorSelectorService(EmptySystemIndices.INSTANCE));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
         action.dispatchedShardOperationOnPrimary(request, indexShard,
@@ -127,15 +129,16 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
-                Settings.EMPTY,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE);
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            new IndexingPressure(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE,
+            new ExecutorSelectorService(EmptySystemIndices.INSTANCE));
         final RetentionLeases retentionLeases = mock(RetentionLeases.class);
         final RetentionLeaseSyncAction.Request request = new RetentionLeaseSyncAction.Request(indexShard.shardId(), retentionLeases);
 
@@ -167,15 +170,16 @@ public class RetentionLeaseSyncActionTests extends ESTestCase {
         when(indexShard.shardId()).thenReturn(shardId);
 
         final RetentionLeaseSyncAction action = new RetentionLeaseSyncAction(
-                Settings.EMPTY,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                new ActionFilters(Collections.emptySet()),
-                new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE);
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            new IndexingPressure(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE,
+            new ExecutorSelectorService(EmptySystemIndices.INSTANCE));
 
         assertNull(action.indexBlockLevel());
     }

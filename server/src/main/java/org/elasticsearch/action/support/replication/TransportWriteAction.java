@@ -64,14 +64,14 @@ public abstract class TransportWriteAction<
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
                                    Writeable.Reader<ReplicaRequest> replicaRequest,
                                    BiFunction<ExecutorSelectorService, IndexShard, String> executorFunction,
-                                   boolean forceExecutionOnPrimary, IndexingPressure indexingPressure, SystemIndices systemIndices) {
+                                   boolean forceExecutionOnPrimary, IndexingPressure indexingPressure, SystemIndices systemIndices,
+                                   ExecutorSelectorService executorSelectorService) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executorFunction = executorFunction;
-        // TODO: use selector service from node construction
-        this.executorSelectorService = new ExecutorSelectorService(systemIndices);
+        this.executorSelectorService = executorSelectorService;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
     }

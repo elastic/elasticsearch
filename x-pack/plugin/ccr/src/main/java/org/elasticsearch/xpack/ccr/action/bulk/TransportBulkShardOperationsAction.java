@@ -51,7 +51,8 @@ public class TransportBulkShardOperationsAction
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
             final IndexingPressure indexingPressure,
-            final SystemIndices systemIndices) {
+            final SystemIndices systemIndices,
+            final ExecutorSelectorService executorSelectorService) {
         super(
             settings,
             BulkShardOperationsAction.NAME,
@@ -66,7 +67,8 @@ public class TransportBulkShardOperationsAction
             ExecutorSelectorService::getWriteExecutorForShard,
             false,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            executorSelectorService
         );
     }
 

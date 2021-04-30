@@ -202,7 +202,7 @@ Grants read-only access to all features in {kib} (including Solutions) and to da
 [NOTE]
 ===============================
 * This role provides read access to any index that is not prefixed with a dot.
-* This role will automatically grant read-only access to new {kib} features as soon as they will be available.
+* This role automatically grants read-only access to new {kib} features as soon as they are available.
 ===============================
 
 --

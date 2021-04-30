@@ -269,6 +269,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
+                SnapshotsService.ensureHealthyTaskVersions(repositoryName, currentState);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
                 ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
@@ -401,6 +402,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
+                ensureHealthyTaskVersions(repositoryName, currentState);
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
@@ -942,8 +944,30 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // for the same repository
                 final Map<String, Map<ShardId, ShardSnapshotStatus>> knownFailures = new HashMap<>();
 
+                final Version minNodeVersion = nodes.getMinNodeVersion();
+                Set<String> reposWithIncompatibleTasks = null;
+
                 for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
-                    if (statesToUpdate.contains(snapshot.state())) {
+                    if (snapshot.version().after(minNodeVersion)) {
+                        // BwC path logic to deal with the situation where an older node joins the cluster after snapshots for a newer
+                        // version have been started already. In this case we can only remove the snapshot from the cluster state as
+                        // current nodes in the cluster are not be compatible with the state machine of the snapshot potentially and could
+                        // therefore corrupt the repository.
+                        changed = true;
+                        logger.warn(
+                                "snapshot [{}] was found running in version [{}] compatibility mode but there is at least one node  " +
+                                        "of version [{}] in the cluster now. Aborting the snapshot.",
+                                snapshot.snapshot(),
+                                snapshot.version(),
+                                minNodeVersion);
+                        if (reposWithIncompatibleTasks == null) {
+                            reposWithIncompatibleTasks = new HashSet<>();
+                        }
+                        reposWithIncompatibleTasks.add(snapshot.repository());
+                    } else if (reposWithIncompatibleTasks != null && reposWithIncompatibleTasks.contains(snapshot.repository())) {
+                        logger.warn("aborting snapshot [{}] because snapshot tasks for an incompatible Elasticsearch version" +
+                                " were found operating on its target repository", snapshot.snapshot());
+                    } else if (statesToUpdate.contains(snapshot.state())) {
                         // Currently initializing clone
                         if (snapshot.isClone() && snapshot.clones().isEmpty()) {
                             if (initializingClones.contains(snapshot.snapshot())) {
@@ -979,10 +1003,32 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         updatedSnapshotEntries.add(snapshot);
                     }
                 }
+
+                SnapshotDeletionsInProgress updatedDeletionsInProgress = null;
+                final SnapshotDeletionsInProgress currentDeletionsInProgress =
+                        currentState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY);
+                if (reposWithIncompatibleTasks != null) {
+                    for (SnapshotDeletionsInProgress.Entry delete : currentDeletionsInProgress.getEntries()) {
+                        if (reposWithIncompatibleTasks.contains(delete.repository())) {
+                            logger.warn("aborting delete operation [{}] because snapshot tasks for an incompatible Elasticsearch version" +
+                                    " were found operating on its target repository", delete);
+                            if (updatedDeletionsInProgress == null) {
+                                updatedDeletionsInProgress = currentDeletionsInProgress.withRemovedEntry(delete.uuid());
+                            } else {
+                                updatedDeletionsInProgress = updatedDeletionsInProgress.withRemovedEntry(delete.uuid());
+                            }
+                        }
+                    }
+                }
+
                 final ClusterState res = readyDeletions(
-                        changed ? ClusterState.builder(currentState).putCustom(
-                                SnapshotsInProgress.TYPE, SnapshotsInProgress.of(updatedSnapshotEntries)).build() :
-                                currentState).v1();
+                        updateWithSnapshots(
+                                currentState,
+                                changed ? SnapshotsInProgress.of(updatedSnapshotEntries) : null,
+                                updatedDeletionsInProgress
+                        )
+                ).v1();
+
                 for (SnapshotDeletionsInProgress.Entry delete
                         : res.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()) {
                     if (delete.state() == SnapshotDeletionsInProgress.State.STARTED) {
@@ -1025,6 +1071,32 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         });
+    }
+
+    /**
+     * Ensures that no snapshot operations that are incompatible with the current cluster node versions can be found in the cluster state
+     * at the moment and throws an exception if any are found. These incompatible tasks can arise if a node with a version older than the
+     * previous minimum node version in the cluster joins the cluster after a snapshot-, clone- or delete-operation has been started.
+     * These tasks will be removed from the cluster state by {@link #processExternalChanges(boolean, boolean)} but in rare instances if a
+     * snapshot operation is requested immediately after an old version node joins the cluster this state can be encountered.
+     * This method is called before any new operations are added for a repository to ensure that no tasks are created for the repo until
+     * the existing broken tasks are removed from the cluster state.
+     *
+     * @param repoName repository name
+     * @param state    current cluster state
+     */
+    private static void ensureHealthyTaskVersions(String repoName, ClusterState state) {
+        // TODO: assert ClusterService.assertClusterOrMasterStateThread(); which is currently not compatible with SnapshotResiliencyTests
+        final Version minNodeVersion = state.nodes().getMinNodeVersion();
+        for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
+            if (entry.version().after(minNodeVersion)) {
+                throw new ConcurrentSnapshotExecutionException(
+                        repoName,
+                        "_na",
+                        "cannot execute operation while version incompatible snapshot operations are being removed from the cluster state"
+                );
+            }
+        }
     }
 
     private static ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(
@@ -1637,6 +1709,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
+                ensureHealthyTaskVersions(repoName, currentState);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repoName);
                 final List<SnapshotId> snapshotIds = matchingSnapshotIds(

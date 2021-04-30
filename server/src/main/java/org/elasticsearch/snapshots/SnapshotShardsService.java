@@ -239,41 +239,57 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
                 final ShardId shardId = shardEntry.getKey();
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
+                final ActionListener<ShardSnapshotResult> snapshotResultListener = new ActionListener<>() {
+                    @Override
+                    public void onResponse(ShardSnapshotResult shardSnapshotResult) {
+                        final String newGeneration = shardSnapshotResult.getGeneration();
+                        assert newGeneration != null;
+                        assert newGeneration.equals(snapshotStatus.generation());
+                        if (logger.isDebugEnabled()) {
+                            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+                            logger.debug("[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
+                                    shardId, snapshot, snapshot.getRepository(), lastSnapshotStatus, snapshotStatus.generation());
+                        }
+                        notifySuccessfulSnapshotShard(snapshot, shardId, shardSnapshotResult);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        final String failure;
+                        if (e instanceof AbortedSnapshotException) {
+                            failure = "aborted";
+                            logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
+                        } else {
+                            failure = summarizeFailure(e);
+                            logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
+                        }
+                        snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
+                        notifyFailedSnapshotShard(snapshot, shardId, failure);
+                    }
+                };
+
+                if (entry.version().after(Version.CURRENT)) {
+                    // this should be impossible in production since master should not assign a task to this node if it is too old to
+                    // execute it but is here to deal with
+                    final IndexShardSnapshotFailedException e = new IndexShardSnapshotFailedException(
+                            shardId,
+                            "can't execute snapshot [" + snapshot + "] which assumes minimum node version [" + entry.version()
+                                    + "] which is newer than this nodes version [" + Version.CURRENT + "]"
+                    );
+                    assert false : e;
+                    logger.error("this node is assigned to an incompatible shard snapshot task", e);
+                    snapshotResultListener.onFailure(e);
+                    return;
+                }
+
                 final IndexId indexId = entry.indices().get(shardId.getIndexName());
                 assert indexId != null;
                 assert SnapshotsService.useShardGenerations(entry.version()) ||
                         ShardGenerations.fixShardGeneration(snapshotStatus.generation()) == null :
                         "Found non-null, non-numeric shard generation [" + snapshotStatus.generation() +
                                 "] for snapshot with old-format compatibility";
-                snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(),
-                    new ActionListener<>() {
-                        @Override
-                        public void onResponse(ShardSnapshotResult shardSnapshotResult) {
-                            final String newGeneration = shardSnapshotResult.getGeneration();
-                            assert newGeneration != null;
-                            assert newGeneration.equals(snapshotStatus.generation());
-                            if (logger.isDebugEnabled()) {
-                                final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                                logger.debug("[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
-                                    shardId, snapshot, snapshot.getRepository(), lastSnapshotStatus, snapshotStatus.generation());
-                            }
-                            notifySuccessfulSnapshotShard(snapshot, shardId, shardSnapshotResult);
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            final String failure;
-                            if (e instanceof AbortedSnapshotException) {
-                                failure = "aborted";
-                                logger.debug(() -> new ParameterizedMessage("[{}][{}] aborted shard snapshot", shardId, snapshot), e);
-                            } else {
-                                failure = summarizeFailure(e);
-                                logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to snapshot shard", shardId, snapshot), e);
-                            }
-                            snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
-                            notifyFailedSnapshotShard(snapshot, shardId, failure);
-                        }
-                    });
+                snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), snapshotResultListener);
             }
         });
     }

@@ -11,7 +11,6 @@ package org.elasticsearch.repositories;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -71,11 +69,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     public static final Setting<Integer> REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS =
         Setting.intSetting("repositories.stats.archive.max_archived_stats", 100, 0, Setting.Property.NodeScope);
-
-    /**
-     * Version at which nodes start to support in place repository setting updates.
-     */
-    private static final Version UPDATE_IN_PLACE_VERSION = Version.V_8_0_0;
 
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
@@ -192,12 +185,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             }
                             Repository existing = RepositoriesService.this.repositories.get(request.name());
                             if (existing == null) {
-                                RepositoriesService.this.internalRepositories.get(request.name());
+                                existing = RepositoriesService.this.internalRepositories.get(request.name());
                             }
                             assert existing != null : "repository [" + newRepositoryMetadata.name() + "] must exist";
                             assert existing.getMetadata() == repositoryMetadata;
                             final RepositoryMetadata updatedMetadata;
-                            if (canUpdateInPlace(currentState.nodes(), newRepositoryMetadata, existing)) {
+                            if (canUpdateInPlace(newRepositoryMetadata, existing)) {
                                 // we're updating in place so the updated metadata must point at the same uuid and generations
                                 updatedMetadata = repositoryMetadata.withSettings(newRepositoryMetadata.settings());
                             } else {
@@ -450,7 +443,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 Repository repository = survivors.get(repositoryMetadata.name());
                 if (repository != null) {
                     // Found previous version of this repository
-                    if (canUpdateInPlace(state.nodes(), repositoryMetadata, repository) == false) {
+                    if (canUpdateInPlace(repositoryMetadata, repository) == false) {
                         // Previous version is different from the version in settings
                         logger.debug("updating repository [{}]", repositoryMetadata.name());
                         closeRepository(repository);
@@ -487,10 +480,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private boolean canUpdateInPlace(DiscoveryNodes nodes, RepositoryMetadata updatedMetadata, Repository repository) {
-        if (nodes.getMinNodeVersion().before(UPDATE_IN_PLACE_VERSION)) {
-            return false;
-        }
+    private boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
         assert updatedMetadata.name().equals(repository.getMetadata().name());
         return repository.getMetadata().type().equals(updatedMetadata.type())
                 && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());

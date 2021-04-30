@@ -100,7 +100,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean allowsStore() {
+    protected boolean supportsStoredFields() {
         return false;
     }
 

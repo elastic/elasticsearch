@@ -30,7 +30,7 @@ subprojects {
   if (subprojects.isEmpty()) {
     // leaf project
     apply plugin: 'elasticsearch.standalone-rest-test'
-    apply from: "$rootDir/gradle/bwc-test.gradle"
+    apply plugin: 'elasticsearch.bwc-test'
   } else {
     apply plugin: 'elasticsearch.java'
   }

@@ -392,7 +392,7 @@ public final class TransformInternalIndex {
         );
     }
 
-    protected static boolean haveLatestVersionedIndex(ClusterState state) {
+    protected static boolean hasLatestVersionedIndex(ClusterState state) {
         return state.getMetadata().getIndicesLookup().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
@@ -402,7 +402,7 @@ public final class TransformInternalIndex {
         return indexRouting != null && indexRouting.allPrimaryShardsActive();
     }
 
-    protected static boolean haveLatestAuditIndexTemplate(ClusterState state) {
+    protected static boolean hasLatestAuditIndexTemplate(ClusterState state) {
         return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
     }
 
@@ -426,7 +426,7 @@ public final class TransformInternalIndex {
     ) {
         ClusterState state = clusterService.state();
         // The check for existence is against local cluster state, so very cheap
-        if (haveLatestVersionedIndex(state)) {
+        if (hasLatestVersionedIndex(state)) {
             if (allShardsActiveForLatestVersionedIndex(state)) {
                 listener.onResponse(null);
                 return;
@@ -480,7 +480,7 @@ public final class TransformInternalIndex {
     ) {
 
         // The check for existence of the template is against local cluster state, so very cheap
-        if (haveLatestAuditIndexTemplate(clusterService.state())) {
+        if (hasLatestAuditIndexTemplate(clusterService.state())) {
             listener.onResponse(null);
             return;
         }

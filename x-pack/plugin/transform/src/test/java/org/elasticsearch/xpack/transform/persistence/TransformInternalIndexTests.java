@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Metadata.Builder;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -54,7 +53,7 @@ import static org.mockito.Mockito.when;
 public class TransformInternalIndexTests extends ESTestCase {
 
     private ClusterState stateWithLatestVersionedIndex;
-    private ClusterState stateWithLatestAuditInexTemplate;
+    private ClusterState stateWithLatestAuditIndexTemplate;
 
     public static ClusterState randomTransformClusterState() {
         return randomTransformClusterState(true);
@@ -109,9 +108,9 @@ public class TransformInternalIndexTests extends ESTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.templates(templateMapBuilder.build());
-        org.elasticsearch.cluster.ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         csBuilder.metadata(metaBuilder.build());
         return csBuilder.build();
     }
@@ -119,13 +118,13 @@ public class TransformInternalIndexTests extends ESTestCase {
     @Before
     public void setupClusterStates() {
         stateWithLatestVersionedIndex = randomTransformClusterState();
-        stateWithLatestAuditInexTemplate = randomTransformAuditClusterState();
+        stateWithLatestAuditIndexTemplate = randomTransformAuditClusterState();
     }
 
     public void testHaveLatestVersionedIndexTemplate() {
-        assertTrue(TransformInternalIndex.haveLatestVersionedIndex(stateWithLatestVersionedIndex));
+        assertTrue(TransformInternalIndex.hasLatestVersionedIndex(stateWithLatestVersionedIndex));
         assertTrue(TransformInternalIndex.allShardsActiveForLatestVersionedIndex(stateWithLatestVersionedIndex));
-        assertFalse(TransformInternalIndex.haveLatestVersionedIndex(ClusterState.EMPTY_STATE));
+        assertFalse(TransformInternalIndex.hasLatestVersionedIndex(ClusterState.EMPTY_STATE));
         assertFalse(TransformInternalIndex.allShardsActiveForLatestVersionedIndex(ClusterState.EMPTY_STATE));
         assertFalse(TransformInternalIndex.allShardsActiveForLatestVersionedIndex(randomTransformClusterState(false)));
     }
@@ -310,14 +309,14 @@ public class TransformInternalIndexTests extends ESTestCase {
 
     public void testHaveLatestAuditIndexTemplate() {
 
-        assertTrue(TransformInternalIndex.haveLatestAuditIndexTemplate(stateWithLatestAuditInexTemplate));
-        assertFalse(TransformInternalIndex.haveLatestAuditIndexTemplate(ClusterState.EMPTY_STATE));
+        assertTrue(TransformInternalIndex.hasLatestAuditIndexTemplate(stateWithLatestAuditIndexTemplate));
+        assertFalse(TransformInternalIndex.hasLatestAuditIndexTemplate(ClusterState.EMPTY_STATE));
     }
 
     public void testInstallLatestAuditIndexTemplateIfRequired_GivenNotRequired() {
 
         ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(stateWithLatestAuditInexTemplate);
+        when(clusterService.state()).thenReturn(stateWithLatestAuditIndexTemplate);
 
         Client client = mock(Client.class);
 

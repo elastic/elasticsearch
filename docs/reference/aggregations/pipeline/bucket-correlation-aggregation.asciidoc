@@ -1,10 +1,12 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-bucket-correlation-aggregation]]
-=== Bucket Correlation Aggregation
+=== Bucket correlation aggregation
 ++++
-<titleabbrev>Bucket Correlation Aggregation</titleabbrev>
+<titleabbrev>Bucket correlation aggregation</titleabbrev>
 ++++
+
+experimental::[]
 
 A sibling pipeline aggregation which executes a correlation function on the
 configured sibling multi-bucket aggregation.
@@ -16,7 +18,7 @@ configured sibling multi-bucket aggregation.
 `buckets_path`::
 (Required, string)
 Path to the buckets that contain one set of values to correlate.
-For syntax, see <<buckets-path-syntax>>
+For syntax, see <<buckets-path-syntax>>.
 
 `function`::
 (Required, object)
@@ -28,11 +30,11 @@ The correlation function to execute.
 `count_correlation`:::
 (Required^*^, object)
 The configuration to calculate a count correlation. This function is designed for
-determining the correlation of a term value and a given metric. Consequently, there
-are some restrictions.
+determining the correlation of a term value and a given metric. Consequently, it
+needs to meet the following requirements.
 
-* The `buckets_path` must point to a `_count` metric
-* The total count of all the `bucket_path` count values must be less than or equal to `indicator.doc_count`
+* The `buckets_path` must point to a `_count` metric.
+* The total count of all the `bucket_path` count values must be less than or equal to `indicator.doc_count`.
 * When utilizing this function, an initial calculation to gather the required `indicator` values is required.
 
 .Properties of `count_correlation`
@@ -57,8 +59,8 @@ An array of fractions to use when averaging and calculating variance. This shoul
 
 `doc_count`:::
 (Required, integer)
-The total number of documents that initially created the `expectations`. This should always be greater than or equal to the sum
-of all values in the `buckets_path` as this is the originating superset of data to which we are correlating the term values.
+The total number of documents that initially created the `expectations`. It's required to be greater than or equal to the sum
+of all values in the `buckets_path` as this is the originating superset of data to which the term values are correlated.
 =====
 =====
 ====
@@ -82,8 +84,8 @@ A `bucket_correlation` aggregation looks like this in isolation:
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> The buckets containing the values to correlate against
-<2> The correlation function definition
+<1> The buckets containing the values to correlate against.
+<2> The correlation function definition.
 
 
 [[bucket-correlation-agg-example]]
@@ -133,7 +135,7 @@ GET apm-7.12.0-transaction-generated/_search
 // NOTCONSOLE
 
 <1> The term buckets containing a range aggregation and the bucket correlation aggregation. Both are utilized to calculate
-    the correlation of the term values with the latency
-<2> The range aggregation on the latency field. The ranges were created referencing the percentiles of the latency field
-<3> The bucket correlation aggregation that will calculate the correlation of the number of term values within each range
+    the correlation of the term values with the latency.
+<2> The range aggregation on the latency field. The ranges were created referencing the percentiles of the latency field.
+<3> The bucket correlation aggregation that calculates the correlation of the number of term values within each range
     and the previously calculated indicator values.

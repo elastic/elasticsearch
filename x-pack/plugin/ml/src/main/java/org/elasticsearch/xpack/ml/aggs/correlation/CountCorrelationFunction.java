@@ -88,11 +88,11 @@ public class CountCorrelationFunction implements CorrelationFunction {
     public double execute(CorrelativeValue y) {
         if (indicator.getExpectations().length != y.getExpectations().length) {
             throw new AggregationExecutionException(
-                "value lengths do not match ["
+                "value lengths do not match; indicator.expectations ["
                     + indicator.getExpectations().length
-                    + "] and ["
+                    + "] and number of buckets ["
                     + y.getExpectations().length
-                    + "] unable to calculate correlation"
+                    + "]. Unable to calculate correlation"
             );
         }
         final double xMean;

@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
@@ -76,17 +78,22 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(SnapshotUpgradeTaskParams params, ClusterState clusterState) {
+    public PersistentTasksCustomMetadata.Assignment getAssignment(SnapshotUpgradeTaskParams params,
+                                                                  Collection<DiscoveryNode> candidateNodes,
+                                                                  ClusterState clusterState) {
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
         Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
             getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
+        // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }
         JobNodeSelector jobNodeSelector = new JobNodeSelector(
             clusterState,
+            candidateNodes,
             params.getJobId(),
-            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            // Use the job_task_name for the appropriate job size
+            MlTasks.JOB_TASK_NAME,
             memoryTracker,
             0,
             node -> null);
@@ -95,7 +102,6 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             Integer.MAX_VALUE,
             maxMachineMemoryPercent,
             Long.MAX_VALUE,
-            isMemoryTrackerRecentlyRefreshed,
             useAutoMemoryPercentage);
     }
 

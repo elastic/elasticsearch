@@ -137,10 +137,10 @@ repaired. If the cluster is still available then you can start up a fresh node
 on another host and {es} will bring this node into the cluster in place of the
 failed node.
 
-Each node stores its data in the data directories defined by the
+Each node stores its data in the data directory defined by the
 <<path-settings,`path.data` setting>>. This means that in a disaster you can
-also restart a node by moving its data directories to another host, presuming
-that those data directories can be recovered from the faulty host.
+also restart a node by moving its data directory to another host, presuming
+that that data directory can be recovered from the faulty host.
 
 {es} <<modules-discovery-quorums,requires a response from a majority of the
 master-eligible nodes>> in order to elect a master and to update the cluster

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -102,7 +103,9 @@ public class ElasticsearchMappings {
         List<String> indicesToUpdate = new ArrayList<>();
 
         ImmutableOpenMap<String, MappingMetadata> currentMapping = state.metadata().findMappings(concreteIndices,
-                MapperPlugin.NOOP_FIELD_FILTER);
+                MapperPlugin.NOOP_FIELD_FILTER,
+                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
+        );
 
         for (String index : concreteIndices) {
             MappingMetadata metadata = currentMapping.get(index);

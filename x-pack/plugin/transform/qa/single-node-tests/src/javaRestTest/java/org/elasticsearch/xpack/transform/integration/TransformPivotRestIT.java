@@ -1412,6 +1412,57 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         assertEquals(4.47169811, actual.doubleValue(), 0.000001);
     }
 
+    public void testPivotWithTopMetrics() throws Exception {
+        String transformId = "top_metrics_transform";
+        String transformIndex = "top_metrics_pivot_reviews";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformIndex);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
+        );
+
+        String config = "{"
+            + " \"source\": {\"index\":\""
+            + REVIEWS_INDEX_NAME
+            + "\"},"
+            + " \"dest\": {\"index\":\""
+            + transformIndex
+            + "\"},";
+
+        config += " \"pivot\": {"
+            + "   \"group_by\": {"
+            + "     \"reviewer\": {"
+            + "       \"terms\": {"
+            + "         \"field\": \"user_id\""
+            + " } } },"
+            + "   \"aggregations\": {"
+            + "     \"top_business\": {"
+            + "       \"top_metrics\": {"
+            + "         \"metrics\": {\"field\": \"business_id\"},"
+            + "         \"sort\": {\"timestamp\": \"desc\"}"
+            + "} } } }"
+            + "}";
+
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        startAndWaitForTransform(transformId, transformIndex, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
+        assertTrue(indexExists(transformIndex));
+
+        Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        String actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_business.business_id", searchResult)).get(0);
+        assertEquals("business_9", actual);
+
+        searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_1");
+        assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
+        actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_business.business_id", searchResult)).get(0);
+        assertEquals("business_3", actual);
+    }
+
     public void testManyBucketsWithSmallPageSize() throws Exception {
         String transformId = "test_with_many_buckets";
         String transformIndex = transformId + "-idx";

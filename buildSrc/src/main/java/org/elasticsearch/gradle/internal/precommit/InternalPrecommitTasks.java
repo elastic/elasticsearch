@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks;
-import org.elasticsearch.gradle.precommit.ThirdPartyAuditPrecommitPlugin;
 import org.gradle.api.Project;
 
 /**

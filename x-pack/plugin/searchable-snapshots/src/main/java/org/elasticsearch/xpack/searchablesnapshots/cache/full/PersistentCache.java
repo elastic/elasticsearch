@@ -65,7 +65,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -666,8 +665,8 @@ public class PersistentCache implements Closeable {
             super(
                 "Persistent cache index not found for cache file path ["
                     + cacheFile.getFile()
-                    + "] using node paths "
-                    + Arrays.toString(nodeEnvironment.nodeDataPaths())
+                    + "] using node path "
+                    + nodeEnvironment.nodeDataPath()
             );
         }
     }

@@ -10,99 +10,58 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
-public class BoundedGeoTileGridTiler extends GeoTileGridTiler {
-    private final double boundsTop;
-    private final double boundsBottom;
-    private final double boundsWestLeft;
-    private final double boundsWestRight;
-    private final double boundsEastLeft;
-    private final double boundsEastRight;
+
+/**
+ * Bounded geotile aggregation. It accepts tiles that intersects the provided bounds.
+ */
+public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     private final boolean crossesDateline;
+    private final long maxTiles;
+    private final int minX, maxX, minY, maxY;
 
-    public BoundedGeoTileGridTiler(GeoBoundingBox geoBoundingBox) {
-        // split geoBoundingBox into west and east boxes
-        boundsTop = geoBoundingBox.top();
-        boundsBottom = geoBoundingBox.bottom();
-        if (geoBoundingBox.right() < geoBoundingBox.left()) {
-            boundsWestLeft = -180;
-            boundsWestRight = geoBoundingBox.right();
-            boundsEastLeft = geoBoundingBox.left();
-            boundsEastRight = 180;
-            crossesDateline = true;
-        } else { // only set east bounds
-            boundsEastLeft = geoBoundingBox.left();
-            boundsEastRight = geoBoundingBox.right();
-            boundsWestLeft = 0;
-            boundsWestRight = 0;
-            crossesDateline = false;
-        }
-    }
-
-    public int advancePointValue(long[] values, double x, double y, int precision, int valuesIdx) {
-        long hash = encode(x, y, precision);
-        if (cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(hash))) {
-            values[valuesIdx] = hash;
-            return valuesIdx + 1;
-        }
-        return valuesIdx;
-    }
-
-    boolean cellIntersectsGeoBoundingBox(Rectangle rectangle) {
-        return (boundsTop >= rectangle.getMinY() && boundsBottom <= rectangle.getMaxY()
-            && (boundsEastLeft <= rectangle.getMaxX() && boundsEastRight >= rectangle.getMinX()
-            || (crossesDateline && boundsWestLeft <= rectangle.getMaxX() && boundsWestRight >= rectangle.getMinX())));
-    }
-
-    @Override
-    public GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
-        Rectangle rectangle = GeoTileUtils.toBoundingBox(xTile, yTile, precision);
-        if (cellIntersectsGeoBoundingBox(rectangle)) {
-            return geoValue.relate(rectangle);
-        }
-        return GeoRelation.QUERY_DISJOINT;
-    }
-
-    @Override
-    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
-        if (cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(xTile, yTile, precision))) {
-            docValues.resizeCell(1);
-            docValues.add(0, GeoTileUtils.longEncodeTiles(precision, xTile, yTile));
-            return 1;
-        }
-        return 0;
-    }
-
-    @Override
-    protected long getMaxTilesAtPrecision(int finalPrecision) {
+    public BoundedGeoTileGridTiler(int precision, GeoBoundingBox bbox) {
+        super(precision);
+        this.crossesDateline = bbox.right() < bbox.left();
+        // compute minX, minY
+        final int minX = GeoTileUtils.getXTile(bbox.left(), this.tiles);
+        final int minY = GeoTileUtils.getYTile(bbox.top(), this.tiles);
+        final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
+        // touching tiles are excluded, they need to share at least one interior point
+        this.minX = minTile.getMaxX() == bbox.left() ? minX + 1: minX;
+        this.minY = minTile.getMinY() == bbox.top() ? minY + 1 : minY;
+        // compute maxX, maxY
+        final int maxX = GeoTileUtils.getXTile(bbox.right(), this.tiles);
+        final int maxY = GeoTileUtils.getYTile(bbox.bottom(), this.tiles);
+        final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
+        // touching tiles are excluded, they need to share at least one interior point
+        this.maxX = maxTile.getMinX() == bbox.right() ? maxX - 1 : maxX;
+        this.maxY = maxTile.getMaxY() == bbox.bottom() ? maxY - 1 : maxY;
         if (crossesDateline) {
-            return numTilesFromPrecision(finalPrecision, boundsWestLeft, boundsWestRight, boundsBottom, boundsTop)
-                + numTilesFromPrecision(finalPrecision, boundsEastLeft, boundsEastRight, boundsBottom, boundsTop);
-
+            this.maxTiles = (tiles + this.maxX - this.minX + 1) * (this.maxY - this.minY + 1);
         } else {
-            return numTilesFromPrecision(finalPrecision, boundsEastLeft, boundsEastRight, boundsBottom, boundsTop);
+            this.maxTiles = (long) (this.maxX - this.minX + 1) * (this.maxY - this.minY + 1);
         }
     }
 
     @Override
-    protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex,
-                                                 int targetPrecision) {
-        zTile++;
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 2; j++) {
-                int nextX = 2 * xTile + i;
-                int nextY = 2 * yTile + j;
-                if (cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(nextX, nextY, zTile))) {
-                    if (zTile == targetPrecision) {
-                        values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
-                    } else {
-                        valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex, targetPrecision);
-                    }
-                }
+    protected boolean validTile(int x, int y, int z) {
+        // compute number of splits at precision
+        final int splits = 1 << precision - z;
+        final int yMin = y * splits;
+        if (maxY >= yMin && minY < yMin + splits) {
+            final int xMin = x * splits;
+            if (crossesDateline) {
+                return maxX >= xMin || minX < xMin + splits;
+            } else {
+                return maxX >= xMin && minX < xMin + splits;
             }
         }
-        return valuesIndex;
+        return false;
+    }
+
+    @Override
+    protected long getMaxTiles() {
+        return maxTiles;
     }
 }

@@ -1,6 +1,6 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
@@ -116,6 +116,7 @@ tasks.named("yamlRestCompatTest").configure {
     'ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats',
     'ml/jobs_get_stats/Test get job stats for closed job',
     'ml/jobs_get_stats/Test no exception on get job stats with missing index',
+    'ml/get_datafeed_stats/Test get stats for started datafeed',
     'ml/post_data/Test POST data job api, flush, close and verify DataCounts doc',
     'ml/post_data/Test flush with skip_time',
     'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',

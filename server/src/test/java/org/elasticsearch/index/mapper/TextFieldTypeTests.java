@@ -21,9 +21,11 @@ import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -159,6 +161,46 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
         assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
         assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
+    }
+
+    public void testWildcardQuery() {
+        TextFieldType ft = createFieldType();
+
+        // case sensitive
+        AutomatonQuery actual = (AutomatonQuery) ft.wildcardQuery("*Butterflies*", null, false, MOCK_CONTEXT);
+        AutomatonQuery expected = new WildcardQuery(new Term("field", new BytesRef("*Butterflies*")));
+        assertEquals(expected, actual);
+        assertFalse(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
+
+        // case insensitive
+        actual = (AutomatonQuery) ft.wildcardQuery("*Butterflies*", null, true, MOCK_CONTEXT);
+        expected = AutomatonQueries.caseInsensitiveWildcardQuery(new Term("field", new BytesRef("*Butterflies*")));
+        assertEquals(expected, actual);
+        assertTrue(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
+        assertTrue(new CharacterRunAutomaton(actual.getAutomaton()).run("some Butterflies somewhere"));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.wildcardQuery("valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
+        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                ee.getMessage());
+    }
+
+    /**
+     * we use this e.g. in query string query parser to normalize terms on text fields
+     */
+    public void testNormalizedWildcardQuery() {
+        TextFieldType ft = createFieldType();
+
+        AutomatonQuery actual = (AutomatonQuery) ft.normalizedWildcardQuery("*Butterflies*", null, MOCK_CONTEXT);
+        AutomatonQuery expected = new WildcardQuery(new Term("field", new BytesRef("*butterflies*")));
+        assertEquals(expected, actual);
+        assertTrue(new CharacterRunAutomaton(actual.getAutomaton()).run("some butterflies somewhere"));
+        assertFalse(new CharacterRunAutomaton(actual.getAutomaton()).run("some Butterflies somewhere"));
+
+        ElasticsearchException ee = expectThrows(ElasticsearchException.class,
+                () -> ft.wildcardQuery("valu*", null, MOCK_CONTEXT_DISALLOW_EXPENSIVE));
+        assertEquals("[wildcard] queries cannot be executed when 'search.allow_expensive_queries' is set to false.",
+                ee.getMessage());
     }
 
     public void testTermIntervals() throws IOException {

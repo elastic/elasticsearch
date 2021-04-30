@@ -191,16 +191,7 @@ public final class ShardPath {
             dataPath = env.resolveCustomLocation(indexSettings.customDataPath(), shardId);
             statePath = env.nodePath().resolve(shardId);
         } else {
-            BigInteger totFreeSpace = BigInteger.ZERO;
-            NodeEnvironment.NodePath nodePath = env.nodePath();
-            totFreeSpace = totFreeSpace.add(BigInteger.valueOf(nodePath.fileStore.getUsableSpace()));
-
-            // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
-            // how large they will be once they're done copying, instead of a silly guess for such cases:
-
-            // If no better path is chosen, use the one with the most space by default
-            statePath = nodePath.resolve(shardId);
-            dataPath = statePath;
+            dataPath = statePath = env.nodePath().resolve(shardId);
         }
         return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, shardId);
     }

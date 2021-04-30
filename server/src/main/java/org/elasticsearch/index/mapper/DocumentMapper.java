@@ -8,26 +8,17 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.StoredField;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.stream.Stream;
 
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
     private final DocumentParser documentParser;
     private final MappingLookup mappingLookup;
-    private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
-    private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
     public DocumentMapper(RootObjectMapper.Builder rootBuilder, MapperService mapperService) {
         this(mapperService.getIndexSettings(), mapperService.getIndexAnalyzers(), mapperService.documentParser(),
@@ -46,14 +37,6 @@ public class DocumentMapper {
         this.documentParser = documentParser;
         this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
         this.mappingSource = mapping.toCompressedXContent();
-        final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
-            TypeFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
-        this.deleteTombstoneMetadataFieldMappers = Stream.of(mapping.getSortedMetadataMappers())
-            .filter(field -> deleteTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
-        final Collection<String> noopTombstoneMetadataFields = Arrays.asList(
-            VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
-        this.noopTombstoneMetadataFieldMappers = Stream.of(mapping.getSortedMetadataMappers())
-            .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
     }
 
     public Mapping mapping() {
@@ -104,22 +87,6 @@ public class DocumentMapper {
         return documentParser.parseDocument(source, mappingLookup);
     }
 
-    public ParsedDocument createDeleteTombstoneDoc(String index, String type, String id) throws MapperParsingException {
-        final SourceToParse emptySource = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, mappingLookup).toTombstone();
-    }
-
-    public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
-        final String id = ""; // _id won't be used.
-        final SourceToParse sourceToParse = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, mappingLookup)
-            .toTombstone();
-        // Store the reason of a noop as a raw string in the _source field
-        final BytesRef byteRef = new BytesRef(reason);
-        parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-        return parsedDoc;
-    }
-
     public void validate(IndexSettings settings, boolean checkLimits) {
         this.mapping().validate(this.mappingLookup);
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
@@ -145,8 +112,6 @@ public class DocumentMapper {
             ", mappingLookup=" + mappingLookup +
             ", objectMappers=" + mappers().objectMappers() +
             ", hasNestedObjects=" + mappingLookup.hasNested() +
-            ", deleteTombstoneMetadataFieldMappers=" + Arrays.toString(deleteTombstoneMetadataFieldMappers) +
-            ", noopTombstoneMetadataFieldMappers=" + Arrays.toString(noopTombstoneMetadataFieldMappers) +
             '}';
     }
 }

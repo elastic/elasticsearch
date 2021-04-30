@@ -57,6 +57,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return "POINT (14.0 15.0)";
     }

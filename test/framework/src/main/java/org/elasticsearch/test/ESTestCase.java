@@ -65,7 +65,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -381,7 +380,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void after() throws Exception {
-        checkStaticState(false);
+        checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
         // methods failed, in which case threadContext might not have been
@@ -552,11 +551,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
-    protected static void checkStaticState(boolean afterClass) throws Exception {
+    protected static void checkStaticState() throws Exception {
         LeakTracker.INSTANCE.reportLeak();
-        if (afterClass) {
-            MockPageCacheRecycler.ensureAllPagesAreReleased();
-        }
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us

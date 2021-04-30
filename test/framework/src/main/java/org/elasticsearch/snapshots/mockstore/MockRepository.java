@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -48,6 +49,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -77,6 +79,11 @@ public class MockRepository extends FsRepository {
             return Arrays.asList(USERNAME_SETTING, PASSWORD_SETTING);
         }
     }
+
+    /**
+     * Setting name for a setting that can be updated dynamically to test {@link #canUpdateInPlace(Settings, Set)}.
+     */
+    public static final String DUMMY_UPDATABLE_SETTING_NAME = "dummy_setting";
 
     private final AtomicLong failureCounter = new AtomicLong();
 
@@ -157,6 +164,12 @@ public class MockRepository extends FsRepository {
     @Override
     public RepositoryMetadata getMetadata() {
         return overrideSettings(super.getMetadata(), env);
+    }
+
+    @Override
+    public boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        // allow updating dummy setting for test purposes
+        return super.canUpdateInPlace(updatedSettings, Sets.union(ignoredSettings, Set.of(DUMMY_UPDATABLE_SETTING_NAME)));
     }
 
     private static RepositoryMetadata overrideSettings(RepositoryMetadata metadata, Environment environment) {

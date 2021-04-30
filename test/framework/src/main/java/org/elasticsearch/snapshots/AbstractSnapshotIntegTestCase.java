@@ -278,7 +278,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
+        logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
         assertAcked(clusterAdmin().preparePutRepository(repoName)
             .setType(type).setSettings(settings));
     }
@@ -292,11 +292,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepositoryNoVerify(String repoName, String type) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
+        createRepositoryNoVerify(repoName, type, randomRepositorySettings());
+    }
+
+    protected void createRepositoryNoVerify(String repoName, String type, Settings.Builder settings) {
+        logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
         assertAcked(clusterAdmin().preparePutRepository(repoName)
                 .setVerify(false)
                 .setType(type)
-                .setSettings(randomRepositorySettings()));
+                .setSettings(settings));
     }
 
     protected Settings.Builder randomRepositorySettings() {

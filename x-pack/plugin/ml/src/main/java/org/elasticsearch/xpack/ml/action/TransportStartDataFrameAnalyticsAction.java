@@ -614,6 +614,7 @@ public class TransportStartDataFrameAnalyticsAction
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
                 getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
+            // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
             if (optionalAssignment.isPresent()) {
                 return optionalAssignment.get();
             }
@@ -633,7 +634,6 @@ public class TransportStartDataFrameAnalyticsAction
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,
                 maxNodeMemory,
-                isMemoryTrackerRecentlyRefreshed,
                 useAutoMemoryPercentage
             );
             auditRequireMemoryIfNecessary(params.getId(), auditor, assignment, jobNodeSelector, isMemoryTrackerRecentlyRefreshed);

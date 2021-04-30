@@ -61,7 +61,8 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         // but merged should
         IndexSettings indexSettings = createIndexSettings(Version.CURRENT, Settings.EMPTY);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers(indexSettings);
-        DocumentMapper mergedMapper = new DocumentMapper(indexSettings, indexAnalyzers, null, merged);
+        DocumentParser documentParser = new DocumentParser(null, null);
+        DocumentMapper mergedMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, merged);
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }

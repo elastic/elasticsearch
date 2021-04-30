@@ -11,6 +11,7 @@ The goal of this use case is simple; you have fields in your data with a bunch o
 information, but you only want to extract pieces and parts.
 
 There are two options at your disposal:
+
 * <<grok-basics,Grok>> uses a pattern like a regular expression that supports
 aliased expressions that you can reuse. Grok sits on top of regular expressions, so
 any regular expressions are valid in grok as well.

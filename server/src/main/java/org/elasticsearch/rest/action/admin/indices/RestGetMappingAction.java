@@ -9,11 +9,9 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -24,27 +22,29 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActionListener;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -106,73 +106,95 @@ public class RestGetMappingAction extends BaseRestHandler {
         final TimeValue timeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
         getMappingsRequest.masterNodeTimeout(timeout);
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestActionListener<GetMappingsResponse>(channel) {
+        final HttpChannel httpChannel = request.getHttpChannel();
+        return channel -> new RestCancellableNodeClient(client, httpChannel).admin().indices().getMappings(getMappingsRequest,
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
+                    .map(getMappingsResponse ->
+                        new RestGetMappingsResponse(types, getMappingsResponse, threadPool::relativeTimeInMillis, timeout)));
+    }
 
-            @Override
-            protected void processResponse(GetMappingsResponse getMappingsResponse) {
-                final long startTimeMs = threadPool.relativeTimeInMillis();
-                // Process serialization on MANAGEMENT pool since the serialization of the raw mappings to XContent can be too slow to
-                // execute on an IO thread
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
-                        ActionRunnable.wrap(this, l -> new RestBuilderListener<GetMappingsResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(final GetMappingsResponse response,
-                                                              final XContentBuilder builder) throws Exception {
-                                if (threadPool.relativeTimeInMillis() - startTimeMs > timeout.millis()) {
-                                    throw new ElasticsearchTimeoutException("Timed out getting mappings");
-                                }
-                                final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex =
-                                        response.getMappings();
-                                if (mappingsByIndex.isEmpty() && types.length != 0) {
-                                    builder.close();
-                                    return new BytesRestResponse(channel, new TypeMissingException("_all", String.join(",", types)));
-                                }
+    private static final class RestGetMappingsResponse implements StatusToXContentObject {
+        private final String[] types;
+        private final GetMappingsResponse response;
+        private final LongSupplier relativeTimeSupplierMillis;
+        private final TimeValue timeout;
+        private final long startTimeMs;
+        private final SortedSet<String> missingTypes;
 
-                                final Set<String> typeNames = new HashSet<>();
-                                for (final ObjectCursor<ImmutableOpenMap<String, MappingMetadata>> cursor : mappingsByIndex.values()) {
-                                    for (final ObjectCursor<String> inner : cursor.value.keys()) {
-                                        typeNames.add(inner.value);
-                                    }
-                                }
+        RestGetMappingsResponse(String[] types,
+                                GetMappingsResponse response,
+                                LongSupplier relativeTimeSupplierMillis,
+                                TimeValue timeout) {
+            this.types = types;
+            this.response = response;
+            this.relativeTimeSupplierMillis = relativeTimeSupplierMillis;
+            this.timeout = timeout;
+            this.startTimeMs = relativeTimeSupplierMillis.getAsLong();
+            this.missingTypes = Collections.unmodifiableSortedSet(getMissingTypes(types, response.getMappings()));
+        }
 
-                                final SortedSet<String> difference =
-                                        Sets.sortedDifference(Arrays.stream(types).collect(Collectors.toSet()), typeNames);
+        @Override
+        public RestStatus status() {
+            return missingTypes.isEmpty() ? RestStatus.OK : RestStatus.NOT_FOUND;
+        }
 
-                                // now remove requested aliases that contain wildcards that are simple matches
-                                final List<String> matches = new ArrayList<>();
-                                outer:
-                                for (final String pattern : difference) {
-                                    if (pattern.contains("*")) {
-                                        for (final String typeName : typeNames) {
-                                            if (Regex.simpleMatch(pattern, typeName)) {
-                                                matches.add(pattern);
-                                                continue outer;
-                                            }
-                                        }
-                                    }
-                                }
-                                difference.removeAll(matches);
-
-                                final RestStatus status;
-                                builder.startObject();
-                                {
-                                    if (difference.isEmpty()) {
-                                        status = RestStatus.OK;
-                                    } else {
-                                        status = RestStatus.NOT_FOUND;
-                                        final String message = String.format(Locale.ROOT, "type" + (difference.size() == 1 ? "" : "s") +
-                                                " [%s] missing", Strings.collectionToCommaDelimitedString(difference));
-                                        builder.field("error", message);
-                                        builder.field("status", status.getStatus());
-                                    }
-                                    response.toXContent(builder, request);
-                                }
-                                builder.endObject();
-
-                                return new BytesRestResponse(status, builder);
-                            }
-                        }.onResponse(getMappingsResponse)));
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (relativeTimeSupplierMillis.getAsLong() - startTimeMs > timeout.millis()) {
+                throw new ElasticsearchTimeoutException("Timed out getting mappings");
             }
-        });
+
+            final ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex = response.getMappings();
+            if (mappingsByIndex.isEmpty() && types.length != 0) {
+                builder.close();
+                throw new TypeMissingException("_all", String.join(",", types));
+            }
+
+            builder.startObject();
+            {
+                if (missingTypes.isEmpty() == false) {
+                    final String message = String.format(Locale.ROOT, "type" + (missingTypes.size() == 1 ? "" : "s") +
+                        " [%s] missing", Strings.collectionToCommaDelimitedString(missingTypes));
+                    builder.field("error", message);
+                    builder.field("status", status().getStatus());
+                }
+                response.toXContent(builder, params);
+            }
+            builder.endObject();
+
+            return builder;
+        }
+
+        private static SortedSet<String> getMissingTypes(String[] types,
+                                                   ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex) {
+            if (mappingsByIndex.isEmpty() && types.length != 0) {
+                return Collections.emptySortedSet();
+            }
+            final Set<String> typeNames = new HashSet<>();
+            for (final ObjectCursor<ImmutableOpenMap<String, MappingMetadata>> cursor : mappingsByIndex.values()) {
+                for (final ObjectCursor<String> inner : cursor.value.keys()) {
+                    typeNames.add(inner.value);
+                }
+            }
+
+            final SortedSet<String> difference =
+                Sets.sortedDifference(Arrays.stream(types).collect(Collectors.toSet()), typeNames);
+
+            // now remove requested aliases that contain wildcards that are simple matches
+            final List<String> matches = new ArrayList<>();
+            outer:
+            for (final String pattern : difference) {
+                if (pattern.contains("*")) {
+                    for (final String typeName : typeNames) {
+                        if (Regex.simpleMatch(pattern, typeName)) {
+                            matches.add(pattern);
+                            continue outer;
+                        }
+                    }
+                }
+            }
+            difference.removeAll(matches);
+            return difference;
+        }
     }
 }

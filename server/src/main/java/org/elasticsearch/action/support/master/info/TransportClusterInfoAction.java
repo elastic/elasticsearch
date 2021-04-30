@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -28,7 +29,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
                                       Writeable.Reader<Request> request, IndexNameExpressionResolver indexNameExpressionResolver,
                                       Writeable.Reader<Response> response) {
         super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver, response,
-                ThreadPool.Names.SAME);
+            ThreadPool.Names.SAME);
     }
 
     @Override
@@ -38,11 +39,16 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     }
 
     @Override
-    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        doMasterOperation(request, concreteIndices, state, listener);
+    protected final void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
+        throw new UnsupportedOperationException("The task parameter is required");
     }
 
-    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state,
+    @Override
+    protected final void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        doMasterOperation(task, request, concreteIndices, state, listener);
+    }
+
+    protected abstract void doMasterOperation(Task task, Request request, String[] concreteIndices, ClusterState state,
                                               ActionListener<Response> listener);
 }

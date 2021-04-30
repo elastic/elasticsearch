@@ -396,7 +396,7 @@ public final class TransformInternalIndex {
         return state.getMetadata().getIndicesLookup().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
-    protected static boolean allShardsActiveForLatestVersionedIndex(ClusterState state) {
+    protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state) {
         IndexRoutingTable indexRouting = state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
 
         return indexRouting != null && indexRouting.allPrimaryShardsActive();
@@ -427,7 +427,7 @@ public final class TransformInternalIndex {
         ClusterState state = clusterService.state();
         // The check for existence is against local cluster state, so very cheap
         if (hasLatestVersionedIndex(state)) {
-            if (allShardsActiveForLatestVersionedIndex(state)) {
+            if (allPrimaryShardsActiveForLatestVersionedIndex(state)) {
                 listener.onResponse(null);
                 return;
             }
@@ -450,7 +450,7 @@ public final class TransformInternalIndex {
                     // this method at the same time as this one, and also have created the index
                     // check if shards are active
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        if (allShardsActiveForLatestVersionedIndex(clusterService.state())) {
+                        if (allPrimaryShardsActiveForLatestVersionedIndex(clusterService.state())) {
                             listener.onResponse(null);
                             return;
                         }

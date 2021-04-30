@@ -123,10 +123,10 @@ public class TransformInternalIndexTests extends ESTestCase {
 
     public void testHaveLatestVersionedIndexTemplate() {
         assertTrue(TransformInternalIndex.hasLatestVersionedIndex(stateWithLatestVersionedIndex));
-        assertTrue(TransformInternalIndex.allShardsActiveForLatestVersionedIndex(stateWithLatestVersionedIndex));
+        assertTrue(TransformInternalIndex.allPrimaryShardsActiveForLatestVersionedIndex(stateWithLatestVersionedIndex));
         assertFalse(TransformInternalIndex.hasLatestVersionedIndex(ClusterState.EMPTY_STATE));
-        assertFalse(TransformInternalIndex.allShardsActiveForLatestVersionedIndex(ClusterState.EMPTY_STATE));
-        assertFalse(TransformInternalIndex.allShardsActiveForLatestVersionedIndex(randomTransformClusterState(false)));
+        assertFalse(TransformInternalIndex.allPrimaryShardsActiveForLatestVersionedIndex(ClusterState.EMPTY_STATE));
+        assertFalse(TransformInternalIndex.allPrimaryShardsActiveForLatestVersionedIndex(randomTransformClusterState(false)));
     }
 
     public void testCreateLatestVersionedIndexIfRequired_GivenNotRequired() {

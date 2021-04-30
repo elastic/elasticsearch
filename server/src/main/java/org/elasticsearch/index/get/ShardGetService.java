@@ -122,7 +122,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult, mapperService);
+            GetResult getResult = innerGetLoadFromStoredFields(id, fields, fetchSourceContext, engineGetResult);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -169,14 +169,14 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
-            return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get, mapperService);
+            return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get);
         } finally {
             get.close();
         }
     }
 
     private GetResult innerGetLoadFromStoredFields(String id, String[] storedFields, FetchSourceContext fetchSourceContext,
-                                                   Engine.GetResult get, MapperService mapperService) {
+                                                   Engine.GetResult get) {
         assert get.exists() : "method should only be called if document could be retrieved";
 
         // check first if stored fields to be loaded don't contain an object field

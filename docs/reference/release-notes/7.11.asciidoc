@@ -154,7 +154,7 @@ Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
   issue. For more details, see {es-issue}68838[#68838].
 
 * If autoscaling is enabled for machine learning, the administrator of the cluster
-  should increase the cluster setting `xpack.ml.max_open_jobs`. This allows autoscaling
+  should increase the cluster setting `xpack.ml.max_open_jobs` to the maximum value of `512`. This allows autoscaling
   to run reliably as it relies only on assigning jobs via memory. Having
   `xpack.ml.max_open_jobs` as a small number may cause autoscaling to behave unexpectedly.
 

@@ -104,7 +104,7 @@ public class TransportUpdateDatafeedAction extends
         // all, but if we rewrite the datafeed config we may add new fields that require the latest mappings
         CheckedConsumer<BulkByScrollResponse, Exception> updateConsumer =
             unused -> ElasticsearchMappings.addDocMappingIfMissing(
-                MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state,
+                MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state, request.masterNodeTimeout(),
                 ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
 
         CheckedConsumer<Boolean, Exception> deleteTimingStatsAndUpdateConsumer =

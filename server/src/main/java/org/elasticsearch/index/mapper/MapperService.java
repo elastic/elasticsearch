@@ -167,7 +167,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Update mapping by only merging the metadata that is different between received and stored entries
+     * Update local mapping by applying the incoming mapping that have already been merged with the current one on the master
      */
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
         assert newIndexMetadata.getIndex().equals(index()) : "index mismatch: expected " + index()

@@ -17,7 +17,6 @@ import java.util.Collections;
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
-    private final DocumentParser documentParser;
     private final MappingLookup mappingLookup;
 
     public DocumentMapper(RootObjectMapper.Builder rootBuilder, MapperService mapperService) {
@@ -36,7 +35,6 @@ public class DocumentMapper {
                    DocumentParser documentParser,
                    Mapping mapping) {
         this.type = mapping.getRoot().name();
-        this.documentParser = documentParser;
         this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
         this.mappingSource = mapping.toCompressedXContent();
     }
@@ -78,7 +76,7 @@ public class DocumentMapper {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, mappingLookup);
+        return mappingLookup.parseDocument(source);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

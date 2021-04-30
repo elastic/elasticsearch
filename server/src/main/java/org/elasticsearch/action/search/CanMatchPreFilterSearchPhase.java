@@ -24,13 +24,11 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.transport.Transport;
 
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -53,17 +51,15 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
 
-    CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
-                                 BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-                                 Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                                 Executor executor, SearchRequest request,
+    CanMatchPreFilterSearchPhase(SearchPhaseContext context, Logger logger, Map<String, AliasFilter> aliasFilter,
+                                 Map<String, Float> concreteIndexBoosts, Executor executor,
                                  ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                  TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
                                  SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
                                  SearchResponse.Clusters clusters, CoordinatorRewriteContextProvider coordinatorRewriteContextProvider) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
-        super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
-                executor, request, listener, shardsIts, timeProvider, clusterState, task,
+        super("can_match", context, logger, aliasFilter, concreteIndexBoosts,
+                executor, listener, shardsIts, timeProvider, clusterState, task,
                 new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;

@@ -17,12 +17,10 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.transport.Transport;
 
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.function.BiFunction;
 
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
@@ -30,24 +28,23 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
 
     private final QueryPhaseResultConsumer queryPhaseResultConsumer;
 
-    SearchDfsQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-                                       final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+    SearchDfsQueryThenFetchAsyncAction(final SearchPhaseContext context, final Logger logger,
                                        final Map<String, AliasFilter> aliasFilter,
                                        final Map<String, Float> concreteIndexBoosts,
                                        final SearchPhaseController searchPhaseController, final Executor executor,
                                        final QueryPhaseResultConsumer queryPhaseResultConsumer,
-                                       final SearchRequest request, final ActionListener<SearchResponse> listener,
+                                       final ActionListener<SearchResponse> listener,
                                        final GroupShardsIterator<SearchShardIterator> shardsIts,
                                        final TransportSearchAction.SearchTimeProvider timeProvider,
                                        final ClusterState clusterState, final SearchTask task, SearchResponse.Clusters clusters) {
-        super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
-                executor, request, listener,
+        super("dfs", context, logger, aliasFilter, concreteIndexBoosts,
+                executor, listener,
                 shardsIts, timeProvider, clusterState, task, new ArraySearchPhaseResults<>(shardsIts.size()),
-                request.getMaxConcurrentShardRequests(), clusters);
+                context.getRequest().getMaxConcurrentShardRequests(), clusters);
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.searchPhaseController = searchPhaseController;
         SearchProgressListener progressListener = task.getProgressListener();
-        SearchSourceBuilder sourceBuilder = request.source();
+        SearchSourceBuilder sourceBuilder = context.getRequest().source();
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
             SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
     }

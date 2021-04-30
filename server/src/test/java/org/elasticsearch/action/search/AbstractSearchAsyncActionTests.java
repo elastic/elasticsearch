@@ -73,9 +73,10 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             return null;
         };
 
-        return new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, null, nodeIdToConnection,
-                Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
-            null, request, listener,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, nodeIdToConnection);
+        return new AbstractSearchAsyncAction<SearchPhaseResult>("test", phaseContext, logger,
+            Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
+            null, listener,
                 new GroupShardsIterator<>(
                     Collections.singletonList(
                         new SearchShardIterator(null, null, Collections.emptyList(), null)

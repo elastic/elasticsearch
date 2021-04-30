@@ -228,9 +228,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 ClusterState clusterState, Map<String, AliasFilter> aliasFilter,
                 Map<String, Float> concreteIndexBoosts, ActionListener<SearchResponse> listener,
                 boolean preFilter, ThreadPool threadPool, SearchResponse.Clusters clusters) {
+
+                SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService, connectionLookup);
                 return new AbstractSearchAsyncAction<>(
-                    actionName, logger, searchTransportService, connectionLookup, aliasFilter, concreteIndexBoosts,
-                    executor, searchRequest, listener, shardsIts, timeProvider, clusterState, task,
+                    actionName, phaseContext, logger, aliasFilter, concreteIndexBoosts,
+                    executor, listener, shardsIts, timeProvider, clusterState, task,
                     new ArraySearchPhaseResults<>(shardsIts.size()), 1, clusters) {
                     @Override
                     protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
@@ -755,8 +757,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ThreadPool threadPool,
         SearchResponse.Clusters clusters) {
         if (preFilter) {
-            return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
-                aliasFilter, concreteIndexBoosts, executor, searchRequest, listener, shardIterators,
+            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService, connectionLookup);
+            return new CanMatchPreFilterSearchPhase(phaseContext, logger,
+                aliasFilter, concreteIndexBoosts, executor, listener, shardIterators,
                 timeProvider, clusterState, task, (iter) -> {
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
                     task,
@@ -783,17 +786,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(executor,
                 circuitBreaker, task.getProgressListener(), searchRequest, shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]"));
+            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService, connectionLookup);
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                        aliasFilter, concreteIndexBoosts, searchPhaseController,
-                        executor, queryResultConsumer, searchRequest, listener, shardIterators, timeProvider, clusterState, task, clusters);
+                    searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(phaseContext, logger,
+                        aliasFilter, concreteIndexBoosts, searchPhaseController, executor, queryResultConsumer,
+                        listener, shardIterators, timeProvider, clusterState, task, clusters);
                     break;
                 case QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
+                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
                         aliasFilter, concreteIndexBoosts, searchPhaseController, executor, queryResultConsumer,
-                        searchRequest, listener, shardIterators, timeProvider, clusterState, task, clusters);
+                        listener, shardIterators, timeProvider, clusterState, task, clusters);
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

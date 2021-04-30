@@ -102,12 +102,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
 
-        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
+            null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() throws IOException {
@@ -170,12 +170,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.allowPartialSearchResults(true);
 
-        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
+            null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -230,61 +230,60 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         ActionListener<SearchResponse> responseListener = ActionListener.wrap(response -> {},
             (e) -> { throw new AssertionError("unexpected", e);});
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
         final CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
+            phaseContext,
             logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            searchRequest,
             null,
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,
-            (iter) -> new AbstractSearchAsyncAction<>(
-                "test",
-                logger,
-                transportService,
-                (cluster, node) -> {
-                        assert cluster == null : "cluster was not null: " + cluster;
-                        return lookup.get(node);
-                    },
-                aliasFilters,
-                Collections.emptyMap(),
-                executor,
-                searchRequest,
-                responseListener,
-                iter,
-                new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
-                ClusterState.EMPTY_STATE,
-                null,
-                new ArraySearchPhaseResults<>(iter.size()),
-                randomIntBetween(1, 32),
-                SearchResponse.Clusters.EMPTY) {
+            (iter) -> {
+                SearchPhaseContext nextPhaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+                    (clusterAlias, node) -> lookup.get(node));
+                return new AbstractSearchAsyncAction<>(
+                    "test",
+                    nextPhaseContext,
+                    logger,
+                    aliasFilters,
+                    Collections.emptyMap(),
+                    executor,
+                    responseListener,
+                    iter,
+                    new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
+                    ClusterState.EMPTY_STATE,
+                    null,
+                    new ArraySearchPhaseResults<>(iter.size()),
+                    randomIntBetween(1, 32),
+                    SearchResponse.Clusters.EMPTY) {
 
-                @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-                    return new SearchPhase("test") {
-                        @Override
-                        public void run() {
-                            latch.countDown();
-                        }
-                    };
-                }
-
-                @Override
-                protected void executePhaseOnShard(
-                    final SearchShardIterator shardIt,
-                    final SearchShardTarget shard,
-                    final SearchActionListener<SearchPhaseResult> listener) {
-                    if (randomBoolean()) {
-                        listener.onResponse(new SearchPhaseResult() {});
-                    } else {
-                        listener.onFailure(new Exception("failure"));
+                    @Override
+                    protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                        return new SearchPhase("test") {
+                            @Override
+                            public void run() {
+                                latch.countDown();
+                            }
+                        };
                     }
-                }
+
+                    @Override
+                    protected void executePhaseOnShard(
+                        final SearchShardIterator shardIt,
+                        final SearchShardTarget shard,
+                        final SearchActionListener<SearchPhaseResult> listener) {
+                        if (randomBoolean()) {
+                            listener.onResponse(new SearchPhaseResult() {});
+                        } else {
+                            listener.onFailure(new Exception("failure"));
+                        }
+                    }
+                };
             }, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER);
 
         canMatchPhase.start();
@@ -335,12 +334,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchRequest.source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp").order(order)));
             searchRequest.allowPartialSearchResults(true);
 
-            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
-                searchTransportService,
-                (clusterAlias, node) -> lookup.get(node),
+            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(phaseContext, logger,
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
                 Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
+                null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() {
@@ -415,12 +414,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchRequest.source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp").order(order)));
             searchRequest.allowPartialSearchResults(true);
 
-            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
-                searchTransportService,
-                (clusterAlias, node) -> lookup.get(node),
+            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+            CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(phaseContext, logger,
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
                 Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
+                null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() {
@@ -718,13 +717,12 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(phaseContext, logger,
             aliasFilters,
             Collections.emptyMap(),
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            searchRequest,
             null,
             shardsIter,
             timeProvider,

@@ -151,11 +151,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
-            searchTransportService, (clusterAlias, node) -> lookup.get(node),
+
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
+            resultConsumer, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -250,11 +252,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         final List<Object> responses = new ArrayList<>();
-        SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(logger,
-            searchTransportService, (clusterAlias, node) -> lookup.get(node),
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+        SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer, searchRequest, new ActionListener<SearchResponse>() {
+            resultConsumer, new ActionListener<SearchResponse>() {
                 @Override
                 public void onFailure(Exception e) {
                     responses.add(e);
@@ -345,11 +348,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
-            searchTransportService, (clusterAlias, node) -> lookup.get(node),
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
+            resultConsumer, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -445,11 +449,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
-        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
-            searchTransportService, (clusterAlias, node) -> lookup.get(node),
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+            (clusterAlias, node) -> lookup.get(node));
+        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(), controller, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
+            resultConsumer, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

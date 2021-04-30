@@ -19,11 +19,9 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
@@ -37,19 +35,20 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
 
-    SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-                                    final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+    SearchQueryThenFetchAsyncAction(final SearchPhaseContext context, final Logger logger,
                                     final Map<String, AliasFilter> aliasFilter,
                                     final Map<String, Float> concreteIndexBoosts,
                                     final SearchPhaseController searchPhaseController, final Executor executor,
-                                    final QueryPhaseResultConsumer resultConsumer, final SearchRequest request,
+                                    final QueryPhaseResultConsumer resultConsumer,
                                     final ActionListener<SearchResponse> listener,
                                     final GroupShardsIterator<SearchShardIterator> shardsIts,
                                     final TransportSearchAction.SearchTimeProvider timeProvider,
                                     ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
-        super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
-                executor, request, listener, shardsIts, timeProvider, clusterState, task,
-                resultConsumer, request.getMaxConcurrentShardRequests(), clusters);
+        super("query", context, logger, aliasFilter, concreteIndexBoosts,
+                executor, listener, shardsIts, timeProvider, clusterState, task,
+                resultConsumer, context.getRequest().getMaxConcurrentShardRequests(), clusters);
+
+        SearchRequest request = context.getRequest();
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;

@@ -62,7 +62,7 @@ user name and password are rejected.
 NOTE: You only need to set passwords for the `elastic` and `kibana_system` users
 when enabling minimal or basic security.
 
-. Start Elasticsearch. For example, if you installed Elasticsearch with a
+. Start {es}. For example, if you installed Elasticsearch with a
 `.tar.gz` package, run the following command from the Elasticsearch directory:
 +
 [source,shell]
@@ -109,11 +109,12 @@ WARNING: After you set a password for the `elastic` user, you cannot run the
 When the {es} security features are enabled, users must log in to {kib} with a
 valid username and password.
 
-{kib} also performs some background tasks that require use of the built-in
+You'll configure {kib} to use the built-in `kibana_system` user and the password that
+you created earlier. {kib} performs some background tasks that require use of the
 `kibana_system` user.
 
-You'll configure {kib} to use the built-in `kibana_system` user and the
-password that you created earlier.
+This account is not meant for individual users and does not have permission to log in
+to {kib} from a browser. Instead, you'll log in to {kib} as the `elastic` superuser. 
 
 . Add the `elasticsearch.username` setting to the `KIB_PATH_CONF/kibana.yml`
 file and set the value to the `kibana_system` user:
@@ -154,15 +155,15 @@ When prompted, enter the password for the `kibana_system` user.
 ./bin/kibana
 ----
 
-. Log in to {kib} as the `elastic` user.
+. Log in to {kib} as the `elastic` user. Use this superuser account to 
+{kibana-ref}/tutorial-secure-access-to-kibana.html[manage spaces, create new users, and assign roles]. If you're running {kib} locally, go to `http://localhost:5601` to view the login page.
 
 [[minimal-security-whatsnext]]
 ==== What's next?
 
 Congratulations! You enabled password protection for your local cluster to
 prevent unauthorized access. You can log in to {kib} securely as the `elastic`
-user. If you're running a <<single-node-discovery,single-node cluster>>, then
-you can stop here.
+user and create additional users and roles. If you're running a <<single-node-discovery,single-node cluster>>, then you can stop here.
 
 If your cluster has multiple nodes, then you must configure Transport Layer
 Security (TLS) between nodes. <<dev-vs-prod-mode,Production mode>> clusters

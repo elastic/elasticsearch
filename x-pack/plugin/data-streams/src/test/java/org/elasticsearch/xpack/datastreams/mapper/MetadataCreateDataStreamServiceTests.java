@@ -34,10 +34,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
     }
 
     public void testValidateTimestampFieldMappingNoFieldMapping() {
-        Exception e = expectThrows(
-            IllegalStateException.class,
-            () -> validateTimestampFieldMapping(createMappingLookup("{}"))
-        );
+        Exception e = expectThrows(IllegalStateException.class, () -> validateTimestampFieldMapping(createMappingLookup("{}")));
         assertThat(e.getMessage(), equalTo("[_data_stream_timestamp] meta field has been disabled"));
         String mapping1 = "{\n"
             + "      \"_data_stream_timestamp\": {\n"
@@ -59,10 +56,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
 
     public void testValidateTimestampFieldMappingInvalidFieldType() {
         String mapping = generateMapping("@timestamp", "keyword");
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> validateTimestampFieldMapping(createMappingLookup(mapping))
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> validateTimestampFieldMapping(createMappingLookup(mapping)));
         assertThat(
             e.getMessage(),
             equalTo("data stream timestamp field [@timestamp] is of type [keyword], " + "but [date,date_nanos] is expected")

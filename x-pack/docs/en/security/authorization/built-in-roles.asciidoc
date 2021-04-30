@@ -57,7 +57,7 @@ Grants full access to all features in {kib} (including Solutions) and read-only 
 [NOTE]
 ===============================
 * This role provides read access to any index that is not prefixed with a dot.
-* This role will automatically grant full access to new {kib} features as soon as they will be released.
+* This role automatically grants full access to new {kib} features as soon as they are released.
 ===============================
 
 --

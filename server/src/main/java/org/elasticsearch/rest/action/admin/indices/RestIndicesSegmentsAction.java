@@ -8,13 +8,11 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -58,24 +56,6 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().indices().segments(
                 indicesSegmentsRequest,
                 new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
-                    .map(IndicesSegmentsRestResponse::new));
-    }
-
-    private static class IndicesSegmentsRestResponse implements StatusToXContentObject {
-        private final IndicesSegmentResponse response;
-
-        private IndicesSegmentsRestResponse(IndicesSegmentResponse response) {
-            this.response = response;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return response.toXContent(builder, params);
-        }
+                    .map(r -> StatusToXContentObject.withStatus(RestStatus.OK, r)));
     }
 }

@@ -39,12 +39,12 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     }
 
     @Override
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+    protected final void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+    protected final void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         doMasterOperation(task, request, concreteIndices, state, listener);
     }

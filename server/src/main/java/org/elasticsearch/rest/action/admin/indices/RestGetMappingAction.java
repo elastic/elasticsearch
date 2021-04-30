@@ -44,7 +44,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -122,10 +121,10 @@ public class RestGetMappingAction extends BaseRestHandler {
         private final long startTimeMs;
         private final SortedSet<String> missingTypes;
 
-        private RestGetMappingsResponse(String[] types,
-                                        GetMappingsResponse response,
-                                        LongSupplier relativeTimeSupplierMillis,
-                                        TimeValue timeout) {
+        RestGetMappingsResponse(String[] types,
+                                GetMappingsResponse response,
+                                LongSupplier relativeTimeSupplierMillis,
+                                TimeValue timeout) {
             this.types = types;
             this.response = response;
             this.relativeTimeSupplierMillis = relativeTimeSupplierMillis;
@@ -169,7 +168,7 @@ public class RestGetMappingAction extends BaseRestHandler {
         private static SortedSet<String> getMissingTypes(String[] types,
                                                    ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> mappingsByIndex) {
             if (mappingsByIndex.isEmpty() && types.length != 0) {
-                return Arrays.stream(types).collect(Collectors.toCollection(TreeSet::new));
+                return Collections.emptySortedSet();
             }
             final Set<String> typeNames = new HashSet<>();
             for (final ObjectCursor<ImmutableOpenMap<String, MappingMetadata>> cursor : mappingsByIndex.values()) {

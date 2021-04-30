@@ -175,7 +175,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }, 30, TimeUnit.SECONDS);
 
         } finally {
-            cleanUpFollower(asList("metrics-20210101"), emptyList(), List.of(autoFollowPatternName));
+            cleanUpFollower(singletonList("metrics-20210101"), emptyList(), singletonList(autoFollowPatternName));
         }
     }
 
@@ -541,7 +541,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }
 
         } finally {
-            cleanUpFollower(asList(aliasName + "-000001", aliasName + "-000002"), emptyList(), List.of("test_pattern"));
+            cleanUpFollower(asList(aliasName + "-000001", aliasName + "-000002"), emptyList(), singletonList("test_pattern"));
         }
     }
 

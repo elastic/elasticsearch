@@ -38,7 +38,6 @@ public class BlobStoreDynamicSettingsIT extends AbstractSnapshotIntegTestCase {
         assertNull(currentSettings.get(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey()));
         assertNull(currentSettings.get(BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC.getKey()));
 
-        // allow one chunk per second so we get slow snapshots but without the rate limiter completely locking up
         createRepository(repoName, "mock", Settings.builder().put(currentSettings)
                 .put(BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), "1b"));
 

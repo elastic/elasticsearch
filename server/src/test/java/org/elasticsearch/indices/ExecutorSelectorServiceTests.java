@@ -11,10 +11,32 @@ package org.elasticsearch.indices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExecutorSelectorServiceTests extends ESTestCase {
+
+    private static SystemIndices SYSTEM_INDICES = new SystemIndices(
+        Map.of(
+            "normal system index", new SystemIndices.Feature("hi", "there", List.of(
+                new SystemIndexDescriptor(".non-critical-system-index", "test index")
+            ))
+        ));
+
+    public void testNonCriticalSystemIndexThreadPools() {
+        ExecutorSelectorService service = new ExecutorSelectorService(SYSTEM_INDICES);
+        String index = ".non-critical-system-index";
+        assertThat(service.getGetExecutor(index), equalTo(ThreadPool.Names.SYSTEM_READ));
+        assertThat(service.getReadExecutor(index), equalTo(ThreadPool.Names.SYSTEM_READ));
+        assertThat(service.getWriteExecutor(index), equalTo(ThreadPool.Names.SYSTEM_WRITE));
+    }
+
+    // TODO: critical thread pools
+
+    // TODO: data streams
 
     public void testCreateThreadPools() {
         String getThreadPool = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet());

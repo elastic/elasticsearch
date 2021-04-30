@@ -10,8 +10,7 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 /**
  * Some operations need to use different executors for different index patterns.
@@ -21,38 +20,41 @@ import java.util.stream.Collectors;
  */
 public class ExecutorSelectorService {
     private final SystemIndices systemIndices;
-    private final Set<SystemIndexDescriptor> criticalSystemIndexDescriptors;
 
     public ExecutorSelectorService(SystemIndices systemIndices) {
         this.systemIndices = systemIndices;
-        this.criticalSystemIndexDescriptors = systemIndices.getSystemIndexDescriptors().stream()
-            .filter(SystemIndexDescriptor::isInternal) // TODO[wrb]: should be "isCritical"
-            .collect(Collectors.toSet());
+    }
+
+    public String getGetExecutor(String indexName) {
+        SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
+        if (Objects.nonNull(indexDescriptor)) {
+            return indexDescriptor.getThreadPools().getGetPoolName();
+        }
+
+        // TODO: data streams
+
+        return ThreadPool.Names.GET;
     }
 
     public String getReadExecutor(String indexName) {
-        for (SystemIndexDescriptor descriptor : criticalSystemIndexDescriptors) {
-            if (descriptor.matchesIndexPattern(indexName)) {
-                return ThreadPool.Names.SYSTEM_CRITICAL_READ;
-            }
+        SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
+        if (Objects.nonNull(indexDescriptor)) {
+            return indexDescriptor.getThreadPools().getSearchPoolName();
         }
 
-        if (systemIndices.isSystemIndex(indexName)) {
-            return ThreadPool.Names.SYSTEM_READ;
-        }
+        // TODO: data streams
+
         return ThreadPool.Names.SEARCH;
     }
 
     public String getWriteExecutor(String indexName) {
-        for (SystemIndexDescriptor descriptor : criticalSystemIndexDescriptors) {
-            if (descriptor.matchesIndexPattern(indexName)) {
-                return ThreadPool.Names.SYSTEM_CRITICAL_WRITE;
-            }
+        SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
+        if (Objects.nonNull(indexDescriptor)) {
+            return indexDescriptor.getThreadPools().getWritePoolName();
         }
 
-        if (systemIndices.isSystemIndex(indexName)) {
-            return ThreadPool.Names.SYSTEM_WRITE;
-        }
+        // TODO: data streams
+
         return ThreadPool.Names.WRITE;
     }
 }

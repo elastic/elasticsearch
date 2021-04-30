@@ -115,6 +115,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         }
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
         Optional<Assignment> optionalAssignment = getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
+        // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }
@@ -126,7 +127,6 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             maxConcurrentJobAllocations,
             maxMachineMemoryPercent,
             maxNodeMemory,
-            isMemoryTrackerRecentlyRefreshed,
             useAutoMemoryPercentage);
         auditRequireMemoryIfNecessary(params.getJobId(), auditor, assignment, jobNodeSelector, isMemoryTrackerRecentlyRefreshed);
         return assignment;

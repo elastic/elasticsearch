@@ -19,7 +19,7 @@ Retrieves usage information for {dfeeds}.
 
 `GET _ml/datafeeds/_stats`  +
 
-`GET _ml/datafeeds/_all/_stats` 
+`GET _ml/datafeeds/_all/_stats`
 
 [[ml-get-datafeed-stats-prereqs]]
 == {api-prereq-title}
@@ -144,7 +144,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=search-time]
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
-  resources that match the request or only partial matches for the request. 
+  resources that match the request or only partial matches for the request.
 
 [[ml-get-datafeed-stats-example]]
 == {api-examples-title}
@@ -172,7 +172,7 @@ The API returns the following results:
         "transport_address": "127.0.0.1:9300",
         "attributes": {
           "ml.machine_memory": "17179869184",
-          "ml.max_open_jobs": "20"
+          "ml.max_open_jobs": "512"
         }
       },
       "assignment_explanation": "",

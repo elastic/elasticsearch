@@ -87,7 +87,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         when(mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(any())).thenReturn(DEFAULT_JOB_SIZE);
         nodeLoadDetector = mock(NodeLoadDetector.class);
         when(nodeLoadDetector.getMlMemoryTracker()).thenReturn(mlMemoryTracker);
-        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
+        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean()))
             .thenReturn(NodeLoad.builder("any")
                 .setUseMemory(true)
                 .incAssignedJobMemory(ByteSizeValue.ofGb(1).getBytes())
@@ -456,14 +456,6 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         return new MlAutoscalingDeciderService(nodeLoadDetector, settings, clusterService, timeSupplier);
     }
 
-    private void withNodesLoadedWith(ByteSizeValue value) {
-        when(nodeLoadDetector.detectNodeLoad(any(), anyBoolean(), any(), anyInt(), anyInt(), anyBoolean(), anyBoolean()))
-            .thenReturn(NodeLoad.builder("any")
-                .setUseMemory(true)
-                .incAssignedJobMemory(value.getBytes())
-                .build());
-    }
-
     private static ClusterState clusterState(List<String> anomalyTasks,
                                              List<String> batchAnomalyTasks,
                                              List<String> analyticsTasks,
@@ -474,19 +466,19 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : nodeList) {
             nodesBuilder.add(node);
-        };
+        }
         PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
         for (String jobId : anomalyTasks) {
             OpenJobPersistentTasksExecutorTests.addJobTask(jobId,
                 randomFrom(nodeNames),
-                randomFrom(JobState.CLOSING, JobState.OPENED, JobState.OPENING, (JobState)null),
+                randomFrom(JobState.CLOSING, JobState.OPENED, JobState.OPENING, null),
                 tasksBuilder);
         }
         for (String jobId : batchAnomalyTasks) {
             String nodeAssignment = randomFrom(nodeNames);
             OpenJobPersistentTasksExecutorTests.addJobTask(jobId,
                 nodeAssignment,
-                randomFrom(JobState.CLOSING, JobState.OPENED, JobState.OPENING, (JobState)null),
+                randomFrom(JobState.CLOSING, JobState.OPENED, JobState.OPENING, null),
                 tasksBuilder);
             StartDatafeedAction.DatafeedParams dfParams =new StartDatafeedAction.DatafeedParams(jobId + "-datafeed", 0);
             dfParams.setEndTime(new Date().getTime());

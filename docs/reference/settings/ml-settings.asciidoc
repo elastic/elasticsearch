@@ -118,7 +118,7 @@ allowed, fewer jobs will run on a node. Prior to version 7.1, this setting was a
 per-node non-dynamic setting. It became a cluster-wide dynamic setting in
 version 7.1. As a result, changes to its value after node startup are used only 
 after every node in the cluster is running version 7.1 or higher. The minimum
-value is `1`; the maximum value is `512`. Defaults to `20`.
+value is `1`; the maximum value is `512`. Defaults to `512`.
 
 `xpack.ml.nightly_maintenance_requests_per_second`::
 (<<cluster-update-settings,Dynamic>>) The rate at which the nightly maintenance 

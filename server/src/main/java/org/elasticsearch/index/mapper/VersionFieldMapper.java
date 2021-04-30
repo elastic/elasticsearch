@@ -57,7 +57,6 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) {
-        // see InternalEngine.updateVersion to see where the real version value is set
         final Field version = versionField();
         context.version(version);
         context.doc().add(version);

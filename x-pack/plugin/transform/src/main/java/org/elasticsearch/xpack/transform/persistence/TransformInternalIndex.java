@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -396,14 +397,16 @@ public final class TransformInternalIndex {
     }
 
     protected static boolean allShardsActiveForLatestVersionedIndex(ClusterState state) {
-        return state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).allPrimaryShardsActive();
+        IndexRoutingTable indexRouting = state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+
+        return indexRouting != null && indexRouting.allPrimaryShardsActive();
     }
 
     protected static boolean haveLatestAuditIndexTemplate(ClusterState state) {
         return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
     }
 
-    protected static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {
+    private static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {
         ClusterHealthRequest request = new ClusterHealthRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
             .waitForActiveShards(ActiveShardCount.ALL);
         ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);

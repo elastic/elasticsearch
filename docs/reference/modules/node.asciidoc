@@ -364,7 +364,7 @@ xpack.ml.enabled: true <2>
 Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
 <2> The `xpack.ml.enabled` setting is enabled by default.
 
-WARNING: The `remote_cluster_client` role is required on all master-eligible nodes in case
+WARNING: If you use {ccs} in your {anomaly-jobs}, the `remote_cluster_client` role is required on all master-eligible nodes.
 you are using {ccs}.
 Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds} against remote indices.
 

@@ -149,7 +149,7 @@ When prompted, enter the password for the `kibana_system` user.
 ----
 
 . Log in to {kib} as the `elastic` user. Use this superuser account to 
-{kibana-ref}/tutorial-secure-access-to-kibana.html[create new users and assign roles]. If you're running {kib} locally, go to `https://localhost:5601` to view the login page.
+{kibana-ref}/tutorial-secure-access-to-kibana.html[manage spaces, create new users and assign roles]. If you're running {kib} locally, go to `http://localhost:5601` to view the login page.
 
 [[minimal-security-whatsnext]]
 ==== What's next?

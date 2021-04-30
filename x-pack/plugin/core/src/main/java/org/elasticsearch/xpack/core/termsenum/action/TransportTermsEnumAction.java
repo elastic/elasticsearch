@@ -576,8 +576,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
     private void asyncNodeOperation(NodeTermsEnumRequest request, Task task, ActionListener<NodeTermsEnumResponse> listener)
         throws IOException {
+        // Start the clock ticking on the data node using the data node's local current time.
+        request.startTimerOnDataNode();
+
         // DLS/FLS check copied from ResizeRequestInterceptor - check permissions and
-        // any index_filter canMatch checks on network thread before allocating work
+        // any index_filter canMatch checks on network thread before allocating work        
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
         for (ShardId shardId : request.shardIds().toArray(new ShardId[0])) {

@@ -39,9 +39,6 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
 
     public NodeTermsEnumRequest(StreamInput in) throws IOException {
         super(in);
-        // Set the clock running as soon as we appear on a node.
-        nodeStartedTimeMillis = System.currentTimeMillis();
-
         field = in.readString();
         string = in.readString();
         caseInsensitive = in.readBoolean();
@@ -85,14 +82,18 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     
     /** 
      * The time this request was materialized on a node
-     * (defaults to "now" if serialization was not used e.g. a local request).
      */
-    public long nodeStartedTimeMillis() {
+    long nodeStartedTimeMillis() {
+        // In case startTimerOnDataNode has not been called (should never happen in normal circumstances?)
         if (nodeStartedTimeMillis == 0) {
             nodeStartedTimeMillis = System.currentTimeMillis();
         }
         return this.nodeStartedTimeMillis;
     }    
+    
+    public void startTimerOnDataNode() {
+        nodeStartedTimeMillis = System.currentTimeMillis();
+    }
     
     public Set<ShardId> shardIds() {
         return Collections.unmodifiableSet(shardIds);

@@ -39,7 +39,7 @@ public class MappingLookupTests extends ESTestCase {
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, fieldMappers, objectMappers, emptyList(), null, null, null);
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, emptyList());
     }
 
     public void testOnlyRuntimeField() {

@@ -101,7 +101,11 @@ public class Environment {
         pluginsFile = homeFile.resolve("plugins");
 
         if (PATH_DATA_SETTING.exists(settings)) {
-            dataFile = PathUtils.get(PATH_DATA_SETTING.get(settings)).toAbsolutePath().normalize();
+            String rawDataPath = PATH_DATA_SETTING.get(settings);
+            if (rawDataPath.startsWith("[")) {
+                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
+            }
+            dataFile = PathUtils.get(rawDataPath).toAbsolutePath().normalize();
         } else {
             dataFile = homeFile.resolve("data");
         }
@@ -169,8 +173,8 @@ public class Environment {
     /**
      * The data location.
      */
-    public Path[] dataFiles() {
-        return new Path[] { dataFile };
+    public Path dataFile() {
+        return dataFile;
     }
 
     /**
@@ -292,15 +296,6 @@ public class Environment {
         }
     }
 
-    /** Returns true if the data path is a list, false otherwise */
-    public static boolean dataPathUsesList(Settings settings) {
-        if (settings.hasValue(PATH_DATA_SETTING.getKey()) == false) {
-            return false;
-        }
-        String rawDataPath = settings.get(PATH_DATA_SETTING.getKey());
-        return rawDataPath.startsWith("[");
-    }
-
     public static FileStore getFileStore(final Path path) throws IOException {
         return new ESFileStore(Files.getFileStore(path));
     }
@@ -320,7 +315,7 @@ public class Environment {
      * object which may contain different setting)
      */
     public static void assertEquivalent(Environment actual, Environment expected) {
-        assertEquals(actual.dataFiles(), expected.dataFiles(), "dataFiles");
+        assertEquals(actual.dataFile(), expected.dataFile(), "dataFiles");
         assertEquals(actual.repoFiles(), expected.repoFiles(), "repoFiles");
         assertEquals(actual.configFile(), expected.configFile(), "configFile");
         assertEquals(actual.pluginsFile(), expected.pluginsFile(), "pluginsFile");

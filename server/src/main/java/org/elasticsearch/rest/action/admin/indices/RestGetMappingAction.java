@@ -9,7 +9,6 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -18,18 +17,18 @@ import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActionListener;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -73,28 +72,36 @@ public class RestGetMappingAction extends BaseRestHandler {
         final TimeValue timeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
         getMappingsRequest.masterNodeTimeout(timeout);
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
-        return channel -> client.admin().indices().getMappings(getMappingsRequest, new RestActionListener<>(channel) {
+        final HttpChannel httpChannel = request.getHttpChannel();
+        return channel -> new RestCancellableNodeClient(client, httpChannel).admin().indices().getMappings(getMappingsRequest,
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
+                    .map(getMappingsResponse ->
+                        new RestGetMappingsResponse(getMappingsResponse, threadPool::relativeTimeInMillis, timeout)));
+    }
 
-            @Override
-            protected void processResponse(GetMappingsResponse getMappingsResponse) {
-                final long startTimeMs = threadPool.relativeTimeInMillis();
-                // Process serialization on MANAGEMENT pool since the serialization of the raw mappings to XContent can be too slow to
-                // execute on an IO thread
-                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(
-                        ActionRunnable.wrap(this, l -> new RestBuilderListener<GetMappingsResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(final GetMappingsResponse response,
-                                                              final XContentBuilder builder) throws Exception {
-                                if (threadPool.relativeTimeInMillis() - startTimeMs > timeout.millis()) {
-                                    throw new ElasticsearchTimeoutException("Timed out getting mappings");
-                                }
-                                builder.startObject();
-                                response.toXContent(builder, request);
-                                builder.endObject();
-                                return new BytesRestResponse(RestStatus.OK, builder);
-                            }
-                        }.onResponse(getMappingsResponse)));
+    private static final class RestGetMappingsResponse implements ToXContentObject {
+        private final GetMappingsResponse response;
+        private final LongSupplier relativeTimeSupplierMillis;
+        private final TimeValue timeout;
+        private final long startTimeMs;
+
+        private RestGetMappingsResponse(GetMappingsResponse response, LongSupplier relativeTimeSupplierMillis, TimeValue timeout) {
+            this.response = response;
+            this.relativeTimeSupplierMillis = relativeTimeSupplierMillis;
+            this.timeout = timeout;
+            this.startTimeMs = relativeTimeSupplierMillis.getAsLong();
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (relativeTimeSupplierMillis.getAsLong() - startTimeMs > timeout.millis()) {
+                throw new ElasticsearchTimeoutException("Timed out getting mappings");
             }
-        });
+
+            builder.startObject();
+            response.toXContent(builder, params);
+            builder.endObject();
+            return builder;
+        }
     }
 }

@@ -141,15 +141,10 @@ public class BinaryFieldMapper extends FieldMapper {
         if (stored == false && hasDocValues == false) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
         }
-        indexValue(context, value);
+        indexValue(context, context.parser().binaryValue());
     }
 
     public void indexValue(ParseContext context, byte[] value) {

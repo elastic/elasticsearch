@@ -24,8 +24,10 @@ Previews a {dfeed}.
 [[ml-preview-datafeed-prereqs]]
 == {api-prereq-title}
 
-Requires the `monitor_ml` cluster privilege. This privilege is included in the 
-`machine_learning_user` built-in role.
+Requires the following privileges:
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+   privilege)
+* source index configured in the {dfeed}: `read`.
 
 [[ml-preview-datafeed-desc]]
 == {api-description-title}

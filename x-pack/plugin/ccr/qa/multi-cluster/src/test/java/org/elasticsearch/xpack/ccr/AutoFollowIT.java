@@ -26,13 +26,13 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
@@ -95,17 +95,17 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
         } finally {
             cleanUpFollower(
-                Arrays.asList("index-20190101", "index-20200101"),
+                asList("index-20190101", "index-20200101"),
                 emptyList(),
-                Arrays.asList("leader_cluster_pattern", "middle_cluster_pattern")
+                asList("leader_cluster_pattern", "middle_cluster_pattern")
             );
             cleanUpMiddle(
-                Arrays.asList("index-20200101"),
+                asList("index-20200101"),
                 emptyList(),
                 emptyList()
             );
             cleanUpLeader(
-                Arrays.asList("index-20190101"),
+                asList("index-20190101"),
                 emptyList(),
                 emptyList()
             );
@@ -290,12 +290,12 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
         } finally {
             cleanUpFollower(
-                Arrays.asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
+                asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
                 singletonList(dataStreamName),
                 singletonList(autoFollowPatternName)
             );
             cleanUpLeader(
-                Arrays.asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
+                asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
                 singletonList(dataStreamName),
                 emptyList()
             );
@@ -358,12 +358,12 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
         } finally {
             cleanUpFollower(
-                Arrays.asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
+                asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
                 singletonList(dataStreamName),
                 singletonList(autoFollowPatternName)
             );
             cleanUpLeader(
-                Arrays.asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
+                asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
                 singletonList(dataStreamName),
                 emptyList()
             );
@@ -463,12 +463,12 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
         } finally {
             cleanUpFollower(
-                Arrays.asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
+                asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2), backingIndexName(dataStreamName, 3)),
                 singletonList(dataStreamName),
                 singletonList(autoFollowPatternName)
             );
             cleanUpLeader(
-                Arrays.asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
+                asList(backingIndexName(dataStreamName, 1), backingIndexName(dataStreamName, 2)),
                 singletonList(dataStreamName),
                 emptyList()
             );
@@ -539,7 +539,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }
 
         } finally {
-            cleanUpFollower(Arrays.asList(aliasName + "-000001", aliasName + "-000002"), emptyList(), singletonList("test_pattern"));
+            cleanUpFollower(asList(aliasName + "-000001", aliasName + "-000002"), emptyList(), singletonList("test_pattern"));
         }
     }
 
@@ -595,7 +595,8 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                                         bodyBuilder.startArray("seeds");
                                         Request nodesInfoRequest = new Request("GET", "/_nodes/_local");
                                         Map<?, ?> nodesInfoResponse = toMap(client().performRequest(nodesInfoRequest));
-                                        Map<?, ?> node = (Map<?, ?>) ((Map<?, ?>) nodesInfoResponse.get("nodes")).values().iterator().next();
+                                        Map<?, ?> node =
+                                            (Map<?, ?>) ((Map<?, ?>) nodesInfoResponse.get("nodes")).values().iterator().next();
                                         Map<?, ?> transportMetrics = (Map<?, ?>) node.get("transport");
                                         String address = (String) transportMetrics.get("publish_address");
                                         bodyBuilder.value(address);
@@ -705,13 +706,13 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }
         } finally {
             cleanUpFollower(
-                Arrays.asList(backingIndexName(followerDataStreamName, 1), backingIndexName(leaderDataStreamName, 1)),
-                Arrays.asList(followerDataStreamName, leaderDataStreamName),
+                asList(backingIndexName(followerDataStreamName, 1), backingIndexName(leaderDataStreamName, 1)),
+                asList(followerDataStreamName, leaderDataStreamName),
                 singletonList("id1")
             );
             cleanUpLeader(
-                Arrays.asList(backingIndexName(leaderDataStreamName, 1), backingIndexName(followerDataStreamName, 1)),
-                Arrays.asList(leaderDataStreamName, followerDataStreamName),
+                asList(backingIndexName(leaderDataStreamName, 1), backingIndexName(followerDataStreamName, 1)),
+                asList(leaderDataStreamName, followerDataStreamName),
                 singletonList("id2")
             );
         }

@@ -37,6 +37,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -269,7 +270,8 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 SystemDataStreamDescriptor.Type.EXTERNAL,
                 composableIndexTemplate,
                 Map.of(),
-                ALLOWED_PRODUCTS
+                ALLOWED_PRODUCTS,
+                SystemIndices.ThreadPools.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

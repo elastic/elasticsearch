@@ -31,7 +31,10 @@ public class ExecutorSelectorService {
             return indexDescriptor.getThreadPools().getGetPoolName();
         }
 
-        // TODO: data streams
+        SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
+        if (Objects.nonNull(dataStreamDescriptor)) {
+            return dataStreamDescriptor.getThreadPools().getGetPoolName();
+        }
 
         return ThreadPool.Names.GET;
     }
@@ -42,7 +45,10 @@ public class ExecutorSelectorService {
             return indexDescriptor.getThreadPools().getSearchPoolName();
         }
 
-        // TODO: data streams
+        SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
+        if (Objects.nonNull(dataStreamDescriptor)) {
+            return dataStreamDescriptor.getThreadPools().getSearchPoolName();
+        }
 
         return ThreadPool.Names.SEARCH;
     }
@@ -53,7 +59,10 @@ public class ExecutorSelectorService {
             return indexDescriptor.getThreadPools().getWritePoolName();
         }
 
-        // TODO: data streams
+        SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
+        if (Objects.nonNull(dataStreamDescriptor)) {
+            return dataStreamDescriptor.getThreadPools().getWritePoolName();
+        }
 
         return ThreadPool.Names.WRITE;
     }

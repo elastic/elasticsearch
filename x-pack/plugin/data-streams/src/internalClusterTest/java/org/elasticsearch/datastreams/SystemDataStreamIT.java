@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -327,7 +328,8 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                             new DataStreamTemplate()
                         ),
                         Map.of(),
-                        List.of("product")
+                        List.of("product"),
+                        SystemIndices.ThreadPools.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );
             } catch (IOException e) {

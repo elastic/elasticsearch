@@ -220,7 +220,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             Type.EXTERNAL,
             new ComposableIndexTemplate(List.of(".system-data-stream"), null, null, null, null, null, new DataStreamTemplate()),
             Map.of(),
-            List.of("stack")
-        );
+            List.of("stack"),
+            SystemIndices.ThreadPools.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS);
     }
 }

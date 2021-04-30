@@ -96,7 +96,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.jvmArgs(
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
-                "--illegal-access=warn",
+                "--illegal-access=deny",
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 

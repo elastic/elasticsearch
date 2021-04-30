@@ -509,8 +509,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (current.equals(updatedSettings)) {
             return true;
         }
-        final Set<String> changedSettingNames = new HashSet<>(current.names());
-        changedSettingNames.addAll(updatedSettings.names());
+        final Set<String> changedSettingNames = new HashSet<>(current.keySet());
+        changedSettingNames.addAll(updatedSettings.keySet());
         changedSettingNames.removeAll(ignoredSettings);
         changedSettingNames.removeIf(setting -> Objects.equals(current.get(setting), updatedSettings.get(setting)));
         return DYNAMIC_SETTING_NAMES.containsAll(changedSettingNames);

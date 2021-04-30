@@ -10,6 +10,7 @@ package org.elasticsearch.search.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.lucene.geo.GeoTestUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.CheckedSupplier;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Rectangle;
@@ -73,6 +75,11 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         return xcb;
     }
 
+    @Override
+    protected boolean forbidPrivateIndexSettings() {
+        return false;
+    }
+
     protected XContentBuilder createPrefixTreeMapping(String tree) throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject("geo")
@@ -85,16 +92,23 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         return xcb;
     }
 
-    protected XContentBuilder createRandomMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
-            .startObject("properties").startObject("geo")
-            .field("type", "geo_shape");
-        if (randomBoolean()) {
-            xcb = xcb.field("tree", randomFrom(PREFIX_TREES));
+    protected void createRandomMapping(String indexName, Settings settings) throws Exception {
+        boolean legacy = randomBoolean();
+        final XContentBuilder mapping = legacy ? createPrefixTreeMapping(randomFrom(PREFIX_TREES)) : createDefaultMapping();
+        final Settings finalSetting;
+        if (legacy) {
+            MapperParsingException ex =
+                expectThrows(MapperParsingException.class,
+                    () -> client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(settings).get());
+            assertThat(ex.getMessage(),
+                containsString("using deprecated parameters [tree] in mapper [geo] of type [geo_shape] is no longer allowed"));
+            Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+            finalSetting = settings(version).put(settings).build();
+        } else {
+            finalSetting = settings;
         }
-        xcb = xcb.endObject().endObject().endObject();
-
-        return xcb;
+        client().admin().indices().prepareCreate(indexName).setMapping(mapping).setSettings(finalSetting).get();
+        ensureGreen();
     }
 
     public void testShapeFetchingPath() throws Exception {
@@ -182,7 +196,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     public void testRandomGeoCollectionQuery() throws Exception {
         // Create a random geometry collection to index.
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());;
-
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
 
         assumeTrue("Skipping the check for the polygon with a degenerated dimension",
@@ -196,10 +209,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        XContentBuilder mapping = createRandomMapping();
-        Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
-        client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(settings).get();
-        ensureGreen();
+        createRandomMapping("test", Settings.builder().put("index.number_of_shards", 1).build());
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -384,8 +394,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testIndexedShapeReferenceSourceDisabled() throws Exception {
-        String mapping = Strings.toString(createRandomMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+        createRandomMapping("test", Settings.builder().put("index.number_of_shards", 1).build());
         createIndex("shapes", Settings.EMPTY, "shape_type", "_source", "enabled=false");
         ensureGreen();
 
@@ -427,9 +436,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         gcb.shape(pb);
 
         // create mapping
-        String mapping = Strings.toString(createRandomMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
+        createRandomMapping("test", Settings.EMPTY);
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -466,7 +473,18 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             usePrefixTrees ?
                 createPrefixTreeMapping(LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE) :
                 createDefaultMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+
+        if (usePrefixTrees) {
+            MapperParsingException ex =
+                expectThrows(MapperParsingException.class,
+                    () -> client().admin().indices().prepareCreate("test").setMapping(mapping).get());
+            assertThat(ex.getMessage(),
+                containsString("using deprecated parameters [tree] in mapper [geo] of type [geo_shape] is no longer allowed"));
+        }
+
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Settings settings = usePrefixTrees ? settings(version).build() : Settings.EMPTY;
+        client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
@@ -493,10 +511,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        String mapping = Strings.toString(createRandomMapping());
-
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
+        createRandomMapping("test", Settings.EMPTY);
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -518,7 +533,16 @@ public class GeoShapeQueryTests extends GeoQueryTests {
                 .endObject()
                 .endObject().endObject());
 
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
+        MapperParsingException ex =
+            expectThrows(MapperParsingException.class,
+                () -> client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get());
+        assertThat(ex.getMessage(),
+            containsString("using deprecated parameters [points_only, tree, distance_error_pct, tree_levels] " +
+                "in mapper [geo] of type [geo_shape] is no longer allowed"));
+
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Settings settings = settings(version).build();
+        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random());
@@ -551,7 +575,16 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .endObject()
             .endObject().endObject());
 
-        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get();
+        MapperParsingException ex =
+            expectThrows(MapperParsingException.class,
+                () -> client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).get());
+        assertThat(ex.getMessage(),
+            containsString("using deprecated parameters [points_only, tree, distance_error_pct, tree_levels] " +
+                    "in mapper [geo] of type [geo_shape] is no longer allowed"));
+
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Settings settings = settings(version).build();
+        client().admin().indices().prepareCreate("geo_points_only").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         // MULTIPOINT
@@ -575,10 +608,8 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testIndexedShapeReference() throws Exception {
-        String mapping = Strings.toString(createRandomMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        createIndex("shapes");
-        ensureGreen();
+
+        createRandomMapping("test", Settings.EMPTY);
 
         EnvelopeBuilder shape = new EnvelopeBuilder(new Coordinate(-45, 45), new Coordinate(45, -45));
 
@@ -625,7 +656,17 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .endObject()
             .endObject()
             .endObject());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
+
+
+        MapperParsingException ex =
+            expectThrows(MapperParsingException.class,
+                () -> client().admin().indices().prepareCreate("test").setMapping(mapping).get());
+        assertThat(ex.getMessage(),
+            containsString("using deprecated parameters [tree] in mapper [geo] of type [geo_shape] is no longer allowed"));
+
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        Settings settings = settings(version).build();
+        client().admin().indices().prepareCreate("test").setMapping(mapping).setSettings(settings).get();
         ensureGreen();
 
         ShapeBuilder shape = RandomShapeGenerator.createShape(random(), RandomShapeGenerator.ShapeType.MULTIPOINT);
@@ -641,7 +682,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
     public void testQueryRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
-        String mapping = Strings.toString(createRandomMapping());
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         org.apache.lucene.geo.Polygon randomPoly = GeoTestUtil.nextPolygon();
         CoordinatesBuilder cb = new CoordinatesBuilder();
@@ -652,8 +692,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
         logger.info("Created Random GeometryCollection containing {} shapes", gcb.numShapes());
 
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
+        createRandomMapping("test", Settings.EMPTY);
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test").setId("1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();
@@ -671,9 +710,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testShapeFilterWithDefinedGeoCollection() throws Exception {
-        String mapping = Strings.toString(createRandomMapping());
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
+        createRandomMapping("test", Settings.EMPTY);
 
         XContentBuilder docSource = jsonBuilder().startObject().startObject("geo")
             .field("type", "geometrycollection")
@@ -741,9 +778,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testDistanceQuery() throws Exception {
-        String mapping = Strings.toString(createRandomMapping());
-        client().admin().indices().prepareCreate("test_distance").setMapping(mapping).get();
-        ensureGreen();
+        createRandomMapping("test_distance", Settings.EMPTY);
 
         CircleBuilder circleBuilder = new CircleBuilder().center(new Coordinate(1, 0)).radius(350, DistanceUnit.KILOMETERS);
 
@@ -779,10 +814,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
     }
 
     public void testIndexRectangleSpanningDateLine() throws Exception {
-        String mapping = Strings.toString(createRandomMapping());
-
-        client().admin().indices().prepareCreate("test").setMapping(mapping).get();
-        ensureGreen();
+        createRandomMapping("test", Settings.EMPTY);
 
         EnvelopeBuilder envelopeBuilder = new EnvelopeBuilder(new Coordinate(178, 10), new Coordinate(-178, -10));
 

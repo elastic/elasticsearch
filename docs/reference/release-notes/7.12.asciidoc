@@ -121,6 +121,18 @@ All versions of {es} before 6.8.15 and 7.11.2 are affected by this flaw.
 You must upgrade to 6.8.15 or 7.11.2 to obtain the fix.
 https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22137[CVE-2021-22137]
 
+[[known-issues-7.12.0]]
+[discrete]
+=== Known issues
+
+* If autoscaling is enabled for machine learning, the administrator of the cluster
+  should increase the cluster setting `xpack.ml.max_open_jobs`. This allows autoscaling
+  to run reliably as it relies on assigning jobs only via memory. Having
+  `xpack.ml.max_open_jobs` as a small number may cause autoscaling to behave unexpectedly.
+
+* If autoscaling is enabled and job assignment takes an inordinate amount of time, scaling
+  sizes may increase much higher than required. Elasticsearch 7.13.0 contains a fix for this.
+  For more details, see {es-issue}72509[#72509]
 
 [[breaking-7.12.0]]
 [float]

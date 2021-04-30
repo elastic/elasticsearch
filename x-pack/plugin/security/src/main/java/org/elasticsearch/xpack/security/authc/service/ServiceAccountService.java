@@ -31,6 +31,7 @@ import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccou
 public class ServiceAccountService {
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
+    private static final int MIN_TOKEN_SECRET_LENGTH = 10;
 
     private final ServiceAccountTokenStore serviceAccountTokenStore;
     private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
@@ -97,6 +98,13 @@ public class ServiceAccountService {
             final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
             if (account == null) {
                 logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
+
+            if (serviceAccountToken.getSecret().length() < MIN_TOKEN_SECRET_LENGTH) {
+                logger.debug("the length of a service account token must be at least [{}], got [{}]",
+                    MIN_TOKEN_SECRET_LENGTH, serviceAccountToken.getSecret().length());
                 listener.onFailure(createAuthenticationException(serviceAccountToken));
                 return;
             }

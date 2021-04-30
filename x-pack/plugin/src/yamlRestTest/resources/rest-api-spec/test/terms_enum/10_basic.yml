@@ -245,6 +245,39 @@ teardown:
   - length: {terms: 1}
 
 ---
+"Test case insensitivity":
+  - do:
+      termsenum:
+        index:  test_k
+        body:  {"field": "foo", "string":"B"}
+  - length: {terms: 0}
+
+  - do:
+      termsenum:
+        index:  test_k
+        body:  {"field": "foo", "string":"B", "case_insensitive": true}
+  - length: {terms: 1}
+
+  - do:
+      termsenum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"B"}
+  - length: {terms: 0}
+
+  - do:
+      termsenum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"B", "case_insensitive": true}
+  - length: {terms: 1}
+
+  - do:
+      termsenum:
+        index:  test_f
+        body:  {"field": "foo.Bar", "string":"B", "case_insensitive": true}
+  - length: {terms: 0}
+
+
+---
 "Test index filtering":
   - do:
       termsenum:

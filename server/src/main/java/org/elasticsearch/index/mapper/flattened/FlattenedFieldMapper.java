@@ -258,16 +258,19 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext) throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
-            String searchString = FlattenedFieldParser.createKeyedValue(key, string);
             Terms terms = MultiTerms.getTerms(reader, name());
             if (terms == null) {
                 // Field does not exist on this shard.
                 return null;
             }
-            Automaton a = caseInsensitive
-                ? AutomatonQueries.caseInsensitivePrefix(searchString)
-                : Automata.makeString(searchString);
-            a = Operations.concatenate(a, Automata.makeAnyString());
+
+            Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
+            if (caseInsensitive) {
+                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(string));
+            } else {
+                a = Operations.concatenate(a, Automata.makeString(string));
+                a = Operations.concatenate(a, Automata.makeAnyString());                
+            }
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);

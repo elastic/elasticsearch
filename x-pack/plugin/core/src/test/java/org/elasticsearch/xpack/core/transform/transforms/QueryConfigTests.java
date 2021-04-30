@@ -84,8 +84,8 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         String source = query.toString();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig queryConfig = QueryConfig.fromXContent(parser, true);
+            assertNotNull(queryConfig.getQuery());
             assertEquals(query, queryConfig.getQuery());
-            assertTrue(queryConfig.isValid());
         }
     }
 
@@ -95,7 +95,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, true);
-            assertFalse(query.isValid());
+            assertNull(query.getQuery());
         }
 
         // strict throws
@@ -110,7 +110,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, true);
-            assertFalse(query.isValid());
+            assertNull(query.getQuery());
         }
 
         // strict throws
@@ -125,7 +125,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, true);
-            assertFalse(query.isValid());
+            assertNull(query.getQuery());
         }
 
         // strict throws
@@ -138,7 +138,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         String source = "{\"" + MockDeprecatedQueryBuilder.NAME + "\" : {}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, false);
-            assertTrue(query.isValid());
+            assertNotNull(query.getQuery());
             assertWarnings(MockDeprecatedQueryBuilder.DEPRECATION_MESSAGE);
         }
     }

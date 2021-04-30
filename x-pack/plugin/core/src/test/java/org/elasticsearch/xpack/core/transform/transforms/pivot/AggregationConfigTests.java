@@ -94,7 +94,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig aggregationConfig = AggregationConfig.fromXContent(parser, true);
-            assertFalse(aggregationConfig.isValid());
+            assertNotNull(aggregationConfig.validate(null));
         }
 
         // strict throws
@@ -114,7 +114,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig aggregationConfig = AggregationConfig.fromXContent(parser, true);
-            assertFalse(aggregationConfig.isValid());
+            assertNotNull(aggregationConfig.validate(null));
         }
 
         // strict throws
@@ -127,7 +127,7 @@ public class AggregationConfigTests extends AbstractSerializingTransformTestCase
         String source = "{\"dep_agg\": {\"" + MockDeprecatedAggregationBuilder.NAME + "\" : {}}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             AggregationConfig agg = AggregationConfig.fromXContent(parser, false);
-            assertTrue(agg.isValid());
+            assertNull(agg.validate(null));
             assertWarnings(MockDeprecatedAggregationBuilder.DEPRECATION_MESSAGE);
         }
     }

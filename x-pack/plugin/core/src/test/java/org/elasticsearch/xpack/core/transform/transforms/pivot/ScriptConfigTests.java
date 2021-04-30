@@ -90,7 +90,7 @@ public class ScriptConfigTests extends AbstractSerializingTransformTestCase<Scri
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             ScriptConfig scriptConfig = ScriptConfig.fromXContent(parser, true);
-            assertFalse(scriptConfig.isValid());
+            assertNotNull(scriptConfig.validate(null));
         }
 
         // strict throws

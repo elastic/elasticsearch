@@ -98,7 +98,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
-            assertFalse(groupConfig.isValid());
+            assertNotNull(groupConfig.validate(null));
         }
 
         // strict throws
@@ -126,7 +126,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(source)) {
             GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
-            assertFalse(groupConfig.isValid());
+            assertNotNull(groupConfig.validate(null));
         }
 
         // strict throws
@@ -148,7 +148,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(source)) {
             GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
-            assertFalse(groupConfig.isValid());
+            assertNotNull(groupConfig.validate(null));
         }
 
         // strict throws

@@ -27,7 +27,6 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -97,18 +96,18 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         } finally {
             cleanUpFollower(
                 Arrays.asList("index-20190101", "index-20200101"),
-                List.of(),
+                emptyList(),
                 Arrays.asList("leader_cluster_pattern", "middle_cluster_pattern")
             );
             cleanUpMiddle(
                 Arrays.asList("index-20200101"),
-                List.of(),
-                List.of()
+                emptyList(),
+                emptyList()
             );
             cleanUpLeader(
                 Arrays.asList("index-20190101"),
-                List.of(),
-                List.of()
+                emptyList(),
+                emptyList()
             );
         }
     }
@@ -174,7 +173,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }, 30, TimeUnit.SECONDS);
 
         } finally {
-            cleanUpFollower(Arrays.asList("metrics-20210101"), List.of(), List.of(autoFollowPatternName));
+            cleanUpFollower(singletonList("metrics-20210101"), emptyList(), singletonList(autoFollowPatternName));
         }
     }
 
@@ -540,7 +539,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }
 
         } finally {
-            cleanUpFollower(Arrays.asList(aliasName + "-000001", aliasName + "-000002"), List.of(), List.of("test_pattern"));
+            cleanUpFollower(Arrays.asList(aliasName + "-000001", aliasName + "-000002"), emptyList(), singletonList("test_pattern"));
         }
     }
 

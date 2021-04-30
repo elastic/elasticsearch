@@ -83,7 +83,7 @@ public class RetentionLeaseSyncAction extends
                 actionFilters,
                 RetentionLeaseSyncAction.Request::new,
                 RetentionLeaseSyncAction.Request::new,
-                ignore -> ThreadPool.Names.MANAGEMENT, false, indexingPressure, systemIndices);
+                (service, ignore) -> ThreadPool.Names.MANAGEMENT, false, indexingPressure, systemIndices);
     }
 
     @Override

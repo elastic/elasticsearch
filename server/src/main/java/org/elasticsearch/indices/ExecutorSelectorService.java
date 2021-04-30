@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Objects;
@@ -19,6 +20,7 @@ import java.util.Objects;
  * rather than the "system_read" or "system_write" thread pools.
  */
 public class ExecutorSelectorService {
+
     private final SystemIndices systemIndices;
 
     public ExecutorSelectorService(SystemIndices systemIndices) {
@@ -66,5 +68,9 @@ public class ExecutorSelectorService {
         }
 
         return ThreadPool.Names.WRITE;
+    }
+
+    public static String getWriteExecutorForShard(ExecutorSelectorService executorSelectorService, IndexShard shard) {
+        return executorSelectorService.getWriteExecutor(shard.shardId().getIndexName());
     }
 }

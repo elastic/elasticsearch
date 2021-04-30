@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.Translog.Location;
+import org.elasticsearch.indices.ExecutorSelectorService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,7 +41,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * Base class for transport actions that modify data in some shard like index, delete, and shardBulk.
@@ -54,25 +55,29 @@ public abstract class TransportWriteAction<
 
     protected final IndexingPressure indexingPressure;
     protected final SystemIndices systemIndices;
+    protected final ExecutorSelectorService executorSelectorService;
 
-    private final Function<IndexShard, String> executorFunction;
+    private final BiFunction<ExecutorSelectorService, IndexShard, String> executorFunction;
 
     protected TransportWriteAction(Settings settings, String actionName, TransportService transportService,
                                    ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                    ShardStateAction shardStateAction, ActionFilters actionFilters, Writeable.Reader<Request> request,
-                                   Writeable.Reader<ReplicaRequest> replicaRequest, Function<IndexShard, String> executorFunction,
+                                   Writeable.Reader<ReplicaRequest> replicaRequest,
+                                   BiFunction<ExecutorSelectorService, IndexShard, String> executorFunction,
                                    boolean forceExecutionOnPrimary, IndexingPressure indexingPressure, SystemIndices systemIndices) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
         super(settings, actionName, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             request, replicaRequest, ThreadPool.Names.SAME, true, forceExecutionOnPrimary);
         this.executorFunction = executorFunction;
+        // TODO: use selector service from node construction
+        this.executorSelectorService = new ExecutorSelectorService(systemIndices);
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
     }
 
     protected String executor(IndexShard shard) {
-        return executorFunction.apply(shard);
+        return executorFunction.apply(executorSelectorService, shard);
     }
 
     @Override
@@ -171,7 +176,7 @@ public abstract class TransportWriteAction<
     @Override
     protected void shardOperationOnPrimary(
             Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
-        threadPool.executor(executorFunction.apply(primary)).execute(new ActionRunnable<>(listener) {
+        threadPool.executor(executorFunction.apply(executorSelectorService, primary)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnPrimary(request, primary, listener);
@@ -196,7 +201,7 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<>(listener) {
+        threadPool.executor(executorFunction.apply(executorSelectorService, replica)).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnReplica(request, replica, listener);

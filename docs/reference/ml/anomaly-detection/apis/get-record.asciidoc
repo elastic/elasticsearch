@@ -16,11 +16,8 @@ Retrieves anomaly records for an {anomaly-job}.
 [[ml-get-record-prereqs]]
 == {api-prereq-title}
 
-Requires the following privileges:
-
-* cluster: `monitor_ml` (the `machine_learning_user` built-in role grants this 
-  privilege)
-* result index: `read`
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 [[ml-get-record-desc]]
 == {api-description-title}

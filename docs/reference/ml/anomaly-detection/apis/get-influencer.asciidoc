@@ -16,11 +16,8 @@ Retrieves {anomaly-job} results for one or more influencers.
 [[ml-get-influencer-prereqs]]
 == {api-prereq-title}
 
-Requires the following privileges:
-
-* cluster: `monitor_ml` (the `machine_learning_user` built-in role grants this 
-  privilege)
-* result index: `read`
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.`
 
 [[ml-get-influencer-desc]]
 == {api-description-title}

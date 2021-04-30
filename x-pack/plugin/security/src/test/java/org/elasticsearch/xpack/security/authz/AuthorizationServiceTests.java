@@ -139,6 +139,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
@@ -273,7 +274,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 callback.onResponse(Role.EMPTY);
             } else {
                 CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegesStore,
-                    ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    Automatons.EMPTY, ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
                 );
             }
             return Void.TYPE;

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +68,7 @@ public class IndicesPermissionTests extends ESTestCase {
         // basics:
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
         String[] fields = new String[]{"_field"};
-        Role role = Role.builder("_role")
+        Role role = Role.builder(Automatons.EMPTY, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
         IndicesAccessControl permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
@@ -79,7 +80,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), equalTo(query));
 
         // no document level security:
-        role = Role.builder("_role")
+        role = Role.builder(Automatons.EMPTY, "_role")
             .add(new FieldPermissions(fieldPermissionDef(fields, null)), null, IndexPrivilege.ALL, randomBoolean(), "_index")
             .build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
@@ -90,7 +91,9 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), nullValue());
 
         // no field level security:
-        role = Role.builder("_role").add(new FieldPermissions(), query, IndexPrivilege.ALL, randomBoolean(), "_index").build();
+        role = Role.builder(Automatons.EMPTY, "_role")
+            .add(new FieldPermissions(), query, IndexPrivilege.ALL, randomBoolean(), "_index")
+            .build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_index"), lookup, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -99,7 +102,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getQueries(), equalTo(query));
 
         // index group associated with an alias:
-        role = Role.builder("_role")
+        role = Role.builder(Automatons.EMPTY, "_role")
                 .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
                 .build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
@@ -120,7 +123,7 @@ public class IndicesPermissionTests extends ESTestCase {
         // match all fields
         String[] allFields = randomFrom(new String[]{"*"}, new String[]{"foo", "*"},
         new String[]{randomAlphaOfLengthBetween(1, 10), "*"});
-        role = Role.builder("_role")
+        role = Role.builder(Automatons.EMPTY, "_role")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
         permissions = role.authorize(SearchAction.NAME, Sets.newHashSet("_alias"), lookup, fieldPermissionsCache);
@@ -150,7 +153,7 @@ public class IndicesPermissionTests extends ESTestCase {
         Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));
         allFields = randomFrom(new String[]{"*"}, new String[]{"foo", "*"},
                 new String[]{randomAlphaOfLengthBetween(1, 10), "*"});
-        role = Role.builder("_role")
+        role = Role.builder(Automatons.EMPTY, "_role")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), fooQuery, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
             .build();
@@ -190,7 +193,7 @@ public class IndicesPermissionTests extends ESTestCase {
 
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
         String[] fields = new String[]{"_field"};
-        Role role = Role.builder("_role")
+        Role role = Role.builder(Automatons.EMPTY, "_role")
                 .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
                 .add(new FieldPermissions(fieldPermissionDef(null, null)), null, IndexPrivilege.ALL, randomBoolean(), "*")
                 .build();
@@ -245,9 +248,10 @@ public class IndicesPermissionTests extends ESTestCase {
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(),
-                "a1");
+                Automatons.EMPTY, "a1");
         IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.READ,
-                new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), "a1");
+            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), Automatons.EMPTY,
+            "a1");
         IndicesPermission core = new IndicesPermission(group1, group2);
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap =
                 core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
@@ -262,15 +266,16 @@ public class IndicesPermissionTests extends ESTestCase {
         assertFalse(core.check("unknown"));
 
         // test with two indices
-        group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(), "a1");
+        group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(), Automatons.EMPTY, "a1");
         group2 = new IndicesPermission.Group(IndexPrivilege.ALL,
-                new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), "a1");
+            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), Automatons.EMPTY,
+            "a1");
         IndicesPermission.Group group3 = new IndicesPermission.Group(IndexPrivilege.ALL,
                 new FieldPermissions(fieldPermissionDef(new String[] { "*_field" }, new String[] { "denied_field" })), null,
-                randomBoolean(), "a2");
+                randomBoolean(), Automatons.EMPTY, "a2");
         IndicesPermission.Group group4 = new IndicesPermission.Group(IndexPrivilege.ALL,
                 new FieldPermissions(fieldPermissionDef(new String[] { "*_field2" }, new String[] { "denied_field2" })), null,
-                randomBoolean(), "a2");
+                randomBoolean(), Automatons.EMPTY, "a2");
         core = new IndicesPermission(group1, group2, group3, group4);
         authzMap = core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "a2"), lookup, fieldPermissionsCache);
         assertFalse(authzMap.get("a1").getFieldPermissions().hasFieldLevelSecurity());
@@ -294,7 +299,7 @@ public class IndicesPermissionTests extends ESTestCase {
             indices.add("*" + prefix + "*" + suffixBegin + "*");
         }
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(),
+                () -> new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(), Automatons.EMPTY,
                         indices.toArray(Strings.EMPTY_ARRAY)));
         assertThat(e.getMessage(), containsString(indices.get(0)));
         assertThat(e.getMessage(), containsString("too complex to evaluate"));
@@ -316,7 +321,8 @@ public class IndicesPermissionTests extends ESTestCase {
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
 
         // allow_restricted_indices: false
-        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false, "*");
+        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false,
+            Automatons.EMPTY, "*");
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
                 Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS), lookup,
                 fieldPermissionsCache);
@@ -324,7 +330,7 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(authzMap.get(RestrictedIndicesNames.SECURITY_MAIN_ALIAS).isGranted(), is(false));
 
         // allow_restricted_indices: true
-        group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, true, "*");
+        group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, true, Automatons.EMPTY, "*");
         authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
                 Sets.newHashSet(internalSecurityIndex, RestrictedIndicesNames.SECURITY_MAIN_ALIAS), lookup,
                 fieldPermissionsCache);
@@ -346,13 +352,14 @@ public class IndicesPermissionTests extends ESTestCase {
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
 
         // allow_restricted_indices: false
-        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false, "*");
+        IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, false,
+            Automatons.EMPTY, "*");
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
                 Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
         assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(false));
 
         // allow_restricted_indices: true
-        group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, true, "*");
+        group = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, true, Automatons.EMPTY, "*");
         authzMap = new IndicesPermission(group).authorize(SearchAction.NAME,
                 Sets.newHashSet(asyncSearchIndex), lookup, fieldPermissionsCache);
         assertThat(authzMap.get(asyncSearchIndex).isGranted(), is(true));
@@ -377,7 +384,7 @@ public class IndicesPermissionTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         IndicesPermission.Group group = new IndicesPermission.Group(IndexPrivilege.READ, new FieldPermissions(), null, false,
-                dataStreamName);
+            Automatons.EMPTY, dataStreamName);
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap = new IndicesPermission(group).authorize(
                 SearchAction.NAME,
                 Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
@@ -388,7 +395,8 @@ public class IndicesPermissionTests extends ESTestCase {
             assertThat(authzMap.get(im.getIndex().getName()).isGranted(), is(true));
         }
 
-        group = new IndicesPermission.Group(IndexPrivilege.CREATE_DOC, new FieldPermissions(), null, false, dataStreamName);
+        group = new IndicesPermission.Group(IndexPrivilege.CREATE_DOC, new FieldPermissions(), null, false, Automatons.EMPTY,
+            dataStreamName);
         authzMap = new IndicesPermission(group).authorize(
                 randomFrom(PutMappingAction.NAME, AutoPutMappingAction.NAME),
                 Sets.newHashSet(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList())),
@@ -422,9 +430,10 @@ public class IndicesPermissionTests extends ESTestCase {
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.INDEX, new FieldPermissions(), null, randomBoolean(),
-                "test*");
+            Automatons.EMPTY, "test*");
         IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.WRITE,
-                new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), "test_write*");
+            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), Automatons.EMPTY,
+            "test_write*");
         IndicesPermission core = new IndicesPermission(group1, group2);
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap =
                 core.authorize(PutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);

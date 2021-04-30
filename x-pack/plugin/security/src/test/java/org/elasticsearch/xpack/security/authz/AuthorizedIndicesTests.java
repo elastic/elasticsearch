@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.List;
@@ -75,7 +76,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
-        CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            descriptors, new FieldPermissionsCache(Settings.EMPTY), null, Automatons.EMPTY, future);
         Role roles = future.actionGet();
         Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
@@ -87,21 +89,21 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetadata() {
-        Role role = Role.builder("role").add(IndexPrivilege.ALL, "*").build();
+        Role role = Role.builder(Automatons.EMPTY, "role").add(IndexPrivilege.ALL, "*").build();
         Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
             Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
-        Role role = Role.builder("user_role").add(IndexPrivilege.ALL, "*").cluster(Set.of("all"), Set.of()).build();
+        Role role = Role.builder(Automatons.EMPTY, "user_role").add(IndexPrivilege.ALL, "*").cluster(Set.of("all"), Set.of()).build();
         Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
             Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
     public void testSecurityIndicesAreRestrictedForDefaultRole() {
-        Role role = Role.builder(randomFrom("user_role", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))
+        Role role = Role.builder(Automatons.EMPTY, randomFrom("user_role", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))
                 .add(IndexPrivilege.ALL, "*")
                 .cluster(Set.of("all"), Set.of())
                 .build();
@@ -128,7 +130,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testSecurityIndicesAreNotRemovedFromUnrestrictedRole() {
-        Role role = Role.builder(randomAlphaOfLength(8))
+        Role role = Role.builder(Automatons.EMPTY, randomAlphaOfLength(8))
                 .add(FieldPermissions.DEFAULT, null, IndexPrivilege.ALL, true, "*")
                 .cluster(Set.of("all"), Set.of())
                 .build();
@@ -190,7 +192,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
-        CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            descriptors, new FieldPermissionsCache(Settings.EMPTY), null, Automatons.EMPTY, future);
         Role roles = future.actionGet();
         Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
@@ -235,7 +238,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
-        CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
+        CompositeRolesStore.buildRoleFromDescriptors(
+            descriptors, new FieldPermissionsCache(Settings.EMPTY), null, Automatons.EMPTY, future);
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[]{"a*"});
         AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(null, request, SearchAction.NAME);

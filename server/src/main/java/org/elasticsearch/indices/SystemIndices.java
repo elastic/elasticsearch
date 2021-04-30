@@ -66,9 +66,11 @@ public class SystemIndices {
         TASKS_FEATURE_NAME, new Feature(TASKS_FEATURE_NAME, "Manages task results", List.of(TASKS_DESCRIPTOR))
     );
 
-    private final CharacterRunAutomaton systemIndexAutomaton;
-    private final CharacterRunAutomaton systemDataStreamIndicesAutomaton;
-    private final Predicate<String> systemDataStreamAutomaton;
+    private final Automaton systemNameAutomaton;
+    private final CharacterRunAutomaton systemNameRunAutomaton;
+    private final CharacterRunAutomaton systemIndexRunAutomaton;
+    private final CharacterRunAutomaton systemDataStreamIndicesRunAutomaton;
+    private final Predicate<String> systemDataStreamPredicate;
     private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
     private final ExecutorSelector executorSelector;
@@ -82,11 +84,18 @@ public class SystemIndices {
         featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
-        this.systemIndexAutomaton = buildIndexCharacterRunAutomaton(featureDescriptors);
-        this.systemDataStreamIndicesAutomaton = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
-        this.systemDataStreamAutomaton = buildDataStreamNamePredicate(featureDescriptors);
+        Automaton systemIndexAutomata = buildIndexAutomaton(featureDescriptors);
+        this.systemIndexRunAutomaton = new CharacterRunAutomaton(systemIndexAutomata);
+        Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
+        this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
+        this.systemDataStreamPredicate = buildDataStreamNamePredicate(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
         this.executorSelector = new ExecutorSelector(this);
+        this.systemNameAutomaton = MinimizationOperations.minimize(
+            Operations.union(List.of(systemIndexAutomata, systemDataStreamIndicesAutomata, buildDataStreamAutomaton(featureDescriptors))),
+            Integer.MAX_VALUE
+        );
+        this.systemNameRunAutomaton = new CharacterRunAutomaton(systemNameAutomaton);
     }
 
     private static void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
@@ -148,7 +157,7 @@ public class SystemIndices {
      * is checked against index names, aliases, data stream names, and the names of indices that back a system data stream.
      */
     public boolean isSystemName(String name) {
-        return isSystemIndex(name) || isSystemDataStream(name) || isSystemIndexBackingDataStream(name);
+        return systemNameRunAutomaton.run(name);
     }
 
     /**
@@ -167,7 +176,7 @@ public class SystemIndices {
      * @return true if the index name matches a pattern from a {@link SystemIndexDescriptor}
      */
     public boolean isSystemIndex(String indexName) {
-        return systemIndexAutomaton.run(indexName);
+        return systemIndexRunAutomaton.run(indexName);
     }
 
     /**
@@ -175,14 +184,18 @@ public class SystemIndices {
      * {@link SystemDataStreamDescriptor}
      */
     public boolean isSystemDataStream(String name) {
-        return systemDataStreamAutomaton.test(name);
+        return systemDataStreamPredicate.test(name);
     }
 
     /**
      * Determines whether the provided name matches that of an index that backs a system data stream.
      */
     public boolean isSystemIndexBackingDataStream(String name) {
-        return systemDataStreamIndicesAutomaton.run(name);
+        return systemDataStreamIndicesRunAutomaton.run(name);
+    }
+
+    public Automaton getSystemNameAutomaton() {
+        return systemNameAutomaton;
     }
 
     /**
@@ -287,11 +300,11 @@ public class SystemIndices {
         return featureDescriptors;
     }
 
-    private static CharacterRunAutomaton buildIndexCharacterRunAutomaton(Map<String, Feature> descriptors) {
+    private static Automaton buildIndexAutomaton(Map<String, Feature> descriptors) {
         Optional<Automaton> automaton = descriptors.values().stream()
             .map(SystemIndices::featureToIndexAutomaton)
             .reduce(Operations::union);
-        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
+        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
     }
 
     private static Automaton featureToIndexAutomaton(Feature feature) {
@@ -302,6 +315,19 @@ public class SystemIndices {
         return systemIndexAutomaton.orElse(EMPTY);
     }
 
+    private static Automaton buildDataStreamAutomaton(Map<String, Feature> descriptors) {
+        Optional<Automaton> automaton = descriptors.values().stream()
+            .map(feature ->
+                feature.getDataStreamDescriptors().stream()
+                    .map(SystemDataStreamDescriptor::getDataStreamName)
+                    .map(dsName -> SystemIndexDescriptor.buildAutomaton(dsName, null))
+                    .reduce(Operations::union)
+                    .orElse(EMPTY))
+            .reduce(Operations::union);
+
+        return automaton.isPresent() ? MinimizationOperations.minimize(automaton.get(), Integer.MAX_VALUE) : EMPTY;
+    }
+
     private static Predicate<String> buildDataStreamNamePredicate(Map<String, Feature> descriptors) {
         Set<String> systemDataStreamNames = descriptors.values().stream()
             .flatMap(feature -> feature.getDataStreamDescriptors().stream())
@@ -310,11 +336,11 @@ public class SystemIndices {
         return systemDataStreamNames::contains;
     }
 
-    private static CharacterRunAutomaton buildDataStreamBackingIndicesAutomaton(Map<String, Feature> descriptors) {
+    private static Automaton buildDataStreamBackingIndicesAutomaton(Map<String, Feature> descriptors) {
         Optional<Automaton> automaton = descriptors.values().stream()
             .map(SystemIndices::featureToDataStreamBackingIndicesAutomaton)
             .reduce(Operations::union);
-        return new CharacterRunAutomaton(automaton.orElse(EMPTY));
+        return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
     }
 
     private static Automaton featureToDataStreamBackingIndicesAutomaton(Feature feature) {
@@ -328,7 +354,7 @@ public class SystemIndices {
     }
 
     public SystemDataStreamDescriptor validateDataStreamAccess(String dataStreamName, ThreadContext threadContext) {
-        if (systemDataStreamAutomaton.test(dataStreamName)) {
+        if (systemDataStreamPredicate.test(dataStreamName)) {
             SystemDataStreamDescriptor dataStreamDescriptor = featureDescriptors.values().stream()
                 .flatMap(feature -> feature.getDataStreamDescriptors().stream())
                 .filter(descriptor -> descriptor.getDataStreamName().equals(dataStreamName))
@@ -378,6 +404,7 @@ public class SystemIndices {
     /**
      * Determines what level of system index access should be allowed in the current context.
      *
+     * @param threadContext the current thread context that has headers associated with the current request
      * @return {@link SystemIndexAccessLevel#ALL} if unrestricted system index access should be allowed,
      * {@link SystemIndexAccessLevel#RESTRICTED} if a subset of system index access should be allowed, or
      * {@link SystemIndexAccessLevel#NONE} if no system index access should be allowed.

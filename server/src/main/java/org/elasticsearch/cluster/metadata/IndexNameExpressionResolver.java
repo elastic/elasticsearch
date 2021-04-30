@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
@@ -721,6 +722,10 @@ public class IndexNameExpressionResolver {
         return false;
     }
 
+    public boolean isSystemName(String name) {
+        return systemIndices.isSystemName(name);
+    }
+
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
         return systemIndices.getSystemIndexAccessLevel(threadContext);
     }
@@ -737,6 +742,10 @@ public class IndexNameExpressionResolver {
             systemIndexAccessLevelPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
         }
         return systemIndexAccessLevelPredicate;
+    }
+
+    public Automaton getSystemNameAutomaton() {
+        return systemIndices.getSystemNameAutomaton();
     }
 
     public static class Context {

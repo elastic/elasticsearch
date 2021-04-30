@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -276,7 +277,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 callback.onResponse(Role.EMPTY);
             } else {
                 CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
-                        ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    Automatons.EMPTY, ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
                 );
             }
             return Void.TYPE;

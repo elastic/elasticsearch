@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.store;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
@@ -75,6 +76,7 @@ import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
@@ -199,6 +201,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     private static final String READ_CROSS_CLUSTER_NAME = "internal:transport/proxy/indices:data/read/query";
 
+    public Automaton reservedNamesAutomaton = Automatons.EMPTY;
+
     public void testIsReserved() {
         assertThat(ReservedRolesStore.isReserved("kibana_system"), is(true));
         assertThat(ReservedRolesStore.isReserved("superuser"), is(true));
@@ -242,7 +246,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role snapshotUserRole = Role.builder(roleDescriptor, null).build();
+        Role snapshotUserRole = Role.builder(roleDescriptor, null, Automatons.EMPTY).build();
         assertThat(snapshotUserRole.cluster().check(GetRepositoriesAction.NAME, request, authentication), is(true));
         assertThat(snapshotUserRole.cluster().check(CreateSnapshotAction.NAME, request, authentication), is(true));
         assertThat(snapshotUserRole.cluster().check(SnapshotsStatusAction.NAME, request, authentication), is(true));
@@ -299,7 +303,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role ingestAdminRole = Role.builder(roleDescriptor, null).build();
+        Role ingestAdminRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(ingestAdminRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(GetIndexTemplatesAction.NAME, request, authentication), is(true));
         assertThat(ingestAdminRole.cluster().check(DeleteIndexTemplateAction.NAME, request, authentication), is(true));
@@ -329,7 +333,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role kibanaRole = Role.builder(roleDescriptor, null).build();
+        Role kibanaRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(kibanaRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -557,7 +561,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
 
-        Role kibanaAdminRole = Role.builder(roleDescriptor, null).build();
+        Role kibanaAdminRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(kibanaAdminRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(kibanaAdminRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(kibanaAdminRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -604,7 +608,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
-        Role kibanaUserRole = Role.builder(roleDescriptor, null).build();
+        Role kibanaUserRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(kibanaUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(kibanaUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(kibanaUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -644,7 +648,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role monitoringUserRole = Role.builder(roleDescriptor, null).build();
+        Role monitoringUserRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(monitoringUserRole.cluster().check(MainAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(XPackInfoAction.NAME, request, authentication), is(true));
         assertThat(monitoringUserRole.cluster().check(RemoteInfoAction.NAME, request, authentication), is(true));
@@ -710,7 +714,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role remoteMonitoringAgentRole = Role.builder(roleDescriptor, null).build();
+        Role remoteMonitoringAgentRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringAgentRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -808,7 +812,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role remoteMonitoringCollectorRole = Role.builder(roleDescriptor, null).build();
+        Role remoteMonitoringCollectorRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(remoteMonitoringCollectorRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringCollectorRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(remoteMonitoringCollectorRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -949,7 +953,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
-        Role reportingUserRole = Role.builder(roleDescriptor, null).build();
+        Role reportingUserRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(reportingUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(reportingUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(reportingUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -996,7 +1000,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
         assertThat(roleDescriptor.getMetadata(), hasEntry("_deprecated", true));
 
-        Role dashboardsOnlyUserRole = Role.builder(roleDescriptor, null).build();
+        Role dashboardsOnlyUserRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(dashboardsOnlyUserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(dashboardsOnlyUserRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -1033,7 +1037,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role superuserRole = Role.builder(roleDescriptor, null).build();
+        Role superuserRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(superuserRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(superuserRole.cluster().check(ClusterUpdateSettingsAction.NAME, request, authentication), is(true));
         assertThat(superuserRole.cluster().check(PutUserAction.NAME, request, authentication), is(true));
@@ -1105,7 +1109,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role logstashSystemRole = Role.builder(roleDescriptor, null).build();
+        Role logstashSystemRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(logstashSystemRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(logstashSystemRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(logstashSystemRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -1136,7 +1140,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
 
-        final Role beatsAdminRole = Role.builder(roleDescriptor, null).build();
+        final Role beatsAdminRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(beatsAdminRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
         assertThat(beatsAdminRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(false));
@@ -1176,7 +1180,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role beatsSystemRole = Role.builder(roleDescriptor, null).build();
+        Role beatsSystemRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(beatsSystemRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(beatsSystemRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(beatsSystemRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -1212,7 +1216,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role APMSystemRole = Role.builder(roleDescriptor, null).build();
+        Role APMSystemRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(APMSystemRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(true));
         assertThat(APMSystemRole.cluster().check(ClusterStateAction.NAME, request, authentication), is(true));
         assertThat(APMSystemRole.cluster().check(ClusterStatsAction.NAME, request, authentication), is(true));
@@ -1255,7 +1259,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null).build();
+        Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
 
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
         assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
@@ -1301,7 +1305,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null).build();
+        Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertRoleHasManageMl(role);
         assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
 
@@ -1407,7 +1411,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null).build();
+        Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(role.cluster().check(CloseJobAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DeleteCalendarAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(DeleteCalendarEventAction.NAME, request, authentication), is(false));
@@ -1504,7 +1508,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
             }
 
-            Role role = Role.builder(roleDescriptor, null).build();
+            Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
             assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
@@ -1562,7 +1566,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 assertThat(roleDescriptor.getMetadata(), not(hasEntry("_deprecated", true)));
             }
 
-            Role role = Role.builder(roleDescriptor, null).build();
+            Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
             assertThat(role.cluster().check(DeleteTransformAction.NAME, request, authentication), is(false));
             assertThat(role.cluster().check(GetTransformAction.NAME, request, authentication), is(true));
             assertThat(role.cluster().check(GetTransformStatsAction.NAME, request, authentication), is(true));
@@ -1610,7 +1614,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null).build();
+        Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(role.cluster().check(PutWatchAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(GetWatchAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(DeleteWatchAction.NAME, request, authentication), is(true));
@@ -1641,7 +1645,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null).build();
+        Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(role.cluster().check(PutWatchAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(GetWatchAction.NAME, request, authentication), is(true));
         assertThat(role.cluster().check(DeleteWatchAction.NAME, request, authentication), is(false));
@@ -1674,7 +1678,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null).build();
+        Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         // No cluster privileges
         assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(role.cluster().check(ClusterStateAction.NAME, request, authentication), is(false));
@@ -1723,7 +1727,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role role = Role.builder(roleDescriptor, null).build();
+        Role role = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
 
         // No cluster privileges
         assertThat(role.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
@@ -1834,7 +1838,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role logstashAdminRole = Role.builder(roleDescriptor, null).build();
+        Role logstashAdminRole = Role.builder(roleDescriptor, null, reservedNamesAutomaton).build();
         assertThat(logstashAdminRole.cluster().check(ClusterHealthAction.NAME, request, authentication), is(false));
         assertThat(logstashAdminRole.cluster().check(PutIndexTemplateAction.NAME, request, authentication), is(false));
         assertThat(logstashAdminRole.cluster().check(ClusterRerouteAction.NAME, request, authentication), is(false));

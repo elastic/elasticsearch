@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -49,7 +48,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             },
             null, new String[] { "*" },
             MetadataUtils.DEFAULT_RESERVED_METADATA, Collections.emptyMap());
-    public static final Role SUPERUSER_ROLE = Role.builder(SUPERUSER_ROLE_DESCRIPTOR, null).build();
     private static final Map<String, RoleDescriptor> RESERVED_ROLES = initializeReservedRoles();
 
     private static Map<String, RoleDescriptor> initializeReservedRoles() {

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ElasticServiceAccount;
 
@@ -47,7 +48,8 @@ import static org.mockito.Mockito.when;
 public class ElasticServiceAccountsTests extends ESTestCase {
 
     public void testElasticFleetPrivileges() {
-        final Role role = Role.builder(ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(), null).build();
+        final Role role =
+            Role.builder(ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(), null, Automatons.EMPTY).build();
         final Authentication authentication = mock(Authentication.class);
         assertThat(role.cluster().check(CreateApiKeyAction.NAME,
             new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication), is(true));

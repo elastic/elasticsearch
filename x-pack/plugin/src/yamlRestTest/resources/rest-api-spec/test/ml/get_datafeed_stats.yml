@@ -185,7 +185,6 @@ setup:
   - match: { datafeeds.0.state: "started"}
   - is_true: datafeeds.0.node.name
   - is_true: datafeeds.0.node.transport_address
-  - match: { datafeeds.0.node.attributes.ml\.max_open_jobs: "20"}
 
 ---
 "Test get stats for started datafeed contains timing stats":

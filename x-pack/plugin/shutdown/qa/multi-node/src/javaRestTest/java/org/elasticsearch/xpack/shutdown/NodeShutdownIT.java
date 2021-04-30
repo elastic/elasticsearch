@@ -65,6 +65,7 @@ public class NodeShutdownIT extends ESRestTestCase {
     /**
      * A very basic smoke test to make sure the allocation decider is working.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72589")
     @SuppressWarnings("unchecked")
     public void testAllocationPreventedForRemoval() throws Exception {
         Request nodesRequest = new Request("GET", "_nodes");

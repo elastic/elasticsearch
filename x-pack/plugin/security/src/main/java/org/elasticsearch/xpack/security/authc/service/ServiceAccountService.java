@@ -103,7 +103,7 @@ public class ServiceAccountService {
             }
 
             if (serviceAccountToken.getSecret().length() < MIN_TOKEN_SECRET_LENGTH) {
-                logger.debug("the length of a service account token must be at least [{}], got [{}]",
+                logger.debug("the length of a service account token's secret value must be at least [{}], but is [{}]",
                     MIN_TOKEN_SECRET_LENGTH, serviceAccountToken.getSecret().length());
                 listener.onFailure(createAuthenticationException(serviceAccountToken));
                 return;

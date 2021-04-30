@@ -34,9 +34,9 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.TranslogLeafReader;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -180,12 +180,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         assert get.exists() : "method should only be called if document could be retrieved";
 
         // check first if stored fields to be loaded don't contain an object field
-        DocumentMapper docMapper = mapperService.documentMapper();
+        MappingLookup mappingLookup = mapperService.mappingLookup();
         if (storedFields != null) {
             for (String field : storedFields) {
-                Mapper fieldMapper = docMapper.mappers().getMapper(field);
+                Mapper fieldMapper = mappingLookup.getMapper(field);
                 if (fieldMapper == null) {
-                    if (docMapper.mappers().objectMappers().get(field) != null) {
+                    if (mappingLookup.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
@@ -225,7 +225,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     assert source != null : "original source in translog must exist";
                     SourceToParse sourceToParse = new SourceToParse(shardId.getIndexName(), id, source, XContentHelper.xContentType(source),
                         fieldVisitor.routing(), Map.of());
-                    ParsedDocument doc = indexShard.mapperService().documentMapper().parse(sourceToParse);
+                    ParsedDocument doc = indexShard.mapperService().mappingLookup().parseDocument(sourceToParse);
                     assert doc.dynamicMappingsUpdate() == null : "mapping updates should not be required on already-indexed doc";
                     // update special fields
                     doc.updateSeqID(docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);

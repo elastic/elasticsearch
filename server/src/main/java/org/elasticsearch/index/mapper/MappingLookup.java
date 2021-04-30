@@ -374,7 +374,11 @@ public final class MappingLookup {
         return cacheKey;
     }
 
-    Mapping getMapping() {
+    /**
+     * Returns the mapping source that this lookup originated from
+     * @return the mapping source
+     */
+    public Mapping getMapping() {
         return mapping;
     }
 

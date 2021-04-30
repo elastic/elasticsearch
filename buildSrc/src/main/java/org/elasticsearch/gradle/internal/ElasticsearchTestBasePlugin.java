@@ -97,8 +97,10 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "--illegal-access=deny",
-                // TODO: only open this for mockito when it is modularized
+                // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
+                "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
+                "--add-opens=java.base/java.net=ALL-UNNAMED",
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 

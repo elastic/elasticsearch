@@ -48,10 +48,10 @@ public final class MlTasks {
     // might not have a master node for an extended period - over 1 minute was observed in the test
     // that led to this constant being added. The default master node timeout is 30 seconds, which
     // makes sense for user-invoked actions. But for actions invoked by persistent tasks that will
-    // cause the persistent task to fail if they time out waiting for a master node we need to wait
-    // longer, because failing the task just because a rolling upgrade was slow defeats the point
-    // of the task being "persistent".
-    public static final TimeValue PERSISTENT_TASK_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(900);
+    // cause the persistent task to fail if they time out waiting for a master node we should wait
+    // pretty much indefinitely, because failing the task just because a rolling upgrade was slow
+    // defeats the point of the task being "persistent".
+    public static final TimeValue PERSISTENT_TASK_MASTER_NODE_TIMEOUT = TimeValue.timeValueDays(365);
 
     private MlTasks() {
     }

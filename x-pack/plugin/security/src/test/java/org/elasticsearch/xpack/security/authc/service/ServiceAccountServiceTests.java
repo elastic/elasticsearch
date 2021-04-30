@@ -27,12 +27,13 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.Before;
 
@@ -44,6 +45,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -249,10 +251,13 @@ public class ServiceAccountServiceTests extends ESTestCase {
     public void testTryAuthenticateBearerToken() throws ExecutionException, InterruptedException {
         // Valid token
         final PlainActionFuture<Authentication> future5 = new PlainActionFuture<>();
+        final TokenSource tokenSource = randomFrom(TokenSource.values());
+
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-            listener.onResponse(true);
+            final ActionListener<StoreAuthenticationResult> listener =
+                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            listener.onResponse(new StoreAuthenticationResult(true, tokenSource));
             return null;
         }).when(serviceAccountTokenStore).authenticate(any(), any());
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
@@ -264,7 +269,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
             new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
                     Map.of("_elastic_service_account", true), true),
-                new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
+                new Authentication.RealmRef(
+                    "_service_account_" + tokenSource.name().toLowerCase(Locale.ROOT),
+                    "_service_account", nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
                 Map.of("_token_name", "token1")
             )
@@ -320,18 +327,21 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret);
             final ServiceAccountToken token4 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8),
                 new SecureString(randomAlphaOfLength(20).toCharArray()));
+            final TokenSource tokenSource = randomFrom(TokenSource.values());
             final String nodeName = randomAlphaOfLengthBetween(3, 8);
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
-                final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-                listener.onResponse(true);
+                final ActionListener<StoreAuthenticationResult> listener =
+                    (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+                listener.onResponse(new StoreAuthenticationResult(true, tokenSource));
                 return null;
             }).when(serviceAccountTokenStore).authenticate(eq(token3), any());
 
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
-                final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-                listener.onResponse(false);
+                final ActionListener<StoreAuthenticationResult> listener =
+                    (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+                listener.onResponse(new StoreAuthenticationResult(false, tokenSource));
                 return null;
             }).when(serviceAccountTokenStore).authenticate(eq(token4), any());
 
@@ -343,7 +353,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     "Service account - elastic/fleet-server", null,
                     Map.of("_elastic_service_account", true),
                     true),
-                new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
+                new Authentication.RealmRef(
+                    "_service_account_" + tokenSource.name().toLowerCase(Locale.ROOT),
+                    "_service_account", nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
                 Map.of("_token_name", token3.getTokenName())
             )));
@@ -368,6 +380,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptor() throws ExecutionException, InterruptedException {
+        final TokenSource tokenSource = randomFrom(TokenSource.values());
         final Authentication auth1 = new Authentication(
             new User("elastic/fleet-server",
                 Strings.EMPTY_ARRAY,
@@ -376,7 +389,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 Map.of("_elastic_service_account", true),
                 true),
             new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
+                "_service_account_" + tokenSource.name().toLowerCase(Locale.ROOT),
+                "_service_account", randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
@@ -394,7 +408,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
             new User(username, Strings.EMPTY_ARRAY, "Service account - " + username, null,
                 Map.of("_elastic_service_account", true), true),
             new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
+                "_service_account_" + tokenSource.name().toLowerCase(Locale.ROOT),
+                "_service_account", randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
@@ -424,10 +439,11 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(e1.getMessage(), containsString("[service account authentication] requires TLS for the HTTP interface"));
 
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
+        final TokenSource tokenSource = randomFrom(TokenSource.values());
         final Authentication authentication = new Authentication(mock(User.class),
             new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE,
-                randomAlphaOfLengthBetween(3, 8)),
+                "_service_account_" + tokenSource.name().toLowerCase(Locale.ROOT),
+                "_service_account", randomAlphaOfLengthBetween(3, 8)),
             null);
         service.getRoleDescriptor(authentication, future2);
         final ElasticsearchException e2 = expectThrows(ElasticsearchException.class, future2::actionGet);

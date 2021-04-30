@@ -56,12 +56,12 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  },\n"
         + "  \"enabled\": true,\n"
         + "  \"authentication_realm\": {\n"
-        + "    \"name\": \"service_account\",\n"
-        + "    \"type\": \"service_account\"\n"
+        + "    \"name\": \"%s\",\n"
+        + "    \"type\": \"_service_account\"\n"
         + "  },\n"
         + "  \"lookup_realm\": {\n"
-        + "    \"name\": \"service_account\",\n"
-        + "    \"type\": \"service_account\"\n"
+        + "    \"name\": \"%s\",\n"
+        + "    \"type\": \"_service_account\"\n"
         + "  },\n"
         + "  \"authentication_type\": \"token\"\n"
         + "}\n";
@@ -168,14 +168,15 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(responseAsMap(getServiceAccountResponse4), anEmptyMap());
     }
 
-    public void testAuthenticate() throws IOException {
+    public void testAuthenticateWithFileToken() throws IOException {
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + VALID_SERVICE_TOKEN));
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
             equalTo(XContentHelper.convertToMap(
-                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1")),
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE,
+                    "token1", "_service_account_file", "_service_account_file")),
                 false, XContentType.JSON).v2()));
     }
 
@@ -253,7 +254,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(response);
         assertThat(responseAsMap(response),
             equalTo(XContentHelper.convertToMap(
-                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1")),
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE,
+                    "api-token-1", "_service_account_index", "_service_account_index")),
                 false, XContentType.JSON).v2()));
     }
 
@@ -378,7 +380,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(createApiKeyResponse1);
         final String apiKeyId1 = (String) responseAsMap(createApiKeyResponse1).get("id");
 
-        assertApiKeys(apiKeyId1, "key-1", false, requestOptions);
+        assertApiKeys(apiKeyId1, "key-1", false, requestOptions, token == VALID_SERVICE_TOKEN);
 
         final Request invalidateApiKeysRequest = new Request("DELETE", "_security/api_key");
         invalidateApiKeysRequest.setJsonEntity("{\"ids\":[\"" + apiKeyId1 + "\"],\"owner\":true}");
@@ -388,11 +390,11 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> invalidateApiKeysResponseMap = responseAsMap(invalidateApiKeysResponse);
         assertThat(invalidateApiKeysResponseMap.get("invalidated_api_keys"), equalTo(List.of(apiKeyId1)));
 
-        assertApiKeys(apiKeyId1, "key-1", true, requestOptions);
+        assertApiKeys(apiKeyId1, "key-1", true, requestOptions, token == VALID_SERVICE_TOKEN);
     }
 
     private void assertApiKeys(String apiKeyId, String name, boolean invalidated,
-                               RequestOptions.Builder requestOptions) throws IOException {
+                               RequestOptions.Builder requestOptions, boolean isFileToken) throws IOException {
         final Request getApiKeysRequest = new Request("GET", "_security/api_key?owner=true");
         getApiKeysRequest.setOptions(requestOptions);
         final Response getApiKeysResponse = client().performRequest(getApiKeysRequest);
@@ -406,7 +408,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(apiKey.get("id"), equalTo(apiKeyId));
         assertThat(apiKey.get("name"), equalTo(name));
         assertThat(apiKey.get("username"), equalTo("elastic/fleet-server"));
-        assertThat(apiKey.get("realm"), equalTo("service_account"));
+        assertThat(apiKey.get("realm"), equalTo("_service_account_" + (isFileToken ? "file" : "index")));
         assertThat(apiKey.get("invalidated"), is(invalidated));
     }
 

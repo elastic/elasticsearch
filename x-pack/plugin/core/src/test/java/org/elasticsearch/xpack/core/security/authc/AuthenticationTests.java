@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authc;
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -101,7 +103,7 @@ public class AuthenticationTests extends ESTestCase {
         final boolean authRealmIsForServiceAccount = randomBoolean();
         if (authRealmIsForServiceAccount) {
             authRealm = new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME,
+                randomFrom(TokenSource.values()).name().toLowerCase(Locale.ROOT),
                 ServiceAccountSettings.REALM_TYPE,
                 randomAlphaOfLengthBetween(3, 8));
         } else {

@@ -547,10 +547,10 @@ public final class NodeEnvironment  implements Closeable {
     public void deleteShardDirectorySafe(
         ShardId shardId,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException, ShardLockObtainFailedException {
-        final Path[] paths = availableShardPaths(shardId);
-        logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
+        final Path path = availableShardPath(shardId);
+        logger.trace("deleting shard {} directory, path: [{}]", shardId, path);
         try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
             deleteShardDirectoryUnderLock(lock, indexSettings, listener);
         }
@@ -600,28 +600,28 @@ public final class NodeEnvironment  implements Closeable {
     public void deleteShardDirectoryUnderLock(
         ShardLock lock,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
-        final Path[] paths = availableShardPaths(shardId);
-        logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
-        acquireFSLockForPaths(indexSettings, paths);
-        listener.accept(paths);
-        IOUtils.rm(paths);
+        final Path path = availableShardPath(shardId);
+        logger.trace("acquiring locks for {}, path: [{}]", shardId, path);
+        acquireFSLockForPaths(indexSettings, path);
+        listener.accept(path);
+        IOUtils.rm(path);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
             acquireFSLockForPaths(indexSettings, customLocation);
             logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
-            listener.accept(new Path[]{customLocation});
+            listener.accept(customLocation);
             IOUtils.rm(customLocation);
         }
-        logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
-        assert assertPathsDoNotExist(paths);
+        logger.trace("deleted shard {} directory, path: [{}]", shardId, path);
+        assert assertPathsDoNotExist(path);
     }
 
-    private static boolean assertPathsDoNotExist(final Path[] paths) {
+    private static boolean assertPathsDoNotExist(final Path... paths) {
         Set<Path> existingPaths = Stream.of(paths)
             .filter(FileSystemUtils::exists)
             .filter(leftOver -> {
@@ -670,7 +670,7 @@ public final class NodeEnvironment  implements Closeable {
         Index index,
         long lockTimeoutMS,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException, ShardLockObtainFailedException {
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, "deleting index directory", lockTimeoutMS);
         try {
@@ -683,19 +683,19 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Deletes an indexes data directory recursively.
      * Note: this method assumes that the shard lock is acquired
-     *
-     * @param index the index to delete
+     *  @param index the index to delete
      * @param indexSettings settings for the index being deleted
+     * @param listener
      */
-    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path[]> listener) throws IOException {
-        final Path[] indexPaths = indexPaths(index);
-        logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
-        listener.accept(indexPaths);
-        IOUtils.rm(indexPaths);
+    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path> listener) throws IOException {
+        final Path indexPath = indexPath(index);
+        logger.trace("deleting index {} directory: [{}]", index, indexPath);
+        listener.accept(indexPath);
+        IOUtils.rm(indexPath);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
-            listener.accept(new Path[]{customLocation});
+            listener.accept(customLocation);
             IOUtils.rm(customLocation);
         }
     }
@@ -894,13 +894,9 @@ public final class NodeEnvironment  implements Closeable {
      * Returns an array of all of the nodes data locations.
      * @throws IllegalStateException if the node is not configured to store local locations
      */
-    public Path[] nodeDataPaths() {
+    public Path nodeDataPath() {
         assertEnvIsLocked();
-        Path[] paths = new Path[nodePaths.length];
-        for(int i=0;i<paths.length;i++) {
-            paths[i] = nodePaths[i].path;
-        }
-        return paths;
+        return nodePaths[0].path;
     }
 
     /**
@@ -935,13 +931,9 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Returns all index paths.
      */
-    public Path[] indexPaths(Index index) {
+    public Path indexPath(Index index) {
         assertEnvIsLocked();
-        Path[] indexPaths = new Path[nodePaths.length];
-        for (int i = 0; i < nodePaths.length; i++) {
-            indexPaths[i] = nodePaths[i].resolve(index);
-        }
-        return indexPaths;
+        return nodePaths[0].resolve(index);
     }
 
 
@@ -954,14 +946,9 @@ public final class NodeEnvironment  implements Closeable {
      * @see #resolveCustomLocation(String, ShardId)
      *
      */
-    public Path[] availableShardPaths(ShardId shardId) {
+    public Path availableShardPath(ShardId shardId) {
         assertEnvIsLocked();
-        final NodePath[] nodePaths = nodePaths();
-        final Path[] shardLocations = new Path[nodePaths.length];
-        for (int i = 0; i < nodePaths.length; i++) {
-            shardLocations[i] = nodePaths[i].resolve(shardId);
-        }
-        return shardLocations;
+        return nodePaths[0].resolve(shardId);
     }
 
     /**
@@ -1304,9 +1291,7 @@ public final class NodeEnvironment  implements Closeable {
      * This prevents disasters if nodes are started under the wrong username etc.
      */
     private void assertCanWrite() throws IOException {
-        for (Path path : nodeDataPaths()) { // check node-paths are writable
-            tryWriteTempFile(path);
-        }
+        tryWriteTempFile(nodeDataPath());
         for (String indexFolderName : this.availableIndexFolders()) {
             for (Path indexPath : this.resolveIndexFolder(indexFolderName)) { // check index paths are writable
                 Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);

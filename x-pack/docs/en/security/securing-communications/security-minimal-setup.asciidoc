@@ -71,7 +71,13 @@ when enabling minimal or basic security.
 ----
 
 . In another terminal window, set the passwords for the built-in users by
-running the `elasticsearch-setup-passwords` utility. Using the `auto` parameter
+running the <<setup-passwords,`elasticsearch-setup-passwords`>> utility.
++
+IMPORTANT: You can run the `elasticsearch-setup-passwords` utility
+against any node in your cluster. However, you should only run this utility *one
+time* for the entire cluster.
++
+Using the `auto` parameter
 outputs randomly-generated passwords to the console that you can change later
 if necessary:
 +

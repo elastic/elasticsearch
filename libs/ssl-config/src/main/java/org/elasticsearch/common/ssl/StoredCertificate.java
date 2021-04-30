@@ -8,7 +8,10 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.common.Nullable;
+
 import java.security.cert.X509Certificate;
+import java.util.Objects;
 
 /**
  * Information about a certificate that is locally stored.It includes a reference to the {@link X509Certificate} itself,
@@ -17,15 +20,23 @@ import java.security.cert.X509Certificate;
 public class StoredCertificate {
 
     private final X509Certificate certificate;
+
+    @Nullable
+    // Will be null in PKCS#11
     private final String path;
+
     private final String format;
+
+    @Nullable
+    // Will be null in PEM
     private final String alias;
+
     private final boolean hasPrivateKey;
 
     public StoredCertificate(X509Certificate certificate, String path, String format, String alias, boolean hasPrivateKey) {
-        this.certificate = certificate;
+        this.certificate = Objects.requireNonNull(certificate, "Certificate may not be null");
         this.path = path;
-        this.format = format;
+        this.format = Objects.requireNonNull(format, "Format may not be null");
         this.alias = alias;
         this.hasPrivateKey = hasPrivateKey;
     }
@@ -48,5 +59,22 @@ public class StoredCertificate {
 
     public boolean hasPrivateKey() {
         return hasPrivateKey;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        StoredCertificate that = (StoredCertificate) o;
+        return hasPrivateKey == that.hasPrivateKey
+            && certificate.equals(that.certificate)
+            && Objects.equals(path, that.path)
+            && format.equals(that.format)
+            && Objects.equals(alias, that.alias);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(certificate, path, format, alias, hasPrivateKey);
     }
 }

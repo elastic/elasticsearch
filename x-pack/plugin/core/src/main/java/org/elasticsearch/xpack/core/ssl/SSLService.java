@@ -26,6 +26,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -67,7 +68,9 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.function.Supplier;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS;
@@ -601,14 +604,15 @@ public class SSLService {
      *
      * @see SslTrustConfig#getConfiguredCertificates()
      */
-    public Set<CertificateInfo> getLoadedCertificates() throws GeneralSecurityException, IOException {
+    public Collection<CertificateInfo> getLoadedCertificates() throws GeneralSecurityException, IOException {
         return this.getLoadedSslConfigurations().stream()
             .map(SslConfiguration::getConfiguredCertificates)
             .flatMap(Collection::stream)
             .map(cert -> new CertificateInfo(
                 cert.getPath(), cert.getFormat(), cert.getAlias(), cert.hasPrivateKey(), cert.getCertificate()
             ))
-            .collect(Collectors.toUnmodifiableSet());
+
+            .collect(Sets.toUnmodifiableSortedSet());
     }
 
     /**

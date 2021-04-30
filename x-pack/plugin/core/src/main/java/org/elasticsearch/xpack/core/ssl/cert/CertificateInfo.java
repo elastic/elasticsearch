@@ -10,20 +10,29 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.License;
 
 import java.io.IOException;
 import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Comparator;
 import java.util.Objects;
 
 /**
  * Simple model of an X.509 certificate that is known to Elasticsearch
  */
-public class CertificateInfo implements ToXContentObject, Writeable {
+public class CertificateInfo implements ToXContentObject, Writeable, Comparable<CertificateInfo> {
+
+    private static final Comparator<CertificateInfo> COMPARATOR =
+        Comparator.comparing(CertificateInfo::path, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(CertificateInfo::alias, Comparator.nullsLast(Comparator.naturalOrder()))
+            .thenComparing(CertificateInfo::serialNumber);
+
     private final String path;
     private final String format;
     private final String alias;
@@ -135,5 +144,10 @@ public class CertificateInfo implements ToXContentObject, Writeable {
         result = 31 * result + (alias != null ? alias.hashCode() : 0);
         result = 31 * result + (serialNumber != null ? serialNumber.hashCode() : 0);
         return result;
+    }
+
+    @Override
+    public int compareTo(CertificateInfo o) {
+        return COMPARATOR.compare(this, o);
     }
 }

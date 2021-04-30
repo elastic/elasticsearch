@@ -181,7 +181,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 assertThat(numWithTopDocs.get(), greaterThanOrEqualTo(1));
             }
         }
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+        SearchPhaseController.ReducedQueryPhase phase = action.getPhaseResults().reduce();
         assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
         if (withScroll) {
             assertThat(phase.totalHits.value, equalTo((long) numShards));
@@ -365,7 +365,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         action.start();
         latch.await();
         assertThat(successfulOps.get(), equalTo(2));
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+        SearchPhaseController.ReducedQueryPhase phase = action.getPhaseResults().reduce();
         assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
         assertThat(phase.totalHits.value, equalTo(2L));
         assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
@@ -470,7 +470,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         action.start();
         latch.await();
         assertThat(successfulOps.get(), equalTo(2));
-        SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
+        SearchPhaseController.ReducedQueryPhase phase = action.getPhaseResults().reduce();
         assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
         assertThat(phase.totalHits.value, equalTo(2L));
         assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));

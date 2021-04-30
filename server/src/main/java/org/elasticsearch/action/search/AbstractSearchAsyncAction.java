@@ -71,7 +71,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
-    protected final SearchPhaseResults<Result> results;
+    private final SearchPhaseResults<Result> results;
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
@@ -616,6 +616,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             return false;
         }
+    }
+
+    // Visible for testing
+    final SearchPhaseResults<Result> getPhaseResults() {
+        return results;
     }
 
     protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,

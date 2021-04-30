@@ -128,8 +128,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
                 Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.perceivedCapacityAndMaxFreeMemory(
                     maxMachineMemoryPercent,
                     useAutoMemoryPercentage,
-                    maxOpenJobs,
-                    true
+                    maxOpenJobs
                 );
                 Long previouslyAuditedFreeMemory = auditedJobCapacity.get(getUniqueId(jobId));
                 if (capacityAndFreeMemory.v2().equals(previouslyAuditedFreeMemory) == false) {

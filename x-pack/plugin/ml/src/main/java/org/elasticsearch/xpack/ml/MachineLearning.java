@@ -467,7 +467,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // older nodes will not react to the dynamic changes. Therefore, in such mixed version clusters
     // allocation will be based on the value first read at node startup rather than the current value.
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
-            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, MAX_MAX_OPEN_JOBS_PER_NODE, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting(
+                "xpack.ml.max_open_jobs",
+                MAX_MAX_OPEN_JOBS_PER_NODE,
+                1,
+                MAX_MAX_OPEN_JOBS_PER_NODE,
+                Property.Dynamic,
+                Property.NodeScope
+            );
 
     public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
         Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),

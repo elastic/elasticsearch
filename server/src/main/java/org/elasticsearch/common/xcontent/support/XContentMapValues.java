@@ -20,7 +20,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +27,17 @@ import java.util.Map;
 import java.util.function.Function;
 
 public class XContentMapValues {
+    /**
+     * Maximum number of states allowed in the two automata that we use to
+     * perform the map filtering. This about a megabyte or so worth of
+     * automata. That's about eight thousand long-ish source paths. That's
+     * <strong>heavy</strong> but it shouldn't knock over the node or
+     * anything.
+     * <p>
+     * For what it is worth, 50,000 states is way, way, way too many to
+     * visualize.
+     */
+    private static final int MAX_DETERMINIZED_STATES = 50_000;
 
     /**
      * Extracts raw values (string, int, and so on) based on the path provided returning all of them
@@ -241,7 +251,7 @@ public class XContentMapValues {
         } else {
             Automaton includeA = Regex.simpleMatchToAutomaton(includes);
             includeA = makeMatchDotsInFieldNames(includeA);
-            include = new CharacterRunAutomaton(includeA);
+            include = new CharacterRunAutomaton(includeA, MAX_DETERMINIZED_STATES);
         }
 
         Automaton excludeA;
@@ -251,7 +261,7 @@ public class XContentMapValues {
             excludeA = Regex.simpleMatchToAutomaton(excludes);
             excludeA = makeMatchDotsInFieldNames(excludeA);
         }
-        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
+        CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA, MAX_DETERMINIZED_STATES);
 
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
@@ -266,9 +276,15 @@ public class XContentMapValues {
      *  For instance, if the original simple regex is `foo`, this will translate
      *  it into `foo` OR `foo.*`. */
     private static Automaton makeMatchDotsInFieldNames(Automaton automaton) {
-        return Operations.union(
-                automaton,
-                Operations.concatenate(Arrays.asList(automaton, Automata.makeChar('.'), Automata.makeAnyString())));
+        /*
+         * We presume `automaton` is quite large compared to the mechanisms
+         * to match the trailing `.*` bits so we duplicate it only once.
+         */
+        Automaton tail = Operations.union(
+            Automata.makeEmptyString(),
+            Operations.concatenate(Automata.makeChar('.'), Automata.makeAnyString())
+        );
+        return Operations.concatenate(automaton, tail);
     }
 
     private static int step(CharacterRunAutomaton automaton, String key, int state) {

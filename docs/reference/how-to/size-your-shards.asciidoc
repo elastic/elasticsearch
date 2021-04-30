@@ -1,8 +1,5 @@
 [[size-your-shards]]
-== How to size your shards
-++++
-<titleabbrev>Size your shards</titleabbrev>
-++++
+== Size your shards
 
 To protect against hardware failure and increase capacity, {es} stores copies of
 an index’s data across multiple shards on multiple nodes. The number and size of

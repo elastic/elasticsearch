@@ -119,7 +119,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 3. Ensure the config index mappings are up to date
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             r -> ElasticsearchMappings.addDocMappingIfMissing(MlConfigIndex.indexName(), MlConfigIndex::mapping,
-                client, state, configMappingUpdateListener),
+                client, state, request.masterNodeTimeout(), configMappingUpdateListener),
             listener::onFailure
         );
 
@@ -130,7 +130,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         );
 
         // 1. Verify/Create the state index and its alias exists
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, createStateIndexListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, request.masterNodeTimeout(),
+            createStateIndexListener);
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,

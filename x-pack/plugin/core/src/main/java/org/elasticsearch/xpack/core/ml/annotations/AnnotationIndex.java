@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -49,6 +50,7 @@ public class AnnotationIndex {
                 AnnotationIndex::annotationsMapping,
                 client,
                 state,
+                MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
                 finalListener);
         }, finalListener::onFailure);
 

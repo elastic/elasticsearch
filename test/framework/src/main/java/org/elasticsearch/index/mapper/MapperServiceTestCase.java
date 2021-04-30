@@ -152,7 +152,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 
@@ -519,7 +519,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
             inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
         when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
-            inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
+            inv -> mapperService.mappingLookup().simpleMatchToFullName(inv.getArguments()[0].toString())
         );
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {

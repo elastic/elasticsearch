@@ -25,6 +25,7 @@ import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -191,13 +192,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         if (fieldType().hasDocValues()) {
             context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
         } else if (fieldType().isStored() || fieldType().isSearchable()) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
         if (fieldType().isStored()) {
             context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
         }
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
-        multiFields.parse(this, context.createExternalValueContext(geometry.geohash()));
+        multiFields.parse(this, context.switchParser(MapXContentParser.wrapObject(geometry.geohash())));
     }
 
     @Override

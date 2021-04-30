@@ -73,7 +73,7 @@ public class SnapshotInfoTestUtils {
         );
     }
 
-    private static Map<String, SnapshotInfo.IndexSnapshotDetails> randomIndexSnapshotDetails() {
+    public static Map<String, SnapshotInfo.IndexSnapshotDetails> randomIndexSnapshotDetails() {
         final Map<String, SnapshotInfo.IndexSnapshotDetails> result = new HashMap<>();
         final int size = between(0, 10);
         while (result.size() < size) {

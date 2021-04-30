@@ -38,15 +38,15 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     SearchQueryThenFetchAsyncAction(final SearchPhaseContext context, final Logger logger,
                                     final Map<String, AliasFilter> aliasFilter,
                                     final Map<String, Float> concreteIndexBoosts,
-                                    final SearchPhaseController searchPhaseController, final Executor executor,
+                                    final SearchPhaseController searchPhaseController,
                                     final QueryPhaseResultConsumer resultConsumer,
                                     final ActionListener<SearchResponse> listener,
                                     final GroupShardsIterator<SearchShardIterator> shardsIts,
                                     final TransportSearchAction.SearchTimeProvider timeProvider,
                                     ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
         super("query", context, logger, aliasFilter, concreteIndexBoosts,
-                executor, listener, shardsIts, timeProvider, clusterState, task,
-                resultConsumer, context.getRequest().getMaxConcurrentShardRequests(), clusters);
+            listener, shardsIts, timeProvider, clusterState,
+            resultConsumer, context.getRequest().getMaxConcurrentShardRequests(), clusters);
 
         SearchRequest request = context.getRequest();
         this.topDocsSize = getTopDocsSize(request);

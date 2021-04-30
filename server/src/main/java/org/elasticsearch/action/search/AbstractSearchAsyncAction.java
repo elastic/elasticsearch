@@ -44,7 +44,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -64,9 +63,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchRequest request;
 
     private final Logger logger;
-    private final Executor executor;
     private final ActionListener<SearchResponse> listener;
-    private final SearchTask task;
     protected final SearchPhaseResults<Result> results;
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
@@ -93,10 +90,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     AbstractSearchAsyncAction(String name, SearchPhaseContext context, Logger logger,
                               Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                              Executor executor, ActionListener<SearchResponse> listener,
+                              ActionListener<SearchResponse> listener,
                               GroupShardsIterator<SearchShardIterator> shardsIts,
                               SearchTimeProvider timeProvider, ClusterState clusterState,
-                              SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
+                              SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
                               SearchResponse.Clusters clusters) {
         super(name);
         this.context = context;
@@ -134,8 +131,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.timeProvider = timeProvider;
         this.logger = logger;
-        this.executor = executor;
-        this.task = task;
         this.listener = ActionListener.runAfter(listener, this::releaseContext);
         this.clusterState = clusterState;
         this.concreteIndexBoosts = concreteIndexBoosts;
@@ -345,7 +340,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                                 SearchActionListener<Result> listener);
 
     protected void fork(final Runnable runnable) {
-        executor.execute(new AbstractRunnable() {
+        context.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
             }
@@ -449,7 +444,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
                     try {
-                        context.getSearchTransport().cancelSearchTask(task,
+                        context.getSearchTransport().cancelSearchTask(context.getTask(),
                             "partial results are not allowed and at least one shard has failed");
                     } catch (Exception cancelFailure) {
                         logger.debug("Failed to cancel search request", cancelFailure);
@@ -596,7 +591,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final SearchTask getTask() {
-        return task;
+        return context.getTask();
     }
 
     @Override
@@ -698,7 +693,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void execute(Runnable command) {
-        executor.execute(command);
+        context.execute(command);
     }
 
     @Override

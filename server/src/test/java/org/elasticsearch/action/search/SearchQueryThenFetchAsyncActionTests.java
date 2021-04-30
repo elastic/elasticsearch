@@ -152,11 +152,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
 
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE, searchTransportService,
             (clusterAlias, node) -> lookup.get(node));
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), controller, EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Collections.emptyMap(), controller,
             resultConsumer, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
@@ -252,11 +253,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         final List<Object> responses = new ArrayList<>();
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE, searchTransportService,
             (clusterAlias, node) -> lookup.get(node));
         SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), controller, EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Collections.emptyMap(), controller,
             resultConsumer, new ActionListener<SearchResponse>() {
                 @Override
                 public void onFailure(Exception e) {
@@ -348,11 +350,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE, searchTransportService,
             (clusterAlias, node) -> lookup.get(node));
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), controller, EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Collections.emptyMap(), controller,
             resultConsumer, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override
@@ -449,11 +452,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE, searchTransportService,
             (clusterAlias, node) -> lookup.get(node));
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), controller, EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            Collections.emptyMap(), controller,
             resultConsumer, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override

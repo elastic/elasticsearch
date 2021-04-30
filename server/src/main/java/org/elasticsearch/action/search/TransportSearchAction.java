@@ -229,10 +229,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 Map<String, Float> concreteIndexBoosts, ActionListener<SearchResponse> listener,
                 boolean preFilter, ThreadPool threadPool, SearchResponse.Clusters clusters) {
 
-                SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService, connectionLookup);
+                SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task, executor,
+                    searchTransportService, connectionLookup);
                 return new AbstractSearchAsyncAction<>(
                     actionName, phaseContext, logger, aliasFilter, concreteIndexBoosts,
-                    executor, listener, shardsIts, timeProvider, clusterState, task,
+                    listener, shardsIts, timeProvider, clusterState,
                     new ArraySearchPhaseResults<>(shardsIts.size()), 1, clusters) {
                     @Override
                     protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
@@ -757,10 +758,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ThreadPool threadPool,
         SearchResponse.Clusters clusters) {
         if (preFilter) {
-            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService, connectionLookup);
+            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task, executor,
+                searchTransportService, connectionLookup);
             return new CanMatchPreFilterSearchPhase(phaseContext, logger,
-                aliasFilter, concreteIndexBoosts, executor, listener, shardIterators,
-                timeProvider, clusterState, task, (iter) -> {
+                aliasFilter, concreteIndexBoosts, listener, shardIterators,
+                timeProvider, clusterState, (iter) -> {
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
                     task,
                     searchRequest,
@@ -786,17 +788,18 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(executor,
                 circuitBreaker, task.getProgressListener(), searchRequest, shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]"));
-            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, searchTransportService, connectionLookup);
+            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task, executor,
+                searchTransportService, connectionLookup);
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(phaseContext, logger,
-                        aliasFilter, concreteIndexBoosts, searchPhaseController, executor, queryResultConsumer,
+                        aliasFilter, concreteIndexBoosts, searchPhaseController, queryResultConsumer,
                         listener, shardIterators, timeProvider, clusterState, task, clusters);
                     break;
                 case QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
-                        aliasFilter, concreteIndexBoosts, searchPhaseController, executor, queryResultConsumer,
+                        aliasFilter, concreteIndexBoosts, searchPhaseController, queryResultConsumer,
                         listener, shardIterators, timeProvider, clusterState, task, clusters);
                     break;
                 default:

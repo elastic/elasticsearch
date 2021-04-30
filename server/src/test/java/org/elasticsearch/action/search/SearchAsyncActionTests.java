@@ -89,7 +89,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AtomicInteger numRequests = new AtomicInteger(0);
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, transportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, null, transportService,
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node); });
@@ -100,12 +100,10 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 aliasFilters,
                 Collections.emptyMap(),
-                null,
                 responseListener,
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -187,7 +185,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         CountDownLatch awaitInitialRequests = new CountDownLatch(1);
         AtomicInteger numRequests = new AtomicInteger(0);
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, transportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, null, transportService,
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node); });
@@ -198,12 +196,10 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 aliasFilters,
                 Collections.emptyMap(),
-                null,
                 responseListener,
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -285,7 +281,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean latchTriggered = new AtomicBoolean();
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, transportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, null, transportService,
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node); });
@@ -296,13 +292,11 @@ public class SearchAsyncActionTests extends ESTestCase {
                         logger,
                     aliasFilters,
                         Collections.emptyMap(),
-                        executor,
                     responseListener,
                         shardsIter,
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                         ClusterState.EMPTY_STATE,
-                        null,
-                        new ArraySearchPhaseResults<>(shardsIter.size()),
+                    new ArraySearchPhaseResults<>(shardsIter.size()),
                         request.getMaxConcurrentShardRequests(),
                         SearchResponse.Clusters.EMPTY) {
             TestSearchResponse response = new TestSearchResponse();
@@ -393,7 +387,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         ExecutorService executor = Executors.newFixedThreadPool(randomIntBetween(1, Runtime.getRuntime().availableProcessors()));
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, transportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, null, transportService,
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node); });
@@ -404,12 +398,10 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 aliasFilters,
                 Collections.emptyMap(),
-                executor,
                 responseListener,
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -490,7 +482,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AtomicInteger numRequests = new AtomicInteger(0);
         AtomicInteger numFailReplicas = new AtomicInteger(0);
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, transportService,
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, null, transportService,
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node); });
@@ -501,12 +493,10 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 aliasFilters,
                 Collections.emptyMap(),
-                null,
                 responseListener,
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
@@ -574,7 +564,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean searchPhaseDidRun = new AtomicBoolean(false);
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, new SearchTransportService(null, null, null),
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, null, new SearchTransportService(null, null, null),
             (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node); });
@@ -585,12 +575,10 @@ public class SearchAsyncActionTests extends ESTestCase {
                 logger,
                 Map.of("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
                 Collections.emptyMap(),
-                null,
                 responseListener,
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {

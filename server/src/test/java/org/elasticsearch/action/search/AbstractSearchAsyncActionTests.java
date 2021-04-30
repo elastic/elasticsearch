@@ -73,16 +73,16 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             return null;
         };
 
-        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, nodeIdToConnection);
+        SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(request, null, null, null, nodeIdToConnection);
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", phaseContext, logger,
             Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
-            null, listener,
+            listener,
                 new GroupShardsIterator<>(
                     Collections.singletonList(
                         new SearchShardIterator(null, null, Collections.emptyList(), null)
                     )
-                ), timeProvider, ClusterState.EMPTY_STATE, null,
-                results, request.getMaxConcurrentShardRequests(),
+                ), timeProvider, ClusterState.EMPTY_STATE,
+            results, request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
             @Override
             protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

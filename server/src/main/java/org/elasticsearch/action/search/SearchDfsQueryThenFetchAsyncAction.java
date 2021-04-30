@@ -31,15 +31,15 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     SearchDfsQueryThenFetchAsyncAction(final SearchPhaseContext context, final Logger logger,
                                        final Map<String, AliasFilter> aliasFilter,
                                        final Map<String, Float> concreteIndexBoosts,
-                                       final SearchPhaseController searchPhaseController, final Executor executor,
+                                       final SearchPhaseController searchPhaseController,
                                        final QueryPhaseResultConsumer queryPhaseResultConsumer,
                                        final ActionListener<SearchResponse> listener,
                                        final GroupShardsIterator<SearchShardIterator> shardsIts,
                                        final TransportSearchAction.SearchTimeProvider timeProvider,
                                        final ClusterState clusterState, final SearchTask task, SearchResponse.Clusters clusters) {
         super("dfs", context, logger, aliasFilter, concreteIndexBoosts,
-                executor, listener,
-                shardsIts, timeProvider, clusterState, task, new ArraySearchPhaseResults<>(shardsIts.size()),
+            listener,
+                shardsIts, timeProvider, clusterState, new ArraySearchPhaseResults<>(shardsIts.size()),
                 context.getRequest().getMaxConcurrentShardRequests(), clusters);
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.searchPhaseController = searchPhaseController;

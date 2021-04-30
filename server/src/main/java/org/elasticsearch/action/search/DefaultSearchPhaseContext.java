@@ -20,18 +20,25 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
 public class DefaultSearchPhaseContext implements SearchPhaseContext {
 
     private final SearchRequest request;
+    private final SearchTask task;
+    private final Executor executor;
     private final SearchTransportService searchTransportService;
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
 
     DefaultSearchPhaseContext(SearchRequest request,
+                              SearchTask task,
+                              Executor executor,
                               SearchTransportService searchTransportService,
                               BiFunction<String, String, Transport.Connection> nodeIdToConnection) {
         this.request = request;
+        this.task = task;
+        this.executor = executor;
         this.searchTransportService = searchTransportService;
         this.nodeIdToConnection = nodeIdToConnection;
     }
@@ -48,7 +55,7 @@ public class DefaultSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public final SearchTask getTask() {
-        throw new UnsupportedOperationException();
+        return task;
     }
 
     @Override
@@ -83,7 +90,7 @@ public class DefaultSearchPhaseContext implements SearchPhaseContext {
 
     @Override
     public final void execute(Runnable command) {
-        throw new UnsupportedOperationException();
+        executor.execute(command);
     }
 
     @Override

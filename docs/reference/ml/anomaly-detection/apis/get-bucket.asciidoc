@@ -18,7 +18,6 @@ Retrieves {anomaly-job} results for one or more buckets.
 [[ml-get-bucket-prereqs]]
 == {api-prereq-title}
 
-Requires the following privileges:
 
 Requires the `monitor_ml` cluster privilege. This privilege is included in the 
 `machine_learning_user` built-in role.

@@ -48,6 +48,11 @@ enable a native or a built-in user.
 invoked to change the password of a native or built-in user.
 | `{"type":"audit", "timestamp":"2019-12-30T22:19:41,345+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw", "change":{"password":{"user":{"name":"user1"}}}}`
 
+| `create_service_account_token`
+| Logged when the <<security-api-create-service-token,create service account token API>> is
+invoked to create a new index-based token for a service account.
+| `{"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"create_service_account_token", "request.id":"az9a1Db5QrebDMacQ8yGKc", "create":{"service_account_token":{"namespace":"elastic","service":"fleet-server","token_name":"token1"}}}`
+
 | `connection_denied`
 | Logged when an incoming TCP connection does not pass the
 <<ip-filtering,IP filter>> for a specific profile.
@@ -79,6 +84,11 @@ delete a role.
 | Logged when the <<security-api-delete-role-mapping,delete role mapping API>>
 is invoked to delete a role mapping.
 | `{"type":"audit", "timestamp":"2020-12-31T00:12:09,349+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g", "delete":{"role_mapping":{"name":"mapping1"}}}`
+
+| `delete_service_account_token`
+| Logged when the <<security-api-delete-service-token,delete service account token API>> is
+invoked to delete an index-based token for a service account.
+| `{"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_service_account_token", "request.id":"az9a1Db5QrebDMacQ8yGKc", "delete":{"service_account_token":{"namespace":"elastic","service":"fleet-server","token_name":"token1"}}}`
 
 | `delete_user`
 | Logged when the <<security-api-delete-user,delete user API>> is invoked to
@@ -312,6 +322,8 @@ request bodies of the corresponding security APIs.
                              "has_access_token": <boolean>}`
 `apikeys`             ::     An object like `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
                              <boolean>, "user":{"name": <string>, "realm": <string>}}`.
+
+`service_account_token` ::   An object like `{"namespace":<string>,"service":<string>,"token_name":<string>}`.
 
 ==== Extra audit event attributes for specific events
 

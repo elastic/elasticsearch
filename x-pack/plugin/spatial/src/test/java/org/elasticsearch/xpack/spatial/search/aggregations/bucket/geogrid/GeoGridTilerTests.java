@@ -226,6 +226,7 @@ public class GeoGridTilerTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72521")
     public void testGeoHashBoundsExcludeTouchingTiles() throws Exception {
         final int precision = randomIntBetween(1, 5);
         final String hash =

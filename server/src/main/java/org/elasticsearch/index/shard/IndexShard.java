@@ -2855,7 +2855,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointSupplier,
                 replicationTracker::getRetentionLeases,
                 this::getOperationPrimaryTerm,
-                tombstoneDocSupplier(),
                 snapshotCommitSupplier);
     }
 
@@ -3491,19 +3490,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
-    }
-
-    private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
-        return new EngineConfig.TombstoneDocSupplier() {
-            @Override
-            public ParsedDocument newDeleteTombstoneDoc(String id) {
-                return ParsedDocument.deleteTombstone(id);
-            }
-            @Override
-            public ParsedDocument newNoopTombstoneDoc(String reason) {
-                return ParsedDocument.noopTombstone(reason);
-            }
-        };
     }
 
     /**

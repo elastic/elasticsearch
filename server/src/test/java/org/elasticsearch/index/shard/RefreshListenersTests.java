@@ -139,7 +139,6 @@ public class RefreshListenersTests extends ESTestCase {
                 () -> SequenceNumbers.NO_OPS_PERFORMED,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm,
-                EngineTestCase.tombstoneDocSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);

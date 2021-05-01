@@ -2902,7 +2902,6 @@ public class InternalEngineTests extends EngineTestCase {
                 () -> UNASSIGNED_SEQ_NO,
                 () -> RetentionLeases.EMPTY,
                 primaryTerm::get,
-                tombstoneDocSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -3121,28 +3120,25 @@ public class InternalEngineTests extends EngineTestCase {
     public void testDeleteWithFatalError() throws Exception {
         final IllegalStateException tragicException = new IllegalStateException("fail to store tombstone");
         try (Store store = createStore()) {
-            EngineConfig.TombstoneDocSupplier tombstoneDocSupplier = new EngineConfig.TombstoneDocSupplier() {
+            IndexWriterFactory indexWriterFactory = (directory, iwc) -> new IndexWriter(directory, iwc) {
                 @Override
-                public ParsedDocument newDeleteTombstoneDoc(String id) {
-                    ParsedDocument parsedDocument = tombstoneDocSupplier().newDeleteTombstoneDoc(id);
-                    parsedDocument.rootDoc().add(new StoredField("foo", "bar") {
-                        // this is a hack to add a failure during store document which triggers a tragic event
-                        // and in turn fails the engine
-                        @Override
-                        public BytesRef binaryValue() {
-                            throw tragicException;
+                public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc,
+                                               Field... softDeletes) throws IOException {
+                    final List<IndexableField> docIncludeExtraField = new ArrayList<>();
+                    doc.forEach(docIncludeExtraField::add);
+                    docIncludeExtraField.add(
+                        new StoredField("foo", "bar") {
+                            @Override
+                            public BytesRef binaryValue() {
+                                throw tragicException;
+                            }
                         }
-                    });
-                    return parsedDocument;
-                }
-
-                @Override
-                public ParsedDocument newNoopTombstoneDoc(String reason) {
-                    return tombstoneDocSupplier().newNoopTombstoneDoc(reason);
+                    );
+                    return super.softUpdateDocument(term, docIncludeExtraField, softDeletes);
                 }
             };
-            EngineConfig config = config(this.engine.config(), store, createTempDir(), tombstoneDocSupplier);
-            try (InternalEngine engine = createEngine(null, null, null, config)) {
+            EngineConfig config = config(this.engine.config(), store, createTempDir());
+            try (InternalEngine engine = createEngine(indexWriterFactory, null, null, config)) {
                 final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc));
                 expectThrows(IllegalStateException.class,
@@ -5973,7 +5969,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),

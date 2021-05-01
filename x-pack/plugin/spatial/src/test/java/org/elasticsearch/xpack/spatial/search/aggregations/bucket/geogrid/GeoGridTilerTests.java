@@ -249,6 +249,7 @@ public class GeoGridTilerTests extends ESTestCase {
             final int numTiles = values.docValueCount();
             final int expected = (int) Math.pow(32, i);
             assertThat(numTiles, equalTo(expected));
+            assertThat((int) bounded.getMaxHashes(), greaterThanOrEqualTo(expected));
         }
     }
 

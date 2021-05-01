@@ -387,7 +387,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 node,
                 maxOpenJobs,
                 maxMachineMemoryPercent,
-                true,
                 useAuto);
             if (nodeLoad.getError() != null) {
                 logger.warn("[{}] failed to gather node load limits, failure [{}]. Returning no scale",
@@ -760,7 +759,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 node,
                 maxOpenJobs,
                 maxMachineMemoryPercent,
-                true,
                 useAuto);
             if (nodeLoad.getError() != null || nodeLoad.isUseMemory() == false) {
                 return Optional.empty();

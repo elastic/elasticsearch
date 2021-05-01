@@ -511,3 +511,91 @@ POST /_aliases
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\nPUT test2\n/]
+
+[[aliases-data-streams]]
+===== Data stream aliases
+
+Aliases can also point to a data streams. Instead of
+specifying the name of an index in the `index` parameter
+of the alias action, the name of the data stream can be
+specified.
+
+Aliases that refer to data streams don't support: `routing`,
+`index_routing`, `search_routing`,`filter` or
+`is_write_index` parameter.
+
+Data stream names can be specified in the `index` parameter
+of actions of type `add` and `remove`. A wildcard expression
+can be provided as well, but if the expression matches
+both data stream names and regular indices then the regular
+indices are ignored.
+
+====== Data stream alias example usage
+
+[source,console]
+----
+PUT /_data_stream/logs-foo-bar <1>
+
+PUT /_data_stream/logs-bar-baz <1>
+
+POST /_aliases
+{
+  "actions" : [
+    { "add" : { "index" : "logs-foo-bar", "alias" : "logs" } }, <2>
+    { "add" : { "index" : "logs-bar-baz", "alias" : "logs" } }
+  ]
+}
+
+GET /logs-*/_alias <3>
+----
+
+<1> Creating two data streams
+<2> Two actions that introduce an alias to refers to the two just created data streams
+<3> Invoking the get alias api to introspect whether alias has been created
+
+[source,console-result]
+----
+{
+    "logs-bar-baz": {
+        "aliases": {
+            "logs": {}
+        }
+    },
+    "logs-foo-bar": {
+        "aliases": {
+            "logs": {}
+        }
+    }
+}
+----
+// TEST[continued]
+
+Update 'logs' alias to not include `logs-foo-bar` data stream:
+
+[source,console]
+----
+POST /_aliases
+{
+  "actions" : [
+    { "remove" : { "index" : "logs-foo-bar", "alias" : "logs" } }
+  ]
+}
+
+GET /logs-*/_alias
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+    "logs-bar-baz": {
+        "aliases": {
+            "logs": {}
+        }
+    },
+    "logs-foo-bar": {
+        "aliases": {}
+    }
+}
+----
+// TEST[continued]

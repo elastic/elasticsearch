@@ -138,6 +138,7 @@ tasks.named("yamlRestCompatTest").configure {
     'security/authz/14_cat_indices/Test explicit request while multiple authorized indices',
     'security/authz/14_cat_indices/Test explicit request while multiple opened/closed authorized indices',
     'security/authz/14_cat_indices/Test wildcard request with multiple authorized indices',
+    'security/authz/50_data_streams/Test that requests not supporting data streams do not include data streams among authorized indices',
     'sql/sql/Clean cursor',
     'sql/sql/Execute some SQL',
     'sql/sql/Getting textual representation',

@@ -23,6 +23,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -306,6 +307,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     public void testBackcompatV1() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72466",
+                            JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         Path configDir = env.configFile();
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         try (IndexOutput output = directory.createOutput("elasticsearch.keystore", IOContext.DEFAULT)) {
@@ -337,6 +340,8 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     public void testBackcompatV2() throws Exception {
         assumeFalse("Can't run in a FIPS JVM as PBE is not available", inFipsJvm());
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72466",
+                            JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         Path configDir = env.configFile();
         SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         byte[] fileBytes = new byte[20];

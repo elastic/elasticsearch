@@ -2564,6 +2564,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
     public void testNodeEnrollment() throws Exception {
         RestHighLevelClient client = highLevelClient();
 

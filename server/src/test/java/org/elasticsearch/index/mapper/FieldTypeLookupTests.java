@@ -168,14 +168,6 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    private static int size(Iterable<MappedFieldType> iterable) {
-        int count = 0;
-        for (MappedFieldType fieldType : iterable) {
-            count++;
-        }
-        return count;
-    }
-
     public void testFlattenedLookup() {
         String fieldName = "object1.object2.field";
         FlattenedFieldMapper mapper = createFlattenedMapper(fieldName);
@@ -235,10 +227,6 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testUnmappedLookupWithDots() {
         FieldTypeLookup lookup = new FieldTypeLookup(emptyList(), emptyList(), emptyList());
         assertNull(lookup.get("object.child"));
-    }
-
-    public void testParentPathChecks() {
-
     }
 
     public void testMaxDynamicKeyDepth() {

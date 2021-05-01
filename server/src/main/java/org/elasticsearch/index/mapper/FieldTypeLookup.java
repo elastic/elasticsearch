@@ -69,7 +69,11 @@ final class FieldTypeLookup {
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
-            fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
+            MappedFieldType fieldType = fullNameToFieldType.get(path);
+            fullNameToFieldType.put(aliasName, fieldType);
+            if (fieldType instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(aliasName, (DynamicFieldType) fieldType);
+            }
         }
 
         for (RuntimeField runtimeField : runtimeFields) {
@@ -114,29 +118,34 @@ final class FieldTypeLookup {
         return getDynamicField(field);
     }
 
+    // Check if the given field corresponds to a dynamic key mapper of the
+    // form 'path_to_field.path_to_key'. If so, returns a field type that
+    // can be used to perform searches on this field. Otherwise returns null.
     private MappedFieldType getDynamicField(String field) {
         if (dynamicFieldTypes.isEmpty()) {
             // no parent fields defined
             return null;
         }
-        String parentField = longestPossibleParent(field);
-        while (true) {
-            MappedFieldType fieldType = fullNameToFieldType.get(parentField);
-            if (fieldType != null) {
-                if (dynamicFieldTypes.containsKey(fieldType.name())) {
-                    DynamicFieldType dft = dynamicFieldTypes.get(fieldType.name());
-                    if (Objects.equals(field, parentField) == false) {
-                        return dft.getChildFieldType(field.substring(parentField.length() + 1));
-                    }
-                }
-            }
-            if (parentField.contains(".") == false) {
-                break;
-            }
-            parentField = parentField.substring(0, parentField.lastIndexOf("."));
-        }
+        int dotIndex = -1;
+        int fieldDepth = -1;
 
-        return null;
+        while (true) {
+            if (++fieldDepth > maxParentPathDots) {
+                return null;
+            }
+
+            dotIndex = field.indexOf('.', dotIndex + 1);
+            if (dotIndex < 0) {
+                return null;
+            }
+
+            String parentField = field.substring(0, dotIndex);
+            DynamicFieldType dft = dynamicFieldTypes.get(parentField);
+            if (dft != null && Objects.equals(field, parentField) == false) {
+                String key = field.substring(dotIndex + 1);
+                return dft.getChildFieldType(key);
+            }
+        }
     }
 
     /**

@@ -48,7 +48,6 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
         assertHasTrustedIssuer(trustManager, "COMODO");
         assertHasTrustedIssuer(trustManager, "GlobalSign");
         assertHasTrustedIssuer(trustManager, "GoDaddy");
-        assertHasTrustedIssuer(trustManager, "Amazon");
         assertHasTrustedIssuer(trustManager, "certSign");
         assertHasTrustedIssuer(trustManager, "Google Trust Services");
         assertHasTrustedIssuer(trustManager, "Internet Security Research Group");

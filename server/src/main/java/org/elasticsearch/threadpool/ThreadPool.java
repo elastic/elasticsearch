@@ -806,4 +806,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
         return true;
     }
+
+    public static boolean assertMethodNeverCalledMoreNTimes(String methodName, int maxCalledTimes) {
+        int found = 0;
+        final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
+        assert stackTraceElements.length >= 3 : stackTraceElements;
+        assert stackTraceElements[2].getMethodName().equals(methodName) : stackTraceElements;
+        for (StackTraceElement stackTraceElement : stackTraceElements) {
+            if (stackTraceElement.getMethodName().equals(methodName)) {
+                found++;
+                assert found <= maxCalledTimes : "Method [" + methodName + "] is called more than " + maxCalledTimes + " times";
+            }
+        }
+        return true;
+    }
 }

@@ -33,11 +33,22 @@ public class PlainIterator<T> implements Iterable<T>, Countable {
         return elements.size() - index;
     }
 
-    public T nextOrNull() {
+    public final T nextOrNull() {
         if (index == elements.size()) {
             return null;
         } else {
             return elements.get(index++);
+        }
+    }
+
+    /**
+     * Unlike {@link #nextOrNull()}, this method returns the current element of the iterator without advancing the cursor.
+     */
+    public final T current() {
+        if (index == elements.size()) {
+            return null;
+        } else {
+            return elements.get(index);
         }
     }
 

@@ -149,7 +149,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             result.setSearchShardTarget(shard == null ? new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias(),
                 shardIt.getOriginalIndices()) : shard);
             result.setShardIndex(shardIndex);
-            fork(() -> onShardResult(result, shardIt));
+            onShardResult(result, shardIt);
         } catch (Exception e) {
             // If we fail to rewrite it on the coordinator, just try to execute
             // the query in the shard.

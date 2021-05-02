@@ -90,6 +90,17 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return null;
     }
 
+    /**
+     * Unlike {@link #nextOrNull()} this method returns the current element without advancing the cursor.
+     */
+    SearchShardTarget current() {
+        final String nodeId = targetNodesIterator.current();
+        if (nodeId != null) {
+            return new SearchShardTarget(nodeId, shardId, clusterAlias, originalIndices);
+        }
+        return null;
+    }
+
     int remaining() {
         return targetNodesIterator.remaining();
     }

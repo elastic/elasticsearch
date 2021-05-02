@@ -215,7 +215,13 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     ShardSearchRequest request,
                     SearchTask task,
                     ActionListener<SearchService.CanMatchResponse> listener) {
-                    listener.onResponse(new SearchService.CanMatchResponse(randomBoolean(), null));
+                    if (randomBoolean()) {
+                        new Thread(() -> {
+                            listener.onResponse(new SearchService.CanMatchResponse(randomBoolean(), null));
+                        }).start();
+                    } else {
+                        listener.onResponse(new SearchService.CanMatchResponse(randomBoolean(), null));
+                    }
                 }
             };
 

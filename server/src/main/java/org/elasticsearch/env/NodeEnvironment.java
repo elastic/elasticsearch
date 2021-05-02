@@ -1016,19 +1016,12 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Resolves all existing paths to <code>indexFolderName</code> in ${data.paths}/indices
      */
-    public Path[] resolveIndexFolder(String indexFolderName) {
+    public Path resolveIndexFolder(String indexFolderName) {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
         assertEnvIsLocked();
-        List<Path> paths = new ArrayList<>(nodePaths.length);
-        for (NodePath nodePath : nodePaths) {
-            Path indexFolder = nodePath.indicesPath.resolve(indexFolderName);
-            if (Files.exists(indexFolder)) {
-                paths.add(indexFolder);
-            }
-        }
-        return paths.toArray(new Path[paths.size()]);
+        return nodePaths[0].indicesPath.resolve(indexFolderName);
     }
 
     /**
@@ -1291,22 +1284,22 @@ public final class NodeEnvironment  implements Closeable {
     private void assertCanWrite() throws IOException {
         tryWriteTempFile(nodeDataPath());
         for (String indexFolderName : this.availableIndexFolders()) {
-            for (Path indexPath : this.resolveIndexFolder(indexFolderName)) { // check index paths are writable
-                Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
-                tryWriteTempFile(indexStatePath);
-                tryWriteTempFile(indexPath);
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                    for (Path shardPath : stream) {
-                        String fileName = shardPath.getFileName().toString();
-                        if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
-                            Path indexDir = shardPath.resolve(ShardPath.INDEX_FOLDER_NAME);
-                            Path statePath = shardPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
-                            Path translogDir = shardPath.resolve(ShardPath.TRANSLOG_FOLDER_NAME);
-                            tryWriteTempFile(indexDir);
-                            tryWriteTempFile(translogDir);
-                            tryWriteTempFile(statePath);
-                            tryWriteTempFile(shardPath);
-                        }
+            // check index paths are writable
+            Path indexPath = this.resolveIndexFolder(indexFolderName);
+            Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
+            tryWriteTempFile(indexStatePath);
+            tryWriteTempFile(indexPath);
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
+                for (Path shardPath : stream) {
+                    String fileName = shardPath.getFileName().toString();
+                    if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
+                        Path indexDir = shardPath.resolve(ShardPath.INDEX_FOLDER_NAME);
+                        Path statePath = shardPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
+                        Path translogDir = shardPath.resolve(ShardPath.TRANSLOG_FOLDER_NAME);
+                        tryWriteTempFile(indexDir);
+                        tryWriteTempFile(translogDir);
+                        tryWriteTempFile(statePath);
+                        tryWriteTempFile(shardPath);
                     }
                 }
             }

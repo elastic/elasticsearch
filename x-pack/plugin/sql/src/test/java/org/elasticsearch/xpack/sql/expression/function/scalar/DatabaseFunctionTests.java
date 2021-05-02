@@ -33,8 +33,7 @@ public class DatabaseFunctionTests extends ESTestCase {
         SqlConfiguration sqlConfig = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
                 Protocol.PAGE_TIMEOUT, null, null,
                 randomFrom(Mode.values()), randomAlphaOfLength(10),
-                null, null, clusterName, randomBoolean(), randomBoolean(),
-                Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT, Protocol.DEFAULT_KEEP_ON_COMPLETION, Protocol.DEFAULT_KEEP_ALIVE);
+                null, null, clusterName, randomBoolean(), randomBoolean());
         Analyzer analyzer = new Analyzer(
                 sqlConfig,
                 new SqlFunctionRegistry(),

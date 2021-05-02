@@ -103,6 +103,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+    
+    @Override
     @Before
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);

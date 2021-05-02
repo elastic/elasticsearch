@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -80,6 +81,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     public static boolean containsDeprecatedParameter(Set<String> paramKeys) {
         return DEPRECATED_PARAMETERS.stream().anyMatch(paramKeys::contains);
+    }
+
+    public static Set<String> getDeprecatedParameters(Set<String> paramKeys) {
+        return DEPRECATED_PARAMETERS.stream().filter((p) -> paramKeys.contains(p)).collect(Collectors.toSet());
     }
 
     public static class Defaults {

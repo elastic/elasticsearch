@@ -53,6 +53,11 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         });
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper(FIELD_NAME);

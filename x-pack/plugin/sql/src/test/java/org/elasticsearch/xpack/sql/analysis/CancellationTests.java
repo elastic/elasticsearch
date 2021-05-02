@@ -142,7 +142,6 @@ public class CancellationTests extends ESTestCase {
         }, "", mock(TransportService.class), mockClusterService);
         countDownLatch.await();
         verify(client, times(1)).fieldCaps(any(), any());
-        verify(client, times(1)).execute(any(), any(), any());
         verify(task, times(2)).isCancelled();
         verify(task, times(1)).getId();
         verify(client, times(1)).settings();

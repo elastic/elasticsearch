@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
@@ -68,36 +69,35 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         if (nodesShutdownMetadata == null) {
             response = new GetShutdownStatusAction.Response(new ArrayList<>());
         } else if (request.getNodeIds().length == 0) {
-            final List<SingleNodeShutdownStatus> shutdownStatuses = new ArrayList<>(nodesShutdownMetadata.getAllNodeMetadataMap().size());
-            nodesShutdownMetadata.getAllNodeMetadataMap()
+            final List<SingleNodeShutdownStatus> shutdownStatuses = nodesShutdownMetadata.getAllNodeMetadataMap()
                 .values()
-                .forEach(
-                    ns -> shutdownStatuses.add(
-                        new SingleNodeShutdownStatus(
-                            ns,
-                            new ShutdownShardMigrationStatus(),
-                            new ShutdownPersistentTasksStatus(),
-                            new ShutdownPluginsStatus()
-                        )
+                .stream()
+                .map(
+                    ns -> new SingleNodeShutdownStatus(
+                        ns,
+                        new ShutdownShardMigrationStatus(),
+                        new ShutdownPersistentTasksStatus(),
+                        new ShutdownPluginsStatus()
                     )
-                );
+                )
+                .collect(Collectors.toList());
             response = new GetShutdownStatusAction.Response(shutdownStatuses);
         } else {
-            final List<SingleNodeShutdownStatus> shutdownStatuses = new ArrayList<>();
+            new ArrayList<>();
             final Map<String, SingleNodeShutdownMetadata> nodeShutdownMetadataMap = nodesShutdownMetadata.getAllNodeMetadataMap();
-            Arrays.stream(request.getNodeIds())
+            final List<SingleNodeShutdownStatus> shutdownStatuses = Arrays.stream(request.getNodeIds())
                 .map(nodeShutdownMetadataMap::get)
                 .filter(Objects::nonNull)
-                .forEach(
-                    ns -> shutdownStatuses.add(
-                        new SingleNodeShutdownStatus(
-                            ns,
-                            new ShutdownShardMigrationStatus(),
-                            new ShutdownPersistentTasksStatus(),
-                            new ShutdownPluginsStatus()
-                        )
+                .map(
+                    ns -> new SingleNodeShutdownStatus(
+                        ns,
+                        new ShutdownShardMigrationStatus(),
+                        new ShutdownPersistentTasksStatus(),
+                        new ShutdownPluginsStatus()
                     )
-                );
+
+                )
+                .collect(Collectors.toList());
             response = new GetShutdownStatusAction.Response(shutdownStatuses);
         }
 

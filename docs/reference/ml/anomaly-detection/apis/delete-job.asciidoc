@@ -16,12 +16,12 @@ Deletes an existing {anomaly-job}.
 [[ml-delete-job-prereqs]]
 == {api-prereq-title}
 
-* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
-cluster privileges to use this API. See <<security-privileges>> and
-{ml-docs-setup-privileges}.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 * Before you can delete a job, you must delete the {dfeeds} that are associated
 with it. See <<ml-delete-datafeed>>.
-* Before you can delete a job, you must close it (unless you specify the `force` parameter). See <<ml-close-job>>.
+* Before you can delete a job, you must close it (unless you specify the `force` 
+parameter). See <<ml-close-job>>.
 
 [[ml-delete-job-desc]]
 == {api-description-title}

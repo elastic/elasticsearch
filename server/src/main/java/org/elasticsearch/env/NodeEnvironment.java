@@ -220,8 +220,8 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
 
-        public NodePath[] getNodePaths() {
-            return nodePaths;
+        public NodePath getNodePath() {
+            return nodePaths[0];
         }
 
         @Override
@@ -352,67 +352,65 @@ public final class NodeEnvironment  implements Closeable {
         }
 
         // move contents from legacy path to new path
-        assert nodeLock.getNodePaths().length == legacyNodeLock.getNodePaths().length;
         try {
             final List<CheckedRunnable<IOException>> upgradeActions = new ArrayList<>();
-            for (int i = 0; i < legacyNodeLock.getNodePaths().length; i++) {
-                final NodePath legacyNodePath = legacyNodeLock.getNodePaths()[i];
-                final NodePath nodePath = nodeLock.getNodePaths()[i];
+            final NodePath legacyNodePath = legacyNodeLock.getNodePath();
+            final NodePath nodePath = nodeLock.getNodePath();
 
-                // determine folders to move and check that there are no extra files/folders
-                final Set<String> folderNames = new HashSet<>();
-                final Set<String> expectedFolderNames = new HashSet<>(Arrays.asList(
+            // determine folders to move and check that there are no extra files/folders
+            final Set<String> folderNames = new HashSet<>();
+            final Set<String> expectedFolderNames = new HashSet<>(Arrays.asList(
 
-                    // node state directory, containing MetadataStateFormat-based node metadata as well as cluster state
-                    MetadataStateFormat.STATE_DIR_NAME,
+                // node state directory, containing MetadataStateFormat-based node metadata as well as cluster state
+                MetadataStateFormat.STATE_DIR_NAME,
 
-                    // indices
-                    INDICES_FOLDER,
+                // indices
+                INDICES_FOLDER,
 
-                    // searchable snapshot cache Lucene index
-                    SNAPSHOT_CACHE_FOLDER
-                ));
+                // searchable snapshot cache Lucene index
+                SNAPSHOT_CACHE_FOLDER
+            ));
 
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
-                    for (Path subFolderPath : stream) {
-                        final String fileName = subFolderPath.getFileName().toString();
-                        if (FileSystemUtils.isDesktopServicesStore(subFolderPath)) {
-                            // ignore
-                        } else if (FileSystemUtils.isAccessibleDirectory(subFolderPath, logger)) {
-                            if (expectedFolderNames.contains(fileName) == false) {
-                                throw new IllegalStateException("unexpected folder encountered during data folder upgrade: " +
-                                    subFolderPath);
-                            }
-                            final Path targetSubFolderPath = nodePath.path.resolve(fileName);
-                            if (Files.exists(targetSubFolderPath)) {
-                                throw new IllegalStateException("target folder already exists during data folder upgrade: " +
-                                    targetSubFolderPath);
-                            }
-                            folderNames.add(fileName);
-                        } else if (fileName.equals(NODE_LOCK_FILENAME) == false &&
-                                   fileName.equals(TEMP_FILE_NAME) == false) {
-                            throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
+                for (Path subFolderPath : stream) {
+                    final String fileName = subFolderPath.getFileName().toString();
+                    if (FileSystemUtils.isDesktopServicesStore(subFolderPath)) {
+                        // ignore
+                    } else if (FileSystemUtils.isAccessibleDirectory(subFolderPath, logger)) {
+                        if (expectedFolderNames.contains(fileName) == false) {
+                            throw new IllegalStateException("unexpected folder encountered during data folder upgrade: " +
                                 subFolderPath);
                         }
+                        final Path targetSubFolderPath = nodePath.path.resolve(fileName);
+                        if (Files.exists(targetSubFolderPath)) {
+                            throw new IllegalStateException("target folder already exists during data folder upgrade: " +
+                                targetSubFolderPath);
+                        }
+                        folderNames.add(fileName);
+                    } else if (fileName.equals(NODE_LOCK_FILENAME) == false &&
+                               fileName.equals(TEMP_FILE_NAME) == false) {
+                        throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
+                            subFolderPath);
                     }
                 }
-
-                assert Sets.difference(folderNames, expectedFolderNames).isEmpty() :
-                    "expected indices and/or state dir folder but was " + folderNames;
-
-                upgradeActions.add(() -> {
-                    for (String folderName : folderNames) {
-                        final Path sourceSubFolderPath = legacyNodePath.path.resolve(folderName);
-                        final Path targetSubFolderPath = nodePath.path.resolve(folderName);
-                        Files.move(sourceSubFolderPath, targetSubFolderPath, StandardCopyOption.ATOMIC_MOVE);
-                        logger.info("data folder upgrade: moved from [{}] to [{}]", sourceSubFolderPath, targetSubFolderPath);
-                    }
-                    IOUtils.fsync(nodePath.path, true);
-                });
             }
+
+            assert Sets.difference(folderNames, expectedFolderNames).isEmpty() :
+                "expected indices and/or state dir folder but was " + folderNames;
+
+            upgradeActions.add(() -> {
+                for (String folderName : folderNames) {
+                    final Path sourceSubFolderPath = legacyNodePath.path.resolve(folderName);
+                    final Path targetSubFolderPath = nodePath.path.resolve(folderName);
+                    Files.move(sourceSubFolderPath, targetSubFolderPath, StandardCopyOption.ATOMIC_MOVE);
+                    logger.info("data folder upgrade: moved from [{}] to [{}]", sourceSubFolderPath, targetSubFolderPath);
+                }
+                IOUtils.fsync(nodePath.path, true);
+            });
+
             // now do the actual upgrade. start by upgrading the node metadata file before moving anything, since a downgrade in an
             // intermediate state would be pretty disastrous
-            loadNodeMetadata(settings, logger, legacyNodeLock.getNodePaths());
+            loadNodeMetadata(settings, logger, legacyNodeLock.getNodePath());
             for (CheckedRunnable<IOException> upgradeAction : upgradeActions) {
                 upgradeAction.run();
             }
@@ -547,10 +545,10 @@ public final class NodeEnvironment  implements Closeable {
     public void deleteShardDirectorySafe(
         ShardId shardId,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException, ShardLockObtainFailedException {
-        final Path[] paths = availableShardPaths(shardId);
-        logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
+        final Path path = availableShardPath(shardId);
+        logger.trace("deleting shard {} directory, path: [{}]", shardId, path);
         try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
             deleteShardDirectoryUnderLock(lock, indexSettings, listener);
         }
@@ -600,28 +598,28 @@ public final class NodeEnvironment  implements Closeable {
     public void deleteShardDirectoryUnderLock(
         ShardLock lock,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
-        final Path[] paths = availableShardPaths(shardId);
-        logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
-        acquireFSLockForPaths(indexSettings, paths);
-        listener.accept(paths);
-        IOUtils.rm(paths);
+        final Path path = availableShardPath(shardId);
+        logger.trace("acquiring locks for {}, path: [{}]", shardId, path);
+        acquireFSLockForPaths(indexSettings, path);
+        listener.accept(path);
+        IOUtils.rm(path);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
             acquireFSLockForPaths(indexSettings, customLocation);
             logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
-            listener.accept(new Path[]{customLocation});
+            listener.accept(customLocation);
             IOUtils.rm(customLocation);
         }
-        logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
-        assert assertPathsDoNotExist(paths);
+        logger.trace("deleted shard {} directory, path: [{}]", shardId, path);
+        assert assertPathsDoNotExist(path);
     }
 
-    private static boolean assertPathsDoNotExist(final Path[] paths) {
+    private static boolean assertPathsDoNotExist(final Path... paths) {
         Set<Path> existingPaths = Stream.of(paths)
             .filter(FileSystemUtils::exists)
             .filter(leftOver -> {
@@ -670,7 +668,7 @@ public final class NodeEnvironment  implements Closeable {
         Index index,
         long lockTimeoutMS,
         IndexSettings indexSettings,
-        Consumer<Path[]> listener
+        Consumer<Path> listener
     ) throws IOException, ShardLockObtainFailedException {
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, "deleting index directory", lockTimeoutMS);
         try {
@@ -683,19 +681,19 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Deletes an indexes data directory recursively.
      * Note: this method assumes that the shard lock is acquired
-     *
-     * @param index the index to delete
+     *  @param index the index to delete
      * @param indexSettings settings for the index being deleted
+     * @param listener
      */
-    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path[]> listener) throws IOException {
-        final Path[] indexPaths = indexPaths(index);
-        logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
-        listener.accept(indexPaths);
-        IOUtils.rm(indexPaths);
+    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path> listener) throws IOException {
+        final Path indexPath = indexPath(index);
+        logger.trace("deleting index {} directory: [{}]", index, indexPath);
+        listener.accept(indexPath);
+        IOUtils.rm(indexPath);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
-            listener.accept(new Path[]{customLocation});
+            listener.accept(customLocation);
             IOUtils.rm(customLocation);
         }
     }
@@ -894,13 +892,9 @@ public final class NodeEnvironment  implements Closeable {
      * Returns an array of all of the nodes data locations.
      * @throws IllegalStateException if the node is not configured to store local locations
      */
-    public Path[] nodeDataPaths() {
+    public Path nodeDataPath() {
         assertEnvIsLocked();
-        Path[] paths = new Path[nodePaths.length];
-        for(int i=0;i<paths.length;i++) {
-            paths[i] = nodePaths[i].path;
-        }
-        return paths;
+        return nodePaths[0].path;
     }
 
     /**
@@ -924,24 +918,20 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Returns an array of all of the {@link NodePath}s.
      */
-    public NodePath[] nodePaths() {
+    public NodePath nodePath() {
         assertEnvIsLocked();
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
-        return nodePaths;
+        return nodePaths[0];
     }
 
     /**
      * Returns all index paths.
      */
-    public Path[] indexPaths(Index index) {
+    public Path indexPath(Index index) {
         assertEnvIsLocked();
-        Path[] indexPaths = new Path[nodePaths.length];
-        for (int i = 0; i < nodePaths.length; i++) {
-            indexPaths[i] = nodePaths[i].resolve(index);
-        }
-        return indexPaths;
+        return nodePaths[0].resolve(index);
     }
 
 
@@ -954,14 +944,9 @@ public final class NodeEnvironment  implements Closeable {
      * @see #resolveCustomLocation(String, ShardId)
      *
      */
-    public Path[] availableShardPaths(ShardId shardId) {
+    public Path availableShardPath(ShardId shardId) {
         assertEnvIsLocked();
-        final NodePath[] nodePaths = nodePaths();
-        final Path[] shardLocations = new Path[nodePaths.length];
-        for (int i = 0; i < nodePaths.length; i++) {
-            shardLocations[i] = nodePaths[i].resolve(shardId);
-        }
-        return shardLocations;
+        return nodePaths[0].resolve(shardId);
     }
 
     /**
@@ -1031,19 +1016,12 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Resolves all existing paths to <code>indexFolderName</code> in ${data.paths}/indices
      */
-    public Path[] resolveIndexFolder(String indexFolderName) {
+    public Path resolveIndexFolder(String indexFolderName) {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
         assertEnvIsLocked();
-        List<Path> paths = new ArrayList<>(nodePaths.length);
-        for (NodePath nodePath : nodePaths) {
-            Path indexFolder = nodePath.indicesPath.resolve(indexFolderName);
-            if (Files.exists(indexFolder)) {
-                paths.add(indexFolder);
-            }
-        }
-        return paths.toArray(new Path[paths.size()]);
+        return nodePaths[0].indicesPath.resolve(indexFolderName);
     }
 
     /**
@@ -1304,26 +1282,24 @@ public final class NodeEnvironment  implements Closeable {
      * This prevents disasters if nodes are started under the wrong username etc.
      */
     private void assertCanWrite() throws IOException {
-        for (Path path : nodeDataPaths()) { // check node-paths are writable
-            tryWriteTempFile(path);
-        }
+        tryWriteTempFile(nodeDataPath());
         for (String indexFolderName : this.availableIndexFolders()) {
-            for (Path indexPath : this.resolveIndexFolder(indexFolderName)) { // check index paths are writable
-                Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
-                tryWriteTempFile(indexStatePath);
-                tryWriteTempFile(indexPath);
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                    for (Path shardPath : stream) {
-                        String fileName = shardPath.getFileName().toString();
-                        if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
-                            Path indexDir = shardPath.resolve(ShardPath.INDEX_FOLDER_NAME);
-                            Path statePath = shardPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
-                            Path translogDir = shardPath.resolve(ShardPath.TRANSLOG_FOLDER_NAME);
-                            tryWriteTempFile(indexDir);
-                            tryWriteTempFile(translogDir);
-                            tryWriteTempFile(statePath);
-                            tryWriteTempFile(shardPath);
-                        }
+            // check index paths are writable
+            Path indexPath = this.resolveIndexFolder(indexFolderName);
+            Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
+            tryWriteTempFile(indexStatePath);
+            tryWriteTempFile(indexPath);
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
+                for (Path shardPath : stream) {
+                    String fileName = shardPath.getFileName().toString();
+                    if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
+                        Path indexDir = shardPath.resolve(ShardPath.INDEX_FOLDER_NAME);
+                        Path statePath = shardPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
+                        Path translogDir = shardPath.resolve(ShardPath.TRANSLOG_FOLDER_NAME);
+                        tryWriteTempFile(indexDir);
+                        tryWriteTempFile(translogDir);
+                        tryWriteTempFile(statePath);
+                        tryWriteTempFile(shardPath);
                     }
                 }
             }

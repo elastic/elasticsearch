@@ -992,7 +992,7 @@ public class MetadataCreateIndexService {
             indexService.getIndexSortSupplier().get();
         }
         if (request.dataStreamName() != null) {
-            validateTimestampFieldMapping("@timestamp", mapperService);
+            validateTimestampFieldMapping(mapperService.mappingLookup());
         }
     }
 

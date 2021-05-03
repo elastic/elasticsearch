@@ -328,7 +328,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
     }
 
     public void testSearchRequestRuntimeFields() {

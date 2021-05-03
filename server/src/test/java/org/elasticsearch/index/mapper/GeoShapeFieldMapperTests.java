@@ -7,12 +7,14 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -54,6 +56,11 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_shape");
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     @Override
@@ -176,7 +183,8 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     public void testGeoShapeLegacyMerge() throws Exception {
-        MapperService m = createMapperService(fieldMapping(b -> b.field("type", "geo_shape")));
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", "geo_shape")));
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> merge(m, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive"))));
 
@@ -184,7 +192,7 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
             containsString("mapper [field] of type [geo_shape] cannot change strategy from [BKD] to [recursive]"));
         assertFieldWarnings("strategy");
 
-        MapperService lm = createMapperService(fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
+        MapperService lm = createMapperService(version, fieldMapping(b -> b.field("type", "geo_shape").field("strategy", "recursive")));
         e = expectThrows(IllegalArgumentException.class,
             () -> merge(lm, fieldMapping(b -> b.field("type", "geo_shape"))));
         assertThat(e.getMessage(),

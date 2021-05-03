@@ -61,7 +61,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
         dataMasterSettings = buildEnvSettings(Settings.EMPTY);
         environment = TestEnvironment.newEnvironment(dataMasterSettings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
-            nodePaths = nodeEnvironment.nodeDataPaths();
+            nodePaths = new Path[] { nodeEnvironment.nodeDataPath() };
             final String nodeId = randomAlphaOfLength(10);
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(nodePaths, nodeId,
                 xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
@@ -227,11 +227,10 @@ public class NodeRepurposeCommandTests extends ESTestCase {
                         .build());
                 }
             }
-            for (Path path : env.indexPaths(INDEX)) {
-                for (int i = 0; i < shardCount; ++i) {
-                    Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
-                    shardDataDirNumber += randomIntBetween(1,10);
-                }
+            Path path = env.indexPath(INDEX);
+            for (int i = 0; i < shardCount; ++i) {
+                Files.createDirectories(path.resolve(Integer.toString(shardDataDirNumber)));
+                shardDataDirNumber += randomIntBetween(1,10);
             }
         }
     }

@@ -17,6 +17,7 @@ public class Distribution {
     public final Packaging packaging;
     public final Platform platform;
     public final boolean hasJdk;
+    public final String baseVersion;
     public final String version;
 
     public Distribution(Path path) {
@@ -39,6 +40,7 @@ public class Distribution {
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.hasJdk = filename.contains("no-jdk") == false;
         String version = filename.split("-", 3)[1];
+        this.baseVersion = version;
         if (filename.contains("-SNAPSHOT")) {
             version += "-SNAPSHOT";
         }

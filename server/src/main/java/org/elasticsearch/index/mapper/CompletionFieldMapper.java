@@ -24,10 +24,12 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.FilterXContentParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -36,6 +38,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -339,9 +342,7 @@ public class CompletionFieldMapper extends FieldMapper {
         Token token = parser.currentToken();
         Map<String, CompletionInputMetadata> inputMap = new HashMap<>(1);
 
-        if (context.externalValueSet()) {
-            inputMap = getInputMapFromExternalValue(context);
-        } else if (token == Token.VALUE_NULL) { // ignore null values
+        if (token == Token.VALUE_NULL) { // ignore null values
             return;
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
@@ -378,25 +379,9 @@ public class CompletionFieldMapper extends FieldMapper {
 
         context.addToFieldNames(fieldType().name());
         for (CompletionInputMetadata metadata: inputMap.values()) {
-            ParseContext externalValueContext = context.createExternalValueContext(metadata);
+            ParseContext externalValueContext = context.switchParser(new CompletionParser(metadata));
             multiFields.parse(this, externalValueContext);
         }
-    }
-
-    private Map<String, CompletionInputMetadata> getInputMapFromExternalValue(ParseContext context) {
-        Map<String, CompletionInputMetadata> inputMap;
-        if (isExternalValueOfClass(context, CompletionInputMetadata.class)) {
-            CompletionInputMetadata inputAndMeta = (CompletionInputMetadata) context.externalValue();
-            inputMap = Collections.singletonMap(inputAndMeta.input, inputAndMeta);
-        } else {
-            String fieldName = context.externalValue().toString();
-            inputMap = Collections.singletonMap(fieldName, new CompletionInputMetadata(fieldName, Collections.emptyMap(), 1));
-        }
-        return inputMap;
-    }
-
-    private boolean isExternalValueOfClass(ParseContext context, Class<?> clazz) {
-        return context.externalValue().getClass().equals(clazz);
     }
 
     /**
@@ -510,6 +495,21 @@ public class CompletionFieldMapper extends FieldMapper {
         public String toString() {
             return input;
         }
+
+        Map<String, Object> toMap() {
+            Map<String, Object> map = new HashMap<>();
+            map.put("input", input);
+            map.put("weight", weight);
+            if (contexts.isEmpty() == false) {
+                Map<String, List<String>> contextsAsList = new HashMap<>();
+                contexts.forEach((k, v) -> {
+                    List<String> l = new ArrayList<>(v);
+                    contextsAsList.put(k, l);
+                });
+                map.put("contexts", contextsAsList);
+            }
+            return map;
+        }
     }
 
     @Override
@@ -528,6 +528,31 @@ public class CompletionFieldMapper extends FieldMapper {
             for (ContextMapping<?> contextMapping : fieldType().getContextMappings()) {
                 contextMapping.validateReferences(builder.indexVersionCreated, s -> mappers.fieldTypesLookup().get(s));
             }
+        }
+    }
+
+    private static class CompletionParser extends FilterXContentParser {
+
+        boolean advanced = false;
+        final String textValue;
+
+        private CompletionParser(CompletionInputMetadata metadata) throws IOException {
+            super(MapXContentParser.wrapObject(metadata.toMap()));
+            this.textValue = metadata.input;
+        }
+
+        @Override
+        public String textOrNull() throws IOException {
+            if (advanced == false) {
+                return textValue;
+            }
+            return super.textOrNull();
+        }
+
+        @Override
+        public Token nextToken() throws IOException {
+            advanced = true;
+            return super.nextToken();
         }
     }
 }

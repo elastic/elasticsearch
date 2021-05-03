@@ -22,7 +22,7 @@ a specific number of results.
 
 [discrete]
 [[run-an-es-search]]
-== Run a search
+=== Run a search
 
 You can use the <<search-search,search API>> to search and
 <<search-aggregations,aggregate>> data stored in {es} data streams or indices.
@@ -101,7 +101,7 @@ The API response returns the top 10 documents matching the query in the
 
 [discrete]
 [[run-search-runtime-fields]]
-== Define fields that exist only in a query
+=== Define fields that exist only in a query
 Instead of indexing your data and then searching it, you can define
 <<runtime-search-request,runtime fields>> that only exist as part of your
 search query. You specify a `runtime_mappings` section in your search request

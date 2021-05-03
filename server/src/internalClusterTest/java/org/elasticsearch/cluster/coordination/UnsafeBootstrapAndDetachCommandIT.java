@@ -156,7 +156,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
+        PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPath());
 
         expectThrows(() -> unsafeBootstrap(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }
@@ -170,7 +170,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build());
-        PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPaths());
+        PersistedClusterStateService.deleteAll(nodeEnvironment.nodeDataPath());
 
         expectThrows(() -> detachCluster(environment), ElasticsearchNodeCommand.NO_NODE_METADATA_FOUND_MSG);
     }

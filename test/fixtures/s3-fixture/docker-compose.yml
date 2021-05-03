@@ -57,7 +57,6 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./testfixtures_shared/shared:/fixture/shared
-      - /Users/fran/test:/Users/fran/test
     ports:
       - "80"
 

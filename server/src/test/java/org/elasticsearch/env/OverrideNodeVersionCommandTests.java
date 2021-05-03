@@ -42,7 +42,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
         environment = TestEnvironment.newEnvironment(settings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment)) {
-            nodePath = nodeEnvironment.nodeDataPaths()[0];
+            nodePath = nodeEnvironment.nodeDataPath();
             nodeId = nodeEnvironment.nodeId();
 
             try (PersistedClusterStateService.Writer writer = new PersistedClusterStateService(new Path[] { nodePath }, nodeId,

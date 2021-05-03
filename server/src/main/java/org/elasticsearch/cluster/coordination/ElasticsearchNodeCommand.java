@@ -129,11 +129,11 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected void processNodePaths(Terminal terminal, OptionSet options, Environment env) throws IOException, UserException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Obtaining lock for node");
         try (NodeEnvironment.NodeLock lock = new NodeEnvironment.NodeLock(logger, env, Files::exists)) {
-            if (lock.getNodePaths().length == 0) {
+            final NodeEnvironment.NodePath dataPath = lock.getNodePath();
+            if (dataPath == null) {
                 throw new ElasticsearchException(NO_NODE_FOLDER_FOUND_MSG);
             }
-            final Path dataPath = lock.getNodePaths()[0].path;
-            processNodePaths(terminal, dataPath, options, env);
+            processNodePaths(terminal, dataPath.path, options, env);
         } catch (LockObtainFailedException e) {
             throw new ElasticsearchException(FAILED_TO_OBTAIN_NODE_LOCK_MSG, e);
         }

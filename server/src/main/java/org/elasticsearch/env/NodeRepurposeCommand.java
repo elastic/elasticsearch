@@ -76,10 +76,10 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         NodeEnvironment.NodePath nodePath = createNodePath(dataPath);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
-        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(new NodeEnvironment.NodePath[] { nodePath });
+        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePath);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting index metadata paths");
-        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(new NodeEnvironment.NodePath[] { nodePath });
+        List<Path> indexMetadataPaths = NodeEnvironment.collectIndexMetadataPaths(nodePath);
 
         Set<Path> indexPaths = uniqueParentPaths(shardDataPaths, indexMetadataPaths);
 
@@ -115,7 +115,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         NodeEnvironment.NodePath nodePath = createNodePath(dataPath);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
-        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(new NodeEnvironment.NodePath[] { nodePath });
+        List<Path> shardDataPaths = NodeEnvironment.collectShardDataPaths(nodePath);
         if (shardDataPaths.isEmpty()) {
             terminal.println(NO_SHARD_DATA_TO_CLEAN_UP_FOUND);
             return;

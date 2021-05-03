@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
+import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
@@ -158,23 +158,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
      * coordinates that resolve to the Elastic download service through an ivy repository.
      */
     private String dependencyNotation(ElasticsearchDistribution distribution) {
-        if (distribution.getType().isIntegTestZip()) {
+        if (distribution.getType() == ElasticsearchDistributionTypes.INTEG_TEST_ZIP) {
             return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }
-
         Version distroVersion = Version.fromString(distribution.getVersion());
-        String extension = distribution.getType().toString();
-        String classifier = ":" + Architecture.current().classifier;
-        if (distribution.getType().isArchive()) {
-            extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
-            if (distroVersion.onOrAfter("7.0.0")) {
-                classifier = ":" + distribution.getPlatform() + "-" + Architecture.current().classifier;
-            } else {
-                classifier = "";
-            }
-        } else if (distribution.getType().isDeb()) {
-            classifier = ":amd64";
-        }
+        String extension = distribution.getType().getExtension(distribution.getPlatform());
+        String classifier = distribution.getType().getClassifier(distribution.getPlatform(), distroVersion);
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;
         return group + ":elasticsearch" + ":" + distribution.getVersion() + classifier + "@" + extension;
     }

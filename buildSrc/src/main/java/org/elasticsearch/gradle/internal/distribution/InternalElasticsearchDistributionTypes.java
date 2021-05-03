@@ -9,12 +9,8 @@
 package org.elasticsearch.gradle.internal.distribution;
 
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
-import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 
 public class InternalElasticsearchDistributionTypes {
-    public static ElasticsearchDistributionType ARCHIVE = ElasticsearchDistributionTypes.ARCHIVE;
-    public static ElasticsearchDistributionType INTEG_TEST_ZIP = ElasticsearchDistributionTypes.INTEG_TEST_ZIP;
-
     public static ElasticsearchDistributionType DEB = new DebElasticsearchDistributionType();
     public static ElasticsearchDistributionType RPM = new RpmElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER = new DockerElasticsearchDistributionType();

@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal;
 
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
+import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.internal.util.Util;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
@@ -24,6 +25,7 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
     public void apply(Project project) {
         project.getPluginManager().apply(BuildPlugin.class);
         project.getPluginManager().apply(PluginBuildPlugin.class);
+        project.getPluginManager().apply(RestTestBasePlugin.class);
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         // We've ported this from multiple build scripts where we see this pattern into

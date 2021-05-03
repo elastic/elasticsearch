@@ -23,7 +23,7 @@ class DocsTestPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        project.pluginManager.apply('elasticsearch.testclusters')
+        project.pluginManager.apply('elasticsearch.internal-testclusters')
         project.pluginManager.apply('elasticsearch.standalone-rest-test')
         project.pluginManager.apply('elasticsearch.rest-test')
 

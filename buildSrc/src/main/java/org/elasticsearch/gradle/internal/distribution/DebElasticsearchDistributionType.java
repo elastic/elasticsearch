@@ -8,7 +8,9 @@
 
 package org.elasticsearch.gradle.internal.distribution;
 
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
+import org.elasticsearch.gradle.Version;
 
 public class DebElasticsearchDistributionType implements ElasticsearchDistributionType {
 
@@ -20,38 +22,8 @@ public class DebElasticsearchDistributionType implements ElasticsearchDistributi
     }
 
     @Override
-    public boolean isIntegTestZip() {
-        return false;
-    }
-
-    @Override
-    public boolean isArchive() {
-        return false;
-    }
-
-    @Override
-    public boolean isRpm() {
-        return false;
-    }
-
-    @Override
-    public boolean isDeb() {
-        return true;
-    }
-
-    @Override
-    public boolean isDocker() {
-        return false;
-    }
-
-    @Override
-    public boolean isDockerUbi() {
-        return false;
-    }
-
-    @Override
-    public boolean isDockerIronBank() {
-        return false;
+    public String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
+        return ":amd64";
     }
 
     @Override

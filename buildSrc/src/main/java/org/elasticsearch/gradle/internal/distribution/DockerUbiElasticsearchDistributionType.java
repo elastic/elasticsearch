@@ -20,41 +20,6 @@ public class DockerUbiElasticsearchDistributionType implements ElasticsearchDist
     }
 
     @Override
-    public boolean isIntegTestZip() {
-        return false;
-    }
-
-    @Override
-    public boolean isArchive() {
-        return false;
-    }
-
-    @Override
-    public boolean isRpm() {
-        return false;
-    }
-
-    @Override
-    public boolean isDeb() {
-        return false;
-    }
-
-    @Override
-    public boolean isDocker() {
-        return false;
-    }
-
-    @Override
-    public boolean isDockerUbi() {
-        return true;
-    }
-
-    @Override
-    public boolean isDockerIronBank() {
-        return false;
-    }
-
-    @Override
     public boolean shouldExtract() {
         return false;
     }

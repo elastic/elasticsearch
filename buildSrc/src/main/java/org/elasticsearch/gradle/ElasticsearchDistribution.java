@@ -206,7 +206,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
 
     // internal, make this distribution's configuration unmodifiable
     void finalizeValues() {
-        if (getType().isIntegTestZip()) {
+        if (getType() == ElasticsearchDistributionTypes.INTEG_TEST_ZIP) {
             if (platform.getOrNull() != null) {
                 throw new IllegalArgumentException(
                     "platform cannot be set on elasticsearch distribution [" + name + "] of type [integ_test_zip]"
@@ -226,7 +226,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             );
         }
 
-        if (getType().isArchive()) {
+        if (getType() == ElasticsearchDistributionTypes.ARCHIVE) {
             // defaults for archive, set here instead of via convention so integ-test-zip can verify they are not set
             if (platform.isPresent() == false) {
                 platform.set(CURRENT_PLATFORM);

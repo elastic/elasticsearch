@@ -37,7 +37,7 @@ plugins {
   id 'elasticsearch.formatting'
   id 'elasticsearch.local-distribution'
   id 'elasticsearch.fips'
-  id 'elasticsearch.testclusters'
+  id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
   id "com.diffplug.spotless" version "5.12.0" apply false
 }

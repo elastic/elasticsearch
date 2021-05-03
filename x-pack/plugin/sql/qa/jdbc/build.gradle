@@ -56,7 +56,7 @@ subprojects {
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.testclusters'
+    apply plugin: 'elasticsearch.internal-testclusters'
     apply plugin: 'elasticsearch.rest-test'
 
     testClusters.all {

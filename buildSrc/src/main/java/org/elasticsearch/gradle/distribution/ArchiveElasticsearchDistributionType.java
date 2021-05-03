@@ -8,7 +8,10 @@
 
 package org.elasticsearch.gradle.distribution;
 
+import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
+import org.elasticsearch.gradle.Version;
 
 public class ArchiveElasticsearchDistributionType implements ElasticsearchDistributionType {
 
@@ -20,38 +23,13 @@ public class ArchiveElasticsearchDistributionType implements ElasticsearchDistri
     }
 
     @Override
-    public boolean isIntegTestZip() {
-        return false;
+    public String getExtension(ElasticsearchDistribution.Platform platform) {
+        return platform == ElasticsearchDistribution.Platform.WINDOWS ? "zip" : "tar.gz";
     }
 
     @Override
-    public boolean isArchive() {
-        return true;
-    }
-
-    @Override
-    public boolean isRpm() {
-        return false;
-    }
-
-    @Override
-    public boolean isDeb() {
-        return false;
-    }
-
-    @Override
-    public boolean isDocker() {
-        return false;
-    }
-
-    @Override
-    public boolean isDockerUbi() {
-        return false;
-    }
-
-    @Override
-    public boolean isDockerIronBank() {
-        return false;
+    public String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
+        return version.onOrAfter("7.0.0") ? ":" + platform + "-" + Architecture.current().classifier : "";
     }
 
     @Override

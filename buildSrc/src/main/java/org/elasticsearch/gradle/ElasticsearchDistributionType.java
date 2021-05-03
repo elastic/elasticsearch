@@ -9,23 +9,17 @@
 package org.elasticsearch.gradle;
 
 public interface ElasticsearchDistributionType {
-    boolean isIntegTestZip();
-
-    boolean isArchive();
-
-    boolean isRpm();
-
-    boolean isDeb();
-
-    boolean isDocker();
-
-    boolean isDockerUbi();
-
-    boolean isDockerIronBank();
-
     boolean shouldExtract();
 
     boolean isDockerBased();
 
     String getName();
+
+    default String getExtension(ElasticsearchDistribution.Platform platform) {
+        return getName();
+    }
+
+    default String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
+        return ":" + Architecture.current().classifier;
+    }
 }

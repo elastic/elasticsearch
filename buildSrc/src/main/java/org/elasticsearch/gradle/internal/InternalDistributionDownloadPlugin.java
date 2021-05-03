@@ -143,7 +143,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
             projectName += "no-jdk-";
         }
 
-        if (distribution.getType().isArchive()) {
+        if (distribution.getType() == ElasticsearchDistributionTypes.ARCHIVE) {
             return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
                 ? "-zip"
                 : "-tar");

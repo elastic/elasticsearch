@@ -10,9 +10,6 @@ package org.elasticsearch.gradle.testclusters;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
-import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -60,9 +57,7 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        BuildParams.withInternalBuild(() -> project.getPlugins().apply(InternalDistributionDownloadPlugin.class))
-            .orElse(() -> project.getPlugins().apply(DistributionDownloadPlugin.class));
+        project.getPlugins().apply(DistributionDownloadPlugin.class);
         project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
         Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),

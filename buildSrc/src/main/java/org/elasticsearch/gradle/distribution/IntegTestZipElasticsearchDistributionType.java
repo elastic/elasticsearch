@@ -20,41 +20,6 @@ public class IntegTestZipElasticsearchDistributionType implements ElasticsearchD
     }
 
     @Override
-    public boolean isIntegTestZip() {
-        return true;
-    }
-
-    @Override
-    public boolean isArchive() {
-        return false;
-    }
-
-    @Override
-    public boolean isRpm() {
-        return false;
-    }
-
-    @Override
-    public boolean isDeb() {
-        return false;
-    }
-
-    @Override
-    public boolean isDocker() {
-        return false;
-    }
-
-    @Override
-    public boolean isDockerUbi() {
-        return false;
-    }
-
-    @Override
-    public boolean isDockerIronBank() {
-        return false;
-    }
-
-    @Override
     public boolean shouldExtract() {
         return true;
     }

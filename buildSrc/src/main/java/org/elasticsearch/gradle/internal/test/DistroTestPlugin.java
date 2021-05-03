@@ -49,7 +49,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.ARCHIVE;
+import static org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes.ARCHIVE;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DEB;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_IRONBANK;
@@ -128,7 +128,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
             lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
 
-            if ((distribution.getType().isDeb() || distribution.getType().isRpm()) && distribution.getBundledJdk()) {
+            if ((distribution.getType() == DEB || distribution.getType() == RPM) && distribution.getBundledJdk()) {
                 for (Version version : BuildParams.getBwcVersions().getIndexCompatible()) {
                     final ElasticsearchDistribution bwcDistro;
                     if (version.equals(Version.fromString(distribution.getVersion()))) {
@@ -421,7 +421,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         ElasticsearchDistribution distro = distributions.create(name, d -> {
             d.setArchitecture(architecture);
             d.setType(type);
-            if (type.isArchive()) {
+            if (type == ARCHIVE) {
                 d.setPlatform(platform);
             }
             if (isDocker == false) {
@@ -446,7 +446,7 @@ public class DistroTestPlugin implements Plugin<Project> {
 
     private static String distroId(ElasticsearchDistributionType type, Platform platform, boolean bundledJdk, Architecture architecture) {
         return "default-"
-            + (type.isArchive() ? platform + "-" : "")
+            + (type == ARCHIVE ? platform + "-" : "")
             + type.getName()
             + (bundledJdk ? "" : "-no-jdk")
             + (architecture == Architecture.X64 ? "" : "-" + architecture.toString().toLowerCase());

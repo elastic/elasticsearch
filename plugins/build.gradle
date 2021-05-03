@@ -7,7 +7,7 @@
  */
 
 subprojects {
-  apply plugin: 'elasticsearch.testclusters'
+  apply plugin: 'elasticsearch.internal-testclusters'
 }
 
 // only configure immediate children of plugins dir

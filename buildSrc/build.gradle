@@ -105,6 +105,10 @@ gradlePlugin {
       id = 'elasticsearch.internal-test-artifact-base'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalTestArtifactBasePlugin'
     }
+    internalTestClusters {
+      id = 'elasticsearch.internal-testclusters'
+      implementationClass = 'org.elasticsearch.gradle.internal.InternalTestClustersPlugin'
+    }
     internalTestRerun {
       id = 'elasticsearch.internal-test-rerun'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin'

@@ -16,7 +16,6 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
@@ -59,7 +58,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
     public void apply(final Project project) {
         PrecommitTasks.create(project);
         project.getPluginManager().apply(JavaPlugin.class);
-        project.getPluginManager().apply(RestTestBasePlugin.class);
+        project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(CompileOnlyResolvePlugin.class);
 
         var extension = project.getExtensions().create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);

@@ -1,17 +1,6 @@
 {
   "template": {
     "mappings": {
-      "dynamic_templates": [
-        {
-          "match_message": {
-            "match_mapping_type": "string",
-            "match": "message",
-            "mapping": {
-              "type": "match_only_text"
-            }
-          }
-        }
-      ],
       "properties": {
         "data_stream": {
           "properties": {

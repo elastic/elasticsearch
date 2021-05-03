@@ -87,6 +87,7 @@ public class SystemDataStreamDescriptor {
         return componentTemplates;
     }
 
+    // TODO[wrb]: javadoc
     public SystemIndices.ThreadPools getThreadPools() {
         return this.threadPools;
     }

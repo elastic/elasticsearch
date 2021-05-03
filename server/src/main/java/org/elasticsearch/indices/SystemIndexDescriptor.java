@@ -452,6 +452,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return null;
     }
 
+    // TODO[wrb]: javadoc
     public SystemIndices.ThreadPools getThreadPools() {
         return this.threadPools;
     }

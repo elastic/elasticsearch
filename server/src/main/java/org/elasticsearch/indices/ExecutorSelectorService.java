@@ -27,6 +27,7 @@ public class ExecutorSelectorService {
         this.systemIndices = systemIndices;
     }
 
+    // TODO[wrb]: javadoc
     public String getGetExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
@@ -41,6 +42,7 @@ public class ExecutorSelectorService {
         return ThreadPool.Names.GET;
     }
 
+    // TODO[wrb]: javadoc
     public String getSearchExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
@@ -55,6 +57,7 @@ public class ExecutorSelectorService {
         return ThreadPool.Names.SEARCH;
     }
 
+    // TODO[wrb]: javadoc
     public String getWriteExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
@@ -69,6 +72,7 @@ public class ExecutorSelectorService {
         return ThreadPool.Names.WRITE;
     }
 
+    // TODO[wrb]: javadoc
     public static String getWriteExecutorForShard(ExecutorSelectorService executorSelectorService, IndexShard shard) {
         return executorSelectorService.getWriteExecutor(shard.shardId().getIndexName());
     }

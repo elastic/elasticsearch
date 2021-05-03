@@ -625,24 +625,29 @@ public class SystemIndices {
             plugin::cleanUpFeature);
     }
 
-    // this is a bad name for the class. Maybe DescriptorThreadPoolNameHolder?
+    // TODO[wrb]: this is a bad name for the class. Maybe DescriptorThreadPoolNameHolder?
+    // TODO[wrb]: javadoc
     public static class ThreadPools {
         private final String getPoolName;
         private final String searchPoolName;
         private final String writePoolName;
 
+        // TODO[wrb]: javadoc
         public static ThreadPools DEFAULT_SYSTEM_INDEX_THREAD_POOLS = new ThreadPools(
             ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE
         );
 
+        // TODO[wrb]: javadoc
         public static ThreadPools DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS = new ThreadPools(
             ThreadPool.Names.GET, ThreadPool.Names.SEARCH, ThreadPool.Names.WRITE
         );
 
+        // TODO[wrb]: javadoc
         public static ThreadPools CRITICAL_SYSTEM_INDEX_THREAD_POOLS = new ThreadPools(
             ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_CRITICAL_WRITE
         );
 
+        // TODO[wrb]: javadoc
         public ThreadPools(String getPoolName, String searchPoolName, String writePoolName) {
             if (ThreadPool.THREAD_POOL_TYPES.containsKey(getPoolName) == false) {
                 throw new IllegalArgumentException(getPoolName + " is not a valid thread pool");
@@ -658,14 +663,17 @@ public class SystemIndices {
             this.writePoolName = writePoolName;
         }
 
+        // TODO[wrb]: javadoc
         public String getGetPoolName() {
             return getPoolName;
         }
 
+        // TODO[wrb]: javadoc
         public String getSearchPoolName() {
             return searchPoolName;
         }
 
+        // TODO[wrb]: javadoc
         public String getWritePoolName() {
             return writePoolName;
         }

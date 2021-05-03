@@ -716,6 +716,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             assert Thread.currentThread() != executingThread;
             final boolean promised = executionLock.tryAcquire();
             responses.incrementAndGet();
+            // There's a risk that the executing thread and a responding thread both stop executing shard requests.
+            // We solve this issue by first acquire the execution lock, then increase the response counter, then retry
+            // again if we failed to acquire the lock in the step 1. We have a similar implementation in AsyncIOProcessor
+            // but we do not use it here because it's quite heavy and async.
             if (promised || executionLock.tryAcquire()) {
                 int processed;
                 do {

@@ -7,17 +7,17 @@ really helpful.
 
 [[scripting-field-extraction]]
 ==== Field extraction
-The goal of this use case is simple; you have fields in your data with a bunch of
+The goal of field extraction is simple; you have fields in your data with a bunch of
 information, but you only want to extract pieces and parts.
 
 There are two options at your disposal:
 
-* <<grok-basics,Grok>> uses a pattern like a regular expression that supports
-aliased expressions that you can reuse. Grok sits on top of regular expressions, so
-any regular expressions are valid in grok as well.
-* <<dissect-processor,Dissect>> extracts structured fields out of a single text
-field within a document, but doesn't use regular expressions. Instead, dissect uses
-patterns to match on fixed delimiters to extract part of a field.
+* <<grok-basics,Grok>> is a regular expression dialect that supports aliased
+expressions that you can reuse. Because Grok sits on top of regular expressions
+(regex), any regular expressions are valid in grok as well.
+* <<dissect-processor,Dissect>> extracts structured fields out of text, using
+delimiters to define the matching pattern. Unlike grok, dissect doesn't use regular
+expressions.
 
 Regex is incredibly powerful but can be complicated. If you don't need the
 power of regular expressions, use dissect patterns, which are simple and
@@ -99,7 +99,7 @@ PUT my-index/_mappings
 }
 ----
 // TEST[continued]
-<1> This condition ensures that the script doesn't crash even if the pattern of
+<1> This condition ensures that the script doesn't emit anything even if the pattern of
 the message doesn't match.
 
 You can define a simple query to run a search for a specific IP address and
@@ -283,7 +283,6 @@ interested in, and then the `used`, `capacity`, and `committed` data:
 ----
 [2021-04-27T16:16:34.699+0000][82460][gc,heap,exit]   class space    used 266K, capacity 384K, committed 384K, reserved 1048576K
 ----
-// NOTCONSOLE
 
 You can assign variables to each part of the data in the `gc` field, and then return
 only the parts that you want. Anything in curly braces `{}` is considered a variable.
@@ -294,7 +293,6 @@ three chunks of data, all of which are in square brackets `[]`.
 ----
 [%{@timestamp}][%{code}][%{desc}]  %{ident} used %{usize}, capacity %{csize}, committed %{comsize}, reserved %{rsize}
 ----
-// NOTCONSOLE
 
 Your dissect pattern can include the terms `used`, `capacity`, and `committed` instead
 of using variables, because you want to return those terms exactly. You also assign
@@ -308,11 +306,14 @@ field, and then returns exactly the information that you want as defined by the
 `emit` method. Because dissect uses simple syntax, you just need to tell it exactly
 what you want. 
 
-The following pattern tells dissect to return the term `used` followed by a space, plus
-the value from `gc.usize` and a comma. This pattern repeats for the other data that you
-want to retrieve:
+The following pattern tells dissect to return the term `used`, a blank space, the value
+from `gc.usize`, and a comma. This pattern repeats for the other data that you
+want to retrieve. While this pattern might not be as useful in production, it provides
+a lot of flexibility to experiment with and manipulate your data. In a production
+setting, you might just want to use `emit(gc.usize)` and then aggregate on that value
+or use it in computations. 
 
-[source,txt]
+[source,painless]
 ----
 emit("used" + ' ' + gc.usize + ', ' + "capacity" + ' ' + gc.csize + ', ' + "committed" + ' ' + gc.comsize)
 ----

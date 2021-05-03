@@ -27,7 +27,11 @@ public class ExecutorSelectorService {
         this.systemIndices = systemIndices;
     }
 
-    // TODO[wrb]: javadoc
+    /**
+     * The "get" executor should be used when retrieving documents by ID.
+     * @param indexName Name of the index
+     * @return Name of the executor to use for a get operation.
+     */
     public String getGetExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
@@ -42,7 +46,11 @@ public class ExecutorSelectorService {
         return ThreadPool.Names.GET;
     }
 
-    // TODO[wrb]: javadoc
+    /**
+     * The "search" executor should be used for search or aggregation operations.
+     * @param indexName Name of the index
+     * @return Name of the executor to use for a search operation.
+     */
     public String getSearchExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
@@ -57,7 +65,12 @@ public class ExecutorSelectorService {
         return ThreadPool.Names.SEARCH;
     }
 
-    // TODO[wrb]: javadoc
+    /**
+     * The "write" executor should be used for operations that write new documents or
+     * update existing ones.
+     * @param indexName Name of the index
+     * @return Name of the executor to use for a search operation.
+     */
     public String getWriteExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
@@ -72,7 +85,13 @@ public class ExecutorSelectorService {
         return ThreadPool.Names.WRITE;
     }
 
-    // TODO[wrb]: javadoc
+    /**
+     * This is a convenience method for the case when we need to find an executor for a shard.
+     * Note that it can be passed to methods as a {@link java.util.function.BiFunction}.
+     * @param executorSelectorService An executor selector service.
+     * @param shard A shard for which we need to find an executor.
+     * @return Name of the executor that should be used for write operations on this shard.
+     */
     public static String getWriteExecutorForShard(ExecutorSelectorService executorSelectorService, IndexShard shard) {
         return executorSelectorService.getWriteExecutor(shard.shardId().getIndexName());
     }

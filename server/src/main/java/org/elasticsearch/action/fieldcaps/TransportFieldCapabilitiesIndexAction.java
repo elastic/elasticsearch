@@ -109,7 +109,7 @@ public class TransportFieldCapabilitiesIndexAction
 
             Set<String> fieldNames = new HashSet<>();
             for (String pattern : request.fields()) {
-                fieldNames.addAll(searchExecutionContext.simpleMatchToIndexNames(pattern));
+                fieldNames.addAll(searchExecutionContext.getMatchingFieldNames(pattern));
             }
 
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());

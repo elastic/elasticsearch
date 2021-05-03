@@ -23,16 +23,16 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
         FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         assertNull(lookup.get("foo"));
-        Collection<String> names = lookup.simpleMatchToFullName("foo");
+        Collection<String> names = lookup.getMatchingFieldNames("foo");
         assertNotNull(names);
-        assertThat(names, equalTo(Set.of("foo")));
+        assertThat(names, hasSize(0));
     }
 
     public void testAddNewField() {
@@ -62,7 +62,7 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         FieldTypeLookup lookup = new FieldTypeLookup(List.of(field1, field2), List.of(alias1, alias2), List.of());
 
-        Collection<String> names = lookup.simpleMatchToFullName("b*");
+        Collection<String> names = lookup.getMatchingFieldNames("b*");
 
         assertFalse(names.contains("foo"));
         assertFalse(names.contains("food"));
@@ -132,13 +132,13 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(field1, concrete), emptyList(), List.of(field2, subfield));
         {
-            Set<String> matches = fieldTypeLookup.simpleMatchToFullName("fie*");
+            Set<String> matches = fieldTypeLookup.getMatchingFieldNames("fie*");
             assertEquals(2, matches.size());
             assertTrue(matches.contains("field1"));
             assertTrue(matches.contains("field2"));
         }
         {
-            Set<String> matches = fieldTypeLookup.simpleMatchToFullName("object.sub*");
+            Set<String> matches = fieldTypeLookup.getMatchingFieldNames("object.sub*");
             assertEquals(1, matches.size());
             assertTrue(matches.contains("object.subfield"));
         }

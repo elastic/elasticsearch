@@ -674,7 +674,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     Executor asyncSearchExecutor(final String[] indices) {
         final List<String> executorsForIndices = Arrays.stream(indices)
-            .map(executorSelectorService::getReadExecutor)
+            .map(executorSelectorService::getSearchExecutor)
             .collect(Collectors.toList());
         if (executorsForIndices.size() == 1) { // all indices have same executor
             return threadPool.executor(executorsForIndices.get(0));

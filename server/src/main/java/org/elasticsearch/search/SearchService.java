@@ -527,7 +527,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert indexShard != null;
         final String executorName;
         if (indexShard.isSystem()) {
-            executorName = executorSelectorService.getReadExecutor(indexShard.shardId().getIndexName());
+            executorName = executorSelectorService.getSearchExecutor(indexShard.shardId().getIndexName());
         } else if (indexShard.indexSettings().isSearchThrottled()) {
             executorName = Names.SEARCH_THROTTLED;
         } else {

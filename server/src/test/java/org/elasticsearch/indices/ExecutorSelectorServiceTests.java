@@ -32,7 +32,7 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
         ));
         String index = ".non-critical-system-index";
         assertThat(service.getGetExecutor(index), equalTo(ThreadPool.Names.SYSTEM_READ));
-        assertThat(service.getReadExecutor(index), equalTo(ThreadPool.Names.SYSTEM_READ));
+        assertThat(service.getSearchExecutor(index), equalTo(ThreadPool.Names.SYSTEM_READ));
         assertThat(service.getWriteExecutor(index), equalTo(ThreadPool.Names.SYSTEM_WRITE));
     }
 
@@ -52,7 +52,7 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
         ));
         String index = ".critical-system-index";
         assertThat(service.getGetExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
-        assertThat(service.getReadExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
+        assertThat(service.getSearchExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
         assertThat(service.getWriteExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_WRITE));
     }
 
@@ -78,7 +78,7 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
         ));
         String dataStream = ".test-data-stream";
         assertThat(service.getGetExecutor(dataStream), equalTo(ThreadPool.Names.GET));
-        assertThat(service.getReadExecutor(dataStream), equalTo(ThreadPool.Names.SEARCH));
+        assertThat(service.getSearchExecutor(dataStream), equalTo(ThreadPool.Names.SEARCH));
         assertThat(service.getWriteExecutor(dataStream), equalTo(ThreadPool.Names.WRITE));
     }
 
@@ -105,7 +105,7 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
         ));
         String dataStream = ".test-data-stream";
         assertThat(service.getGetExecutor(dataStream), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
-        assertThat(service.getReadExecutor(dataStream), equalTo(ThreadPool.Names.SYSTEM_READ));
+        assertThat(service.getSearchExecutor(dataStream), equalTo(ThreadPool.Names.SYSTEM_READ));
         assertThat(service.getWriteExecutor(dataStream), equalTo(ThreadPool.Names.SYSTEM_WRITE));
     }
 

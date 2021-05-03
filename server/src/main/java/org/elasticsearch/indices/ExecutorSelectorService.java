@@ -41,8 +41,7 @@ public class ExecutorSelectorService {
         return ThreadPool.Names.GET;
     }
 
-    // TODO: rename to getSearchExecutor
-    public String getReadExecutor(String indexName) {
+    public String getSearchExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
             return indexDescriptor.getThreadPools().getSearchPoolName();

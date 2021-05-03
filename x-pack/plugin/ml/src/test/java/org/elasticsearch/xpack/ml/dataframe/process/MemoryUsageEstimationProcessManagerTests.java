@@ -47,7 +47,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     private static final MemoryUsageEstimationResult PROCESS_RESULT =
         new MemoryUsageEstimationResult(ByteSizeValue.parseBytesSizeValue("20kB", ""), ByteSizeValue.parseBytesSizeValue("10kB", ""));
 
-    private ExecutorService executorServiceForJob;
     private ExecutorService executorServiceForProcess;
     private AnalyticsProcess<MemoryUsageEstimationResult> process;
     private AnalyticsProcessFactory<MemoryUsageEstimationResult> processFactory;
@@ -62,7 +61,6 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     @Before
     public void setUpMocks() {
-        executorServiceForJob = EsExecutors.newDirectExecutorService();
         executorServiceForProcess = mock(ExecutorService.class);
         process = mock(AnalyticsProcess.class);
         when(process.readAnalyticsResults()).thenReturn(List.of(PROCESS_RESULT).iterator());
@@ -78,7 +76,8 @@ public class MemoryUsageEstimationProcessManagerTests extends ESTestCase {
         resultCaptor = ArgumentCaptor.forClass(MemoryUsageEstimationResult.class);
         exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
 
-        processManager = new MemoryUsageEstimationProcessManager(executorServiceForJob, executorServiceForProcess, processFactory);
+        processManager =
+            new MemoryUsageEstimationProcessManager(EsExecutors.DIRECT_EXECUTOR_SERVICE, executorServiceForProcess, processFactory);
     }
 
     public void testRunJob_EmptyDataFrame() {

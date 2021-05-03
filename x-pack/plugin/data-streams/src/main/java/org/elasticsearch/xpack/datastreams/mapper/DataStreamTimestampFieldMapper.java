@@ -167,6 +167,17 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             configuredSettings.remove("type");
             configuredSettings.remove("meta");
             configuredSettings.remove("format");
+
+            // ignoring malformed values is disallowed (see previous check),
+            // however if `index.mapping.ignore_malformed` has been set to true then
+            // there is no way to disable ignore_malformed for the timestamp field mapper,
+            // other then not using 'index.mapping.ignore_malformed' at all.
+            // So by ignoring the ignore_malformed here, we allow index.mapping.ignore_malformed
+            // index setting to be set to true and then turned off for the timestamp field mapper.
+            // (ignore_malformed will here always be false, otherwise previous check would have failed)
+            Object value = configuredSettings.remove("ignore_malformed");
+            assert value == null || Boolean.FALSE.equals(value);
+
             // All other configured attributes are not allowed:
             if (configuredSettings.isEmpty() == false) {
                 throw new IllegalArgumentException(

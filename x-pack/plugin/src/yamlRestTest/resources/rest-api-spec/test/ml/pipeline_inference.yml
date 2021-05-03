@@ -105,7 +105,16 @@ setup:
       cluster.health:
         index: [".ml-inference-*", ".ml-stats-*"]
         wait_for_status: green
-
+---
+teardown:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.health:
+        index: [".ml-inference-*", ".ml-stats-*"]
+        wait_for_status: green
 ---
 "Test pipeline regression simple":
 

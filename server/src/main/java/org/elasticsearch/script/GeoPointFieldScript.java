@@ -42,6 +42,9 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         super(fieldName, params, searchLookup, ctx);
     }
 
+    /**
+     * Consumers must copy the emitted GeoPoint(s) if stored.
+     */
     public void runGeoPointForDoc(int doc, Consumer<GeoPoint> consumer) {
         runForDoc(doc);
         GeoPoint point = new GeoPoint();

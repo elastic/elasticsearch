@@ -266,16 +266,14 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
 
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
+        Boolean value = null;
+        XContentParser.Token token = context.parser().currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            if (nullValue != null) {
+                value = nullValue;
             }
+        } else {
+            value = context.parser().booleanValue();
         }
         indexValue(context, value);
     }
@@ -293,7 +291,7 @@ public class BooleanFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

@@ -92,7 +92,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
 
     static boolean needsUpgrade(ClusterState state) {
         return StreamSupport.stream(state.metadata().spliterator(), false)
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_7_13_0))
+            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
             .map(IndexMetadata::getSettings)
             .filter(SearchableSnapshotsConstants::isPartialSearchableSnapshotIndex)
             .anyMatch(SearchableSnapshotIndexMetadataUpgrader::notFrozenShardLimitGroup);
@@ -104,7 +104,7 @@ public class SearchableSnapshotIndexMetadataUpgrader {
         }
         Metadata.Builder builder = Metadata.builder(currentState.metadata());
         StreamSupport.stream(currentState.metadata().spliterator(), false)
-            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_7_13_0))
+            .filter(imd -> imd.getCreationVersion().onOrAfter(Version.V_7_12_0) && imd.getCreationVersion().before(Version.V_8_0_0))
             .filter(
                 imd -> SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(imd.getSettings())
                     && notFrozenShardLimitGroup(imd.getSettings())

@@ -15,13 +15,13 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -574,14 +574,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                     return null;
                 }
             };
-            MappingLookup mappingLookup = new MappingLookup(
+            MappingLookup mappingLookup = MappingLookup.fromMappers(
                 Mapping.EMPTY,
                 List.of(mockedTimestampField, dateFieldMapper),
                 List.of(),
-                List.of(),
-                null,
-                null,
-                null);
+                List.of());
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
@@ -676,14 +673,11 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                     return null;
                 }
             };
-            MappingLookup mappingLookup = new MappingLookup(
+            MappingLookup mappingLookup = MappingLookup.fromMappers(
                 Mapping.EMPTY,
                 List.of(mockedTimestampField, dateFieldMapper),
                 List.of(),
-                List.of(),
-                null,
-                null,
-                null);
+                List.of());
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);

@@ -316,9 +316,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
+        if (parser.currentToken() == Token.VALUE_NULL) {
             value = null;
         } else if (coerce.value()
                 && parser.currentToken() == Token.VALUE_STRING
@@ -365,7 +363,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         context.doc().addAll(fields);
 
         if (hasDocValues == false && (indexed || stored)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

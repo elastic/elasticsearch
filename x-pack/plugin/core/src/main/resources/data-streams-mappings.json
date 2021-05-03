@@ -55,9 +55,6 @@
         },
         "host": {
           "type": "object"
-        },
-        "observer": {
-          "type": "object"
         }
       }
     }

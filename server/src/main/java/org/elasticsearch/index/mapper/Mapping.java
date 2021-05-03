@@ -69,7 +69,11 @@ public final class Mapping implements ToXContentFragment {
 
     }
 
-    CompressedXContent toCompressedXContent() {
+    /**
+     * Outputs this mapping instance and returns it in {@link CompressedXContent} format
+     * @return the {@link CompressedXContent} representation of this mapping instance
+     */
+    public CompressedXContent toCompressedXContent() {
         try {
             return new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {

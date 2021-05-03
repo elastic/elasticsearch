@@ -105,6 +105,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -971,13 +972,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (MapperParsingException | IllegalArgumentException | TypeMissingException e) {
             return new Engine.DeleteResult(e, version, getOperationPrimaryTerm(), seqNo, false);
         }
-        if (mapperService.resolveDocumentType(type).equals(mapperService.documentMapper().type()) == false) {
+        if (mapperService.resolveDocumentType(type).equals(mapperService.mappingLookup().getType()) == false) {
             // We should never get there due to the fact that we generate mapping updates on deletes,
             // but we still prefer to have a hard exception here as we would otherwise delete a
             // document in the wrong type.
             throw new IllegalStateException("Deleting document from type [" +
                     mapperService.resolveDocumentType(type) + "] while current type is [" +
-                    mapperService.documentMapper().type() + "]");
+                    mapperService.mappingLookup().getType() + "]");
         }
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         final Engine.Delete delete = prepareDelete(type, id, uid, seqNo, opPrimaryTerm, version,
@@ -1012,11 +1013,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
-        DocumentMapper mapper = mapperService.documentMapper();
-        if (mapper == null || mapper.type().equals(mapperService.resolveDocumentType(get.type())) == false) {
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        if (mappingLookup.hasMappings() == false ||
+            mappingLookup.getType().equals(mapperService.resolveDocumentType(get.type())) == false) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, mapper, this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, this::wrapSearcher);
     }
 
     /**

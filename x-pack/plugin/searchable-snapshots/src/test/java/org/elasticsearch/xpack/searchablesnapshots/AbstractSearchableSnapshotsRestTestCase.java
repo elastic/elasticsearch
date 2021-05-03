@@ -172,8 +172,12 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testSearchResultsWhenFrozen() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
-            freezeRequest.setOptions(expectWarnings("Frozen indices are deprecated because they provide no benefit given improvements in " +
-                "heap memory utilization. They will be removed in a future release."));
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given improvements in " +
+                        "heap memory utilization. They will be removed in a future release."
+                )
+            );
             assertOK(client().performRequest(freezeRequest));
             ensureGreen(restoredIndexName);
             for (int i = 0; i < 10; i++) {

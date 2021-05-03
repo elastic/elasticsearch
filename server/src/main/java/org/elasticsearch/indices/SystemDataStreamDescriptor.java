@@ -90,8 +90,11 @@ public class SystemDataStreamDescriptor {
         return componentTemplates;
     }
 
-    // TODO[wrb]: javadoc
-    public SystemIndices.DescriptorThreadPoolNames getThreadPools() {
+    /**
+     * Get the names of the thread pools that should be used for operations on this data stream.
+     * @return Names for get, search, and write executors.
+     */
+    public SystemIndices.DescriptorThreadPoolNames getThreadPoolNames() {
         return this.descriptorThreadPoolNames;
     }
 

@@ -40,7 +40,7 @@ public class ExecutorSelectorService {
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
         if (Objects.nonNull(dataStreamDescriptor)) {
-            return dataStreamDescriptor.getThreadPools().getGetPoolName();
+            return dataStreamDescriptor.getThreadPoolNames().getGetPoolName();
         }
 
         return ThreadPool.Names.GET;
@@ -59,7 +59,7 @@ public class ExecutorSelectorService {
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
         if (Objects.nonNull(dataStreamDescriptor)) {
-            return dataStreamDescriptor.getThreadPools().getSearchPoolName();
+            return dataStreamDescriptor.getThreadPoolNames().getSearchPoolName();
         }
 
         return ThreadPool.Names.SEARCH;
@@ -79,7 +79,7 @@ public class ExecutorSelectorService {
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
         if (Objects.nonNull(dataStreamDescriptor)) {
-            return dataStreamDescriptor.getThreadPools().getWritePoolName();
+            return dataStreamDescriptor.getThreadPoolNames().getWritePoolName();
         }
 
         return ThreadPool.Names.WRITE;

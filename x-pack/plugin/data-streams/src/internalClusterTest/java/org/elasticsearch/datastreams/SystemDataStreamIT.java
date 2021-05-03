@@ -329,7 +329,7 @@ public class SystemDataStreamIT extends ESIntegTestCase {
                         ),
                         Map.of(),
                         List.of("product"),
-                        SystemIndices.ThreadPools.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                        SystemIndices.DescriptorThreadPoolNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
                     )
                 );
             } catch (IOException e) {

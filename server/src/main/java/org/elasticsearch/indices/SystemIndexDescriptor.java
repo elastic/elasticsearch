@@ -99,7 +99,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
     /**
      * The thread pools that actions will use to operate on this descriptor's system indices
      */
-    private final SystemIndices.ThreadPools threadPools;
+    private final SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames;
 
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
@@ -161,7 +161,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         Type type,
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
-        SystemIndices.ThreadPools threadPools
+        SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -254,15 +254,15 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             }
         }
 
-        if (Objects.nonNull(threadPools)) {
-            if (ThreadPool.THREAD_POOL_TYPES.containsKey(threadPools.getGetPoolName()) == false) {
-                throw new IllegalArgumentException(threadPools.getGetPoolName() + " is not a valid thread pool");
+        if (Objects.nonNull(descriptorThreadPoolNames)) {
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(descriptorThreadPoolNames.getGetPoolName()) == false) {
+                throw new IllegalArgumentException(descriptorThreadPoolNames.getGetPoolName() + " is not a valid thread pool");
             }
-            if (ThreadPool.THREAD_POOL_TYPES.containsKey(threadPools.getSearchPoolName()) == false) {
-                throw new IllegalArgumentException(threadPools.getGetPoolName() + " is not a valid thread pool");
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(descriptorThreadPoolNames.getSearchPoolName()) == false) {
+                throw new IllegalArgumentException(descriptorThreadPoolNames.getGetPoolName() + " is not a valid thread pool");
             }
-            if (ThreadPool.THREAD_POOL_TYPES.containsKey(threadPools.getWritePoolName()) == false) {
-                throw new IllegalArgumentException(threadPools.getGetPoolName() + " is not a valid thread pool");
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(descriptorThreadPoolNames.getWritePoolName()) == false) {
+                throw new IllegalArgumentException(descriptorThreadPoolNames.getGetPoolName() + " is not a valid thread pool");
             }
         }
 
@@ -297,7 +297,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             sortedPriorSystemIndexDescriptors = List.copyOf(copy);
         }
         this.priorSystemIndexDescriptors = sortedPriorSystemIndexDescriptors;
-        this.threadPools = Objects.nonNull(threadPools) ? threadPools : SystemIndices.ThreadPools.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
+        this.descriptorThreadPoolNames = Objects.nonNull(descriptorThreadPoolNames)
+            ? descriptorThreadPoolNames
+            : SystemIndices.DescriptorThreadPoolNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
     }
 
 
@@ -453,8 +455,8 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
     }
 
     // TODO[wrb]: javadoc
-    public SystemIndices.ThreadPools getThreadPools() {
-        return this.threadPools;
+    public SystemIndices.DescriptorThreadPoolNames getThreadPools() {
+        return this.descriptorThreadPoolNames;
     }
 
     public static Builder builder() {
@@ -524,7 +526,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
-        private SystemIndices.ThreadPools threadPools;
+        private SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames;
 
         private Builder() {}
 
@@ -598,8 +600,8 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             return this;
         }
 
-        public Builder setThreadPools(SystemIndices.ThreadPools threadPools) {
-            this.threadPools = threadPools;
+        public Builder setThreadPools(SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames) {
+            this.descriptorThreadPoolNames = descriptorThreadPoolNames;
             return this;
         }
 
@@ -623,7 +625,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
                 type,
                 allowedElasticProductOrigins,
                 priorSystemIndexDescriptors,
-                threadPools
+                descriptorThreadPoolNames
             );
         }
     }

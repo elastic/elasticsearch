@@ -28,7 +28,7 @@ public class SystemDataStreamDescriptor {
     private final ComposableIndexTemplate composableIndexTemplate;
     private final Map<String, ComponentTemplate> componentTemplates;
     private final List<String> allowedElasticProductOrigins;
-    private final SystemIndices.ThreadPools threadPools;
+    private final SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames;
 
     /**
      * Creates a new descriptor for a system data descriptor
@@ -41,11 +41,12 @@ public class SystemDataStreamDescriptor {
      *                           {@link ComposableIndexTemplate}
      * @param allowedElasticProductOrigins a list of product origin values that are allowed to access this data stream if the
      *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
-     * @param threadPools thread pools that should be used for operations on the system data stream
+     * @param descriptorThreadPoolNames thread pools that should be used for operations on the system data stream
      */
     public SystemDataStreamDescriptor(String dataStreamName, String description, Type type,
                                       ComposableIndexTemplate composableIndexTemplate, Map<String, ComponentTemplate> componentTemplates,
-                                      List<String> allowedElasticProductOrigins, SystemIndices.ThreadPools threadPools) {
+                                      List<String> allowedElasticProductOrigins,
+                                      SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames) {
         this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
         this.description = Objects.requireNonNull(description, "description must be specified");
         this.type = Objects.requireNonNull(type, "type must be specified");
@@ -56,7 +57,9 @@ public class SystemDataStreamDescriptor {
         if (type == Type.EXTERNAL && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system data stream without allowed products is not a valid combination");
         }
-        this.threadPools = Objects.nonNull(threadPools) ? threadPools : SystemIndices.ThreadPools.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
+        this.descriptorThreadPoolNames = Objects.nonNull(descriptorThreadPoolNames)
+            ? descriptorThreadPoolNames
+            : SystemIndices.DescriptorThreadPoolNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
     }
 
     public String getDataStreamName() {
@@ -88,8 +91,8 @@ public class SystemDataStreamDescriptor {
     }
 
     // TODO[wrb]: javadoc
-    public SystemIndices.ThreadPools getThreadPools() {
-        return this.threadPools;
+    public SystemIndices.DescriptorThreadPoolNames getThreadPools() {
+        return this.descriptorThreadPoolNames;
     }
 
     public enum Type {

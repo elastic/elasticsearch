@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -176,6 +177,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
+                throw new IllegalArgumentException("using deprecated parameters " + Arrays.toString(deprecatedParams.toArray())
+                    + " in mapper [" + name + "] of type [geo_shape] is no longer allowed");
+            }
             builder = new LegacyGeoShapeFieldMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),

@@ -75,7 +75,9 @@ indices.
 `follow_index_pattern`::
   (Optional, string) The name of follower index. The template `{{leader_index}}`
   can be used to derive the name of the follower index from the name of the
-  leader index.
+  leader index. When following a data stream, use `{{leader_index}}`; {ccr-init}
+  does not support changes to the names of a follower data stream's backing
+  indices.
 
 include::../follow-request-body.asciidoc[]
 

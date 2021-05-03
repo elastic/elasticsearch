@@ -108,10 +108,9 @@ subprojects {
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
 
-  // We do this substitution already in InternalPluginBuildPlugin to substitute
-  // dependencies introduced by the PluginBuildPlugin but this won't work for projects
+  // We substitute dependencies introduced by the PluginBuildPlugin but this won't work for projects
   // consuming plugin projects. TODO: find a more elegant approach
-  project.getConfigurations().all(c -> {
+  project.getConfigurations().matching(c -> c.getName().matches("es\\d+") == false ).configureEach(c -> {
     // add dependency substitution rules
     c.getResolutionStrategy().dependencySubstitution(subs -> {
       subs.substitute(subs.module("org.elasticsearch.test:framework")).with(subs.project(":test:framework"));

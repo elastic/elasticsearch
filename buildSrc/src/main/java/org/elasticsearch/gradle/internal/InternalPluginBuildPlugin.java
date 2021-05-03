@@ -28,14 +28,6 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
         project.getPluginManager().apply(RestTestBasePlugin.class);
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
-        // We want to rely on project dependencies here.
-        project.getConfigurations().all(c -> {
-            // add dependency substitution rules
-            c.getResolutionStrategy().dependencySubstitution(subs -> {
-                subs.substitute(subs.module("org.elasticsearch.test:framework")).with(subs.project(":test:framework"));
-                subs.substitute(subs.module("org.elasticsearch:elasticsearch")).with(subs.project(":server"));
-            });
-        });
         // We've ported this from multiple build scripts where we see this pattern into
         // an extension method as a first step of consolidation.
         // We might want to port this into a general pattern later on.

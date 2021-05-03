@@ -160,8 +160,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
         if (type == null || type.equals("_all")) {
-            DocumentMapper mapper = mapperService.documentMapper();
-            type = mapper == null ? null : mapper.type();
+            MappingLookup mappingLookup = mapperService.mappingLookup();
+            type = mappingLookup.hasMappings() ? mappingLookup.getType() : null;
         }
 
         Engine.GetResult get = null;
@@ -272,8 +272,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {
-                fieldVisitor.postProcess(mapperService::fieldType,
-                    mapperService.documentMapper() == null ? null : mapperService.documentMapper().type());
+                fieldVisitor.postProcess(mapperService::fieldType, mappingLookup.hasMappings() ? mappingLookup.getType() : null);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {

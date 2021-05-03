@@ -31,6 +31,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -287,7 +288,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         } else {
             leaf.reader().document(segmentDocID, fields);
         }
-        fields.postProcess(mapperService::fieldType, mapperService.documentMapper() == null ? null : mapperService.documentMapper().type());
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        fields.postProcess(mapperService::fieldType, mappingLookup.hasMappings() ? mappingLookup.getType() : null);
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];

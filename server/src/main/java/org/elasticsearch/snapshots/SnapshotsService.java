@@ -269,7 +269,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
-                SnapshotsService.ensureHealthyTaskVersions(repositoryName, currentState);
+                ensureHealthyTaskVersions(repositoryName, currentState);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
                 ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
@@ -1127,7 +1127,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 throw new ConcurrentSnapshotExecutionException(
                         repoName,
                         "_na",
-                        "cannot execute operation while version incompatible snapshot operations are being removed from the cluster state"
+                        "cannot execute operation while version incompatible snapshot operation of version ["
+                                + entry.version() + "] is being removed from the cluster state that contains nodes of version ["
+                                + minNodeVersion + "]"
                 );
             }
         }

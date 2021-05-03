@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
-import org.elasticsearch.gradle.ElasticsearchDistribution.Type;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
@@ -159,21 +158,21 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
      * coordinates that resolve to the Elastic download service through an ivy repository.
      */
     private String dependencyNotation(ElasticsearchDistribution distribution) {
-        if (distribution.getType() == Type.INTEG_TEST_ZIP) {
+        if (distribution.getType().isIntegTestZip()) {
             return "org.elasticsearch.distribution.integ-test-zip:elasticsearch:" + distribution.getVersion() + "@zip";
         }
 
         Version distroVersion = Version.fromString(distribution.getVersion());
         String extension = distribution.getType().toString();
         String classifier = ":" + Architecture.current().classifier;
-        if (distribution.getType() == Type.ARCHIVE) {
+        if (distribution.getType().isArchive()) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             if (distroVersion.onOrAfter("7.0.0")) {
                 classifier = ":" + distribution.getPlatform() + "-" + Architecture.current().classifier;
             } else {
                 classifier = "";
             }
-        } else if (distribution.getType() == Type.DEB) {
+        } else if (distribution.getType().isDeb()) {
             classifier = ":amd64";
         }
         String group = distribution.getVersion().endsWith("-SNAPSHOT") ? FAKE_SNAPSHOT_IVY_GROUP : FAKE_IVY_GROUP;

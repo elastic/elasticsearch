@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
+import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
@@ -269,12 +270,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void setDistributionType(ElasticsearchDistribution distribution, TestDistribution testDistribution) {
         if (testDistribution == TestDistribution.INTEG_TEST) {
-            distribution.setType(ElasticsearchDistribution.Type.INTEG_TEST_ZIP);
+            distribution.setType(ElasticsearchDistributionTypes.INTEG_TEST_ZIP);
             // we change the underlying distribution when changing the test distribution of the cluster.
             distribution.setPlatform(null);
             distribution.setBundledJdk(null);
         } else {
-            distribution.setType(ElasticsearchDistribution.Type.ARCHIVE);
+            distribution.setType(ElasticsearchDistributionTypes.ARCHIVE);
         }
     }
 

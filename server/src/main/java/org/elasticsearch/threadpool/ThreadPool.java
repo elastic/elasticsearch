@@ -350,7 +350,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final Runnable contextPreservingRunnable = threadContext.preserveContext(command);
         final Runnable toSchedule;
         if (Names.SAME.equals(executor) == false) {
-            toSchedule = new ThreadedRunnable(command, executor(executor));
+            toSchedule = new ThreadedRunnable(contextPreservingRunnable, executor(executor));
         } else if (slowSchedulerWarnThresholdNanos > 0) {
             toSchedule = new Runnable() {
                 @Override

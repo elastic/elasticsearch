@@ -963,21 +963,21 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // In order to work around this issue, we make deletions create types. This way, we
         // fail if index and delete operations do not use the same type.
         // TODO: clean this up when types are gone
+        String resolvedType = mapperService.resolveDocumentType(type);
         try {
-            DocumentMapper documentMapper = mapperService.documentMapper(type);
+            DocumentMapper documentMapper = mapperService.documentMapper(resolvedType);
             if (documentMapper == null) {
-                documentMapper = DocumentMapper.createEmpty(type, mapperService);
+                documentMapper = DocumentMapper.createEmpty(resolvedType, mapperService);
                 return new Engine.DeleteResult(documentMapper.mapping());
             }
         } catch (MapperParsingException | IllegalArgumentException | TypeMissingException e) {
             return new Engine.DeleteResult(e, version, getOperationPrimaryTerm(), seqNo, false);
         }
-        if (mapperService.resolveDocumentType(type).equals(mapperService.mappingLookup().getType()) == false) {
+        if (resolvedType.equals(mapperService.mappingLookup().getType()) == false) {
             // We should never get there due to the fact that we generate mapping updates on deletes,
             // but we still prefer to have a hard exception here as we would otherwise delete a
             // document in the wrong type.
-            throw new IllegalStateException("Deleting document from type [" +
-                    mapperService.resolveDocumentType(type) + "] while current type is [" +
+            throw new IllegalStateException("Deleting document from type [" + resolvedType + "] while current type is [" +
                     mapperService.mappingLookup().getType() + "]");
         }
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
@@ -987,11 +987,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long primaryTerm, long version,
-                                               VersionType versionType, Engine.Operation.Origin origin,
-                                               long ifSeqNo, long ifPrimaryTerm) {
+                                        VersionType versionType, Engine.Operation.Origin origin, long ifSeqNo, long ifPrimaryTerm) {
         long startTime = System.nanoTime();
-        return new Engine.Delete(mapperService.resolveDocumentType(type), id, uid, seqNo, primaryTerm, version, versionType,
-            origin, startTime, ifSeqNo, ifPrimaryTerm);
+        return new Engine.Delete(type, id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
     }
 
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) throws IOException {

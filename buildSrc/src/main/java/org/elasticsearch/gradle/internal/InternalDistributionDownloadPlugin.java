@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.DistributionDependency;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.DistributionResolution;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
@@ -55,7 +56,6 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
     private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
-
         resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
                 // non-external project, so depend on local build

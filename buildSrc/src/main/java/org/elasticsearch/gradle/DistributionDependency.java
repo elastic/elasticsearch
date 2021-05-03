@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle;
 
 public interface DistributionDependency {
     static DistributionDependency of(String dependencyNotation) {

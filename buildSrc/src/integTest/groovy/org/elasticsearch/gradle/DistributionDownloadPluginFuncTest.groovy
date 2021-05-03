@@ -18,7 +18,7 @@ import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.with
 class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     @Unroll
-    def "#distType version can be resolved"() {
+    def "extracted #distType version can be resolved"() {
         given:
         buildFile << applyPluginAndSetupDistro(version, platform)
 

@@ -103,10 +103,6 @@ transitioning into the frozen tier into a shared-cache searchable snapshot.
 Search is typically slower on the frozen tier than the cold tier, because {es}
 must sometimes fetch data from the snapshot repository.
 
-NOTE: The frozen tier is not yet available on {ess-trial}[{ess}]. To
-recreate similar functionality, see
-<<searchable-snapshots-frozen-tier-on-cloud>>.
-
 [discrete]
 [[data-tier-allocation]]
 === Data tier index allocation

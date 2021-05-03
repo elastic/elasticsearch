@@ -83,6 +83,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -1164,9 +1165,9 @@ public abstract class EngineTestCase extends ESTestCase {
         return mapperService;
     }
 
-    public static DocumentMapper docMapper(String type) {
+    public static MappingLookup mappingLookup(String type) {
         try {
-            return createMapperService(type).documentMapper();
+            return createMapperService(type).mappingLookup();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

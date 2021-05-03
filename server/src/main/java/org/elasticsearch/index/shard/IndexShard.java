@@ -99,13 +99,13 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -1004,11 +1004,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public Engine.GetResult get(Engine.Get get) {
         readAllowed();
-        DocumentMapper mapper = mapperService.documentMapper();
-        if (mapper == null || mapper.type().equals(mapperService.resolveDocumentType(get.type())) == false) {
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        if (mappingLookup.hasMappings() == false ||
+            mappingLookup.getType().equals(mapperService.resolveDocumentType(get.type())) == false) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, mapper, this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, this::wrapSearcher);
     }
 
     /**

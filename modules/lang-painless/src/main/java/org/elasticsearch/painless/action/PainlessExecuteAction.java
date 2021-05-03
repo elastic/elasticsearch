@@ -662,7 +662,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
                     SourceToParse sourceToParse = new SourceToParse(index, type, "_id", document, xContentType);
-                    ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
+                    //TODO this throws NPE when called against an empty index with no provided mappings: DocumentMapper is null
+                    // and the corresponding empty MappingLookup does not have a DocumentParser set
+                    ParsedDocument parsedDocument = indexService.mapperService().mappingLookup().parseDocument(sourceToParse);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
                         final IndexSearcher searcher = new IndexSearcher(indexReader);

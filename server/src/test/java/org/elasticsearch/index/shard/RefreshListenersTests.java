@@ -334,7 +334,7 @@ public class RefreshListenersTests extends ESTestCase {
 
                         Engine.Get get = new Engine.Get(false, false, "test", threadId, new Term(IdFieldMapper.NAME, threadId));
                         try (Engine.GetResult getResult =
-                                 engine.get(get, EngineTestCase.docMapper(get.type()), EngineTestCase.randomSearcherWrapper())) {
+                                 engine.get(get, EngineTestCase.mappingLookup(get.type()), EngineTestCase.randomSearcherWrapper())) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
                             org.apache.lucene.document.Document document =

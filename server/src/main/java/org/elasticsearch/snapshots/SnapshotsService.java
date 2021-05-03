@@ -922,6 +922,10 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             private final Collection<SnapshotDeletionsInProgress.Entry> deletionsToExecute = new ArrayList<>();
 
+            private final Collection<SnapshotsInProgress.Entry> snapshotsToBwCFail = new ArrayList<>();
+
+            private final Collection<SnapshotDeletionsInProgress.Entry> deletionsToBwCFail = new ArrayList<>();
+
             @Override
             public ClusterState execute(ClusterState currentState) {
                 RoutingTable routingTable = currentState.routingTable();
@@ -948,26 +952,33 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 Set<String> reposWithIncompatibleTasks = null;
 
                 for (final SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
-                    if (snapshot.version().after(minNodeVersion)) {
-                        // BwC path logic to deal with the situation where an older node joins the cluster after snapshots for a newer
-                        // version have been started already. In this case we can only remove the snapshot from the cluster state as
-                        // current nodes in the cluster are not be compatible with the state machine of the snapshot potentially and could
-                        // therefore corrupt the repository.
-                        changed = true;
-                        logger.warn(
-                                "snapshot [{}] was found running in version [{}] compatibility mode but there is at least one node  " +
-                                        "of version [{}] in the cluster now. Aborting the snapshot.",
-                                snapshot.snapshot(),
-                                snapshot.version(),
-                                minNodeVersion);
-                        if (reposWithIncompatibleTasks == null) {
-                            reposWithIncompatibleTasks = new HashSet<>();
-                        }
-                        reposWithIncompatibleTasks.add(snapshot.repository());
-                    } else if (reposWithIncompatibleTasks != null && reposWithIncompatibleTasks.contains(snapshot.repository())) {
+                   if (reposWithIncompatibleTasks != null && reposWithIncompatibleTasks.contains(snapshot.repository())) {
                         logger.warn("aborting snapshot [{}] because snapshot tasks for an incompatible Elasticsearch version" +
                                 " were found operating on its target repository", snapshot.snapshot());
+                        snapshotsToBwCFail.add(snapshot);
                     } else if (statesToUpdate.contains(snapshot.state())) {
+                       if (snapshot.version().after(minNodeVersion)) {
+                           assert changedNodes : "we can only see a new older version node if the node configuration changed";
+                           // BwC path logic to deal with the situation where an older node joins the cluster after snapshots for a newer
+                           // version have been started already. In this case we can only remove the snapshot from the cluster state as
+                           // current nodes in the cluster are not be compatible with the state machine of the snapshot potentially and
+                           // could therefore corrupt the repository.
+                           // We only do this here for the in-progress snapshot states to not interfere with snapshot finalization which
+                           // we have no way to safely abort.
+                           changed = true;
+                           logger.warn(
+                                   "snapshot [{}] was found running in version [{}] compatibility mode but there is at least one node " +
+                                           "of version [{}] in the cluster now. Aborting the snapshot.",
+                                   snapshot.snapshot(),
+                                   snapshot.version(),
+                                   minNodeVersion);
+                           if (reposWithIncompatibleTasks == null) {
+                               reposWithIncompatibleTasks = new HashSet<>();
+                           }
+                           reposWithIncompatibleTasks.add(snapshot.repository());
+                           snapshotsToBwCFail.add(snapshot);
+                           continue;
+                       }
                         // Currently initializing clone
                         if (snapshot.isClone() && snapshot.clones().isEmpty()) {
                             if (initializingClones.contains(snapshot.snapshot())) {
@@ -1017,6 +1028,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             } else {
                                 updatedDeletionsInProgress = updatedDeletionsInProgress.withRemovedEntry(delete.uuid());
                             }
+                            deletionsToBwCFail.add(delete);
                         }
                     }
                 }
@@ -1068,6 +1080,28 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (tryEnterRepoLoop(entry.repository())) {
                         deleteSnapshotsFromRepository(entry, newState.nodes().getMinNodeVersion());
                     }
+                }
+
+                for (SnapshotsInProgress.Entry entry : snapshotsToBwCFail) {
+                    failSnapshotCompletionListeners(
+                            entry.snapshot(),
+                            new ConcurrentSnapshotExecutionException(
+                                    entry.snapshot(),
+                                    "one or more nodes of a version older than the compatibility version of this snapshot joined the " +
+                                            "cluster while it was running"
+                            )
+                    );
+                }
+                for (SnapshotDeletionsInProgress.Entry entry : deletionsToBwCFail) {
+                    failListenersIgnoringException(
+                            snapshotDeletionListeners.remove(entry.uuid()),
+                            new ConcurrentSnapshotExecutionException(
+                                    entry.repository(),
+                                    "_na",
+                                    "one or more nodes of a version incompatible to this repository operation joined the cluster"
+                            )
+                    );
+                    repositoryOperations.finishDeletion(entry.uuid());
                 }
             }
         });

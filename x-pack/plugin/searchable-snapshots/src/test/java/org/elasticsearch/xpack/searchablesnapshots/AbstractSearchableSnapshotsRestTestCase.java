@@ -174,8 +174,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
             freezeRequest.setOptions(
                 expectWarnings(
-                    "Frozen indices are deprecated because they provide no benefit given improvements in " +
-                        "heap memory utilization. They will be removed in a future release."
+                    "Frozen indices are deprecated because they provide no benefit given improvements in "
+                        + "heap memory utilization. They will be removed in a future release."
                 )
             );
             assertOK(client().performRequest(freezeRequest));

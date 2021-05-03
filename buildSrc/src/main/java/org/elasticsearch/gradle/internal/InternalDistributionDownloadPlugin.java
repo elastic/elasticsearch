@@ -99,7 +99,6 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
                 : "expanded-" + distributionProjectName;
         } else {
             return distributionProjectName;
-
         }
 
     }

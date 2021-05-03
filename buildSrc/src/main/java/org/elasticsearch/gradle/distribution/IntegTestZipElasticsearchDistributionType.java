@@ -16,7 +16,7 @@ public class IntegTestZipElasticsearchDistributionType implements ElasticsearchD
 
     @Override
     public String getName() {
-        return "integTestZip";
+        return "integ-test-zip";
     }
 
     @Override

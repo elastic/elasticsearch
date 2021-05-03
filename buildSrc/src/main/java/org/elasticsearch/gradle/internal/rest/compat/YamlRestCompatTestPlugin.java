@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.rest.compat;
 
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
 import org.elasticsearch.gradle.internal.VersionProperties;
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
@@ -19,7 +20,6 @@ import org.elasticsearch.gradle.internal.test.rest.RestResourcesExtension;
 import org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin;
 import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
 import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -60,7 +60,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");
 
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
-        project.getPluginManager().apply(TestClustersPlugin.class);
+        project.getPluginManager().apply(InternalTestClustersPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
         project.getPluginManager().apply(YamlRestTestPlugin.class);

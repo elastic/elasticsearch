@@ -25,7 +25,7 @@ import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeade
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
-import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceMatch;
+import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceValueInMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsFalse;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsTrue;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllowedWarnings;
@@ -103,8 +103,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @param subKey the key name directly under match to replace. For example "_type"
      * @param value  the value used in the replacement. For example "bar"
      */
-    public void replaceMatch(String subKey, Object value) {
-        transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
+    public void replaceValueInMatch(String subKey, Object value) {
+        transformations.add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
     }
 
     /**
@@ -114,8 +114,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @param value    the value used in the replacement. For example "bar"
      * @param testName the testName to apply replacement
      */
-    public void replaceMatch(String subKey, Object value, String testName) {
-        transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+    public void replaceValueInMatch(String subKey, Object value, String testName) {
+        transformations.add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
     }
 
     /**

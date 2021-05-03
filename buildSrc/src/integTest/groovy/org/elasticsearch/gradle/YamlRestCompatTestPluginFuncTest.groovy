@@ -196,8 +196,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
                yamlRestTestImplementation "junit:junit:4.12"
             }
             tasks.named("transformV7RestTests").configure({ task ->
-              task.replaceMatch("_type", "_doc")
-              task.replaceMatch("_source.values", ["z", "x", "y"], "one")
+              task.replaceValueInMatch("_type", "_doc")
+              task.replaceValueInMatch("_source.values", ["z", "x", "y"], "one")
               task.removeMatch("_source.blah")
               task.removeMatch("_source.junk", "two")
               task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")

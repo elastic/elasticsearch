@@ -16,13 +16,13 @@ import org.gradle.api.tasks.Internal;
 /**
  * A transformation to replace the value of a match. For example, change from "match":{"_type": "foo"} to "match":{"_type": "bar"}
  */
-public class ReplaceMatch extends ReplaceByKey {
+public class ReplaceValueInMatch extends ReplaceByKey {
 
-    public ReplaceMatch(String replaceKey, JsonNode replacementNode) {
+    public ReplaceValueInMatch(String replaceKey, JsonNode replacementNode) {
         this(replaceKey, replacementNode, null);
     }
 
-    public ReplaceMatch(String replaceKey, JsonNode replacementNode, String testName) {
+    public ReplaceValueInMatch(String replaceKey, JsonNode replacementNode, String testName) {
         super(replaceKey, replaceKey, replacementNode, testName);
     }
 

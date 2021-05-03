@@ -18,7 +18,7 @@ import org.junit.Test;
 
 import java.util.List;
 
-public class ReplaceMatchTests extends TransformTests {
+public class ReplaceValueInMatchTests extends TransformTests {
 
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
@@ -35,8 +35,8 @@ public class ReplaceMatchTests extends TransformTests {
         List<ObjectNode> transformedTests = transformTests(
             tests,
             List.of(
-                new ReplaceMatch("_type", replacementNode, null),
-                new ReplaceMatch("_replace_in_last_test_only", replacementNode, "Last test")
+                new ReplaceValueInMatch("_type", replacementNode, null),
+                new ReplaceValueInMatch("_replace_in_last_test_only", replacementNode, "Last test")
             )
         );
 

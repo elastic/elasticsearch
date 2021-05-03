@@ -683,7 +683,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         });
-        Releasables.close(releasables);
         listener.onFailure(exception);
     }
 

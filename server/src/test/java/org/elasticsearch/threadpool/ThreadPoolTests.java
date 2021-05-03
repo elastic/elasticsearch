@@ -21,7 +21,6 @@ import org.elasticsearch.test.MockLogAppender;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING;
@@ -256,9 +255,10 @@ public class ThreadPoolTests extends ESTestCase {
             final Runnable runnable = new Runnable() {
                 @Override
                 public void run() {
+                    final long start = threadPool.relativeTimeInMillis();
                     try {
-                        TimeUnit.MILLISECONDS.sleep(200L);
-                    } catch (InterruptedException e) {
+                        assertBusy(() -> assertThat(threadPool.relativeTimeInMillis() - start, greaterThan(10L)));
+                    } catch (Exception e) {
                         throw new AssertionError(e);
                     }
                 }

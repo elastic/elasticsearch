@@ -347,29 +347,39 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
-        command = threadContext.preserveContext(command);
+        final Runnable contextPreservingRunnable = threadContext.preserveContext(command);
+        final Runnable toSchedule;
         if (Names.SAME.equals(executor) == false) {
-            command = new ThreadedRunnable(command, executor(executor));
+            toSchedule = new ThreadedRunnable(command, executor(executor));
         } else if (slowSchedulerWarnThresholdNanos > 0) {
-            final Runnable finalCommand = command;
-            command = () -> {
-                final long startTime = relativeTimeInNanos();
-                try {
-                    finalCommand.run();
-                } finally {
-                    final long took = relativeTimeInNanos() - startTime;
-                    if (took > slowSchedulerWarnThresholdNanos) {
-                        logger.warn(
-                                "execution of [{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                                finalCommand,
-                                TimeUnit.NANOSECONDS.toMillis(took),
-                                TimeUnit.NANOSECONDS.toMillis(slowSchedulerWarnThresholdNanos)
-                        );
+            toSchedule = new Runnable() {
+                @Override
+                public void run() {
+                    final long startTime = ThreadPool.this.relativeTimeInNanos();
+                    try {
+                        contextPreservingRunnable.run();
+                    } finally {
+                        final long took = ThreadPool.this.relativeTimeInNanos() - startTime;
+                        if (took > slowSchedulerWarnThresholdNanos) {
+                            logger.warn(
+                                    "execution of [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                                    contextPreservingRunnable,
+                                    TimeUnit.NANOSECONDS.toMillis(took),
+                                    TimeUnit.NANOSECONDS.toMillis(slowSchedulerWarnThresholdNanos)
+                            );
+                        }
                     }
                 }
+
+                @Override
+                public String toString() {
+                    return contextPreservingRunnable.toString();
+                }
             };
+        } else {
+            toSchedule = contextPreservingRunnable;
         }
-        return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
+        return new ScheduledCancellableAdapter(scheduler.schedule(toSchedule, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
     public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {

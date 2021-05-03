@@ -660,3 +660,35 @@ setup:
               histogram:
                 field: number
                 interval: 5e-10
+
+---
+"Tiny tiny tiny date_range":
+  - skip:
+      version: " - 7.13.99"
+      reason:  fixed in 7.14.0
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body:
+            - '{"index": {}}'
+            - '{"date": "2018-01-01T00:00:00Z"}'
+            - '{"index": {}}'
+            - '{"date": "2019-01-01T00:00:00Z"}'
+            - '{"index": {}}'
+            - '{"date": "2020-01-01T00:00:00Z"}'
+            - '{"index": {}}'
+            - '{"date": "2021-01-01T00:00:00Z"}'
+
+  - do:
+      catch: '/Trying to create too many buckets. Must be less than or equal to: \[65536\]/'
+      search:
+        index: test_1
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: date
+                interval: second

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -225,6 +226,58 @@ public class GeoGridTilerTests extends ESTestCase {
         }
     }
 
+    public void testGeoHashBoundsExcludeTouchingTiles() throws Exception {
+        final int precision = randomIntBetween(1, 5);
+        final String hash =
+            Geohash.stringEncode(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude(), precision);
+
+        final Rectangle rectangle = Geohash.toBoundingBox(hash);
+        final GeoBoundingBox box = new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
+        final Rectangle other = new Rectangle(
+            Math.max(-180, rectangle.getMinX() - 1),
+            Math.min(180, rectangle.getMaxX() + 1),
+            Math.min(90, rectangle.getMaxY() + 1),
+            Math.max(-90, rectangle.getMinY() - 1));
+        final GeoShapeValues.GeoShapeValue value = geoShapeValue(other);
+        for (int i = 0;  i < 4; i++) {
+            final BoundedGeoHashGridTiler bounded = new BoundedGeoHashGridTiler(precision + i, box);
+            final GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), bounded, NOOP_BREAKER);
+            assertTrue(values.advanceExact(0));
+            final int numTiles = values.docValueCount();
+            final int expected = (int) Math.pow(32, i);
+            assertThat(numTiles, equalTo(expected));
+        }
+    }
+
+    public void testGeoTileBoundsExcludeTouchingTiles() throws Exception {
+        final int z = randomIntBetween(1, GeoTileUtils.MAX_ZOOM - 10);
+        final int x = randomIntBetween(0, (1 << z) - 1);
+        final int y = randomIntBetween(0, (1 << z) - 1);
+        final Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
+        final GeoBoundingBox box = new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
+        final Rectangle other = new Rectangle(
+            Math.max(-180, rectangle.getMinX() - 1),
+            Math.min(180, rectangle.getMaxX() + 1),
+            Math.min(90, rectangle.getMaxY() + 1),
+            Math.max(-90, rectangle.getMinY() - 1));
+        final GeoShapeValues.GeoShapeValue value = geoShapeValue(other);
+        for (int i = 0;  i < 10; i++) {
+            final BoundedGeoTileGridTiler bounded = new BoundedGeoTileGridTiler(z + i, box);
+            final GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), bounded, NOOP_BREAKER);
+            assertTrue(values.advanceExact(0));
+            final int numTiles = values.docValueCount();
+            final int expected = 1 << (2 * i);
+            assertThat(numTiles, equalTo(expected));
+            assertThat((int) bounded.getMaxTiles(), equalTo(expected));
+        }
+    }
+
     public void testGeoTileShapeContainsBound() throws Exception {
         Rectangle tile = GeoTileUtils.toBoundingBox(44140, 44140, 16);
         Rectangle shapeRectangle = new Rectangle(tile.getMinX() - 15, tile.getMaxX() + 15,
@@ -235,12 +288,32 @@ public class GeoGridTilerTests extends ESTestCase {
             new GeoPoint(tile.getMaxLat(), tile.getMinLon()),
             new GeoPoint(tile.getMinLat(), tile.getMaxLon())
         );
+        BoundedGeoTileGridTiler tiler = new BoundedGeoTileGridTiler(24, boundingBox);
         GeoShapeCellValues values =
-            new GeoShapeCellValues(makeGeoShapeValues(value), new BoundedGeoTileGridTiler(24, boundingBox), NOOP_BREAKER);
+            new GeoShapeCellValues(makeGeoShapeValues(value), tiler, NOOP_BREAKER);
         assertTrue(values.advanceExact(0));
         int numTiles = values.docValueCount();
-        int expectedTiles =
-            (int) AbstractGeoTileGridTiler.numTilesFromPrecision(24, tile.getMinX(), tile.getMaxX(), tile.getMinY(), tile.getMaxY());
+        int expectedTiles = Math.toIntExact(tiler.getMaxTiles());
+        assertThat(numTiles, equalTo(expectedTiles));
+        assertThat(numTiles, equalTo(256 * 256));
+    }
+
+    public void testGeoTileShapeContainsBound3() throws Exception {
+        Rectangle tile = GeoTileUtils.toBoundingBox(2, 2, 3);
+        Rectangle shapeRectangle = new Rectangle(tile.getMinX() - 1, tile.getMaxX() + 1,
+            tile.getMaxY() + 1, tile.getMinY() - 1);
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
+
+        GeoBoundingBox boundingBox = new GeoBoundingBox(
+            new GeoPoint(tile.getMaxLat(), tile.getMinLon()),
+            new GeoPoint(tile.getMinLat(), tile.getMaxLon())
+        );
+        BoundedGeoTileGridTiler tiler = new BoundedGeoTileGridTiler(4, boundingBox);
+        GeoShapeCellValues values =
+            new GeoShapeCellValues(makeGeoShapeValues(value), tiler, NOOP_BREAKER);
+        assertTrue(values.advanceExact(0));
+        int numTiles = values.docValueCount();
+        int expectedTiles = Math.toIntExact(tiler.getMaxTiles());
         assertThat(expectedTiles, equalTo(numTiles));
     }
 
@@ -253,43 +326,47 @@ public class GeoGridTilerTests extends ESTestCase {
             new GeoPoint(tile.getMaxLat(), tile.getMinLon()),
             new GeoPoint(tile.getMinLat(), tile.getMaxLon())
         );
+        BoundedGeoTileGridTiler tiler = new BoundedGeoTileGridTiler(13, boundingBox);
         GeoShapeCellValues values =
             new GeoShapeCellValues(makeGeoShapeValues(value), new BoundedGeoTileGridTiler(13, boundingBox), NOOP_BREAKER);
         assertTrue(values.advanceExact(0));
         int numTiles = values.docValueCount();
-        int expectedTiles = (int) (AbstractGeoTileGridTiler.numTilesFromPrecision(13, 178, 180, -2, 2)
-            + AbstractGeoTileGridTiler.numTilesFromPrecision(13, -180, -178, -2, 2));
+        int expectedTiles = Math.toIntExact(tiler.getMaxTiles());
         assertThat(expectedTiles, equalTo(numTiles));
     }
 
-    private boolean tileIntersectsBounds(int x, int y, int precision, GeoBoundingBox bounds) {
-        if (bounds == null) {
+    private boolean tileIntersectsBounds(int x, int y, int precision, GeoBoundingBox bbox) {
+        if (bbox == null) {
             return true;
         }
-        final double boundsWestLeft;
-        final double boundsWestRight;
-        final double boundsEastLeft;
-        final double boundsEastRight;
-        final boolean crossesDateline;
-        if (bounds.right() < bounds.left()) {
-            boundsWestLeft = -180;
-            boundsWestRight = bounds.right();
-            boundsEastLeft = bounds.left();
-            boundsEastRight = 180;
-            crossesDateline = true;
-        } else {
-            boundsEastLeft = bounds.left();
-            boundsEastRight = bounds.right();
-            boundsWestLeft = 0;
-            boundsWestRight = 0;
-            crossesDateline = false;
+        final int tiles = 1 << precision;
+        int minX = GeoTileUtils.getXTile(bbox.left(), tiles);
+        int minY = GeoTileUtils.getYTile(bbox.top(), tiles);
+        final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
+        if (minTile.getMaxX() == bbox.left()) {
+            minX++;
         }
-
-        Rectangle tile = GeoTileUtils.toBoundingBox(x, y, precision);
-
-        return (bounds.top() >= tile.getMinY() && bounds.bottom() <= tile.getMaxY()
-            && (boundsEastLeft <= tile.getMaxX() && boundsEastRight >= tile.getMinX()
-            || (crossesDateline && boundsWestLeft <= tile.getMaxX() && boundsWestRight >= tile.getMinX())));
+        if (minTile.getMinY() == bbox.top()) {
+            minY++;
+        }
+        // compute maxX, maxY
+        int maxX = GeoTileUtils.getXTile(bbox.right(), tiles);
+        int maxY = GeoTileUtils.getYTile(bbox.bottom(), tiles);
+        final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
+        if (maxTile.getMinX() == bbox.right()) {
+            maxX--;
+        }
+        if (maxTile.getMaxY() == bbox.bottom()) {
+            maxY--;
+        }
+        if (maxY >= y && minY <= y) {
+            if (bbox.left() > bbox.right()) {
+                return maxX >= x || minX <= x;
+            } else {
+                return maxX >= x && minX <= x;
+            }
+        }
+        return false;
     }
 
     private int numTiles(GeoShapeValues.GeoShapeValue geoValue, int precision, GeoBoundingBox geoBox) {

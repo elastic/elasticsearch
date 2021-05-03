@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -264,17 +262,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
         throw new UnsupportedOperationException("FieldMapper " + name() + " does not support [script]");
-    }
-
-    protected final void createFieldNamesField(ParseContext context) {
-        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
-        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) context.getMetadataMapper(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFieldMapper != null) {
-            FieldNamesFieldType fieldNamesFieldType = fieldNamesFieldMapper.fieldType();
-            if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
-                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldType().name(), FieldNamesFieldMapper.Defaults.FIELD_TYPE));
-            }
-        }
     }
 
     @Override

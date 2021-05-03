@@ -41,7 +41,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.startsWith;
@@ -53,7 +52,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testNodeLock() throws IOException {
         final Settings settings = buildEnvSettings(Settings.EMPTY);
         NodeEnvironment env = newNodeEnvironment(settings);
-        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
+        String dataPath = Environment.PATH_DATA_SETTING.get(settings);
 
         // Reuse the same location and attempt to lock again
         IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
@@ -63,11 +62,8 @@ public class NodeEnvironmentTests extends ESTestCase {
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
         env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-        assertThat(env.nodeDataPaths(), arrayWithSize(dataPaths.size()));
+        assertThat(env.nodeDataPaths()[0], equalTo(PathUtils.get(dataPath)));
 
-        for (int i = 0; i < dataPaths.size(); i++) {
-            assertTrue(env.nodeDataPaths()[i].startsWith(PathUtils.get(dataPaths.get(i))));
-        }
         env.close();
         assertThat(env.lockedShards(), empty());
     }
@@ -350,8 +346,8 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testCustomDataPaths() throws Exception {
-        String[] dataPaths = tmpPaths();
-        NodeEnvironment env = newNodeEnvironment(dataPaths, "/tmp", Settings.EMPTY);
+        Path dataPath = createTempDir();
+        NodeEnvironment env = newNodeEnvironment(dataPath.toAbsolutePath().toString(), "/tmp", Settings.EMPTY);
 
         Index index = new Index("myindex", "myindexUUID");
         ShardId sid = new ShardId(index, 0);
@@ -361,53 +357,47 @@ public class NodeEnvironmentTests extends ESTestCase {
             equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-            env.availableShardPaths(sid),
-            equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
+            env.availableShardPaths(sid)[0],
+            equalTo(dataPath.resolve("indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-            env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
+            env.indexPaths(index)[0], equalTo(dataPath.resolve("indices/" + index.getUUID())));
 
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
         assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
             equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-            env.availableShardPaths(sid),
-            equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID() + "/0")));
+            env.availableShardPaths(sid)[0],
+            equalTo(dataPath.resolve("indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-            env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "indices/" + index.getUUID())));
+            env.indexPaths(index)[0], equalTo(dataPath.resolve("indices/" + index.getUUID())));
 
         env.close();
     }
 
     public void testExistingTempFiles() throws IOException {
-        String[] paths = tmpPaths();
+        Path nodePath = createTempDir();
         // simulate some previous left over temp files
-        for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
-            final Path nodePath = PathUtils.get(path);
-            Files.createDirectories(nodePath);
-            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
-            if (randomBoolean()) {
-                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
-            }
-            if (randomBoolean()) {
-                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
-            }
+        Files.createDirectories(nodePath);
+        Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
+        if (randomBoolean()) {
+            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
         }
-        NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
+        if (randomBoolean()) {
+            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
+        }
+        NodeEnvironment env = newNodeEnvironment(nodePath.toAbsolutePath().toString(), Settings.EMPTY);
         env.close();
 
         // check we clean up
-        for (String path : paths) {
-            final Path nodePath = PathUtils.get(path);
-            final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
-            assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
-            final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
-            assertFalse(srcTempFile + " should have been cleaned", Files.exists(srcTempFile));
-            final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
-            assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
-        }
+        final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
+        assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
+        final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
+        assertFalse(srcTempFile + " should have been cleaned", Files.exists(srcTempFile));
+        final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
+        assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
     }
 
     public void testEnsureNoShardDataOrIndexMetadata() throws IOException {
@@ -500,16 +490,6 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     @Override
-    public String[] tmpPaths() {
-        final int numPaths = randomIntBetween(1, 3);
-        final String[] absPaths = new String[numPaths];
-        for (int i = 0; i < numPaths; i++) {
-            absPaths[i] = createTempDir().toAbsolutePath().toString();
-        }
-        return absPaths;
-    }
-
-    @Override
     public NodeEnvironment newNodeEnvironment() throws IOException {
         return newNodeEnvironment(Settings.EMPTY);
     }
@@ -523,24 +503,24 @@ public class NodeEnvironmentTests extends ESTestCase {
     public Settings buildEnvSettings(Settings settings) {
         return Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .put(settings).build();
     }
 
-    public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {
+    public NodeEnvironment newNodeEnvironment(String dataPath, Settings settings) throws IOException {
         Settings build = Settings.builder()
             .put(settings)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+            .put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 
-    public NodeEnvironment newNodeEnvironment(String[] dataPaths, String sharedDataPath, Settings settings) throws IOException {
+    public NodeEnvironment newNodeEnvironment(String dataPath, String sharedDataPath, Settings settings) throws IOException {
         Settings build = Settings.builder()
             .put(settings)
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), sharedDataPath)
-            .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths).build();
+            .put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
 }

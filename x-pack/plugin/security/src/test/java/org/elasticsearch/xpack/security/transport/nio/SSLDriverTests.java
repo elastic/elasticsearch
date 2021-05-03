@@ -14,11 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.TrustManager;
 import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
@@ -29,6 +24,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
+
+import javax.net.ssl.KeyManager;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLException;
+import javax.net.ssl.TrustManager;
 
 import static org.hamcrest.Matchers.is;
 
@@ -157,6 +158,7 @@ public class SSLDriverTests extends ESTestCase {
         normalClose(clientDriver, serverDriver);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72122")
     public void testHandshakeFailureBecauseProtocolMismatch() throws Exception {
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();

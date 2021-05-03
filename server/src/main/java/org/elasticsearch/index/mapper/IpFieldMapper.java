@@ -459,7 +459,7 @@ public class IpFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
         } else if (stored || indexed) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
         if (stored) {
             context.doc().add(new StoredField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));

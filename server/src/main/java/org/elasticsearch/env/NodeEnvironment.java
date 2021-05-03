@@ -421,13 +421,31 @@ public final class NodeEnvironment  implements Closeable {
     private void maybeLogPathDetails() throws IOException {
 
         // We do some I/O in here, so skip this if DEBUG/INFO are not enabled:
-        if (logger.isInfoEnabled()) {
+        if (logger.isDebugEnabled()) {
+            // Log one line per path.data:
+            StringBuilder sb = new StringBuilder();
+            sb.append('\n').append(" -> ").append(nodePath.path.toAbsolutePath());
+
+            FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
+            sb.append(", free_space [")
+                .append(fsPath.getFree())
+                .append("], usable_space [")
+                .append(fsPath.getAvailable())
+                .append("], total_space [")
+                .append(fsPath.getTotal())
+                .append("], mount [")
+                .append(fsPath.getMount())
+                .append("], type [")
+                .append(fsPath.getType())
+                .append(']');
+            logger.debug("node data locations details:{}", sb);
+        } else if (logger.isInfoEnabled()) {
             Path path = nodePath.path.toAbsolutePath();
             FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
 
             // Just log a 1-line summary:
-            logger.info("using data path [{}], mount [{}], free_space [{}], usable_space [{}], total_space [{}], type [{}]",
-                path, fsPath.getMount(), fsPath.getFree(), fsPath.getAvailable(), fsPath.getTotal(), fsPath.getType());
+            logger.info("using data path: mounts [{}], net usable_space [{}], net total_space [{}], types [{}]",
+                fsPath.getMount(), fsPath.getAvailable(), fsPath.getTotal(), fsPath.getType());
         }
     }
 

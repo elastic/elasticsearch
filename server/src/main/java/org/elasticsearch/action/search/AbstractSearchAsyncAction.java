@@ -270,6 +270,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         }
                     });
             } catch (final Exception e) {
+                /*
+                 * It is possible to run into connection exceptions here because we are getting the connection early and might
+                 * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
+                 */
                 onShardFailure(shardIndex, shard, shardIt, e);
             }
         }

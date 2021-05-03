@@ -20,6 +20,12 @@ public class DocumentMapper {
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
 
+    /**
+     * Create a new {@link DocumentMapper} that holds empty mappings.
+     * @param type the type of the mappings to create
+     * @param mapperService the mapper service that holds the needed components
+     * @return the newly created document mapper
+     */
     public static DocumentMapper createEmpty(String type, MapperService mapperService) {
         RootObjectMapper root = new RootObjectMapper.Builder(type, Version.CURRENT).build(new ContentPath(1));
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers(type).values().toArray(new MetadataFieldMapper[0]);

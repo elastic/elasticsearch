@@ -22,6 +22,7 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.ilm.ClusterStateWaitUntilThresholdStep.waitedMoreThanThresholdLevel;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
@@ -223,5 +224,37 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             boolean thresholdBreached = waitedMoreThanThresholdLevel(null, executionState, clock);
             assertThat(thresholdBreached, is(false));
         }
+    }
+
+    public void testIsCompletableBreaches() {
+        AtomicBoolean completable = new AtomicBoolean(true);
+        ClusterStateWaitUntilThresholdStep step = new ClusterStateWaitUntilThresholdStep(
+            new ClusterStateWaitStep(new StepKey("phase" , "action", "key"),
+                new StepKey("phase", "action", "next-key")) {
+                @Override
+                public Result isConditionMet(Index index, ClusterState clusterState) {
+                    return new Result(false, new SingleMessageFieldInfo(""));
+                }
+
+                @Override
+                public boolean isCompletable() {
+                    return completable.get();
+                }
+
+                @Override
+                public boolean isRetryable() {
+                    return true;
+                }
+            }, new StepKey("phase", "action", "breached"));
+
+        assertThat(step.isConditionMet(new Index("name", "uuid"), ClusterState.EMPTY_STATE),
+            equalTo(new ClusterStateWaitStep.Result(false, new SingleMessageFieldInfo(""))));
+
+        assertThat(step.getNextStepKey().getName(), equalTo("next-key"));
+
+        completable.set(false);
+        assertThat(step.isConditionMet(new Index("name", "uuid"), ClusterState.EMPTY_STATE),
+            equalTo(new ClusterStateWaitStep.Result(false, new SingleMessageFieldInfo(""))));
+        assertThat(step.getNextStepKey().getName(), equalTo("breached"));
     }
 }

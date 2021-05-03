@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -20,6 +22,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -34,6 +37,7 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
     public static final String NAME = "check-shrink-allocation";
 
     private static final Logger logger = LogManager.getLogger(CheckShrinkReadyStep.class);
+    private boolean completable = true;
 
     CheckShrinkReadyStep(StepKey key, StepKey nextStepKey) {
         super(key, nextStepKey);
@@ -42,6 +46,11 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
     @Override
     public boolean isRetryable() {
         return true;
+    }
+
+    @Override
+    public boolean isCompletable() {
+        return completable;
     }
 
     @Override
@@ -62,6 +71,18 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
         final String idShardsShouldBeOn = idxMeta.getSettings().get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id");
         if (idShardsShouldBeOn == null) {
             throw new IllegalStateException("Cannot check shrink allocation as there are no allocation rules by _id");
+        }
+
+        boolean nodeBeingRemoved = NodesShutdownMetadata.getShutdowns(clusterState)
+            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
+            .map(nmm -> nmm.get(idShardsShouldBeOn))
+            .map(snsm -> snsm.getType() == SingleNodeShutdownMetadata.Type.REMOVE)
+            .orElse(false);
+
+        if (nodeBeingRemoved) {
+            completable = false;
+            return new Result(false, new SingleMessageFieldInfo("node with id [" + idShardsShouldBeOn +
+                "] is currently marked as shutting down for removal"));
         }
 
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);

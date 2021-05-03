@@ -858,7 +858,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         DocumentMapper documentMapper = mapperService.documentMapper(type);
         Mapping mapping = null;
         if (documentMapper == null) {
-            RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type, Version.CURRENT);
             documentMapper = DocumentMapper.createEmpty(type, mapperService);
             mapping = documentMapper.mapping();
         }

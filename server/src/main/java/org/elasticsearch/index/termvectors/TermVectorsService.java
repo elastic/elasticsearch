@@ -330,7 +330,7 @@ public class TermVectorsService  {
                                                 XContentType xContentType, String routing) {
         MapperService mapperService = indexShard.mapperService();
         DocumentMapper documentMapper = mapperService.documentMapper(mapperService.resolveDocumentType(type));
-        //TODO this throw NPE if there are no mappings yet, we have the same problem in PainlessExecutionAction
+        //TODO this throws NPE if there are no mappings yet, we have the same problem in PainlessExecutionAction
         return documentMapper.parse(new SourceToParse(index, type, "_id_for_tv_api", doc, xContentType, routing, Collections.emptyMap()));
     }
 

@@ -9,12 +9,10 @@
 package org.elasticsearch.gradle.internal.test;
 
 import org.elasticsearch.gradle.internal.BuildPlugin;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.gradle.api.Action;
+import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
 
 import java.util.Arrays;
@@ -37,17 +35,12 @@ public class RestTestPlugin implements Plugin<Project> {
             );
         }
         project.getPlugins().apply(RestTestBasePlugin.class);
-        project.getPluginManager().apply(TestClustersPlugin.class);
+        project.getPluginManager().apply(InternalTestClustersPlugin.class);
         final var integTest = project.getTasks().register("integTest", RestIntegTestTask.class, task -> {
             task.setDescription("Runs rest tests against an elasticsearch cluster.");
             task.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             task.mustRunAfter(project.getTasks().named("precommit"));
         });
-        project.getTasks().named("check").configure(new Action<Task>() {
-            @Override
-            public void execute(Task task) {
-                task.dependsOn(integTest);
-            }
-        });
+        project.getTasks().named("check").configure(task -> task.dependsOn(integTest));
     }
 }

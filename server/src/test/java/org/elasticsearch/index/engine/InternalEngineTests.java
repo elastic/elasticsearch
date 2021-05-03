@@ -101,12 +101,10 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -1116,7 +1114,8 @@ public class InternalEngineTests extends EngineTestCase {
         final String type = doc.type();
         final MappingLookup mappingLookup = mappingLookup(type);
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(NO_OPS_PERFORMED));
-        try (Engine.GetResult get = engine.get(new Engine.Get(true, true, type, "1", newUid("1")), mappingLookup, randomSearcherWrapper())) {
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, true, type, "1", newUid("1")),
+            mappingLookup, randomSearcherWrapper())) {
             // we do not track the translog location yet
             assertTrue(get.exists());
             assertFalse(get.isFromTranslog());

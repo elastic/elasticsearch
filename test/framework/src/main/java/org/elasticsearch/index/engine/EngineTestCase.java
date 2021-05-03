@@ -83,6 +83,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -1056,8 +1057,9 @@ public abstract class EngineTestCase extends ESTestCase {
     /**
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
-    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper == null || mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
+    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapperService) throws IOException {
+        if (mapperService == null || mapperService.mappingLookup().hasMappings() == false
+            || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
             || (engine instanceof InternalEngine) == false) {
             return;
         }
@@ -1068,7 +1070,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 translogOps.add(op);
             }
         }
-        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
+        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapperService).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
         for (Translog.Operation op : translogOps) {
@@ -1164,9 +1166,9 @@ public abstract class EngineTestCase extends ESTestCase {
         return mapperService;
     }
 
-    public static DocumentMapper docMapper(String type) {
+    public static MappingLookup mappingLookup(String type) {
         try {
-            return createMapperService(type).documentMapper();
+            return createMapperService(type).mappingLookup();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

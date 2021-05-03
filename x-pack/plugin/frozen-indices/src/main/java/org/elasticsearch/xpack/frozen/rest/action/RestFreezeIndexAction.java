@@ -23,9 +23,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {
 
-    public static final String DEPRECATION_WARNING =
-        "Frozen indices are deprecated and will be removed in a future release. Use shared cache searchable snapshots instead.";
-    private static final RestApiVersion DEPRECATION_VERSION = RestApiVersion.V_7;
+    public static final String DEPRECATION_WARNING = "Frozen indices are deprecated because they provide no benefit given improvements " +
+        "in heap memory utilization. They will be removed in a future release.";
+    private static final RestApiVersion DEPRECATION_VERSION = RestApiVersion.V_8;
 
     @Override
     public List<Route> routes() {

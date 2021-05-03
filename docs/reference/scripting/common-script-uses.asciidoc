@@ -136,6 +136,7 @@ The response includes documents where the value for `http.clientip` matches
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "Rq-ex3gBA_A0V6dYGLQ7",
         "_score" : 1.0,
         "_source" : {
@@ -221,6 +222,7 @@ The response includes a single document where the HTTP response is `304`:
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "Sq-ex3gBA_A0V6dYGLQ7",
         "_score" : 1.0,
         "_source" : {
@@ -373,6 +375,7 @@ defined it in the dissect pattern!
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "GXx3H3kBKGE42WRNlddJ",
         "_score" : 1.0,
         "_source" : {

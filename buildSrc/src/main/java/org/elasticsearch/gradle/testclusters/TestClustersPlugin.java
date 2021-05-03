@@ -23,7 +23,9 @@ import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskState;
+import org.gradle.internal.jvm.Jvm;
 import org.gradle.process.ExecOperations;
 
 import javax.inject.Inject;
@@ -39,6 +41,8 @@ public class TestClustersPlugin implements Plugin<Project> {
     private static final String LIST_TASK_NAME = "listTestClusters";
     private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
+    private final ProviderFactory providerFactory;
+    private Provider<File> runtimeJavaProvider;
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -55,6 +59,15 @@ public class TestClustersPlugin implements Plugin<Project> {
         throw new UnsupportedOperationException();
     }
 
+    @Inject
+    public TestClustersPlugin(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
+    }
+
+    public void setRuntimeJava(Provider<File> runtimeJava) {
+        this.runtimeJavaProvider = runtimeJava;
+    }
+
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(DistributionDownloadPlugin.class);
@@ -62,6 +75,9 @@ public class TestClustersPlugin implements Plugin<Project> {
         Provider<ReaperService> reaperServiceProvider = GradleUtils.getBuildService(
             project.getGradle().getSharedServices(),
             ReaperPlugin.REAPER_SERVICE_NAME
+        );
+        runtimeJavaProvider = providerFactory.provider(
+            () -> System.getenv("RUNTIME_JAVA_HOME") == null ? Jvm.current().getJavaHome() : new File(System.getenv("RUNTIME_JAVA_HOME"))
         );
         // enable the DSL to describe clusters
         NamedDomainObjectContainer<ElasticsearchCluster> container = createTestClustersContainerExtension(project, reaperServiceProvider);
@@ -90,9 +106,8 @@ public class TestClustersPlugin implements Plugin<Project> {
         Provider<ReaperService> reaper
     ) {
         // Create an extensions that allows describing clusters
-        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(
-            ElasticsearchCluster.class,
-            name -> new ElasticsearchCluster(
+        NamedDomainObjectContainer<ElasticsearchCluster> container = project.container(ElasticsearchCluster.class, name -> {
+            return new ElasticsearchCluster(
                 project.getPath(),
                 name,
                 project,
@@ -100,9 +115,10 @@ public class TestClustersPlugin implements Plugin<Project> {
                 getFileSystemOperations(),
                 getArchiveOperations(),
                 getExecOperations(),
-                new File(project.getBuildDir(), "testclusters")
-            )
-        );
+                new File(project.getBuildDir(), "testclusters"),
+                runtimeJavaProvider
+            );
+        });
         project.getExtensions().add(EXTENSION_NAME, container);
         return container;
     }

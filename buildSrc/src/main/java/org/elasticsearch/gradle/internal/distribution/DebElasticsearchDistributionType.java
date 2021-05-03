@@ -32,7 +32,7 @@ public class DebElasticsearchDistributionType implements ElasticsearchDistributi
     }
 
     @Override
-    public boolean isDockerBased() {
+    public boolean isDocker() {
         return false;
     }
 }

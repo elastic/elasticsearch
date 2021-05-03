@@ -25,7 +25,7 @@ public class IntegTestZipElasticsearchDistributionType implements ElasticsearchD
     }
 
     @Override
-    public boolean isDockerBased() {
+    public boolean isDocker() {
         return false;
     }
 }

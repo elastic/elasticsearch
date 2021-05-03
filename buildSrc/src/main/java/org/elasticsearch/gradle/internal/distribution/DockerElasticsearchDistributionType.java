@@ -25,7 +25,7 @@ public class DockerElasticsearchDistributionType implements ElasticsearchDistrib
     }
 
     @Override
-    public boolean isDockerBased() {
+    public boolean isDocker() {
         return true;
     }
 }

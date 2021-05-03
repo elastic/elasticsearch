@@ -30,7 +30,6 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
-        internalBuild()
         addSubProject(":distribution:bwc:minor") << """
         configurations { checkout }
         artifacts {
@@ -40,12 +39,12 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         buildFile << """
         plugins {
-          id 'elasticsearch.yaml-rest-compat-test'
+            id 'elasticsearch.yaml-rest-compat-test'
         }
         """
 
         when:
-        def result = gradleRunner("yamlRestCompatTest").build()
+        def result = gradleRunner("yamlRestCompatTest", '--stacktrace').build()
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE

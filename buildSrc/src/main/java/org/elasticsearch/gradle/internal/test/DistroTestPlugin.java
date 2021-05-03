@@ -205,7 +205,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                         // auto-detection doesn't work.
                         //
                         // The shouldTestDocker property could be null, hence we use Boolean.TRUE.equals()
-                        boolean shouldExecute = (type.isDockerBased()) || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
+                        boolean shouldExecute = (type.isDocker()) || Boolean.TRUE.equals(vmProject.findProperty("shouldTestDocker"));
 
                         if (shouldExecute) {
                             distroTest.configure(t -> t.dependsOn(wrapperTask));
@@ -378,7 +378,7 @@ public class DistroTestPlugin implements Plugin<Project> {
                             continue;
                         }
                         // All our Docker images include a bundled JDK so it doesn't make sense to test without one.
-                        if (type.isDockerBased()) {
+                        if (type.isDocker()) {
                             continue;
                         }
                     }
@@ -417,7 +417,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         String version
     ) {
         String name = distroId(type, platform, bundledJdk, architecture) + "-" + version;
-        boolean isDocker = type.isDockerBased();
+        boolean isDocker = type.isDocker();
         ElasticsearchDistribution distro = distributions.create(name, d -> {
             d.setArchitecture(architecture);
             d.setType(type);

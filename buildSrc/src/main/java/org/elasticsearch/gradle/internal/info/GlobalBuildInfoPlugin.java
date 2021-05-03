@@ -114,7 +114,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            params.setBwcVersions(resolveBwcVersions(rootDir));
+            if (isInternal) {
+                params.setBwcVersions(resolveBwcVersions(rootDir));
+            }
         });
 
         // When building Elasticsearch, enforce the minimum compiler version

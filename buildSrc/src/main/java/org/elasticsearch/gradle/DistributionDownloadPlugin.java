@@ -9,11 +9,8 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
-import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
-import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -22,8 +19,11 @@ import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 
+import javax.inject.Inject;
 import java.util.Comparator;
 
 /**
@@ -46,14 +46,19 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
     private NamedDomainObjectContainer<ElasticsearchDistribution> distributionsContainer;
     private NamedDomainObjectContainer<DistributionResolution> distributionsResolutionStrategiesContainer;
 
+    private Property<Boolean> dockerAvailability;
+
+    @Inject
+    public DistributionDownloadPlugin(ObjectFactory objectFactory) {
+        this.dockerAvailability = objectFactory.property(Boolean.class).value(false);
+    }
+
+    public void setDockerAvailability(Provider<Boolean> dockerAvailability) {
+        this.dockerAvailability.set(dockerAvailability);
+    }
+
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
-        Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
-            project.getGradle().getSharedServices(),
-            DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
-        );
-
         project.getDependencies().registerTransform(UnzipTransform.class, transformSpec -> {
             transformSpec.getFrom().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.ZIP_TYPE);
             transformSpec.getTo().attribute(ArtifactAttributes.ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
@@ -66,11 +71,11 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         });
 
         setupResolutionsContainer(project);
-        setupDistributionContainer(project, dockerSupport);
+        setupDistributionContainer(project, dockerAvailability);
         setupDownloadServiceRepo(project);
     }
 
-    private void setupDistributionContainer(Project project, Provider<DockerSupportService> dockerSupport) {
+    private void setupDistributionContainer(Project project, Property<Boolean> dockerAvailable) {
         distributionsContainer = project.container(ElasticsearchDistribution.class, name -> {
             Configuration fileConfiguration = project.getConfigurations().create("es_distro_file_" + name);
             Configuration extractedConfiguration = project.getConfigurations().create(DISTRO_EXTRACTED_CONFIG_PREFIX + name);
@@ -78,7 +83,7 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             return new ElasticsearchDistribution(
                 name,
                 project.getObjects(),
-                dockerSupport,
+                dockerAvailability,
                 fileConfiguration,
                 extractedConfiguration,
                 (dist) -> finalizeDistributionDependencies(project, dist)

@@ -16,12 +16,16 @@ import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
+import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
+import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.provider.Provider;
 
 import java.util.function.Function;
 
@@ -40,7 +44,15 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
     public void apply(Project project) {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        project.getPluginManager().apply(DistributionDownloadPlugin.class);
+        project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        DistributionDownloadPlugin distributionDownloadPlugin = project.getPlugins().apply(DistributionDownloadPlugin.class);
+        Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
+            project.getGradle().getSharedServices(),
+            DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
+        );
+        distributionDownloadPlugin.setDockerAvailability(
+            dockerSupport.map(dockerSupportService -> dockerSupportService.getDockerAvailability().isAvailable)
+        );
         this.bwcVersions = BuildParams.getBwcVersions();
         registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
     }
@@ -103,7 +115,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         String projectPath = ":distribution";
         if (distribution.getType() == ElasticsearchDistributionTypes.INTEG_TEST_ZIP) {
             projectPath += ":archives:integ-test-zip";
-        } else if (distribution.getType().isDockerBased()) {
+        } else if (distribution.getType().isDocker()) {
             projectPath += ":docker:";
             projectPath += distributionProjectName(distribution);
         } else {

@@ -10,13 +10,11 @@ package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.VersionProperties;
-import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.gradle.api.Action;
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
-import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskDependency;
 
 import java.io.File;
@@ -45,7 +43,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         .supply();
 
     private final String name;
-    private final Provider<DockerSupportService> dockerSupport;
+    private final Property<Boolean> dockerAvailability;
     // pkg private so plugin can configure
     final Configuration configuration;
 
@@ -62,13 +60,13 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     ElasticsearchDistribution(
         String name,
         ObjectFactory objectFactory,
-        Provider<DockerSupportService> dockerSupport,
+        Property<Boolean> dockerAvailability,
         Configuration fileConfiguration,
         Configuration extractedConfiguration,
         Action<ElasticsearchDistribution> distributionFinalizer
     ) {
         this.name = name;
-        this.dockerSupport = dockerSupport;
+        this.dockerAvailability = dockerAvailability;
         this.configuration = fileConfiguration;
         this.architecture = objectFactory.property(Architecture.class);
         this.version = objectFactory.property(String.class).convention(VersionProperties.getElasticsearch());
@@ -128,7 +126,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     }
 
     public boolean isDocker() {
-        return this.type.get().isDockerBased();
+        return this.type.get().isDocker();
     }
 
     public void setBundledJdk(Boolean bundledJdk) {
@@ -195,7 +193,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     }
 
     private boolean skippingDockerDistributionBuild() {
-        return isDocker() && getFailIfUnavailable() == false && dockerSupport.get().getDockerAvailability().isAvailable == false;
+        return isDocker() && getFailIfUnavailable() == false && dockerAvailability.get() == false;
     }
 
     @Override

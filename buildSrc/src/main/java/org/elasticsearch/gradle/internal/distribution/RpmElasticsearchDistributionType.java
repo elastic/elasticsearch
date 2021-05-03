@@ -25,7 +25,7 @@ public class RpmElasticsearchDistributionType implements ElasticsearchDistributi
     }
 
     @Override
-    public boolean isDockerBased() {
+    public boolean isDocker() {
         return false;
     }
 }

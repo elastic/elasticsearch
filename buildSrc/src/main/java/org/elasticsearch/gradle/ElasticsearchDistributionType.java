@@ -11,7 +11,7 @@ package org.elasticsearch.gradle;
 public interface ElasticsearchDistributionType {
     boolean shouldExtract();
 
-    boolean isDockerBased();
+    boolean isDocker();
 
     String getName();
 

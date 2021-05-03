@@ -454,8 +454,11 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return null;
     }
 
-    // TODO[wrb]: javadoc
-    public SystemIndices.DescriptorThreadPoolNames getThreadPools() {
+    /**
+     * @return The names of thread pools that should be used for operations on this
+     *    system index.
+     */
+    public SystemIndices.DescriptorThreadPoolNames getThreadPoolNames() {
         return this.descriptorThreadPoolNames;
     }
 

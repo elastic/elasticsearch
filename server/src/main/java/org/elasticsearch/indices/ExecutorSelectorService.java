@@ -35,7 +35,7 @@ public class ExecutorSelectorService {
     public String getGetExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
-            return indexDescriptor.getThreadPools().getGetPoolName();
+            return indexDescriptor.getThreadPoolNames().getGetPoolName();
         }
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
@@ -54,7 +54,7 @@ public class ExecutorSelectorService {
     public String getSearchExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
-            return indexDescriptor.getThreadPools().getSearchPoolName();
+            return indexDescriptor.getThreadPoolNames().getSearchPoolName();
         }
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
@@ -74,7 +74,7 @@ public class ExecutorSelectorService {
     public String getWriteExecutor(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
-            return indexDescriptor.getThreadPools().getWritePoolName();
+            return indexDescriptor.getThreadPoolNames().getWritePoolName();
         }
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);

@@ -402,10 +402,10 @@ public class EncryptedRepository extends BlobStoreRepository {
             if (allDeksGenSet.isEmpty()) {
                 return null;
             } else {
-                return Collections.max(allDeksGenSet,
-                        Comparator.comparingInt(doneMarker ->
-                                Integer.parseInt(doneMarker.substring(DEKS_GEN_MARKER_BLOB.length()))
-                        ));
+                return Collections.max(
+                    allDeksGenSet,
+                    Comparator.comparingInt(doneMarker -> Integer.parseInt(doneMarker.substring(DEKS_GEN_MARKER_BLOB.length())))
+                );
             }
         }
 

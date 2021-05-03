@@ -702,7 +702,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
-            Map.of());
+            org.elasticsearch.common.collect.Map.of());
         Mockito.reset(rolesStore);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

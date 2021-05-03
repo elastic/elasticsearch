@@ -30,7 +30,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
-
+        internalBuild()
         addSubProject(":distribution:bwc:minor") << """
         configurations { checkout }
         artifacts {

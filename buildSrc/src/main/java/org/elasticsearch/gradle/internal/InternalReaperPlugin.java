@@ -8,15 +8,24 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.ProjectLayout;
 
-public class InternalTestClustersPlugin implements Plugin<Project> {
+import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.ReaperPlugin.registerReaperService;
+
+public class InternalReaperPlugin implements Plugin<Project> {
+    private final ProjectLayout projectLayout;
+
+    @Inject
+    public InternalReaperPlugin(ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout;
+    }
+
     @Override
     public void apply(Project project) {
-        project.getPlugins().apply(InternalDistributionDownloadPlugin.class);
-        project.getRootProject().getPluginManager().apply(InternalReaperPlugin.class);
-        project.getPlugins().apply(TestClustersPlugin.class);
+        registerReaperService(project, projectLayout, true);
     }
 }

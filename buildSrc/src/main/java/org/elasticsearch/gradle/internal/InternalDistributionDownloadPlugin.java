@@ -40,10 +40,6 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
     public void apply(Project project) {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        // might be used without the general build plugin so we keep this check for now.
-        if (BuildParams.isInternal() == false) {
-            throw new GradleException(getExternalUseErrorMessage());
-        }
         project.getPluginManager().apply(DistributionDownloadPlugin.class);
         this.bwcVersions = BuildParams.getBwcVersions();
         registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));

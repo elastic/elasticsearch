@@ -15,7 +15,6 @@ import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
@@ -65,7 +64,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
         configureDependencies(project);
 
         final var bundleTask = createBundleTasks(project, extension);
-
         project.afterEvaluate(project1 -> {
             project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
                 // Auto add dependent modules to the test cluster
@@ -143,13 +141,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     private static void configureDependencies(final Project project) {
         var dependencies = project.getDependencies();
-        if (BuildParams.isInternal()) {
-            dependencies.add("compileOnly", dependencies.project(Map.of("path", ":server")));
-            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":test:framework")));
-        } else {
-            dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
-            dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
-        }
+        dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
+        dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
 
         // we "upgrade" these optional deps to provided for plugins, since they will run
         // with a full elasticsearch server that includes optional deps

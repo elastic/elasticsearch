@@ -220,8 +220,8 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
 
-        public NodePath[] getNodePaths() {
-            return nodePaths;
+        public NodePath getNodePath() {
+            return nodePaths[0];
         }
 
         @Override
@@ -352,67 +352,65 @@ public final class NodeEnvironment  implements Closeable {
         }
 
         // move contents from legacy path to new path
-        assert nodeLock.getNodePaths().length == legacyNodeLock.getNodePaths().length;
         try {
             final List<CheckedRunnable<IOException>> upgradeActions = new ArrayList<>();
-            for (int i = 0; i < legacyNodeLock.getNodePaths().length; i++) {
-                final NodePath legacyNodePath = legacyNodeLock.getNodePaths()[i];
-                final NodePath nodePath = nodeLock.getNodePaths()[i];
+            final NodePath legacyNodePath = legacyNodeLock.getNodePath();
+            final NodePath nodePath = nodeLock.getNodePath();
 
-                // determine folders to move and check that there are no extra files/folders
-                final Set<String> folderNames = new HashSet<>();
-                final Set<String> expectedFolderNames = new HashSet<>(Arrays.asList(
+            // determine folders to move and check that there are no extra files/folders
+            final Set<String> folderNames = new HashSet<>();
+            final Set<String> expectedFolderNames = new HashSet<>(Arrays.asList(
 
-                    // node state directory, containing MetadataStateFormat-based node metadata as well as cluster state
-                    MetadataStateFormat.STATE_DIR_NAME,
+                // node state directory, containing MetadataStateFormat-based node metadata as well as cluster state
+                MetadataStateFormat.STATE_DIR_NAME,
 
-                    // indices
-                    INDICES_FOLDER,
+                // indices
+                INDICES_FOLDER,
 
-                    // searchable snapshot cache Lucene index
-                    SNAPSHOT_CACHE_FOLDER
-                ));
+                // searchable snapshot cache Lucene index
+                SNAPSHOT_CACHE_FOLDER
+            ));
 
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
-                    for (Path subFolderPath : stream) {
-                        final String fileName = subFolderPath.getFileName().toString();
-                        if (FileSystemUtils.isDesktopServicesStore(subFolderPath)) {
-                            // ignore
-                        } else if (FileSystemUtils.isAccessibleDirectory(subFolderPath, logger)) {
-                            if (expectedFolderNames.contains(fileName) == false) {
-                                throw new IllegalStateException("unexpected folder encountered during data folder upgrade: " +
-                                    subFolderPath);
-                            }
-                            final Path targetSubFolderPath = nodePath.path.resolve(fileName);
-                            if (Files.exists(targetSubFolderPath)) {
-                                throw new IllegalStateException("target folder already exists during data folder upgrade: " +
-                                    targetSubFolderPath);
-                            }
-                            folderNames.add(fileName);
-                        } else if (fileName.equals(NODE_LOCK_FILENAME) == false &&
-                                   fileName.equals(TEMP_FILE_NAME) == false) {
-                            throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {
+                for (Path subFolderPath : stream) {
+                    final String fileName = subFolderPath.getFileName().toString();
+                    if (FileSystemUtils.isDesktopServicesStore(subFolderPath)) {
+                        // ignore
+                    } else if (FileSystemUtils.isAccessibleDirectory(subFolderPath, logger)) {
+                        if (expectedFolderNames.contains(fileName) == false) {
+                            throw new IllegalStateException("unexpected folder encountered during data folder upgrade: " +
                                 subFolderPath);
                         }
+                        final Path targetSubFolderPath = nodePath.path.resolve(fileName);
+                        if (Files.exists(targetSubFolderPath)) {
+                            throw new IllegalStateException("target folder already exists during data folder upgrade: " +
+                                targetSubFolderPath);
+                        }
+                        folderNames.add(fileName);
+                    } else if (fileName.equals(NODE_LOCK_FILENAME) == false &&
+                               fileName.equals(TEMP_FILE_NAME) == false) {
+                        throw new IllegalStateException("unexpected file/folder encountered during data folder upgrade: " +
+                            subFolderPath);
                     }
                 }
-
-                assert Sets.difference(folderNames, expectedFolderNames).isEmpty() :
-                    "expected indices and/or state dir folder but was " + folderNames;
-
-                upgradeActions.add(() -> {
-                    for (String folderName : folderNames) {
-                        final Path sourceSubFolderPath = legacyNodePath.path.resolve(folderName);
-                        final Path targetSubFolderPath = nodePath.path.resolve(folderName);
-                        Files.move(sourceSubFolderPath, targetSubFolderPath, StandardCopyOption.ATOMIC_MOVE);
-                        logger.info("data folder upgrade: moved from [{}] to [{}]", sourceSubFolderPath, targetSubFolderPath);
-                    }
-                    IOUtils.fsync(nodePath.path, true);
-                });
             }
+
+            assert Sets.difference(folderNames, expectedFolderNames).isEmpty() :
+                "expected indices and/or state dir folder but was " + folderNames;
+
+            upgradeActions.add(() -> {
+                for (String folderName : folderNames) {
+                    final Path sourceSubFolderPath = legacyNodePath.path.resolve(folderName);
+                    final Path targetSubFolderPath = nodePath.path.resolve(folderName);
+                    Files.move(sourceSubFolderPath, targetSubFolderPath, StandardCopyOption.ATOMIC_MOVE);
+                    logger.info("data folder upgrade: moved from [{}] to [{}]", sourceSubFolderPath, targetSubFolderPath);
+                }
+                IOUtils.fsync(nodePath.path, true);
+            });
+
             // now do the actual upgrade. start by upgrading the node metadata file before moving anything, since a downgrade in an
             // intermediate state would be pretty disastrous
-            loadNodeMetadata(settings, logger, legacyNodeLock.getNodePaths());
+            loadNodeMetadata(settings, logger, legacyNodeLock.getNodePath());
             for (CheckedRunnable<IOException> upgradeAction : upgradeActions) {
                 upgradeAction.run();
             }
@@ -920,12 +918,12 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Returns an array of all of the {@link NodePath}s.
      */
-    public NodePath[] nodePaths() {
+    public NodePath nodePath() {
         assertEnvIsLocked();
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
-        return nodePaths;
+        return nodePaths[0];
     }
 
     /**
@@ -1018,19 +1016,12 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Resolves all existing paths to <code>indexFolderName</code> in ${data.paths}/indices
      */
-    public Path[] resolveIndexFolder(String indexFolderName) {
+    public Path resolveIndexFolder(String indexFolderName) {
         if (nodePaths == null || locks == null) {
             throw new IllegalStateException("node is not configured to store local location");
         }
         assertEnvIsLocked();
-        List<Path> paths = new ArrayList<>(nodePaths.length);
-        for (NodePath nodePath : nodePaths) {
-            Path indexFolder = nodePath.indicesPath.resolve(indexFolderName);
-            if (Files.exists(indexFolder)) {
-                paths.add(indexFolder);
-            }
-        }
-        return paths.toArray(new Path[paths.size()]);
+        return nodePaths[0].indicesPath.resolve(indexFolderName);
     }
 
     /**
@@ -1293,22 +1284,22 @@ public final class NodeEnvironment  implements Closeable {
     private void assertCanWrite() throws IOException {
         tryWriteTempFile(nodeDataPath());
         for (String indexFolderName : this.availableIndexFolders()) {
-            for (Path indexPath : this.resolveIndexFolder(indexFolderName)) { // check index paths are writable
-                Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
-                tryWriteTempFile(indexStatePath);
-                tryWriteTempFile(indexPath);
-                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                    for (Path shardPath : stream) {
-                        String fileName = shardPath.getFileName().toString();
-                        if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
-                            Path indexDir = shardPath.resolve(ShardPath.INDEX_FOLDER_NAME);
-                            Path statePath = shardPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
-                            Path translogDir = shardPath.resolve(ShardPath.TRANSLOG_FOLDER_NAME);
-                            tryWriteTempFile(indexDir);
-                            tryWriteTempFile(translogDir);
-                            tryWriteTempFile(statePath);
-                            tryWriteTempFile(shardPath);
-                        }
+            // check index paths are writable
+            Path indexPath = this.resolveIndexFolder(indexFolderName);
+            Path indexStatePath = indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
+            tryWriteTempFile(indexStatePath);
+            tryWriteTempFile(indexPath);
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
+                for (Path shardPath : stream) {
+                    String fileName = shardPath.getFileName().toString();
+                    if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
+                        Path indexDir = shardPath.resolve(ShardPath.INDEX_FOLDER_NAME);
+                        Path statePath = shardPath.resolve(MetadataStateFormat.STATE_DIR_NAME);
+                        Path translogDir = shardPath.resolve(ShardPath.TRANSLOG_FOLDER_NAME);
+                        tryWriteTempFile(indexDir);
+                        tryWriteTempFile(translogDir);
+                        tryWriteTempFile(statePath);
+                        tryWriteTempFile(shardPath);
                     }
                 }
             }

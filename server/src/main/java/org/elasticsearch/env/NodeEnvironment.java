@@ -444,7 +444,7 @@ public final class NodeEnvironment  implements Closeable {
             FsInfo.Path fsPath = FsProbe.getFSInfo(nodePath);
 
             // Just log a 1-line summary:
-            logger.info("using data path: mounts [{}], net usable_space [{}], net total_space [{}], types [{}]",
+            logger.info("using data path: mount [{}], usable_space [{}], total_space [{}], type [{}]",
                 fsPath.getMount(), fsPath.getAvailable(), fsPath.getTotal(), fsPath.getType());
         }
     }

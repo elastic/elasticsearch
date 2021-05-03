@@ -24,9 +24,8 @@ operations, but you can still explore and navigate results.
 [[ml-close-job-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 * Before you can close an {anomaly-job}, you must stop its {dfeed}. See
 <<ml-stop-datafeed>>.
 

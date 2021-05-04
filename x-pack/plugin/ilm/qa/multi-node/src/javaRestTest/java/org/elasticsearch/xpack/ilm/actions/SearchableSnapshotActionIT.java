@@ -525,11 +525,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                     snapshotRepo, randomBoolean()))
             ),
             new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(true))),
-            // this time transition condition will make sure we catch ILM in the warm phase so we can assert the warm migrate action
-            // didn't re-configure the tier allocation settings set by the searchable_snapshot action in the hot phase
-            // we'll use the origination date to kick off ILM to complete the policy
-            new Phase("cold", TimeValue.timeValueDays(5L), Map.of(MigrateAction.NAME, new MigrateAction(true))),
-            null, null
+            null, null, null
         );
 
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
@@ -542,6 +538,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         indexDocument(client(), dataStream, true);
         String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStream, 1L);
         Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
+        // the searchable snapshot is allocated to the hot tier
         assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_hot"));
 
         // rollover the data stream so searchable_snapshot can complete
@@ -556,21 +553,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             30, TimeUnit.SECONDS);
 
         Map<String, Object> warmIndexSettings = getIndexSettingsAsMap(restoredIndex);
-        // the warm phase shouldn't have changed the data_cold -> data_hot configuration
-        assertThat(warmIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
-            is("data_cold,data_warm,data_hot"));
-
-        // make the index 100 days old so the cold phase transition timing passes
-        updateIndexSettings(restoredIndex, Settings.builder().put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE,
-            ZonedDateTime.now().toInstant().toEpochMilli() - TimeValue.timeValueDays(100).getMillis()));
-
-        // let's wait for ILM to finish
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("cold").getKey())));
-
-        Map<String, Object> coldIndexSettings = getIndexSettingsAsMap(restoredIndex);
-        // the frozen phase should've reconfigured the allocation preference
-        assertThat(coldIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
-            is("data_cold,data_warm,data_hot"));
+        // // the searchable snapshot continues on the to warm tier and onward
+        assertThat(warmIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
     }
 
 }

@@ -6,29 +6,20 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
 import static org.elasticsearch.xpack.core.DataTier.DATA_HOT;
 import static org.elasticsearch.xpack.core.DataTier.DATA_WARM;
 import static org.elasticsearch.xpack.core.ilm.MigrateAction.getPreferredTiersConfiguration;
-import static org.elasticsearch.xpack.core.ilm.MigrateAction.skipMigrateAction;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.FROZEN_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.hamcrest.CoreMatchers.is;
@@ -115,44 +106,4 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
                 is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
         }
     }
-
-    public void testSkipMigrateAction() {
-        IndexMetadata snappedIndex = IndexMetadata.builder("snapped_index")
-            .settings(
-                Settings.builder()
-                    .put(LifecycleSettings.SNAPSHOT_INDEX_NAME, "snapped")
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .build();
-
-        IndexMetadata regularIndex = IndexMetadata.builder("regular_index")
-            .settings(
-                Settings.builder()
-                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            )
-            .build();
-
-        {
-            // migrate action is not skipped if the index is not a searchable snapshot
-            Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE)
-                .forEach(phase -> assertThat(skipMigrateAction(phase, regularIndex), is(false)));
-        }
-
-        {
-            // migrate action is skipped if the index is a searchable snapshot for phases hot -> cold
-            Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE)
-                .forEach(phase -> assertThat(skipMigrateAction(phase, snappedIndex), is(true)));
-        }
-
-        {
-            // migrate action is never skipped for the frozen phase
-            assertThat(skipMigrateAction(FROZEN_PHASE, snappedIndex), is(false));
-            assertThat(skipMigrateAction(FROZEN_PHASE, regularIndex), is(false));
-        }
-    }
-
 }

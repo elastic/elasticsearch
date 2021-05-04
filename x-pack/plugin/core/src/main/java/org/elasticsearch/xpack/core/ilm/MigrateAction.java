@@ -21,14 +21,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.FROZEN_PHASE;
 
 /**
  * A {@link LifecycleAction} which enables or disables the automatic migration of data between
@@ -109,7 +108,7 @@ public class MigrateAction implements LifecycleAction {
 
             BranchingStep conditionalSkipActionStep = new BranchingStep(preMigrateBranchingKey, migrationKey, nextStepKey,
                 (index, clusterState) -> {
-                    if (skipMigrateAction(phase, clusterState.metadata().index(index))) {
+                    if (skipMigrateAction(clusterState.metadata().index(index))) {
                         String policyName =
                             LifecycleSettings.LIFECYCLE_NAME_SETTING.get(clusterState.metadata().index(index).getSettings());
                         logger.debug("[{}] action is configured for index [{}] in policy [{}] which is already mounted as a searchable " +
@@ -130,11 +129,8 @@ public class MigrateAction implements LifecycleAction {
         }
     }
 
-    static boolean skipMigrateAction(String phase, IndexMetadata indexMetadata) {
-        // if the index is a searchable snapshot we skip the migrate action (as mounting an index as searchable snapshot
-        // configures the tier allocation preference), unless we're in the frozen phase
-        return (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null)
-            && (phase.equals(FROZEN_PHASE) == false);
+    private static boolean skipMigrateAction(IndexMetadata indexMetadata) {
+        return SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(indexMetadata.getSettings());
     }
 
     /**

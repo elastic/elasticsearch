@@ -78,7 +78,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
     private IndexMetadata indexMetadata;
     private ClusterState clusterState;
     private IndexShard indexShard;
-    private Path[] dataPaths;
+    private Path dataPath;
     private Path translogPath;
     private Path indexPath;
 
@@ -92,16 +92,15 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         routing = TestShardRouting.newShardRouting(shardId, nodeId, true, ShardRoutingState.INITIALIZING,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE);
 
-        final Path dataDir = createTempDir();
+        dataPath = createTempDir();
 
         environment =
             TestEnvironment.newEnvironment(Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), dataDir)
-                .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath().toString()).build());
+                .put(Environment.PATH_HOME_SETTING.getKey(), dataPath)
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString()).build());
 
         // create same directory structure as prod does
-        Files.createDirectories(dataDir);
-        dataPaths = new Path[] {dataDir};
+        Files.createDirectories(dataPath);
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -110,7 +109,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, shardId.getIndex().getUUID())
             .build();
 
-        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataDir);
+        final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(dataPath);
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
 
         // Adding rollover info to IndexMetadata to check that NamedXContentRegistry is properly configured
@@ -370,11 +369,11 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         final OptionSet options = parser.parse("--index", shardId.getIndex().getName(),
             "--shard-id", Integer.toString(shardId.id()));
 
-        command.findAndProcessShardPath(options, environment, dataPaths, clusterState,
+        command.findAndProcessShardPath(options, environment, dataPath, clusterState,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
 
         final OptionSet options2 = parser.parse("--dir", indexPath.toAbsolutePath().toString());
-        command.findAndProcessShardPath(options2, environment, dataPaths, clusterState,
+        command.findAndProcessShardPath(options2, environment, dataPath, clusterState,
             shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath)));
     }
 

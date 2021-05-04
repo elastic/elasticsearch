@@ -31,9 +31,13 @@ include::common-options.asciidoc[]
 [[script-processor-access-source-fields]]
 ==== Access source fields
 
-To access an incoming document's source fields with a Painless script, use the
-`ctx.<field>` syntax. The `ctx._source.<field>` and `ctx['_source.<field>']`
-syntaxes are not supported.
+The processor parses each incoming document's JSON source fields into a set of
+maps, lists, and primitives To access these fields with a Painless script, use
+{painless}/map-access-operator.html[map access operator]: `ctx['my-field']`. You
+can also use the shorthand `ctx.<my-field>` syntax.
+
+NOTE: The processor does not support the `ctx['_source']['my-field']` or
+`ctx._source.<my-field>` syntaxes.
 
 The following processor uses a Painless script to extract the `tags` field from
 the `env` source field.
@@ -49,10 +53,10 @@ POST _ingest/pipeline/_simulate
           "description": "Extract 'tags' from 'env' field",
           "lang": "painless",
           "source": """
-            String[] envSplit = ctx?.env.splitOnToken(params.delimiter);
+            String[] envSplit = ctx['env'].splitOnToken(params.delimiter);
             ArrayList tags = new ArrayList();
             tags.add(envSplit[params.position].trim());
-            ctx.tags = tags;
+            ctx['tags'] = tags;
           """,
           "params": {
             "delimiter": "-",
@@ -113,7 +117,7 @@ POST _ingest/pipeline/_simulate
           "description": "Set index based on `lang` field and `dataset` param",
           "lang": "painless",
           "source": """
-            ctx._index = ctx.lang + '-' + params.dataset;
+            ctx['_index'] = ctx['lang'] + '-' + params['dataset'];
           """,
           "params": {
             "dataset": "catalog"

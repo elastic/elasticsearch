@@ -94,6 +94,8 @@ public class Packages {
         if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
             ServerUtils.disableGeoIpDownloader(installation);
         }
+        // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
+        ServerUtils.disableSecurityFeatures(installation);
         return installation;
     }
 

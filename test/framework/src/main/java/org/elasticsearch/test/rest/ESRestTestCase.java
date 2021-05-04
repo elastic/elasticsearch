@@ -715,6 +715,10 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     private static void deleteAllNodeShutdownMetadata() throws IOException {
+        final boolean NODE_SHUTDOWN_ENABLED = "true".equals(System.getProperty("es.shutdown_feature_flag_enabled"));
+        if (NODE_SHUTDOWN_ENABLED == false) {
+            return;
+        }
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
         if (statusResponse.get("nodes") instanceof List) { // for some reason `nodes` is parsed as a Map<> if it's empty

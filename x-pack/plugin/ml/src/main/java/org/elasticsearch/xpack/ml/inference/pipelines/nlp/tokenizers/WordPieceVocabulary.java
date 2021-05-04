@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.tokenisation;
+package org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -19,35 +19,36 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class Vocabulary implements ToXContentObject {
+public class WordPieceVocabulary implements ToXContentObject {
 
     public static final String NAME = "vocab";
     public static final ParseField VOCAB = new ParseField(NAME);
     public static final ParseField UNKNOWN_TOKEN = new ParseField("unknown");
 
-    private static final ConstructingObjectParser<Vocabulary, Void> STRICT_PARSER = createParser(false);
-    private static final ConstructingObjectParser<Vocabulary, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<WordPieceVocabulary, Void> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<WordPieceVocabulary, Void> LENIENT_PARSER = createParser(true);
 
-    private static ConstructingObjectParser<Vocabulary, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Vocabulary, Void> parser = new ConstructingObjectParser<>(NAME,
+    @SuppressWarnings("unchecked")
+    private static ConstructingObjectParser<WordPieceVocabulary, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<WordPieceVocabulary, Void> parser = new ConstructingObjectParser<>(NAME,
             ignoreUnknownFields,
-            a -> new Vocabulary((List<String>) a[0], (Integer) a[1]));
+            a -> new WordPieceVocabulary((List<String>) a[0], (Integer) a[1]));
 
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), VOCAB);
-        parser.declareInt(ConstructingObjectParser.constructorArg(), UNKNOWN_TOKEN);
+        parser.declareInt(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_TOKEN);
 
         return parser;
     }
 
-    public static Vocabulary fromXContent(XContentParser parser, boolean lenient) {
+    public static WordPieceVocabulary fromXContent(XContentParser parser, boolean lenient) {
         return lenient ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
     private final SortedMap<String, Integer> vocab;
     private final int unknownToken;
 
-    public Vocabulary(List<String> words, int unknownToken) {
-        this.unknownToken = unknownToken;
+    public WordPieceVocabulary(List<String> words, Integer unknownToken) {
+        this.unknownToken = unknownToken == null ? -1 : unknownToken;
         vocab = new TreeMap<>();
         for (int i = 0; i < words.size(); i++) {
             vocab.put(words.get(i), i);
@@ -71,7 +72,7 @@ public class Vocabulary implements ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Vocabulary that = (Vocabulary) o;
+        WordPieceVocabulary that = (WordPieceVocabulary) o;
         return unknownToken == that.unknownToken && Objects.equals(vocab, that.vocab);
     }
 

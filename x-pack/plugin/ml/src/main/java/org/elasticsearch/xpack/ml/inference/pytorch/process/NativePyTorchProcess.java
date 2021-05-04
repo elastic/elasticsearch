@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.pytorch.process;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
@@ -57,8 +58,8 @@ public class NativePyTorchProcess extends AbstractNativeProcess {
         return resultsParser.parseResults(processOutStream());
     }
 
-    public void writeInferenceRequest(String jsonDoc) throws IOException {
-        processInStream().write(jsonDoc.getBytes(StandardCharsets.UTF_8));
+    public void writeInferenceRequest(BytesReference jsonRequest) throws IOException {
+        processInStream().write(jsonRequest.array(), jsonRequest.arrayOffset(), jsonRequest.length());
         processInStream().flush();
     }
 }

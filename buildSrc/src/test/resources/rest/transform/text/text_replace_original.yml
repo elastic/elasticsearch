@@ -35,6 +35,8 @@ teardown:
   - key_not_to_replace: { _shards.skipped : 0}
   - key_not_to_replace: { _below_is_target_for_tests: 0 }
   - key_to_replace: "value_to_replace"
+  - is_true: is_true_to_replace
+  - is_false: is_false_to_replace
 
 ---
 "Also has key_value to replace":

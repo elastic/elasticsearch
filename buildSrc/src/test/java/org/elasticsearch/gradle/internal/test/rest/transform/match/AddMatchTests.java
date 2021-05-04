@@ -18,7 +18,6 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -29,26 +28,26 @@ public class AddMatchTests extends TransformTests {
 
     @Test
     public void testAddAllNotSupported() throws Exception {
-        String testName = "/rest/transform/match/match.yml";
+        String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
         JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
         assertEquals(
             "adding matches is only supported for named tests",
             expectThrows(
                 NullPointerException.class,
-                () -> transformTests(new LinkedList<>(tests), Collections.singletonList(new AddMatch("_type", addNode, null)))
+                () -> transformTests(tests, Collections.singletonList(new AddMatch("_type", addNode, null)))
             ).getMessage()
         );
     }
 
     @Test
     public void testAddByTest() throws Exception {
-        String testName = "/rest/transform/match/match.yml";
+        String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
         JsonNode addNode = MAPPER.convertValue(123456789, JsonNode.class);
         validateTest(tests, true);
         List<ObjectNode> transformedTests = transformTests(
-            new LinkedList<>(tests),
+            tests,
             Collections.singletonList(new AddMatch("my_number", addNode, "Last test"))
         );
         printTest(testName, transformedTests);

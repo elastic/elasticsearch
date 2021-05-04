@@ -32,7 +32,8 @@ include::common-options.asciidoc[]
 ==== Access source fields
 
 To access an incoming document's source fields with a Painless script, use the
-`ctx.<field>` or `ctx['_source.<field>']` syntax. 
+`ctx.<field>` syntax. The `ctx._source.<field>` and `ctx['_source.<field>']`
+syntaxes are not supported.
 
 The following processor uses a Painless script to extract the `tags` field from
 the `env` source field.

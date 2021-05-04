@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle;
 
 import java.io.File;
 import java.io.FileOutputStream;

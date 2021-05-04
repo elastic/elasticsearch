@@ -9,7 +9,6 @@
 package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
-import org.elasticsearch.gradle.internal.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;

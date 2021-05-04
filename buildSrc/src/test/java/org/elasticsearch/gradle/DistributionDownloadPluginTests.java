@@ -10,7 +10,6 @@ package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.ElasticsearchDistribution.Platform;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
-import org.elasticsearch.gradle.internal.VersionProperties;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 

@@ -7,7 +7,7 @@
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 

@@ -13,7 +13,7 @@ import groovy.lang.Closure;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
 import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;

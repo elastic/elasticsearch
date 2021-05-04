@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;

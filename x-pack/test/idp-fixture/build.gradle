@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Architecture
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 

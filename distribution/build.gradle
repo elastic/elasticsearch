@@ -12,7 +12,7 @@ import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoTask
 import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files

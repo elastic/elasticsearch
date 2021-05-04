@@ -14,7 +14,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.testkit.runner.TaskOutcome
 
 class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
@@ -39,12 +39,12 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         buildFile << """
         plugins {
-            id 'elasticsearch.yaml-rest-compat-test'
+          id 'elasticsearch.yaml-rest-compat-test'
         }
         """
 
         when:
-        def result = gradleRunner("yamlRestCompatTest", '--stacktrace').build()
+        def result = gradleRunner("yamlRestCompatTest").build()
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE

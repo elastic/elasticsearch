@@ -5,9 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.gradle.internal;
-
-import org.elasticsearch.gradle.Version;
+package org.elasticsearch.gradle;
 
 import java.io.IOException;
 import java.io.InputStream;

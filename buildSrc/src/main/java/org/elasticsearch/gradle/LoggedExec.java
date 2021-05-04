@@ -5,9 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.FileSystemOperationsAware;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Task;

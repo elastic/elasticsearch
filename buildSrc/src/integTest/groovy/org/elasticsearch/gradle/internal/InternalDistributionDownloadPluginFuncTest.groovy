@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
@@ -38,7 +39,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         """
 
         when:
-        def result = gradleRunner("setupDistro", '--stacktrace', '-g', testProjectDir.newFolder('GUH').path).build()
+        def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
         result.task(":distribution:archives:${testArchiveProjectName}:buildExpanded").outcome == TaskOutcome.SUCCESS

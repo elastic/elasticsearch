@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.ProjectLayout;
@@ -27,7 +26,6 @@ public class InternalReaperPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         registerReaperService(project, projectLayout, true);
     }
 }

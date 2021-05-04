@@ -16,7 +16,7 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.internal.Jdk;
 import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;

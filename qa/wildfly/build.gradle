@@ -7,7 +7,7 @@
  */
 
 import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.VersionProperties
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'war'

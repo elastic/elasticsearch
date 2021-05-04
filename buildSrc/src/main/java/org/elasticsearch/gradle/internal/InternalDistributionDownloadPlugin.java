@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.DistributionResolution;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;

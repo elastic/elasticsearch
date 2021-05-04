@@ -206,7 +206,7 @@ GET my-index/_msearch/template
 [[get-search-templates]]
 === Get search templates
 
-To retrieve a search template, use the <<get-script-contexts-api,get stored
+To retrieve a search template, use the <<get-stored-script-api,get stored
 script API>>.
 
 [source,console]

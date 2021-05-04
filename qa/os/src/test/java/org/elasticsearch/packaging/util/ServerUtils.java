@@ -64,14 +64,17 @@ public class ServerUtils {
     private static final long requestInterval = TimeUnit.SECONDS.toMillis(5);
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
-        boolean xpackEnabled = false;
+        boolean xpackEnabled;
 
-        // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
         if (installation.distribution.isDocker() == false) {
             Path configFilePath = installation.config("elasticsearch.yml");
             // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
             xpackEnabled = configFile.contains(SECURITY_ENABLED) || configFile.contains(SSL_ENABLED);
+        } else {
+            // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
+            // we currently enable security in all tests
+            xpackEnabled = true;
         }
 
         if (xpackEnabled) {
@@ -239,6 +242,29 @@ public class ServerUtils {
         makeRequest(Request.Delete("http://localhost:9200/library"));
     }
 
+    public static void runElasticsearchTests(String username, String password) throws Exception {
+        makeRequest(
+            Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
+                .bodyString("{ \"title\": \"Book #1\", \"pages\": 123 }", ContentType.APPLICATION_JSON),
+            username,
+            password,
+            null
+        );
+
+        makeRequest(
+            Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
+                .bodyString("{ \"title\": \"Book #2\", \"pages\": 456 }", ContentType.APPLICATION_JSON),
+            username,
+            password,
+            null
+        );
+
+        String count = makeRequest(Request.Get("http://localhost:9200/_count?pretty"), username, password, null);
+        assertThat(count, containsString("\"count\" : 2"));
+
+        makeRequest(Request.Delete("http://localhost:9200/library"), username, password, null);
+    }
+
     public static String makeRequest(Request request) throws Exception {
         return makeRequest(request, null, null, null);
     }
@@ -252,6 +278,11 @@ public class ServerUtils {
         }
 
         return body;
+    }
+
+    public static int makeRequestAndGetStatus(Request request, String username, String password, Path caCert) throws Exception {
+        final HttpResponse response = execute(request, username, password, caCert);
+        return response.getStatusLine().getStatusCode();
     }
 
     public static void disableGeoIpDownloader(Installation installation) throws IOException {
@@ -271,5 +302,15 @@ public class ServerUtils {
             lines = allLines.filter(s -> s.startsWith("ingest.geoip.downloader.enabled") == false).collect(Collectors.toList());
         }
         Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void disableSecurityFeatures(Installation installation) throws IOException {
+        List<String> yaml = Collections.singletonList("xpack.security.enabled: false");
+        Path yml = installation.config("elasticsearch.yml");
+        try (Stream<String> lines = Files.readAllLines(yml).stream()) {
+            if (lines.noneMatch(s -> s.startsWith("xpack.security.enabled"))) {
+                Files.write(yml, yaml, CREATE, APPEND);
+            }
+        }
     }
 }

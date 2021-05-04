@@ -78,6 +78,8 @@ import static org.junit.Assume.assumeTrue;
  */
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
+    private static final String USERNAME = "elastic";
+    private static final String PASSWORD = "nothunter2";
 
     @BeforeClass
     public static void filterDistros() {
@@ -86,7 +88,12 @@ public class DockerTests extends PackagingTestCase {
 
     @Before
     public void setupTest() throws IOException {
-        installation = runContainer(distribution(), builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false")));
+        installation = runContainer(
+            distribution(),
+            builder().envVars(
+                Map.of("ingest.geoip.downloader.enabled", "false", "xpack.security.enabled", "true", "ELASTIC_PASSWORD", PASSWORD)
+            )
+        );
         tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
 
@@ -107,12 +114,8 @@ public class DockerTests extends PackagingTestCase {
      * Check that the /_xpack API endpoint's presence is correct for the type of distribution being tested.
      */
     public void test011PresenceOfXpack() throws Exception {
-        withCustomConfig(tempConf -> {
-            // Create a startup problem by adding an invalid YAML line to the config
-            append(tempConf.resolve("elasticsearch.yml"), "xpack.security.enabled: false\n");
-        });
         waitForElasticsearch(installation);
-        final int statusCode = Request.Get("http://localhost:9200/_xpack").execute().returnResponse().getStatusLine().getStatusCode();
+        final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200/_xpack"), USERNAME, PASSWORD, null);
         assertThat(statusCode, equalTo(200));
     }
 
@@ -163,7 +166,7 @@ public class DockerTests extends PackagingTestCase {
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
-        ServerUtils.runElasticsearchTests();
+        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
     }
 
     /**
@@ -191,7 +194,7 @@ public class DockerTests extends PackagingTestCase {
 
         waitForElasticsearch(installation);
 
-        final JsonNode nodes = getJson("/_nodes").get("nodes");
+        final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD).get("nodes");
         final String nodeId = nodes.fieldNames().next();
 
         final int heapSize = nodes.at("/" + nodeId + "/jvm/mem/heap_init_in_bytes").intValue();
@@ -219,7 +222,7 @@ public class DockerTests extends PackagingTestCase {
 
             waitForElasticsearch(installation);
 
-            final JsonNode nodes = getJson("/_nodes");
+            final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD);
 
             assertThat(nodes.at("/_nodes/total").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));

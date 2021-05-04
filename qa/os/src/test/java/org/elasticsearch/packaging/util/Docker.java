@@ -567,6 +567,21 @@ public class Docker {
         return mapper.readTree(pluginsResponse);
     }
 
+    public static JsonNode getJson(String path, String user, String password) throws Exception {
+        path = Objects.requireNonNull(path).trim();
+        if (path.isEmpty()) {
+            throw new IllegalArgumentException("path must be supplied");
+        }
+        if (path.startsWith("/") == false) {
+            throw new IllegalArgumentException("path must start with /");
+        }
+        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path), user, password, null);
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        return mapper.readTree(pluginsResponse);
+    }
+
     /**
      * Fetches all the labels for a Docker image
      * @param distribution required to derive the image name

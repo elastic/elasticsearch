@@ -521,6 +521,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
             inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
         );
+        when(searchExecutionContext.getMatchingFieldTypes(anyObject())).thenAnswer(
+            inv -> mapperService.mappingLookup().getMatchingFieldTypes(inv.getArguments()[0].toString())
+        );
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");

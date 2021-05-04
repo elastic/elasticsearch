@@ -106,7 +106,7 @@ public class GeoGridTilerTests extends ESTestCase {
     // tests that bounding boxes of shapes crossing the dateline are correctly wrapped
     public void testGeoTileSetValuesBoundingBoxes_BoundedGeoShapeCellValues() throws Exception {
         for (int i = 0; i < 1; i++) {
-            int precision = randomIntBetween(0, 4);
+            int precision = randomIntBetween(1, 4);
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
             Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
                 try {
@@ -226,7 +226,6 @@ public class GeoGridTilerTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72521")
     public void testGeoHashBoundsExcludeTouchingTiles() throws Exception {
         final int precision = randomIntBetween(1, 5);
         final String hash =
@@ -250,6 +249,7 @@ public class GeoGridTilerTests extends ESTestCase {
             final int numTiles = values.docValueCount();
             final int expected = (int) Math.pow(32, i);
             assertThat(numTiles, equalTo(expected));
+            assertThat((int) bounded.getMaxHashes(), greaterThanOrEqualTo(expected));
         }
     }
 

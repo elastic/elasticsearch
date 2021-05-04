@@ -57,6 +57,17 @@ teardown:
   - match: { "token.name": "api-token-1" }
 
   - do:
+      catch: forbidden
+      headers:
+        Authorization: Bearer ${service_token}
+      security.delete_user:
+        username: foo
+
+  - match: { "error.type": "security_exception" }
+  - match:
+      error.reason: "action [cluster:admin/xpack/security/user/delete] is unauthorized for user [elastic/fleet-server], this action is granted by the cluster privileges [manage_security,all]"
+
+  - do:
       security.get_service_credentials:
         namespace: elastic
         service: fleet-server

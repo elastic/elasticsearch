@@ -411,7 +411,7 @@ public class QueryPhase {
             }
             queryResult.searchTimedOut(true);
         }
-        
+
         TopFieldDocs mergedTopDocs = sharedManager.reduce(collectors);
         // Lucene sets shards indexes during merging of topDocs from different collectors
         // We need to reset shard index; ES will set shard index later during reduce stage

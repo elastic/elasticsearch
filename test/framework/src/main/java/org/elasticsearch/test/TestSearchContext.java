@@ -106,7 +106,8 @@ public class TestSearchContext extends SearchContext {
         this.searchExecutionContext = searchExecutionContext;
         this.searcher = searcher;
         this.scrollContext = scrollContext;
-        this.request = new ShardSearchRequest(indexShard.shardId(), 0L, AliasFilter.EMPTY);
+        ShardId shardId = indexShard != null ? indexShard.shardId() : new ShardId("N/A", "N/A", 0);
+        this.request = new ShardSearchRequest(shardId, 0L, AliasFilter.EMPTY);
     }
 
     public void setSearcher(ContextIndexSearcher searcher) {

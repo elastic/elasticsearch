@@ -135,6 +135,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return parserContextSupplier.get();
     }
 
+    /**
+     * Exposes a {@link DocumentParser}
+     * @return a document parser to be used to parse incoming documents
+     */
     public DocumentParser documentParser() {
         return this.documentParser;
     }

@@ -14,4 +14,8 @@ public class ReplaceIsFalse extends ReplaceTextual {
     public ReplaceIsFalse(String valueToBeReplaced, TextNode replacementNode) {
         super("is_false", valueToBeReplaced, replacementNode);
     }
+
+    public ReplaceIsFalse(String valueToBeReplaced, TextNode replacementNode, String testName) {
+        super("is_false", valueToBeReplaced, replacementNode, testName);
+    }
 }

@@ -84,7 +84,7 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
 
             String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().endObject());
             indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-            assertEquals("{\"_doc\":{}}", indexService.mapperService().documentMapper("_doc").mapping().toString());
+            assertEquals("{\"_doc\":{}}", indexService.mapperService().documentMapper().mapping().toString());
         }
     }
 
@@ -94,7 +94,7 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
                 .put("index.analysis.analyzer.default_search.tokenizer", "standard").build());
         String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc").endObject().endObject());
         indexService.mapperService().merge("_doc", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, indexService.mapperService().documentMapper("_doc").mapping().toString());
+        assertEquals(mapping, indexService.mapperService().documentMapper().mapping().toString());
     }
 
 }

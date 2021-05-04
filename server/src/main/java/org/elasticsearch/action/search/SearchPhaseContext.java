@@ -8,6 +8,8 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -20,6 +22,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This class provide contextual state and access to resources across multiple search phases.
@@ -46,6 +50,22 @@ interface SearchPhaseContext extends Executor {
      * Returns the currently executing search request
      */
     SearchRequest getRequest();
+
+    ActionListener<SearchResponse> getListener();
+
+    SearchResponse.Clusters getClusters();
+
+    long buildTookInMillis();
+
+    AtomicBoolean getRequestCancelled();
+
+    AtomicBoolean hasShardResponse();
+
+    AtomicInteger getSuccessfulOps();
+
+    AtomicInteger getSkippedOps();
+
+    SetOnce<AtomicArray<ShardSearchFailure>> getShardFailures();
 
     /**
      * Checks if the given context id is part of the point in time of this search (if exists).

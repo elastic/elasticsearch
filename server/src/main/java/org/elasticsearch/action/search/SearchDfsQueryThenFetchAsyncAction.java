@@ -9,18 +9,13 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.internal.AliasFilter;
 
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Executor;
 
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
@@ -29,24 +24,18 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     private final QueryPhaseResultConsumer queryPhaseResultConsumer;
 
     SearchDfsQueryThenFetchAsyncAction(final SearchPhaseContext context, final Logger logger,
-                                       final Map<String, AliasFilter> aliasFilter,
-                                       final Map<String, Float> concreteIndexBoosts,
                                        final SearchPhaseController searchPhaseController,
                                        final QueryPhaseResultConsumer queryPhaseResultConsumer,
-                                       final ActionListener<SearchResponse> listener,
-                                       final GroupShardsIterator<SearchShardIterator> shardsIts,
-                                       final TransportSearchAction.SearchTimeProvider timeProvider,
-                                       final ClusterState clusterState, final SearchTask task, SearchResponse.Clusters clusters) {
-        super("dfs", context, logger, aliasFilter, concreteIndexBoosts,
-            listener,
-                shardsIts, timeProvider, clusterState, new ArraySearchPhaseResults<>(shardsIts.size()),
-                context.getRequest().getMaxConcurrentShardRequests(), clusters);
+                                       final SearchPhaseResults<DfsSearchResult> results,
+                                       final GroupShardsIterator<SearchShardIterator> shardsIts) {
+        super("dfs", context, logger, shardsIts, results, context.getRequest().getMaxConcurrentShardRequests());
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.searchPhaseController = searchPhaseController;
-        SearchProgressListener progressListener = task.getProgressListener();
+        SearchProgressListener progressListener = context.getTask().getProgressListener();
         SearchSourceBuilder sourceBuilder = context.getRequest().source();
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
+            SearchProgressListener.buildSearchShards(toSkipShardsIts), context.getClusters(),
+            sourceBuilder == null || sourceBuilder.size() != 0);
     }
 
     @Override

@@ -28,7 +28,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -51,16 +50,23 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
 
-    CanMatchPreFilterSearchPhase(SearchPhaseContext context, Logger logger, Map<String, AliasFilter> aliasFilter,
-                                 Map<String, Float> concreteIndexBoosts,
+    // TODO(jtibs): remove this and fix tests
+    CanMatchPreFilterSearchPhase(SearchPhaseContext context, Logger logger,
+                                 Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                  ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                  TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
                                  Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
                                  SearchResponse.Clusters clusters, CoordinatorRewriteContextProvider coordinatorRewriteContextProvider) {
+    this(context, logger, new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts,
+        phaseFactory, coordinatorRewriteContextProvider);
+    }
+
+    CanMatchPreFilterSearchPhase(SearchPhaseContext context, Logger logger, CanMatchSearchPhaseResults results,
+                                 GroupShardsIterator<SearchShardIterator> shardsIts,
+                                 Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
+                                 CoordinatorRewriteContextProvider coordinatorRewriteContextProvider) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
-        super("can_match", context, logger, aliasFilter, concreteIndexBoosts,
-            listener, shardsIts, timeProvider, clusterState,
-            new CanMatchSearchPhaseResults(shardsIts.size()), shardsIts.size(), clusters);
+        super("can_match", context, logger, shardsIts, results, shardsIts.size());
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
@@ -185,7 +191,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         return comparator.thenComparing(index -> shardsIts.get(index));
     }
 
-    private static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {
+    public static final class CanMatchSearchPhaseResults extends SearchPhaseResults<CanMatchResponse> {
         private final FixedBitSet possibleMatches;
         private final MinAndMax<?>[] minAndMaxes;
         private int numPossibleMatches;

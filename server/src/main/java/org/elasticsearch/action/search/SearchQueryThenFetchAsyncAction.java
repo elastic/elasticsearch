@@ -10,18 +10,12 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
-
-import java.util.Map;
-import java.util.concurrent.Executor;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
@@ -36,23 +30,16 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private volatile BottomSortValuesCollector bottomSortCollector;
 
     SearchQueryThenFetchAsyncAction(final SearchPhaseContext context, final Logger logger,
-                                    final Map<String, AliasFilter> aliasFilter,
-                                    final Map<String, Float> concreteIndexBoosts,
                                     final SearchPhaseController searchPhaseController,
                                     final QueryPhaseResultConsumer resultConsumer,
-                                    final ActionListener<SearchResponse> listener,
-                                    final GroupShardsIterator<SearchShardIterator> shardsIts,
-                                    final TransportSearchAction.SearchTimeProvider timeProvider,
-                                    ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
-        super("query", context, logger, aliasFilter, concreteIndexBoosts,
-            listener, shardsIts, timeProvider, clusterState,
-            resultConsumer, context.getRequest().getMaxConcurrentShardRequests(), clusters);
+                                    final GroupShardsIterator<SearchShardIterator> shardsIts) {
+        super("query", context, logger, shardsIts, resultConsumer, context.getRequest().getMaxConcurrentShardRequests());
 
         SearchRequest request = context.getRequest();
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
-        this.progressListener = task.getProgressListener();
+        this.progressListener = context.getTask().getProgressListener();
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
@@ -60,7 +47,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
         boolean hasFetchPhase = request.source() == null ? true : request.source().size() > 0;
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, hasFetchPhase);
+            SearchProgressListener.buildSearchShards(toSkipShardsIts), context.getClusters(), hasFetchPhase);
     }
 
     protected void executePhaseOnShard(final SearchShardIterator shardIt,

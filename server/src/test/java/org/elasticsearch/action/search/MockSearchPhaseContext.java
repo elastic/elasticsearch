@@ -9,6 +9,8 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -26,6 +28,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -72,6 +75,54 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public SearchRequest getRequest() {
         return searchRequest;
+    }
+
+    @Override
+    public ActionListener<SearchResponse> getListener() {
+        Assert.fail("should not be called");
+        return null;
+    }
+
+    @Override
+    public SearchResponse.Clusters getClusters() {
+        Assert.fail("should not be called");
+        return null;
+    }
+
+    @Override
+    public long buildTookInMillis() {
+        Assert.fail("should not be called");
+        return 0;
+    }
+
+    @Override
+    public AtomicBoolean getRequestCancelled() {
+        Assert.fail("should not be called");
+        return null;
+    }
+
+    @Override
+    public AtomicBoolean hasShardResponse() {
+        Assert.fail("should not be called");
+        return null;
+    }
+
+    @Override
+    public AtomicInteger getSuccessfulOps() {
+        Assert.fail("should not be called");
+        return null;
+    }
+
+    @Override
+    public AtomicInteger getSkippedOps() {
+        Assert.fail("should not be called");
+        return null;
+    }
+
+    @Override
+    public SetOnce<AtomicArray<ShardSearchFailure>> getShardFailures() {
+        Assert.fail("should not be called");
+        return null;
     }
 
     @Override

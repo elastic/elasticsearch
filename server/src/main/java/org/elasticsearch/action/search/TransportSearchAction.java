@@ -50,6 +50,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
@@ -229,12 +230,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 Map<String, Float> concreteIndexBoosts, ActionListener<SearchResponse> listener,
                 boolean preFilter, ThreadPool threadPool, SearchResponse.Clusters clusters) {
 
-                SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task, executor,
-                    searchTransportService, connectionLookup);
-                return new AbstractSearchAsyncAction<>(
-                    actionName, phaseContext, logger, aliasFilter, concreteIndexBoosts,
-                    listener, shardsIts, timeProvider, clusterState,
-                    new ArraySearchPhaseResults<>(shardsIts.size()), 1, clusters) {
+                SearchPhaseResults<SearchPhaseResult> results = new ArraySearchPhaseResults<>(shardsIts.size());
+                boolean buildPointInTimeFromSearchResults = true;
+                SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, logger, listener, results,
+                    aliasFilter, concreteIndexBoosts, task, executor, searchTransportService, connectionLookup, clusterState, clusters,
+                    timeProvider, buildPointInTimeFromSearchResults);
+                return new AbstractSearchAsyncAction<>(actionName, phaseContext, logger, shardsIts, results, 1) {
                     @Override
                     protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                                        SearchActionListener<SearchPhaseResult> listener) {
@@ -251,11 +252,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                 sendSearchResponse(InternalSearchResponse.empty(), atomicArray);
                             }
                         };
-                    }
-
-                    @Override
-                    boolean buildPointInTimeFromSearchResults() {
-                        return includeSearchContext;
                     }
                 };
             }
@@ -757,12 +753,15 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         boolean preFilter,
         ThreadPool threadPool,
         SearchResponse.Clusters clusters) {
+        boolean buildPointInTimeFromSearchResults = false;
         if (preFilter) {
-            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task, executor,
-                searchTransportService, connectionLookup);
-            return new CanMatchPreFilterSearchPhase(phaseContext, logger,
-                aliasFilter, concreteIndexBoosts, listener, shardIterators,
-                timeProvider, clusterState, (iter) -> {
+            CanMatchPreFilterSearchPhase.CanMatchSearchPhaseResults results = new CanMatchPreFilterSearchPhase.CanMatchSearchPhaseResults(
+                shardIterators.size());
+            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, logger, listener, results, aliasFilter,
+                concreteIndexBoosts, task, executor, searchTransportService, connectionLookup, clusterState, clusters, timeProvider,
+                buildPointInTimeFromSearchResults);
+            return new CanMatchPreFilterSearchPhase(phaseContext, logger, results,
+                shardIterators, (iter) -> {
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
                     task,
                     searchRequest,
@@ -783,24 +782,28 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         action.start();
                     }
                 };
-            }, clusters, searchService.getCoordinatorRewriteContextProvider(timeProvider::getAbsoluteStartMillis));
+            }, searchService.getCoordinatorRewriteContextProvider(timeProvider::getAbsoluteStartMillis));
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(executor,
                 circuitBreaker, task.getProgressListener(), searchRequest, shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]"));
-            SearchPhaseContext phaseContext = new DefaultSearchPhaseContext(searchRequest, task, executor,
-                searchTransportService, connectionLookup);
+
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(phaseContext, logger,
-                        aliasFilter, concreteIndexBoosts, searchPhaseController, queryResultConsumer,
-                        listener, shardIterators, timeProvider, clusterState, task, clusters);
+                    SearchPhaseResults<DfsSearchResult> dfsResults = new ArraySearchPhaseResults<>(shardIterators.size());
+                    SearchPhaseContext dfsContext = new DefaultSearchPhaseContext(searchRequest, logger, listener, dfsResults,
+                        aliasFilter, concreteIndexBoosts, task, executor, searchTransportService, connectionLookup, clusterState, clusters,
+                        timeProvider, buildPointInTimeFromSearchResults);
+                    searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(dfsContext, logger,
+                         searchPhaseController, queryResultConsumer, dfsResults, shardIterators);
                     break;
                 case QUERY_THEN_FETCH:
-                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(phaseContext, logger,
-                        aliasFilter, concreteIndexBoosts, searchPhaseController, queryResultConsumer,
-                        listener, shardIterators, timeProvider, clusterState, task, clusters);
+                    SearchPhaseContext context = new DefaultSearchPhaseContext(searchRequest, logger, listener, queryResultConsumer,
+                        aliasFilter, concreteIndexBoosts, task, executor, searchTransportService, connectionLookup, clusterState, clusters,
+                        timeProvider, buildPointInTimeFromSearchResults);
+                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(context, logger,
+                        searchPhaseController, queryResultConsumer, shardIterators);
                     break;
                 default:
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

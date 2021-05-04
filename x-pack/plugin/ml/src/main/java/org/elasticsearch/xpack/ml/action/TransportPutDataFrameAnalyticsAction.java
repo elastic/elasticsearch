@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
@@ -118,7 +119,7 @@ public class TransportPutDataFrameAnalyticsAction
         final DataFrameAnalyticsConfig config = request.getConfig();
 
         ActionListener<Boolean> sourceDestValidationListener = ActionListener.wrap(
-            aBoolean -> putValidatedConfig(config, listener),
+            aBoolean -> putValidatedConfig(config, request.masterNodeTimeout(), listener),
             listener::onFailure
         );
 
@@ -126,7 +127,8 @@ public class TransportPutDataFrameAnalyticsAction
             SourceDestValidations.ALL_VALIDATIONS, sourceDestValidationListener);
     }
 
-    private void putValidatedConfig(DataFrameAnalyticsConfig config, ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
+    private void putValidatedConfig(DataFrameAnalyticsConfig config, TimeValue masterNodeTimeout,
+                                    ActionListener<PutDataFrameAnalyticsAction.Response> listener) {
         DataFrameAnalyticsConfig preparedForPutConfig =
             new DataFrameAnalyticsConfig.Builder(config, maxModelMemoryLimit)
                 .setCreateTime(Instant.now())
@@ -152,7 +154,7 @@ public class TransportPutDataFrameAnalyticsAction
                 privRequest.indexPrivileges(sourceIndexPrivileges, destIndexPrivileges);
 
                 ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                    r -> handlePrivsResponse(username, preparedForPutConfig, r, listener),
+                    r -> handlePrivsResponse(username, preparedForPutConfig, r, masterNodeTimeout, listener),
                     listener::onFailure);
 
                 client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
@@ -161,6 +163,7 @@ public class TransportPutDataFrameAnalyticsAction
             updateDocMappingAndPutConfig(
                 preparedForPutConfig,
                 threadPool.getThreadContext().getHeaders(),
+                masterNodeTimeout,
                 ActionListener.wrap(
                     unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(preparedForPutConfig)),
                     listener::onFailure
@@ -170,11 +173,13 @@ public class TransportPutDataFrameAnalyticsAction
 
     private void handlePrivsResponse(String username, DataFrameAnalyticsConfig memoryCappedConfig,
                                      HasPrivilegesResponse response,
+                                     TimeValue masterNodeTimeout,
                                      ActionListener<PutDataFrameAnalyticsAction.Response> listener) throws IOException {
         if (response.isCompleteMatch()) {
             updateDocMappingAndPutConfig(
                 memoryCappedConfig,
                 threadPool.getThreadContext().getHeaders(),
+                masterNodeTimeout,
                 ActionListener.wrap(
                     unused -> listener.onResponse(new PutDataFrameAnalyticsAction.Response(memoryCappedConfig)),
                     listener::onFailure
@@ -196,6 +201,7 @@ public class TransportPutDataFrameAnalyticsAction
 
     private void updateDocMappingAndPutConfig(DataFrameAnalyticsConfig config,
                                               Map<String, String> headers,
+                                              TimeValue masterNodeTimeout,
                                               ActionListener<DataFrameAnalyticsConfig> listener) {
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
@@ -208,6 +214,7 @@ public class TransportPutDataFrameAnalyticsAction
             MlConfigIndex::mapping,
             client,
             clusterState,
+            masterNodeTimeout,
             ActionListener.wrap(
                 unused -> configProvider.put(config, headers, ActionListener.wrap(
                     indexResponse -> {

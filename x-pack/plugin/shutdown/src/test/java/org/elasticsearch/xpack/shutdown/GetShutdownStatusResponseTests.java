@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.shutdown;
 
-import org.elasticsearch.cluster.metadata.NodeShutdownComponentStatus;
+import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
+import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
+import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -27,44 +29,41 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected GetShutdownStatusAction.Response createTestInstance() {
-        List<SingleNodeShutdownMetadata> nodeMetadatas = randomList(0, 20, GetShutdownStatusResponseTests::randomNodeShutdownInfo);
-        return new GetShutdownStatusAction.Response(nodeMetadatas);
+        List<SingleNodeShutdownStatus> shutdownStatuses = randomList(0, 20, GetShutdownStatusResponseTests::randomNodeShutdownStatus);
+        return new GetShutdownStatusAction.Response(shutdownStatuses);
     }
 
     @Override
     protected GetShutdownStatusAction.Response mutateInstance(GetShutdownStatusAction.Response instance) throws IOException {
-        Set<SingleNodeShutdownMetadata> oldNodes = new HashSet<>(instance.getShutdownStatuses());
-        List<SingleNodeShutdownMetadata> newNodes = randomList(
+        Set<SingleNodeShutdownStatus> oldNodes = new HashSet<>(instance.getShutdownStatuses());
+        List<SingleNodeShutdownStatus> newNodes = randomList(
             1,
             20,
-            () -> randomValueOtherThanMany(oldNodes::contains, GetShutdownStatusResponseTests::randomNodeShutdownInfo)
+            () -> randomValueOtherThanMany(oldNodes::contains, GetShutdownStatusResponseTests::randomNodeShutdownStatus)
         );
 
         return new GetShutdownStatusAction.Response(newNodes);
     }
 
-    public static SingleNodeShutdownMetadata randomNodeShutdownInfo() {
+    public static SingleNodeShutdownMetadata randomNodeShutdownMetadata() {
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
             .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
             .setReason(randomAlphaOfLength(5))
-            .setStatus(randomStatus())
             .setStartedAtMillis(randomNonNegativeLong())
-            .setShardMigrationStatus(randomComponentStatus())
-            .setPersistentTasksStatus(randomComponentStatus())
-            .setPluginsStatus(randomComponentStatus())
             .build();
+    }
+
+    public static SingleNodeShutdownStatus randomNodeShutdownStatus() {
+        return new SingleNodeShutdownStatus(
+            randomNodeShutdownMetadata(),
+            new ShutdownShardMigrationStatus(),
+            new ShutdownPersistentTasksStatus(),
+            new ShutdownPluginsStatus()
+        );
     }
 
     public static SingleNodeShutdownMetadata.Status randomStatus() {
         return randomFrom(new ArrayList<>(EnumSet.allOf(SingleNodeShutdownMetadata.Status.class)));
-    }
-
-    public static NodeShutdownComponentStatus randomComponentStatus() {
-        return new NodeShutdownComponentStatus(
-            randomStatus(),
-            randomBoolean() ? null : randomNonNegativeLong(),
-            randomBoolean() ? null : randomAlphaOfLengthBetween(4, 10)
-        );
     }
 }

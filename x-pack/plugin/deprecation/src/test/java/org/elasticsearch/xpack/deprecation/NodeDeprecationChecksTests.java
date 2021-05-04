@@ -599,10 +599,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             NodeDeprecationChecks.checkImplicitlyDisabledSecurityOnBasicAndTrial(Settings.EMPTY,
                 null,
                 new XPackLicenseState(Settings.EMPTY, () -> 0));
-        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(issue.getMessage(), equalTo("Security is enabled by default for all licenses in the next major version."));
         assertNotNull(issue.getDetails());
-        assertThat(issue.getDetails(), containsString("The behavior where the value of [xpack.security.enabled] setting is false for "));
+        assertThat(issue.getDetails(), containsString("The default behavior of disabling security on "));
         assertThat(issue.getUrl(),
             equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#implicitly-disabled-security"));
     }

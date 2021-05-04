@@ -53,11 +53,12 @@ public class SecurityStatusChangeListener implements LicenseStateListener {
                 if (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
                     || licenseState.getOperationMode().equals(License.OperationMode.TRIAL)) {
                     deprecationLogger.deprecate(DeprecationCategory.SECURITY, "security_implicitly_disabled",
-                        "The behavior where the value of [xpack.security.enabled] setting defaults to false for " +
-                            licenseState.getOperationMode() + " licenses is deprecated and will be changed in a future version. " +
-                        "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                            Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by " +
-                            "setting [xpack.security.enabled] to false in elasticsearch.yml");
+                        "The default behavior of disabling security on " + licenseState.getOperationMode().description()
+                            + " licenses is deprecated. A later version of Elasticsearch will set [xpack.security.enabled] to \"true\" "
+                            + "for all licenses and enable security by default."
+                            + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
+                            + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
+                            + "setting [xpack.security.enabled] to false in elasticsearch.yml");
                 }
             }
             this.securityEnabled = newState;

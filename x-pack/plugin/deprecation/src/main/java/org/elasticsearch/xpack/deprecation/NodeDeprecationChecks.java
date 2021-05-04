@@ -129,13 +129,14 @@ class NodeDeprecationChecks {
         if ( XPackSettings.SECURITY_ENABLED.exists(settings) == false
             && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
             || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
-          String details = "The behavior where the value of [xpack.security.enabled] setting is false for " +
-              licenseState.getOperationMode() + " licenses is deprecated and will be changed in a future version." +
-              "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-              Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by " +
-              "setting [xpack.security.enabled] to false in elasticsearch.yml";
+          String details = "The default behavior of disabling security on " + licenseState.getOperationMode().description()
+              + " licenses is deprecated. A later version of Elasticsearch will set [xpack.security.enabled] to \"true\" "
+              + "for all licenses and enable security by default."
+              + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
+              + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
+              + "setting [xpack.security.enabled] to false in elasticsearch.yml";
             return new DeprecationIssue(
-                DeprecationIssue.Level.WARNING,
+                DeprecationIssue.Level.CRITICAL,
                 "Security is enabled by default for all licenses in the next major version.",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#implicitly-disabled-security",
                 details);

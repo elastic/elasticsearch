@@ -130,10 +130,11 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.TRIAL);
         listener.licenseStateChanged();
-        assertWarnings("The behavior where the value of [xpack.security.enabled] setting defaults to false for TRIAL " +
-            "licenses is deprecated and will be changed in a future version. See " +
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/security-minimal-setup.html to enable security, or explicitly " +
-            "disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
+        assertWarnings("The default behavior of disabling security on trial"
+            + " licenses is deprecated. A later version of Elasticsearch will set [xpack.security.enabled] to \"true\" "
+            + "for all licenses and enable security by default."
+            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.14/security-minimal-setup.html to enable security, "
+            + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
     }
 
 }

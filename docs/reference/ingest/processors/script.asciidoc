@@ -98,7 +98,7 @@ The processor produces:
   ]
 }
 ----
-// TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_type_":"_doc","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
+// TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_type":"_doc","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
 
 
 [discrete]

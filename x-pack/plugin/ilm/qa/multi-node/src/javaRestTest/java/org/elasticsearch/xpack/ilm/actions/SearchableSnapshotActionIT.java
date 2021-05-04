@@ -478,7 +478,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             containsString("policy specifies [searchable_snapshot] action multiple times with differing repositories"));
     }
 
-    public void testFoobar() throws Exception {
+    public void testSearchableSnapshotsInHotPhasePinnedToHotNodes() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
@@ -516,7 +516,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertThat(hotIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
             is("data_hot"));
     }
-
 
     public void testSearchableSnapshotActionOverridesMigrateAction() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());

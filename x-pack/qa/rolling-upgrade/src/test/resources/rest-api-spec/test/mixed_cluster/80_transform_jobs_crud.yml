@@ -226,8 +226,6 @@
 ---
 "Test GET, start, and stop old cluster batch transforms":
   - skip:
-      version: all
-      reason: https://github.com/elastic/elasticsearch/issues/72617
       features: allowed_warnings
 
   - do:
@@ -343,8 +341,6 @@
 ---
 "Test GET, stop, start, old continuous transforms":
   - skip:
-      version: all
-      reason: https://github.com/elastic/elasticsearch/issues/72617
       features: allowed_warnings
 
   - do:

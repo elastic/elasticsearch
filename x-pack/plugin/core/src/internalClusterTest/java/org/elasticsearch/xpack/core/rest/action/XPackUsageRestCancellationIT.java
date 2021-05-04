@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
@@ -42,8 +43,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class XPackUsageRestCancellationIT extends ESIntegTestCase {
-    private static final CountDownLatch blockActionLatch = new CountDownLatch(1);
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class, BlockingUsageActionXPackPlugin.class);
@@ -76,10 +75,11 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         assertThat(future.isDone(), equalTo(false));
         awaitTaskWithPrefix(actionName);
 
+        BlockingXPackFeatureSet.waitUntilIsExecuted();
         cancellable.cancel();
         assertAllCancellableTasksAreCancelled(actionName);
 
-        blockActionLatch.countDown();
+        BlockingXPackFeatureSet.unblockExecution();
         expectThrows(CancellationException.class, future::actionGet);
 
         assertAllTasksHaveFinished(actionName);
@@ -100,6 +100,17 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
     }
 
     public static class BlockingXPackFeatureSet implements XPackFeatureSet {
+        private static final CyclicBarrier barrier = new CyclicBarrier(2);
+        private static final CountDownLatch blockActionLatch = new CountDownLatch(1);
+
+        static void waitUntilIsExecuted() throws Exception {
+            barrier.await();
+        }
+
+        static void unblockExecution() {
+            blockActionLatch.countDown();
+        }
+
         @Override
         public String name() {
             return "blocking";
@@ -123,6 +134,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         @Override
         public void usage(ActionListener<Usage> listener) {
             try {
+                barrier.await();
                 blockActionLatch.await();
             } catch (Exception e) {
                 throw new AssertionError(e);

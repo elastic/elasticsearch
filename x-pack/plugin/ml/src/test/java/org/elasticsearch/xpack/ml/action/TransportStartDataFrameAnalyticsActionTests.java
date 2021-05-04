@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -171,7 +172,7 @@ public class TransportStartDataFrameAnalyticsActionTests extends ESTestCase {
     private static DiscoveryNode createNode(int i, boolean isMlNode, Version nodeVersion) {
         Map<String, String> attributes = new HashMap<String, String>() {{
             put("ml.max_open_jobs", isMlNode ? "10" : "0");
-            put("ml.machine_memory", "-1");
+            put("ml.machine_memory", String.valueOf(ByteSizeValue.ofGb(1).getBytes()));
         }};
         return new DiscoveryNode(
             "_node_name" + i,

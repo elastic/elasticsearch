@@ -79,6 +79,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
+    public static final Runnable ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = () -> { };
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
 
@@ -407,10 +408,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      *
      * @see MapperPlugin#getFieldFilter()
      *
+     * @param onNextIndex a hook that gets notified for each index that's processed
      */
     public ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> findMappings(String[] concreteIndices,
                                                                                             final String[] types,
-                                                                                            Function<String, Predicate<String>> fieldFilter)
+                                                                                            Function<String, Predicate<String>> fieldFilter,
+                                                                                            Runnable onNextIndex)
             throws IOException {
         assert types != null;
         assert concreteIndices != null;
@@ -422,6 +425,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         ImmutableOpenMap.Builder<String, ImmutableOpenMap<String, MappingMetadata>> indexMapBuilder = ImmutableOpenMap.builder();
         Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
         for (String index : intersection) {
+            onNextIndex.run();
             IndexMetadata indexMetadata = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
             if (isAllTypes) {

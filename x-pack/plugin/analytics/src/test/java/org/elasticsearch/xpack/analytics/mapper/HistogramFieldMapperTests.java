@@ -55,7 +55,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean allowsStore() {
+    protected boolean supportsStoredFields() {
         return false;
     }
 

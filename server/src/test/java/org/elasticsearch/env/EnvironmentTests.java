@@ -216,6 +216,37 @@ public class EnvironmentTests extends ESTestCase {
         }
     }
 
+    public void testLegacyDataPathListPropagation() {
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .build();
+            Environment env = new Environment(settings, null);
+            assertThat(Environment.dataPathUsesList(env.settings()), is(false));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+            Environment env = new Environment(settings, null);
+            assertThat(Environment.dataPathUsesList(env.settings()), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            Environment env = new Environment(settings, null);
+            assertThat(Environment.dataPathUsesList(env.settings()), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            Environment env = new Environment(settings, null);
+            assertThat(Environment.dataPathUsesList(env.settings()), is(false));
+        }
+    }
+
     private void assertPath(final String actual, final Path expected) {
         assertIsAbsolute(actual);
         assertIsNormalized(actual);

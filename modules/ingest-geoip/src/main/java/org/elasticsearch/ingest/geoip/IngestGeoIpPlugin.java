@@ -138,6 +138,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
+            return Collections.emptyList();
+        }
         return List.of(new ActionHandler<>(GeoIpDownloaderStatsAction.INSTANCE, GeoIpDownloaderStatsTransportAction.class));
     }
 

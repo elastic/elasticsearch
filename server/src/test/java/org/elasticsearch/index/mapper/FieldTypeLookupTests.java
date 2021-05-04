@@ -232,7 +232,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testMaxDynamicKeyDepth() {
         {
             FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
-            assertEquals("foo", lookup.longestPossibleParent("foo.bar.baz"));
+            assertEquals(0, lookup.getMaxParentPathDots());
         }
 
         // Add a flattened object field.
@@ -243,7 +243,7 @@ public class FieldTypeLookupTests extends ESTestCase {
                 Collections.emptyList(),
                 Collections.emptyList()
             );
-            assertEquals("foo.bar.baz", lookup.longestPossibleParent("foo.bar.baz.bot"));
+            assertEquals(2, lookup.getMaxParentPathDots());
         }
 
         // Add a short alias to that field.
@@ -254,7 +254,7 @@ public class FieldTypeLookupTests extends ESTestCase {
                 Collections.singletonList(new FieldAliasMapper("alias", "alias", "object1.object2.field")),
                 Collections.emptyList()
             );
-            assertEquals("foo.bar.baz", lookup.longestPossibleParent("foo.bar.baz.bot"));
+            assertEquals(2, lookup.getMaxParentPathDots());
         }
 
         // Add a longer alias to that field.
@@ -265,7 +265,7 @@ public class FieldTypeLookupTests extends ESTestCase {
                 Collections.singletonList(new FieldAliasMapper("alias", "object1.object2.object3.alias", "object1.object2.field")),
                 Collections.emptyList()
             );
-            assertEquals("foo.bar.baz", lookup.longestPossibleParent("foo.bar.baz.bot"));
+            assertEquals(2, lookup.getMaxParentPathDots());
         }
     }
 

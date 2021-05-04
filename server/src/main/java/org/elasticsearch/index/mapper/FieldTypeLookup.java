@@ -93,20 +93,6 @@ final class FieldTypeLookup {
         return dotCount;
     }
 
-    // for testing
-    String longestPossibleParent(String path) {
-        int dotCount = 0;
-        for (int i = 0; i < path.length(); i++) {
-            if (path.charAt(i) == '.') {
-                dotCount++;
-                if (dotCount > maxParentPathDots) {
-                    return path.substring(0, i);
-                }
-            }
-        }
-        return path;
-    }
-
     /**
      * Returns the mapped field type for the given field name.
      */
@@ -116,6 +102,11 @@ final class FieldTypeLookup {
             return fieldType;
         }
         return getDynamicField(field);
+    }
+
+    // for testing
+    int getMaxParentPathDots() {
+        return maxParentPathDots;
     }
 
     // Check if the given field corresponds to a dynamic key mapper of the

@@ -90,10 +90,14 @@ public class FakeThreadPoolMasterService extends MasterService {
                     final Runnable task = pendingTasks.remove(taskIndex);
                     taskInProgress = true;
                     scheduledNextTask = false;
+                    final String threadName = Thread.currentThread().getName();
                     final ThreadContext threadContext = threadPool.getThreadContext();
                     try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+                        Thread.currentThread().setName('[' + MASTER_UPDATE_THREAD_NAME + ']');
                         threadContext.markAsSystemContext();
                         task.run();
+                    } finally {
+                        Thread.currentThread().setName(threadName);
                     }
                     if (waitForPublish == false) {
                         taskInProgress = false;

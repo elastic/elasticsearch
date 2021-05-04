@@ -1121,7 +1121,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param state    current cluster state
      */
     private static void ensureNodeAndTaskVersionConsistency(String repoName, ClusterState state) {
-        assert MasterService.assertNotMasterUpdateThread("only to be used during state updates");
+        assert MasterService.isMasterUpdateThread();
         final Version minNodeVersion = state.nodes().getMinNodeVersion();
         for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
             if (entry.version().after(minNodeVersion)) {

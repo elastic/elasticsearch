@@ -29,7 +29,7 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
 
     public static final boolean SHUTDOWN_FEATURE_FLAG_ENABLED = "true".equals(System.getProperty("es.shutdown_feature_flag_enabled"));
 
-    public static boolean isEnabled() {
+    public boolean isEnabled() {
         return SHUTDOWN_FEATURE_FLAG_ENABLED;
     }
 

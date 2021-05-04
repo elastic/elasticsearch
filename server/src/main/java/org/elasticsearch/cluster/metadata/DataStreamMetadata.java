@@ -51,11 +51,11 @@ public class DataStreamMetadata implements Metadata.Custom {
     private final Map<String, DataStream> dataStreams;
 
     public DataStreamMetadata(Map<String, DataStream> dataStreams) {
-        this.dataStreams = dataStreams;
+        this.dataStreams = Map.copyOf(dataStreams);
     }
 
     public DataStreamMetadata(StreamInput in) throws IOException {
-        this.dataStreams = in.readMap(StreamInput::readString, DataStream::new);
+        this(in.readMap(StreamInput::readString, DataStream::new));
     }
 
     public Map<String, DataStream> dataStreams() {
@@ -105,10 +105,6 @@ public class DataStreamMetadata implements Metadata.Custom {
         return builder;
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(this.dataStreams);
@@ -129,20 +125,6 @@ public class DataStreamMetadata implements Metadata.Custom {
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    public static class Builder {
-
-        private final Map<String, DataStream> dataStreams = new HashMap<>();
-
-        public Builder putDataStream(DataStream dataStream) {
-            dataStreams.put(dataStream.getName(), dataStream);
-            return this;
-        }
-
-        public DataStreamMetadata build() {
-            return new DataStreamMetadata(dataStreams);
-        }
     }
 
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {

@@ -199,8 +199,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     /**
      * Returns a random shard data path for the specified {@link ShardId}. The returned path can be located on any of the data node paths.
      */
-    protected Path randomShardPath(ShardId shardId) {
-        return randomFrom(nodeEnvironment.availableShardPaths(shardId));
+    protected Path shardPath(ShardId shardId) {
+        return nodeEnvironment.availableShardPath(shardId);
     }
 
     protected static ByteSizeValue randomFrozenCacheSize() {
@@ -287,7 +287,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                     ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), shards);
 
                     final Path cacheDir = Files.createDirectories(
-                        CacheService.resolveSnapshotCache(randomShardPath(shardId)).resolve(snapshotUUID)
+                        CacheService.resolveSnapshotCache(shardPath(shardId)).resolve(snapshotUUID)
                     );
 
                     for (int files = 0; files < between(1, 2); files++) {

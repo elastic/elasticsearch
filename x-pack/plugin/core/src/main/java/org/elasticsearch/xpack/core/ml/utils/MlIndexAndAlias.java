@@ -90,6 +90,7 @@ public final class MlIndexAndAlias {
                                                       IndexNameExpressionResolver resolver,
                                                       String indexPatternPrefix,
                                                       String alias,
+                                                      TimeValue masterNodeTimeout,
                                                       ActionListener<Boolean> finalListener) {
 
         final ActionListener<Boolean> loggingListener = ActionListener.wrap(
@@ -108,7 +109,7 @@ public final class MlIndexAndAlias {
         ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
             created -> {
                 if (created) {
-                    waitForShardsReady(client, alias, loggingListener);
+                    waitForShardsReady(client, alias, masterNodeTimeout, loggingListener);
                 } else {
                     loggingListener.onResponse(false);
                 }
@@ -173,6 +174,7 @@ public final class MlIndexAndAlias {
     public static void createSystemIndexIfNecessary(Client client,
                                                     ClusterState clusterState,
                                                     SystemIndexDescriptor descriptor,
+                                                    TimeValue masterNodeTimeout,
                                                     ActionListener<Boolean> finalListener) {
 
         final String primaryIndex = descriptor.getPrimaryIndex();
@@ -186,7 +188,7 @@ public final class MlIndexAndAlias {
         ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
             created -> {
                 if (created) {
-                    waitForShardsReady(client, primaryIndex, finalListener);
+                    waitForShardsReady(client, primaryIndex, masterNodeTimeout, finalListener);
                 } else {
                     finalListener.onResponse(false);
                 }
@@ -204,6 +206,7 @@ public final class MlIndexAndAlias {
         createIndexRequest.settings(descriptor.getSettings());
         createIndexRequest.mapping(SINGLE_MAPPING_NAME, descriptor.getMappings(), XContentType.JSON);
         createIndexRequest.origin(ML_ORIGIN);
+        createIndexRequest.masterNodeTimeout(masterNodeTimeout);
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
             ActionListener.<CreateIndexResponse>wrap(
@@ -212,11 +215,12 @@ public final class MlIndexAndAlias {
             ), client.admin().indices()::create);
     }
 
-    private static void waitForShardsReady(Client client, String index, ActionListener<Boolean> listener) {
+    private static void waitForShardsReady(Client client, String index, TimeValue masterNodeTimeout, ActionListener<Boolean> listener) {
         ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(index)
             .waitForYellowStatus()
             .waitForNoRelocatingShards(true)
-            .waitForNoInitializingShards(true);
+            .waitForNoInitializingShards(true)
+            .masterNodeTimeout(masterNodeTimeout);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,

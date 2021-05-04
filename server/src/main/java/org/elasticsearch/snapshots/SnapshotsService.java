@@ -54,6 +54,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -269,7 +270,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
-                ensureHealthyTaskVersions(repositoryName, currentState);
+                ensureNodeAndTaskVersionConsistency(repositoryName, currentState);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
                 ensureSnapshotNameNotRunning(runningSnapshots, repositoryName, snapshotName);
@@ -402,7 +403,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             @Override
             public ClusterState execute(ClusterState currentState) {
                 ensureSnapshotNameAvailableInRepo(repositoryData, snapshotName, repository);
-                ensureHealthyTaskVersions(repositoryName, currentState);
+                ensureNodeAndTaskVersionConsistency(repositoryName, currentState);
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> runningSnapshots = snapshots.entries();
@@ -1119,8 +1120,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param repoName repository name
      * @param state    current cluster state
      */
-    private static void ensureHealthyTaskVersions(String repoName, ClusterState state) {
-        // TODO: assert ClusterService.assertClusterOrMasterStateThread(); which is currently not compatible with SnapshotResiliencyTests
+    private static void ensureNodeAndTaskVersionConsistency(String repoName, ClusterState state) {
+        assert MasterService.assertNotMasterUpdateThread("only to be used during state updates");
         final Version minNodeVersion = state.nodes().getMinNodeVersion();
         for (SnapshotsInProgress.Entry entry : state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()) {
             if (entry.version().after(minNodeVersion)) {
@@ -1315,6 +1316,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void finalizeSnapshotEntry(SnapshotsInProgress.Entry entry, Metadata metadata, RepositoryData repositoryData) {
         assert currentlyFinalizing.contains(entry.repository());
         try {
+            if (entry.version().after(Version.CURRENT)) {
+                throw new SnapshotException(
+                        entry.snapshot(),
+                        "can not finalize snapshot entry [" + entry.snapshot() + "] of version [" + entry.version()
+                                + "] on a [" + Version.CURRENT + "] node"
+                );
+            }
             final String failure = entry.failure();
             final Snapshot snapshot = entry.snapshot();
             logger.trace("[{}] finalizing snapshot in repository, state: [{}], failure[{}]", snapshot, entry.state(), failure);
@@ -1745,7 +1753,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) {
-                ensureHealthyTaskVersions(repoName, currentState);
+                ensureNodeAndTaskVersionConsistency(repoName, currentState);
                 final SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
                 final List<SnapshotsInProgress.Entry> snapshotEntries = findInProgressSnapshots(snapshots, snapshotNames, repoName);
                 final List<SnapshotId> snapshotIds = matchingSnapshotIds(

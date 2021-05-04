@@ -395,24 +395,23 @@ public class QueryPhase {
         final Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.TOP_SCORES, 1f);
         final List<TopFieldCollector> collectors = new ArrayList<>(leaves.size());
 
-        for (LeafReaderContext ctx : leaves) {
-            final TopFieldCollector collector = sharedManager.newCollector();
-            collectors.add(collector);
-            try {
+        try {
+            for (LeafReaderContext ctx : leaves) {
+                final TopFieldCollector collector = sharedManager.newCollector();
+                collectors.add(collector);
                 searcher.search(Collections.singletonList(ctx), weight, collector);
-            } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
-                queryResult.terminatedEarly(true);
-                break;
-            } catch (TimeExceededException e) {
-                assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
-                if (searchContext.request().allowPartialSearchResults() == false) {
-                    // Can't rethrow TimeExceededException because not serializable
-                    throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
-                }
-                queryResult.searchTimedOut(true);
-                break;
             }
+        } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
+            queryResult.terminatedEarly(true);
+        } catch (TimeExceededException e) {
+            assert timeoutSet : "TimeExceededException thrown even though timeout wasn't set";
+            if (searchContext.request().allowPartialSearchResults() == false) {
+                // Can't rethrow TimeExceededException because not serializable
+                throw new QueryPhaseExecutionException(searchContext.shardTarget(), "Time exceeded");
+            }
+            queryResult.searchTimedOut(true);
         }
+        
         TopFieldDocs mergedTopDocs = sharedManager.reduce(collectors);
         // Lucene sets shards indexes during merging of topDocs from different collectors
         // We need to reset shard index; ES will set shard index later during reduce stage

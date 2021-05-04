@@ -361,6 +361,9 @@ node.roles: [ transform, remote_cluster_client ] <1>
 <1> The `remote_cluster_client` role is optional but strongly recommended.
 Otherwise, {ccs} fails when used in {transforms}. See <<remote-node>>.
 
+NOTE: If you use {ccs} in your {transforms}, the `remote_cluster_client` role
+is also required on all master-eligible nodes.
+
 [[change-node-role]]
 ==== Changing the role of a node
 

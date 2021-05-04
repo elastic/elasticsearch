@@ -54,9 +54,9 @@ POST _ingest/pipeline/_simulate
           "description": "Extract 'tags' from 'env' field",
           "lang": "painless",
           "source": """
-            String[] envSplit = ctx['env'].splitOnToken(params['dataset']);
+            String[] envSplit = ctx['env'].splitOnToken(params['delimiter']);
             ArrayList tags = new ArrayList();
-            tags.add(envSplit[params['dataset']].trim());
+            tags.add(envSplit[params['position']].trim());
             ctx['tags'] = tags;
           """,
           "params": {

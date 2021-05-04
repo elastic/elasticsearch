@@ -99,7 +99,6 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/72695")
     public void testSnapshotAndRestore() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
@@ -130,7 +129,6 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/72695")
     public void testSnapshotAndRestoreWithNested() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
@@ -188,7 +186,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(startFullSnapshot(repo, "snapshot-3"));
     }
 
-    private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) {
+    private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
         ImmutableOpenMap<String, MappingMetadata> mapping = getMappingsResponse
             .getMappings().get(sourceIdx);

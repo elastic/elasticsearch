@@ -198,7 +198,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                 "}}}}}", mapping.source().string());
         } else {
             assertEquals("{\"_doc\":{\"enabled\":false," +
-                "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
+                "\"_meta\":{\"_doc\":{\"_meta\":{},\"properties\":{\"field1\":{\"type\":\"text\"," +
                 "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
                 mapping.source().string());
         }

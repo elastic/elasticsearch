@@ -346,7 +346,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Map<String, MappedFieldType> mappedByName = new HashMap<>();
         mappedFieldTypes.forEach(ft -> mappedByName.put(ft.name(), ft));
 
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
+        if ("*".equals(pattern)) {
+            mappedByName.putAll(runtimeMappings);
+        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcard
             if (runtimeMappings.containsKey(pattern) == false) {
                 return mappedFieldTypes;

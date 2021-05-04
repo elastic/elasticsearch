@@ -141,9 +141,8 @@ include::{es-repo-dir}/tab-widgets/cpu-usage-widget.asciidoc[]
 
 **Check hot threads**
 
-If a node is using a high percentage of CPU, use the
-<<cluster-nodes-hot-threads,nodes hot threads API>> to check for
-resource-intensive threads running on the node. 
+If a node has high CPU usage, use the <<cluster-nodes-hot-threads,nodes hot
+threads API>> to check for resource-intensive threads running on the node. 
 
 [source,console]
 ----
@@ -163,7 +162,7 @@ solutions.
 **Scale your cluster**
 
 Heavy indexing and search loads can deplete smaller thread pools. To better
-handle heavy workloads, add additional nodes to your cluster or upgrade your
+handle heavy workloads, add more nodes to your cluster or upgrade your existing
 nodes to increase capacity.
 
 **Spread out bulk requests**

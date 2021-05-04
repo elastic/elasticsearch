@@ -99,6 +99,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/72695")
     public void testSnapshotAndRestore() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
@@ -129,6 +130,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/72695")
     public void testSnapshotAndRestoreWithNested() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();

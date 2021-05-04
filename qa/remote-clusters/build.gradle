@@ -7,8 +7,8 @@
  */
 
 import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'

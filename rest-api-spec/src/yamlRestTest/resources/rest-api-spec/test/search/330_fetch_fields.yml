@@ -564,6 +564,7 @@ Test nested field inside object structure:
         search:
            index: test
            body:
+              sort: "obj.other_obj_field"
               _source: false
               fields: ["obj.products.manufacturer"]
   - match:
@@ -579,6 +580,7 @@ Test nested field inside object structure:
         search:
            index: test
            body:
+              sort: "obj.other_obj_field"
               _source: false
               fields: ["obj.pro*ts.manufacturer"]
   - match:

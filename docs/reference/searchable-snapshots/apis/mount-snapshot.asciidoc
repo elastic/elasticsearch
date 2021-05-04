@@ -48,9 +48,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 Defaults to `false`.
 
 `storage`::
-+
-experimental::[]
-+
 (Optional, string) Selects the kind of local storage used to accelerate
 searches of the mounted index. If `full_copy`, each node holding a shard of the
 searchable snapshot index makes a full copy of the shard to its local storage.

@@ -30,7 +30,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -152,7 +152,7 @@ public class TermVectorsService  {
     private static void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
         Set<String> fieldNames = new HashSet<>();
         for (String pattern : request.selectedFields()) {
-            fieldNames.addAll(indexShard.mapperService().simpleMatchToFullName(pattern));
+            fieldNames.addAll(indexShard.mapperService().mappingLookup().simpleMatchToFullName(pattern));
         }
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }
@@ -321,14 +321,9 @@ public class TermVectorsService  {
 
     private static ParsedDocument parseDocument(IndexShard indexShard, String index, BytesReference doc,
                                                 XContentType xContentType, String routing) {
-        MapperService mapperService = indexShard.mapperService();
-        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
-        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
-                new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing, Map.of()));
-        if (docMapper.getMapping() != null) {
-            parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
-        }
-        return parsedDocument;
+        DocumentMapper documentMapper = indexShard.mapperService().documentMapper();
+        //TODO this throws NPE if there are no mappings yet, we have the same problem in PainlessExecutionAction
+        return documentMapper.parse(new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing, Map.of()));
     }
 
     private static Fields mergeFields(Fields fields1, Fields fields2) throws IOException {

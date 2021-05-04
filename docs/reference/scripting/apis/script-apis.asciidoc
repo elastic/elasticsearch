@@ -1,0 +1,35 @@
+[[script-apis]]
+== Script APIs
+
+NOTE: This list of script APIs is incomplete. We're working on adding more.
+
+Use following APIs to manage, store, and test your
+<<modules-scripting,scripts>>.
+
+[discrete]
+[[stored-script-apis]]
+=== Stored script APIs
+
+Use stored script APIs to manage <<script-stored-scripts,stored scripts>> and
+<<search-template,search templates>>.
+
+* <<create-stored-script-api>>
+
+////
+TODO: See https://github.com/elastic/elasticsearch/issues/71376
+
+[discrete]
+[[script-support-apis]]
+=== Script support API
+
+Use the script support APIs to get a list of supported script languages and
+contexts.
+
+[discrete]
+[[painless-apis]]
+=== Painless APIs
+
+Use the execute script API to safely test Painless scripts.
+////
+
+include::create-stored-script-api.asciidoc[]

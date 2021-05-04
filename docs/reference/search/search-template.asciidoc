@@ -115,7 +115,8 @@ The API request body must contain the search definition template and its paramet
 [[pre-registered-templates]]
 ===== Store a search template
 
-You can store a search template using the stored scripts API.
+To store a search template, use the <<create-stored-script-api,create stored
+script API>>. Specify `mustache` as the `lang`.
 
 [source,console]
 ------------------------------------------

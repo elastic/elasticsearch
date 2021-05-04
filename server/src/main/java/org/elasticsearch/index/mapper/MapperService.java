@@ -45,7 +45,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -168,7 +167,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Update mapping by only merging the metadata that is different between received and stored entries
+     * Update local mapping by applying the incoming mapping that have already been merged with the current one on the master
      */
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
         assert newIndexMetadata.getIndex().equals(index()) : "index mismatch: expected " + index()
@@ -235,9 +234,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // that the incoming mappings are the same as the current ones: we need to
             // parse the incoming mappings into a DocumentMapper and check that its
             // serialization is the same as the existing mapper
-            DocumentMapper newMapper = parse(mapping.type(), mapping.source());
+            Mapping newMapping = parseMapping(mapping.type(), mapping.source());
             final CompressedXContent currentSource = this.mapper.mappingSource();
-            final CompressedXContent newSource = newMapper.mappingSource();
+            final CompressedXContent newSource = newMapping.toCompressedXContent();
             if (Objects.equals(currentSource, newSource) == false) {
                 throw new IllegalStateException("expected current mapping [" + currentSource
                     + "] to be the same as new mapping [" + newSource + "]");
@@ -303,23 +302,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource);
-
-        if (newMapper.mappingSource().equals(mappingSource) == false) {
-            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
+        Mapping newMapping = parseMapping(mapper.type(), mappingSource);
+        if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
+            throw new IllegalStateException("Mapping serialization result is different from source. \n--> Source ["
                 + mappingSource + "]\n--> Result ["
-                + newMapper.mappingSource() + "]");
+                + newMapping.toCompressedXContent() + "]");
         }
         return true;
     }
 
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource) throws MapperParsingException {
-        Mapping mapping = mappingParser.parse(mappingType, mappingSource);
-        return new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
-    }
-
     /**
-     * Return the document mapper, or {@code null} if no mapping has been put yet.
+     * Return the document mapper, or {@code null} if no mapping has been put yet
+     * or no documents have been indexed in the current index yet (which triggers a dynamic mapping update)
      */
     public DocumentMapper documentMapper() {
         return mapper;
@@ -351,19 +345,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns the document mapper for this MapperService.  If no mapper exists,
-     * creates one and returns that.
-     */
-    public DocumentMapperForType documentMapperWithAutoCreate() {
-        DocumentMapper mapper = documentMapper();
-        if (mapper != null) {
-            return new DocumentMapperForType(mapper, null);
-        }
-        mapper = parse(SINGLE_MAPPING_NAME, null);
-        return new DocumentMapperForType(mapper, mapper.mapping());
-    }
-
-    /**
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
@@ -371,15 +352,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
-     * then the fields will be returned with a type prefix.
-     */
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return mappingLookup().simpleMatchToFullName(pattern);
-    }
-
-    /**
-     * {@code volatile} read a (mostly) immutable snapshot current mapping.
+     * Exposes a snapshot of the mappings for the current index.
+     * If no mappings have been registered for the current index, an empty {@link MappingLookup} instance is returned.
+     * An index does not have mappings only if it was created without providing mappings explicitly,
+     * and no documents have yet been indexed in it.
      */
     public MappingLookup mappingLookup() {
         DocumentMapper mapper = this.mapper;

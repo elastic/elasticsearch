@@ -12,6 +12,15 @@ The `rank_feature` query is typically used in the `should` clause of a
 <<query-dsl-bool-query,`bool`>> query so its relevance scores are added to other
 scores from the `bool` query.
 
+With `positive_score_impact` set to `false` for a `rank_feature` or
+`rank_features` field, we recommend that every document that participates
+in a query has a value for this field. Otherwise, if a `rank_feature` query
+is used in the should clause, it doesn't add anything to a score of
+a document with a missing value, but adds some boost for a document
+containing a feature. This is contrary to what we want – as we consider these
+features negative, we want to rank documents containing them lower than documents
+missing them.
+
 Unlike the <<query-dsl-function-score-query,`function_score`>> query or other
 ways to change <<relevance-scores,relevance scores>>, the
 `rank_feature` query efficiently skips non-competitive hits when the

@@ -414,7 +414,8 @@ public final class TransformInternalIndex {
 
     private static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {
         ClusterHealthRequest request = new ClusterHealthRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
-            .waitForActiveShards(ActiveShardCount.ALL);
+            // cluster health does not wait for active shards per default
+            .waitForActiveShards(ActiveShardCount.ONE);
         ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
@@ -450,7 +451,8 @@ public final class TransformInternalIndex {
                 // BWC: for mixed clusters with nodes < 7.5, we need the alias to make new docs visible for them
                 .alias(new Alias(".data-frame-internal-3"))
                 .origin(TRANSFORM_ORIGIN)
-                .waitForActiveShards(ActiveShardCount.ALL);
+                // explicitly wait for the primary shard (although this might be default)
+                .waitForActiveShards(ActiveShardCount.ONE);
             ActionListener<CreateIndexResponse> innerListener = ActionListener.wrap(
                 r -> listener.onResponse(null),
                 e -> {

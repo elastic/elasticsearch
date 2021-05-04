@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
@@ -73,6 +74,7 @@ public final class AnomalyDetectorsIndex {
      */
     public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state,
                                                            IndexNameExpressionResolver resolver,
+                                                           TimeValue masterNodeTimeout,
                                                            final ActionListener<Boolean> finalListener) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
@@ -80,6 +82,7 @@ public final class AnomalyDetectorsIndex {
             resolver,
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
+            masterNodeTimeout,
             finalListener);
     }
 

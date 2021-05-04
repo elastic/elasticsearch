@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -972,7 +973,8 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
     private void indexQuantiles(Quantiles quantiles) {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), future);
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, future);
         future.actionGet();
         JobResultsPersister persister =
             new JobResultsPersister(new OriginSettingClient(client(), ClientHelper.ML_ORIGIN), resultsPersisterService, auditor);

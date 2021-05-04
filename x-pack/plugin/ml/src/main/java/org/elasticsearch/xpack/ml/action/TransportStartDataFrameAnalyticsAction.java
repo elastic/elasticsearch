@@ -686,14 +686,14 @@ public class TransportStartDataFrameAnalyticsAction
             // in a mixed version cluster where the master node is on an older version than this node relying on auto-creation
             // might use outdated mappings.
             MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSecurityDescriptor(),
-                indexCheckListener);
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT, indexCheckListener);
         }
 
         private void executeTask(DataFrameAnalyticsTask task) {
             DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
                 task.getAllocationId(), null);
             task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                response -> manager.execute(task, clusterState),
+                response -> manager.execute(task, clusterState, MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT),
                 task::markAsFailed));
         }
 

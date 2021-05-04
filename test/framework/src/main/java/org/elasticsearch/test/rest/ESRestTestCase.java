@@ -705,7 +705,25 @@ public abstract class ESRestTestCase extends ESTestCase {
             deleteAllAutoFollowPatterns();
         }
 
+        deleteAllNodeShutdownMetadata();
+
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
+    }
+
+    /**
+     * If any nodes are registered for shutdown, removes their metadata.
+     */
+    private static void deleteAllNodeShutdownMetadata() throws IOException {
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
+        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+        List<String> nodeIds = nodesArray.stream()
+            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+            .collect(Collectors.toUnmodifiableList());
+        for (String nodeId : nodeIds) {
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+            assertOK(client().performRequest(deleteRequest));
+        }
     }
 
     protected static void wipeAllIndices() throws IOException {

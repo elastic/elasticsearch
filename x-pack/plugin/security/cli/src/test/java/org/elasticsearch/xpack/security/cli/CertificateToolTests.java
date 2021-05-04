@@ -26,6 +26,7 @@ import org.bouncycastle.openssl.PEMDecryptorProvider;
 import org.bouncycastle.openssl.PEMEncryptedKeyPair;
 import org.bouncycastle.openssl.PEMParser;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -558,6 +559,8 @@ public class CertificateToolTests extends ESTestCase {
      * - Checks that all 3 certificates have the right values based on the command line options provided during generation
      */
     public void testCreateCaAndMultipleInstances() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final Path tempDir = initTempDir();
 
         final Terminal terminal = new MockTerminal();
@@ -707,6 +710,8 @@ public class CertificateToolTests extends ESTestCase {
      * - Checks that the PKCS12 certificate and the PEM certificate trust one another
      */
     public void testTrustBetweenPEMandPKCS12() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final Path tempDir = initTempDir();
 
         final MockTerminal terminal = new MockTerminal();

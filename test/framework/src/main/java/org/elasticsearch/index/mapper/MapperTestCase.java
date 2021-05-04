@@ -631,8 +631,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
     }
 
-    protected boolean allowsStore() {
+    protected boolean supportsStoredFields() {
         return true;
+    }
+
+    protected void minimalStoreMapping(XContentBuilder b) throws IOException {
+        minimalMapping(b);
+        b.field("store", true);
     }
 
     /**
@@ -641,19 +646,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     public final void testIndexTimeStoredFieldsAccess() throws IOException {
 
-        assumeTrue("FieldMapper implementation does not allow stored fields", allowsStore());
-        MapperService mapperService;
-        try {
-            mapperService = createMapperService(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("store", true);
-            }));
-            assertParseMinimalWarnings();
-        } catch (MapperParsingException e) {
-            assertParseMinimalWarnings();
-            assumeFalse("Field type does not support stored fields", true);
-            return;
-        }
+        assumeTrue("Field type does not support stored fields", supportsStoredFields());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalStoreMapping));
+        assertParseMinimalWarnings();
 
         MappedFieldType fieldType = mapperService.fieldType("field");
         SourceToParse source = source(this::writeField);

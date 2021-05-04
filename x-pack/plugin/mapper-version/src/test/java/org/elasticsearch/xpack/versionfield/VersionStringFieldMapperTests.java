@@ -53,7 +53,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean allowsStore() {
+    protected boolean supportsStoredFields() {
         return false;
     }
 

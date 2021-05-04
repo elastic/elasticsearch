@@ -55,6 +55,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
 
         checker.registerConflictCheck("strategy",
@@ -95,11 +100,6 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsMeta() {
-        return false;
-    }
-
-    @Override
-    protected boolean allowsStore() {
         return false;
     }
 

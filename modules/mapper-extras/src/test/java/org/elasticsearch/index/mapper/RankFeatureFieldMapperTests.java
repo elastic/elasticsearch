@@ -53,13 +53,13 @@ public class RankFeatureFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return List.of(new MapperExtrasPlugin());
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     @Override
-    protected boolean allowsStore() {
-        return false;
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new MapperExtrasPlugin());
     }
 
     static int getFrequency(TokenStream tk) throws IOException {

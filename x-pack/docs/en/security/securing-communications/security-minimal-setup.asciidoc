@@ -62,7 +62,7 @@ user name and password are rejected.
 NOTE: You only need to set passwords for the `elastic` and `kibana_system` users
 when enabling minimal or basic security.
 
-. Start Elasticsearch. For example, if you installed Elasticsearch with a
+. Start {es}. For example, if you installed Elasticsearch with a
 `.tar.gz` package, run the following command from the Elasticsearch directory:
 +
 [source,shell]
@@ -71,7 +71,13 @@ when enabling minimal or basic security.
 ----
 
 . In another terminal window, set the passwords for the built-in users by
-running the `elasticsearch-setup-passwords` utility. Using the `auto` parameter
+running the <<setup-passwords,`elasticsearch-setup-passwords`>> utility.
++
+IMPORTANT: You can run the `elasticsearch-setup-passwords` utility
+against any node in your cluster. However, you should only run this utility *one
+time* for the entire cluster.
++
+Using the `auto` parameter
 outputs randomly-generated passwords to the console that you can change later
 if necessary:
 +
@@ -103,18 +109,19 @@ WARNING: After you set a password for the `elastic` user, you cannot run the
 When the {es} security features are enabled, users must log in to {kib} with a
 valid username and password.
 
-{kib} also performs some background tasks that require use of the built-in
-`elastic` user.
+You'll configure {kib} to use the built-in `kibana_system` user and the password that
+you created earlier. {kib} performs some background tasks that require use of the
+`kibana_system` user.
 
-You'll configure {kib} to use the built-in `elastic` user and the
-password that you created earlier.
+This account is not meant for individual users and does not have permission to log in
+to {kib} from a browser. Instead, you'll log in to {kib} as the `elastic` superuser. 
 
 . Add the `elasticsearch.username` setting to the `KIB_PATH_CONF/kibana.yml`
-file and set the value to the `elastic` user:
+file and set the value to the `kibana_system` user:
 +
 [source,yaml]
 ----
-elasticsearch.username: "elastic"
+elasticsearch.username: "kibana_system"
 ----
 +
 NOTE: The `KIB_PATH_CONF` variable is the path for the {kib}
@@ -132,14 +139,14 @@ to create the {kib} keystore and add the secure settings:
 ./bin/kibana-keystore create
 ----
 
-   b. Add the password for the `elastic` user to the {kib} keystore:
+   b. Add the password for the `kibana_system` user to the {kib} keystore:
 +
 [source,shell]
 ----
 ./bin/kibana-keystore add elasticsearch.password
 ----
 +
-When prompted, enter the password for the `elastic` user.
+When prompted, enter the password for the `kibana_system` user.
 
 . Restart {kib}. For example, if you installed {kib} with a `.tar.gz` package, run the following command from the {kib} directory:
 +
@@ -148,15 +155,15 @@ When prompted, enter the password for the `elastic` user.
 ./bin/kibana
 ----
 
-. Log in to {kib} as the `elastic` user.
+. Log in to {kib} as the `elastic` user. Use this superuser account to 
+{kibana-ref}/tutorial-secure-access-to-kibana.html[manage spaces, create new users, and assign roles]. If you're running {kib} locally, go to `http://localhost:5601` to view the login page.
 
 [[minimal-security-whatsnext]]
 ==== What's next?
 
 Congratulations! You enabled password protection for your local cluster to
 prevent unauthorized access. You can log in to {kib} securely as the `elastic`
-user. If you're running a <<single-node-discovery,single-node cluster>>, then
-you can stop here.
+user and create additional users and roles. If you're running a <<single-node-discovery,single-node cluster>>, then you can stop here.
 
 If your cluster has multiple nodes, then you must configure Transport Layer
 Security (TLS) between nodes. <<dev-vs-prod-mode,Production mode>> clusters

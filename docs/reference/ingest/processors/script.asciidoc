@@ -32,9 +32,9 @@ include::common-options.asciidoc[]
 ==== Access source fields
 
 The processor parses each incoming document's JSON source fields into a set of
-maps, lists, and primitives To access these fields with a Painless script, use
-{painless}/map-access-operator.html[map access operator]: `ctx['my-field']`. You
-can also use the shorthand `ctx.<my-field>` syntax.
+maps, lists, and primitives. To access these fields with a Painless script, use
+the {painless}/map-access-operator.html[map access operator]: `ctx['my-field']`.
+You can also use the shorthand `ctx.<my-field>` syntax.
 
 NOTE: The processor does not support the `ctx['_source']['my-field']` or
 `ctx._source.<my-field>` syntaxes.

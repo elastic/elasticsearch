@@ -33,8 +33,6 @@ public class ConfigurationTests extends PackagingTestCase {
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
-            // TODO Run this test with security enabled which is the default behavior
-            FileUtils.append(confPath.resolve("elasticsearch.yml"), "node.name: ${HOSTNAME}\nxpack.security.enabled: false");
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }

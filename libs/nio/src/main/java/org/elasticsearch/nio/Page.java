@@ -9,8 +9,7 @@
 package org.elasticsearch.nio;
 
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCountedReleasable;
 
 import java.nio.ByteBuffer;
 
@@ -21,13 +20,13 @@ public class Page implements Releasable {
     // duplicate. With reference counting we can increment the reference count, return a new page,
     // and safely close the pages independently. The closeable will not be called until each page is
     // released.
-    private final RefCountedCloseable refCountedCloseable;
+    private final RefCountedReleasable refCountedCloseable;
 
     public Page(ByteBuffer byteBuffer, Releasable closeable) {
-        this(byteBuffer, new RefCountedCloseable(closeable));
+        this(byteBuffer, new RefCountedReleasable("byte array page", closeable));
     }
 
-    private Page(ByteBuffer byteBuffer, RefCountedCloseable refCountedCloseable) {
+    private Page(ByteBuffer byteBuffer, RefCountedReleasable refCountedCloseable) {
         assert refCountedCloseable.refCount() > 0;
         this.byteBuffer = byteBuffer;
         this.refCountedCloseable = refCountedCloseable;
@@ -58,20 +57,5 @@ public class Page implements Releasable {
     @Override
     public void close() {
         refCountedCloseable.decRef();
-    }
-
-    private static class RefCountedCloseable extends AbstractRefCounted {
-
-        private final Releasable closeable;
-
-        private RefCountedCloseable(Releasable closeable) {
-            super("byte array page");
-            this.closeable = closeable;
-        }
-
-        @Override
-        protected void closeInternal() {
-            Releasables.closeExpectNoException(closeable);
-        }
     }
 }

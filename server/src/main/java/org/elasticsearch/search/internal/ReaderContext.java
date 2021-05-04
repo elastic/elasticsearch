@@ -11,6 +11,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCountedReleasable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -44,7 +45,7 @@ public class ReaderContext implements Releasable {
     private final AtomicLong keepAlive;
     private final AtomicLong lastAccessTime;
     // For reference why we use RefCounted here see https://github.com/elastic/elasticsearch/pull/20095.
-    private final AbstractRefCounted refCounted;
+    private final AbstractRefCounted refCounted = new RefCountedReleasable("reader_context", this::doClose);
 
     private final List<Releasable> onCloses = new CopyOnWriteArrayList<>();
 
@@ -65,12 +66,6 @@ public class ReaderContext implements Releasable {
         this.singleSession = singleSession;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
-        this.refCounted = new AbstractRefCounted("reader_context") {
-            @Override
-            protected void closeInternal() {
-                doClose();
-            }
-        };
     }
 
     public void validate(TransportRequest request) {

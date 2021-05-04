@@ -55,6 +55,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.common.util.concurrent.RefCountedReleasable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
@@ -136,13 +137,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
 
-    private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
-        @Override
-        protected void closeInternal() {
-            // close us once we are done
-            Store.this.closeInternal();
-        }
-    };
+    private final AbstractRefCounted refCounter = new RefCountedReleasable("store", this::closeInternal);
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
         this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY);

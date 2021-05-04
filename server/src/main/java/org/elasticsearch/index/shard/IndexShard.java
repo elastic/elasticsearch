@@ -987,7 +987,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappingLookup.hasMappings() == false) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, mappingLookup, this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
     }
 
     /**

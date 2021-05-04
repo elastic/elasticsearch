@@ -18,6 +18,7 @@ public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
+    private final DocumentParser documentParser;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -32,8 +33,9 @@ public class DocumentMapper {
     }
 
     DocumentMapper(DocumentParser documentParser, Mapping mapping) {
+        this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser);
+        this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = mapping.toCompressedXContent();
     }
 
@@ -74,7 +76,7 @@ public class DocumentMapper {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return mappingLookup.parseDocument(source);
+        return documentParser.parseDocument(source, mappingLookup);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

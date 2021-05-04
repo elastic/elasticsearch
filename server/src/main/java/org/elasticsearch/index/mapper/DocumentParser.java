@@ -40,8 +40,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-/** A parser for documents, given mappings from a DocumentMapper */
-final class DocumentParser {
+/**
+ * A parser for documents
+ */
+public final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
@@ -58,8 +60,14 @@ final class DocumentParser {
         this.indexAnalyzers = indexAnalyzers;
     }
 
-    ParsedDocument parseDocument(SourceToParse source,
-                                 MappingLookup mappingLookup) throws MapperParsingException {
+    /**
+     * Parse a document
+     * @param source the document to parse
+     * @param mappingLookup the mappings information needed to parse the document
+     * @return the parsed document
+     * @throws MapperParsingException whenever there's a problem parsing the document
+     */
+    public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws MapperParsingException {
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,

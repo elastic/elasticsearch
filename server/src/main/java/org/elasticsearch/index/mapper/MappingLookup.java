@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -51,17 +50,15 @@ public final class MappingLookup {
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
-    private final DocumentParser documentParser;
     private final Mapping mapping;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
      * @param mapping the mapping source
-     * @param documentParser the document parser for the current index
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMapping(Mapping mapping, DocumentParser documentParser) {
+    public static MappingLookup fromMapping(Mapping mapping) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -77,8 +74,7 @@ public final class MappingLookup {
             mapping,
             newFieldMappers,
             newObjectMappers,
-            newFieldAliasMappers,
-            Objects.requireNonNull(documentParser));
+            newFieldAliasMappers);
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
@@ -117,16 +113,14 @@ public final class MappingLookup {
                                             Collection<FieldMapper> mappers,
                                             Collection<ObjectMapper> objectMappers,
                                             Collection<FieldAliasMapper> aliasMappers) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, null);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers);
     }
 
     private MappingLookup(Mapping mapping,
                          Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
-                         Collection<FieldAliasMapper> aliasMappers,
-                         DocumentParser documentParser) {
+                         Collection<FieldAliasMapper> aliasMappers) {
         this.mapping = mapping;
-        this.documentParser = documentParser;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
@@ -327,17 +321,6 @@ public final class MappingLookup {
      */
     public Set<String> sourcePaths(String field) {
         return fieldTypesLookup().sourcePaths(field);
-    }
-
-    /**
-     * Parses the provided document. Note that a {@link DocumentParser} is required which is available only for instances created
-     * by parsing mappings (through {@link MappingLookup#fromMapping(Mapping, DocumentParser)}).
-     *
-     * @param source the source to parse
-     * @return the parsed document
-     */
-    public ParsedDocument parseDocument(SourceToParse source) {
-        return documentParser.parseDocument(source, this);
     }
 
     /**

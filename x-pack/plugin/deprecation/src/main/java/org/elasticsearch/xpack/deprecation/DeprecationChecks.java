@@ -38,7 +38,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
             ClusterDeprecationChecks::checkPollIntervalTooLow,
-            ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled
+            ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
+            ClusterDeprecationChecks::checkTemplatesWithMultipleTypes
         ));
 
 

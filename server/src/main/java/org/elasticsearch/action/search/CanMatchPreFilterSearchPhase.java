@@ -73,15 +73,10 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     @Override
-    public void addReleasable(Releasable releasable) {
-        throw new RuntimeException("cannot add releasable in " + getName() + " phase");
-    }
-
-    @Override
     protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
                                        SearchActionListener<CanMatchResponse> listener) {
-        getSearchTransport().sendCanMatch(getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            buildShardSearchRequest(shardIt, listener.requestIndex), getTask(), listener);
+        context.getSearchTransport().sendCanMatch(context.getConnection(shard.getClusterAlias(), shard.getNodeId()),
+            context.buildShardSearchRequest(shardIt, listener.requestIndex), context.getTask(), listener);
     }
 
     @Override
@@ -109,7 +104,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
             }
             possibleMatches.set(shardIndexToQuery);
         }
-        SearchSourceBuilder source = getRequest().source();
+        SearchSourceBuilder source = context.getRequest().source();
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
             if (possibleMatches.get(i++)) {
@@ -136,7 +131,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         }
 
         try {
-            ShardSearchRequest request = buildShardSearchRequest(shardIt, shardIndex);
+            ShardSearchRequest request = context.buildShardSearchRequest(shardIt, shardIndex);
             boolean canMatch = SearchService.queryStillMatchesAfterRewrite(request, coordinatorRewriteContext);
 
             // Trigger the query as there's still a chance that we can skip

@@ -43,7 +43,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
-        addReleasable(resultConsumer);
+        context.addReleasable(resultConsumer);
 
         boolean hasFetchPhase = request.source() == null ? true : request.source().size() > 0;
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
@@ -53,8 +53,9 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     protected void executePhaseOnShard(final SearchShardIterator shardIt,
                                        final SearchShardTarget shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
-        ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
-        getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
+        ShardSearchRequest request = rewriteShardSearchRequest(context.buildShardSearchRequest(shardIt, listener.requestIndex));
+        context.getSearchTransport().sendExecuteQuery(context.getConnection(shard.getClusterAlias(), shard.getNodeId()),
+            request, context.getTask(), listener);
     }
 
     @Override
@@ -67,7 +68,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         QuerySearchResult queryResult = result.queryResult();
         if (queryResult.isNull() == false
                 // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
-                && getRequest().scroll() == null
+                && context.getRequest().scroll() == null
                 // top docs are already consumed if the query was cancelled or in error.
                 && queryResult.hasConsumedTopDocs() == false
                 && queryResult.topDocs() != null
@@ -87,7 +88,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-        return new FetchSearchPhase(results, searchPhaseController, null, this);
+        return new FetchSearchPhase(results, searchPhaseController, null, context);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {

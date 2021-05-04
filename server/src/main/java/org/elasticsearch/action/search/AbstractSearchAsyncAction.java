@@ -11,12 +11,9 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,8 +21,6 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -34,7 +29,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -45,8 +39,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
-abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
-    private final SearchPhaseContext context;
+abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
+    protected final SearchPhaseContext context;
     private final SearchRequest request;
 
     private final Logger logger;
@@ -101,11 +95,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
         this.logger = logger;
         this.results = resultConsumer;
-    }
-
-    @Override
-    public void addReleasable(Releasable releasable) {
-        context.addReleasable(releasable);
     }
 
     /**
@@ -182,7 +171,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         for (SearchShardIterator it : shardsIts) {
             if (it.getTargetNodeIds().isEmpty() == false) {
                 boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
-                    Transport.Connection conn = getConnection(it.getClusterAlias(), nodeId);
+                    Transport.Connection conn = context.getConnection(it.getClusterAlias(), nodeId);
                     return conn == null ? true : conn.getVersion().onOrAfter(request.minCompatibleShardNode());
                 });
                 if (isCompatible == false) {
@@ -310,12 +299,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         });
     }
 
-
-    @Override
-    public final void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
-        context.executeNextPhase(currentPhase, nextPhase);
-    }
-
     private void executePhase(SearchPhase phase) {
         try {
             phase.run();
@@ -330,7 +313,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
-        onShardFailure(shardIndex, shard, e);
+        context.onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
         logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]", shard, request, lastShard), e);
@@ -367,19 +350,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param exc the last failure reason
      */
     protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {}
-
-    /**
-     * Executed once for every failed shard level request. This method is invoked before the next replica is tried for the given
-     * shard target.
-     * @param shardIndex the internal index for this shard. Each shard has an index / ordinal assigned that is used to reference
-     *                   it's results
-     * @param shardTarget the shard target for this failure
-     * @param e the failure reason
-     */
-    @Override
-    public final void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
-       context.onShardFailure(shardIndex, shardTarget, e);
-    }
 
     /**
      * Executed once for every successful shard level request.
@@ -432,116 +402,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    @Override
-    public final int getNumShards() {
-        return context.getNumShards();
-    }
-
-    @Override
-    public final Logger getLogger() {
-        return context.getLogger();
-    }
-
-    @Override
-    public final SearchTask getTask() {
-        return context.getTask();
-    }
-
-    @Override
-    public final SearchRequest getRequest() {
-        return context.getRequest();
-    }
-
-    @Override
-    public ActionListener<SearchResponse> getListener() {
-        return context.getListener();
-    }
-
-    @Override
-    public SearchResponse.Clusters getClusters() {
-        return context.getClusters();
-    }
-
-    /**
-     * Builds how long it took to execute the search.
-     */
-    @Override
-    public long buildTookInMillis() {
-        return context.buildTookInMillis();
-    }
-
-    @Override
-    public AtomicBoolean getRequestCancelled() {
-        return context.getRequestCancelled();
-    }
-
-    @Override
-    public AtomicBoolean hasShardResponse() {
-        return context.hasShardResponse();
-    }
-
-    @Override
-    public AtomicInteger getSuccessfulOps() {
-        return context.getSuccessfulOps();
-    }
-
-    @Override
-    public AtomicInteger getSkippedOps() {
-        return context.getSkippedOps();
-    }
-
-    @Override
-    public SetOnce<AtomicArray<ShardSearchFailure>> getShardFailures() {
-        return context.getShardFailures();
-    }
-
-    @Override
-    public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
-        return context.isPartOfPointInTime(contextId);
-    }
-
-    @Override
-    public void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
-        context.sendSearchResponse(internalSearchResponse, queryResults);
-    }
-
-    @Override
-    public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
-        context.onPhaseFailure(phase, msg, cause);
-    }
-
     /**
      * Executed once all shard results have been received and processed
-     * @see #onShardFailure(int, SearchShardTarget, Exception)
+     * @see DefaultSearchPhaseContext#onShardFailure(int, SearchShardTarget, Exception)
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        context.executeNextPhase(this, getNextPhase(results, this));
-    }
-
-    @Override
-    public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
-        return context.getConnection(clusterAlias, nodeId);
-    }
-
-    @Override
-    public final SearchTransportService getSearchTransport() {
-        return context.getSearchTransport();
-    }
-
-    @Override
-    public final void execute(Runnable command) {
-        context.execute(command);
-    }
-
-    @Override
-    public final void onFailure(Exception e) {
-        context.onFailure(e);
-    }
-
-    @Override
-    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
-        return context.buildShardSearchRequest(shardIt, shardIndex);
+        context.executeNextPhase(this, getNextPhase(results, context));
     }
 
     /**

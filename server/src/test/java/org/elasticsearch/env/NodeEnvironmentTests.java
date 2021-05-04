@@ -62,7 +62,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
         env = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
-        assertThat(env.nodeDataPaths()[0], equalTo(PathUtils.get(dataPath)));
+        assertThat(env.nodeDataPath(), equalTo(PathUtils.get(dataPath)));
 
         env.close();
         assertThat(env.lockedShards(), empty());
@@ -102,10 +102,9 @@ public class NodeEnvironmentTests extends ESTestCase {
         } catch (ShardLockObtainFailedException ex) {
             // expected
         }
-        for (Path path : env.indexPaths(index)) {
-            Files.createDirectories(path.resolve("0"));
-            Files.createDirectories(path.resolve("1"));
-        }
+        Path path = env.indexPath(index);
+        Files.createDirectories(path.resolve("0"));
+        Files.createDirectories(path.resolve("1"));
         try {
             env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10));
             fail("shard 0 is locked");
@@ -135,10 +134,9 @@ public class NodeEnvironmentTests extends ESTestCase {
         Set<String> actualPaths = new HashSet<>();
         for (int i = 0; i < numIndices; i++) {
             Index index = new Index("foo" + i, "fooUUID" + i);
-            for (Path path : env.indexPaths(index)) {
-                Files.createDirectories(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
-                actualPaths.add(path.getFileName().toString());
-            }
+            Path path = env.indexPath(index);
+            Files.createDirectories(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
+            actualPaths.add(path.getFileName().toString());
         }
 
         assertThat(actualPaths, equalTo(env.availableIndexFolders()));
@@ -153,12 +151,11 @@ public class NodeEnvironmentTests extends ESTestCase {
         Set<String> actualPaths = new HashSet<>();
         for (int i = 0; i < numIndices; i++) {
             Index index = new Index("foo" + i, "fooUUID" + i);
-            for (Path path : env.indexPaths(index)) {
-                Files.createDirectories(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
-                actualPaths.add(path.getFileName().toString());
-            }
+            Path path = env.indexPath(index);
+            Files.createDirectories(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
+            actualPaths.add(path.getFileName().toString());
             if (randomBoolean()) {
-                excludedPaths.add(env.indexPaths(index)[0].getFileName().toString());
+                excludedPaths.add(env.indexPath(index).getFileName().toString());
             }
         }
 
@@ -173,22 +170,19 @@ public class NodeEnvironmentTests extends ESTestCase {
         Map<String, List<Path>> actualIndexDataPaths = new HashMap<>();
         for (int i = 0; i < numIndices; i++) {
             Index index = new Index("foo" + i, "fooUUID" + i);
-            Path[] indexPaths = env.indexPaths(index);
-            for (Path path : indexPaths) {
-                Files.createDirectories(path);
-                String fileName = path.getFileName().toString();
-                List<Path> paths = actualIndexDataPaths.get(fileName);
-                if (paths == null) {
-                    paths = new ArrayList<>();
-                }
-                paths.add(path);
-                actualIndexDataPaths.put(fileName, paths);
+            Path path = env.indexPath(index);
+            Files.createDirectories(path);
+            String fileName = path.getFileName().toString();
+            List<Path> paths = actualIndexDataPaths.get(fileName);
+            if (paths == null) {
+                paths = new ArrayList<>();
             }
+            paths.add(path);
+            actualIndexDataPaths.put(fileName, paths);
         }
         for (Map.Entry<String, List<Path>> actualIndexDataPathEntry : actualIndexDataPaths.entrySet()) {
             List<Path> actual = actualIndexDataPathEntry.getValue();
-            Path[] actualPaths = actual.toArray(new Path[actual.size()]);
-            assertThat(actualPaths, equalTo(env.resolveIndexFolder(actualIndexDataPathEntry.getKey())));
+            assertThat(actual.get(0), equalTo(env.resolveIndexFolder(actualIndexDataPathEntry.getKey())));
         }
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         env.close();
@@ -200,34 +194,29 @@ public class NodeEnvironmentTests extends ESTestCase {
         final ShardLock fooLock = env.shardLock(new ShardId(index, 0), "1");
         assertEquals(new ShardId(index, 0), fooLock.getShardId());
 
-        for (Path path : env.indexPaths(index)) {
-            Files.createDirectories(path.resolve("0"));
-            Files.createDirectories(path.resolve("1"));
-        }
+        Path path = env.indexPath(index);
+        Files.createDirectories(path.resolve("0"));
+        Files.createDirectories(path.resolve("1"));
 
         expectThrows(ShardLockObtainFailedException.class,
-            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPaths -> {
-                assert false : "should not be called " + shardPaths;
+            () -> env.deleteShardDirectorySafe(new ShardId(index, 0), idxSettings, shardPath -> {
+                assert false : "should not be called " + shardPath;
             }));
 
-        for (Path path : env.indexPaths(index)) {
-            assertTrue(Files.exists(path.resolve("0")));
-            assertTrue(Files.exists(path.resolve("1")));
-        }
+        path = env.indexPath(index);
+        assertTrue(Files.exists(path.resolve("0")));
+        assertTrue(Files.exists(path.resolve("1")));
 
         {
-            SetOnce<Path[]> listener = new SetOnce<>();
+            SetOnce<Path> listener = new SetOnce<>();
             env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
-            Path[] deletedPaths = listener.get();
-            for (int i = 0; i < env.nodePaths().length; i++) {
-                assertThat(deletedPaths[i], equalTo(env.nodePaths()[i].resolve(index).resolve("1")));
-            }
+            Path deletedPath = listener.get();
+            assertThat(deletedPath, equalTo(env.nodePath().resolve(index).resolve("1")));
         }
 
-        for (Path path : env.indexPaths(index)) {
-            assertTrue(Files.exists(path.resolve("0")));
-            assertFalse(Files.exists(path.resolve("1")));
-        }
+        path = env.indexPath(index);
+        assertTrue(Files.exists(path.resolve("0")));
+        assertFalse(Files.exists(path.resolve("1")));
 
         expectThrows(ShardLockObtainFailedException.class,
             () -> env.deleteIndexDirectorySafe(index, randomIntBetween(0, 10), idxSettings, indexPaths -> {
@@ -236,9 +225,8 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         fooLock.close();
 
-        for (Path path : env.indexPaths(index)) {
-            assertTrue(Files.exists(path));
-        }
+        path = env.indexPath(index);
+        assertTrue(Files.exists(path));
 
         final AtomicReference<Throwable> threadException = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -272,14 +260,13 @@ public class NodeEnvironmentTests extends ESTestCase {
         start.countDown();
         blockLatch.await();
 
-        final SetOnce<Path[]> listener = new SetOnce<>();
+        final SetOnce<Path> listener = new SetOnce<>();
         env.deleteIndexDirectorySafe(index, 5000, idxSettings, listener::set);
-        assertArrayEquals(env.indexPaths(index), listener.get());
+        assertThat(listener.get(), equalTo(env.indexPath(index)));
         assertNull(threadException.get());
 
-        for (Path path : env.indexPaths(index)) {
-            assertFalse(Files.exists(path));
-        }
+        path = env.indexPath(index);
+        assertFalse(Files.exists(path));
         latch.await();
         assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
         env.close();
@@ -352,27 +339,27 @@ public class NodeEnvironmentTests extends ESTestCase {
         Index index = new Index("myindex", "myindexUUID");
         ShardId sid = new ShardId(index, 0);
 
-        assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
+        assertThat(env.availableShardPath(sid), equalTo(env.availableShardPath(sid)));
         assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
             equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-            env.availableShardPaths(sid)[0],
+            env.availableShardPath(sid),
             equalTo(dataPath.resolve("indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-            env.indexPaths(index)[0], equalTo(dataPath.resolve("indices/" + index.getUUID())));
+            env.indexPath(index), equalTo(dataPath.resolve("indices/" + index.getUUID())));
 
-        assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
+        assertThat(env.availableShardPath(sid), equalTo(env.availableShardPath(sid)));
         assertThat(env.resolveCustomLocation("/tmp/foo", sid).toAbsolutePath(),
             equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0").toAbsolutePath()));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-            env.availableShardPaths(sid)[0],
+            env.availableShardPath(sid),
             equalTo(dataPath.resolve("indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-            env.indexPaths(index)[0], equalTo(dataPath.resolve("indices/" + index.getUUID())));
+            env.indexPath(index), equalTo(dataPath.resolve("indices/" + index.getUUID())));
 
         env.close();
     }
@@ -415,10 +402,8 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         Path indexPath;
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            for (Path path : env.indexPaths(index)) {
-                Files.createDirectories(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
-            }
-            indexPath = env.indexPaths(index)[0];
+            indexPath = env.indexPath(index);
+            Files.createDirectories(indexPath.resolve(MetadataStateFormat.STATE_DIR_NAME));
         }
 
         verifyFailsOnMetadata(noDataNoMasterSettings, indexPath);
@@ -430,9 +415,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // test that we can create data=false env with only meta information. Also create shard data for following asserts
         try (NodeEnvironment env = newNodeEnvironment(noDataSettings)) {
-            for (Path path : env.indexPaths(index)) {
-                Files.createDirectories(path.resolve(shardDataDirName));
-            }
+            Files.createDirectories(env.indexPath(index).resolve(shardDataDirName));
         }
 
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
@@ -448,9 +431,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // test that we can create data=true, master=true env. Also remove state dir to leave only shard data for following asserts
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            for (Path path : env.indexPaths(index)) {
-                Files.delete(path.resolve(MetadataStateFormat.STATE_DIR_NAME));
-            }
+            Files.delete(env.indexPath(index).resolve(MetadataStateFormat.STATE_DIR_NAME));
         }
 
         // assert that we fail on shard data even without the metadata dir.

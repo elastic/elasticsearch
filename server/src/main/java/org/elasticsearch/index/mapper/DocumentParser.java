@@ -52,12 +52,6 @@ final class DocumentParser {
 
     ParsedDocument parseDocument(SourceToParse source,
                                  MappingLookup mappingLookup) throws MapperParsingException {
-        return parseDocument(source, mappingLookup.getMapping().getSortedMetadataMappers(), mappingLookup);
-    }
-
-    ParsedDocument parseDocument(SourceToParse source,
-                                 MetadataFieldMapper[] metadataFieldsMappers,
-                                 MappingLookup mappingLookup) throws MapperParsingException {
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
@@ -68,6 +62,7 @@ final class DocumentParser {
                 source,
                 parser);
             validateStart(parser);
+            MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {

@@ -82,7 +82,6 @@ public class RuntimeAliasTests extends MapperServiceTestCase {
         assertEquals("Loop in field resolution detected: alias-loop1->alias-loop2->alias-loop1", e.getMessage());
     }
 
-    /*
     public void testDynamicLookup() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("runtime");
@@ -103,6 +102,5 @@ public class RuntimeAliasTests extends MapperServiceTestCase {
         assertNotNull(aliased);
         assertEquals("flattened._keyed", aliased.name());
     }
-    */
 
 }

@@ -78,7 +78,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         logger.debug("--> creating shard cache directories on disk");
         final Path[] shardsCacheDirs = new Path[numShards];
         for (int i = 0; i < numShards; i++) {
-            final Path shardDataPath = randomShardPath(new ShardId(index, i));
+            final Path shardDataPath = shardPath(new ShardId(index, i));
             assertFalse(Files.exists(shardDataPath));
 
             logger.debug("--> creating directories [{}] for shard [{}]", shardDataPath.toAbsolutePath(), i);
@@ -196,7 +196,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
             );
 
             final Path cacheDir = Files.createDirectories(
-                resolveSnapshotCache(randomShardPath(cacheKey.getShardId())).resolve(cacheKey.getSnapshotUUID())
+                resolveSnapshotCache(shardPath(cacheKey.getShardId())).resolve(cacheKey.getSnapshotUUID())
             );
             final String cacheFileUuid = UUIDs.randomBase64UUID(random());
             final SortedSet<ByteRange> cacheFileRanges = randomBoolean() ? randomRanges(fileLength) : emptySortedSet();

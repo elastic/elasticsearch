@@ -152,7 +152,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 

@@ -600,7 +600,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             final SingleUseKey singleUseNonceAndDEK = singleUseDEKSupplier.get();
             final BytesReference dekIdBytes = getDEKBytes(singleUseNonceAndDEK);
             final long encryptedBlobSize = getEncryptedBlobByteLength(blobSize);
-            try (InputStream encryptedInputStream = encryptedInput(inputStream, singleUseNonceAndDEK, dekIdBytes)) {
+            // make sure we do not close this stream here, it is closed by the caller
+            try (InputStream encryptedInputStream = encryptedInput(Streams.noCloseStream(inputStream), singleUseNonceAndDEK, dekIdBytes)) {
                 delegatedBlobContainer.writeBlob(blobName, encryptedInputStream, encryptedBlobSize, failIfAlreadyExists);
             }
         }

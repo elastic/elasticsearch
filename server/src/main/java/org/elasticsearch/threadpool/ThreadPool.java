@@ -142,12 +142,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return Collections.unmodifiableCollection(builders.values());
     }
 
-    public static final Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING =
-        Setting.timeSetting("thread_pool.estimated_time_interval",
-            TimeValue.timeValueMillis(200), TimeValue.ZERO, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING =
-        Setting.timeSetting("thread_pool.estimated_time_interval.warn_threshold",
-            TimeValue.timeValueSeconds(5), TimeValue.ZERO, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING = Setting.timeSetting(
+            "thread_pool.estimated_time_interval",
+            TimeValue.timeValueMillis(200),
+            TimeValue.ZERO,
+            Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING = Setting.timeSetting(
+            "thread_pool.estimated_time_interval.warn_threshold",
+            TimeValue.timeValueSeconds(5),
+            TimeValue.ZERO,
+            Setting.Property.NodeScope
+    );
 
     public static final Setting<TimeValue> SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING = Setting.timeSetting(
             "thread_pool.scheduler.warn_threshold",

@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -45,8 +44,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
     public void setUpMocks() {
         jobConfigProvider = new JobConfigProvider(client(), xContentRegistry());
         threadPool = mock(ThreadPool.class);
-        ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(directExecutorService);
+        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     public void testTriggerDeleteJobsInStateDeletingWithoutDeletionTask() throws InterruptedException {

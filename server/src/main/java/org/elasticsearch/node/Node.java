@@ -306,16 +306,9 @@ public class Node implements Closeable {
                     Build.CURRENT.getQualifiedVersion());
             }
 
-            if (initialEnvironment.dataFiles().length > 1) {
-                // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
-                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "multiple-data-paths",
-                    "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
-                        "multiple disks. This feature will be removed in 8.0.");
-            }
-
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
-                    initialEnvironment.configFile(), Arrays.toString(initialEnvironment.dataFiles()),
+                    initialEnvironment.configFile(), initialEnvironment.dataFile(),
                     initialEnvironment.logsFile(), initialEnvironment.pluginsFile());
             }
 
@@ -497,8 +490,9 @@ public class Node implements Closeable {
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
-            clusterService.addListener(systemIndexManager);
+            if (DiscoveryNode.isMasterNode(settings)) {
+                clusterService.addListener(new SystemIndexManager(systemIndices, client));
+            }
 
             final RerouteService rerouteService
                 = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
@@ -820,7 +814,7 @@ public class Node implements Closeable {
             try {
                 assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
                 final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
-                    nodeEnvironment.nodeDataPaths());
+                    nodeEnvironment.nodeDataPath());
                 assert nodeMetadata != null;
                 assert nodeMetadata.nodeVersion().equals(Version.CURRENT);
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());

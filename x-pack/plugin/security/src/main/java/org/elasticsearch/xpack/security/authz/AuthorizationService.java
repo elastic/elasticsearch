@@ -631,8 +631,9 @@ public class AuthorizationService {
             final String apiKeyId = (String) authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
-        } else {
+        } else if (false == authentication.isServiceAccount()) {
             // Don't print roles for API keys because they're not meaningful
+            // Also not printing roles for service accounts since they have no roles
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -42,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -264,19 +263,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc, ParseContext parseContext) {
         throw new UnsupportedOperationException("FieldMapper " + name() + " does not support [script]");
-    }
-
-    protected final void createFieldNamesField(ParseContext context) {
-        assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
-        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) context.getMetadataMapper(FieldNamesFieldMapper.NAME);
-        if (fieldNamesFieldMapper != null) {
-            FieldNamesFieldType fieldNamesFieldType = fieldNamesFieldMapper.fieldType();
-            if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
-                for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
-                }
-            }
-        }
     }
 
     @Override
@@ -1215,23 +1201,41 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    public static BiConsumer<String, ParserContext> notInMultiFields(String type) {
+        return (n, c) -> {
+            if (c.isWithinMultiField()) {
+                throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in multifields");
+            }
+        };
+    }
+
     /**
      * TypeParser implementation that automatically handles parsing
      */
     public static final class TypeParser implements Mapper.TypeParser {
 
         private final BiFunction<String, ParserContext, Builder> builderFunction;
+        private final BiConsumer<String, ParserContext> contextValidator;
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, ParserContext, Builder> builderFunction) {
+            this(builderFunction, (n, c) -> {});
+        }
+
+        public TypeParser(
+            BiFunction<String, ParserContext, Builder> builderFunction,
+            BiConsumer<String, ParserContext> contextValidator
+        ) {
             this.builderFunction = builderFunction;
+            this.contextValidator = contextValidator;
         }
 
         @Override
         public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            contextValidator.accept(name, parserContext);
             Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);
             return builder;

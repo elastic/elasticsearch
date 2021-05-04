@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.internal.VersionProperties
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
 

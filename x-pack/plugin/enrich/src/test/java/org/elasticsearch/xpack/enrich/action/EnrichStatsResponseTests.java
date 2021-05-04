@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.enrich.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -50,6 +51,10 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
     }
 
     public static TaskInfo randomTaskInfo() {
+        return randomTaskInfo(null);
+    }
+
+    public static TaskInfo randomTaskInfo(Task.Status status) {
         TaskId taskId = new TaskId(randomAlphaOfLength(5), randomLong());
         String type = randomAlphaOfLength(5);
         String action = randomAlphaOfLength(5);
@@ -61,6 +66,6 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, null, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
+        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
     }
 }

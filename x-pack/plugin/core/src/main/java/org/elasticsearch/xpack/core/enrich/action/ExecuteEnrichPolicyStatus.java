@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.enrich.action;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,5 +65,18 @@ public class ExecuteEnrichPolicyStatus implements Task.Status {
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ExecuteEnrichPolicyStatus that = (ExecuteEnrichPolicyStatus) o;
+        return Objects.equals(phase, that.phase);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(phase);
     }
 }

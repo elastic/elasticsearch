@@ -116,7 +116,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     @After
     public void cleanup() {
-        cleanUp();
         client().admin().cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()

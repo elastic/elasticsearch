@@ -143,6 +143,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING =
         Setting.timeSetting("thread_pool.estimated_time_interval",
             TimeValue.timeValueMillis(200), TimeValue.ZERO, Setting.Property.NodeScope);
+    public static Setting<TimeValue> LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING =
+        Setting.timeSetting("thread_pool.estimated_time_interval.warn_threshold",
+            TimeValue.timeValueSeconds(5), TimeValue.ZERO, Setting.Property.NodeScope);
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
@@ -206,8 +209,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                         .collect(Collectors.toList());
         this.threadPoolInfo = new ThreadPoolInfo(infos);
         this.scheduler = Scheduler.initScheduler(settings, "scheduler");
-        TimeValue estimatedTimeInterval = ESTIMATED_TIME_INTERVAL_SETTING.get(settings);
-        this.cachedTimeThread = new CachedTimeThread(EsExecutors.threadName(settings, "[timer]"), estimatedTimeInterval.millis());
+        this.cachedTimeThread = new CachedTimeThread(
+                EsExecutors.threadName(settings, "[timer]"),
+                ESTIMATED_TIME_INTERVAL_SETTING.get(settings).millis(),
+                LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis());
         this.cachedTimeThread.start();
     }
 
@@ -485,15 +490,20 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     static class CachedTimeThread extends Thread {
 
         final long interval;
+        private final TimeChangeChecker timeChangeChecker;
+        private final long thresholdMillis;
+
         volatile boolean running = true;
         volatile long relativeNanos;
         volatile long absoluteMillis;
 
-        CachedTimeThread(String name, long interval) {
+        CachedTimeThread(String name, long intervalMillis, long thresholdMillis) {
             super(name);
-            this.interval = interval;
+            this.interval = intervalMillis;
+            this.thresholdMillis = thresholdMillis;
             this.relativeNanos = System.nanoTime();
             this.absoluteMillis = System.currentTimeMillis();
+            this.timeChangeChecker = new TimeChangeChecker(thresholdMillis, absoluteMillis, relativeNanos);
             setDaemon(true);
         }
 
@@ -531,12 +541,70 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             while (running && 0 < interval) {
                 relativeNanos = System.nanoTime();
                 absoluteMillis = System.currentTimeMillis();
+                timeChangeChecker.check(absoluteMillis, relativeNanos);
                 try {
+                    // busy-waiting is the whole point!
+                    // noinspection BusyWait
                     Thread.sleep(interval);
                 } catch (InterruptedException e) {
                     running = false;
                     return;
                 }
+            }
+        }
+    }
+
+    static class TimeChangeChecker {
+
+        private final long thresholdMillis;
+        private final long thresholdNanos;
+        private long absoluteMillis;
+        private long relativeNanos;
+
+        TimeChangeChecker(long thresholdMillis, long absoluteMillis, long relativeNanos) {
+            this.thresholdMillis = thresholdMillis;
+            this.thresholdNanos = TimeValue.timeValueMillis(thresholdMillis).nanos();
+            this.absoluteMillis = absoluteMillis;
+            this.relativeNanos = relativeNanos;
+        }
+
+        void check(long newAbsoluteMillis, long newRelativeNanos) {
+            if (thresholdMillis <= 0) {
+                return;
+            }
+
+            try {
+                final long deltaMillis = newAbsoluteMillis - absoluteMillis;
+                if (deltaMillis > thresholdMillis) {
+                    final TimeValue delta = TimeValue.timeValueMillis(deltaMillis);
+                    logger.warn("timer thread slept for [{}/{}ms] on absolute clock which is above the warn threshold of [{}ms]",
+                            delta,
+                            deltaMillis,
+                            thresholdMillis);
+                } else if (deltaMillis < 0) {
+                    final TimeValue delta = TimeValue.timeValueMillis(-deltaMillis);
+                    logger.warn("absolute clock went backwards by [{}/{}ms] while timer thread was sleeping",
+                            delta,
+                            -deltaMillis);
+                }
+
+                final long deltaNanos = newRelativeNanos - relativeNanos;
+                if (deltaNanos > thresholdNanos) {
+                    final TimeValue delta = TimeValue.timeValueNanos(deltaNanos);
+                    logger.warn("timer thread slept for [{}/{}ns] on relative clock which is above the warn threshold of [{}ms]",
+                            delta,
+                            deltaNanos,
+                            thresholdMillis);
+                } else if (deltaNanos < 0) {
+                    final TimeValue delta = TimeValue.timeValueNanos(-deltaNanos);
+                    logger.error("relative clock went backwards by [{}/{}ns] while timer thread was sleeping",
+                            delta,
+                            -deltaNanos);
+                    assert false : "System::nanoTime time should be monotonic";
+                }
+            } finally {
+                absoluteMillis = newAbsoluteMillis;
+                relativeNanos = newRelativeNanos;
             }
         }
     }

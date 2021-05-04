@@ -62,6 +62,10 @@
       "detailed":{
         "type":"boolean",
         "description":"Whether to return detailed results or a summary. Defaults to 'false' so that only the summary is returned."
+      },
+      "rarely_abort_writes":{
+        "type":"boolean",
+        "description":"Whether to rarely abort writes before they complete. Defaults to 'true'."
       }
     }
   }

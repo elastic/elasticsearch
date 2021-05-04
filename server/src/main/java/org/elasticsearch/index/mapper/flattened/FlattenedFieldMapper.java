@@ -473,7 +473,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         context.doc().addAll(fieldParser.parse(xContentParser));
 
         if (mappedFieldType.hasDocValues() == false) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

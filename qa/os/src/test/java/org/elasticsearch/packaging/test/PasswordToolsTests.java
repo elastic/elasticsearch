@@ -17,7 +17,6 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +42,8 @@ public class PasswordToolsTests extends PackagingTestCase {
         install();
         Files.write(
             installation.config("elasticsearch.yml"),
-            List.of("xpack.license.self_generated.type: trial", "xpack.security.enabled: true"),
-            StandardOpenOption.APPEND
+            // Replace the existing file as it would have security explicitly disabled
+            List.of("xpack.license.self_generated.type: trial", "xpack.security.enabled: true", "ingest.geoip.downloader.enabled: false")
         );
     }
 

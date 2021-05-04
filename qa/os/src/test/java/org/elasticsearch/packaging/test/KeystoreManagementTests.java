@@ -56,6 +56,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public static final String ERROR_CORRUPTED_KEYSTORE = "Keystore has been corrupted or tampered with";
     public static final String ERROR_KEYSTORE_NOT_PASSWORD_PROTECTED = "ERROR: Keystore is not password-protected";
     public static final String ERROR_KEYSTORE_NOT_FOUND = "ERROR: Elasticsearch keystore not found";
+    private static final String USERNAME = "elastic";
+    private static final String PASSWORD = "nothunter2";
 
     /** Test initial archive state */
     public void test10InstallArchiveDistribution() throws Exception {
@@ -260,6 +262,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via an environment variable.
      */
+    @AwaitsFix(bugUrl = "Keystore fails to copy with resource busy")
     public void test60DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
         String password = "keystore-password";
@@ -269,16 +272,32 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password, "ingest.geoip.downloader.enabled", "false");
+        Map<String, String> envVars = Map.of(
+            "KEYSTORE_PASSWORD",
+            password,
+            "ingest.geoip.downloader.enabled",
+            "false",
+            "ELASTIC_PASSWORD",
+            PASSWORD
+        );
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
-        waitForElasticsearch(installation);
-        ServerUtils.runElasticsearchTests();
+        try {
+            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+        ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
     }
 
     /**
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via a file, pointed at from an environment variable.
      */
+    @AwaitsFix(bugUrl = "Keystore fails to copy with resource busy")
     public void test61DockerEnvironmentVariablePasswordFromFile() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -301,13 +320,23 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 "KEYSTORE_PASSWORD_FILE",
                 "/run/secrets/" + passwordFilename,
                 "ingest.geoip.downloader.enabled",
-                "false"
+                "false",
+                "ELASTIC_PASSWORD",
+                PASSWORD
             );
 
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
-            waitForElasticsearch(installation);
-            ServerUtils.runElasticsearchTests();
+            try {
+                waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
+            } catch (Exception e) {
+                throw new AssertionError(
+                    "Failed to check whether Elasticsearch had started. This could be because "
+                        + "authentication isn't working properly. Check the container logs",
+                    e
+                );
+            }
+            ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
         } finally {
             if (tempDir != null) {
                 rm(tempDir);
@@ -319,6 +348,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that if we provide the wrong password for a mounted and password-protected
      * keystore, Elasticsearch doesn't start.
      */
+    @AwaitsFix(bugUrl = "Keystore fails to copy with resource busy")
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
         String password = "keystore-password";

@@ -62,6 +62,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
@@ -216,6 +217,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             AnomalyDetectorsIndex::resultsMapping,
             client,
             clusterState,
+            PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
             resultsMappingUpdateHandler);
     }
 
@@ -286,6 +288,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
                     jobSnapshotId == null ? ModelSnapshot.EMPTY_SNAPSHOT_ID : jobSnapshotId);
                 request.setForce(true);
                 request.setDeleteInterveningResults(true);
+                request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                 executeAsyncWithOrigin(client, ML_ORIGIN, RevertModelSnapshotAction.INSTANCE, request, listener);
             },
             error -> listener.onFailure(ExceptionsHelper.serverError("[{}] error getting job", error, jobId))
@@ -293,15 +296,18 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
         // We need to refetch the job in order to learn what is its current model snapshot
         // as the one that exists in the task params is outdated.
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, new GetJobsAction.Request(jobId), jobListener);
+        GetJobsAction.Request request = new GetJobsAction.Request(jobId);
+        request.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetJobsAction.INSTANCE, request, jobListener);
     }
 
     private void openJob(JobTask jobTask) {
         String jobId = jobTask.getJobId();
-        autodetectProcessManager.openJob(jobTask, clusterState, (e2, shouldFinalizeJob) -> {
+        autodetectProcessManager.openJob(jobTask, clusterState, PERSISTENT_TASK_MASTER_NODE_TIMEOUT, (e2, shouldFinalizeJob) -> {
             if (e2 == null) {
                 if (shouldFinalizeJob) {
                     FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
+                    finalizeRequest.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                     executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,
                         ActionListener.wrap(
                             response -> jobTask.markAsCompleted(),

@@ -67,87 +67,6 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             () -> 0L);
     }
 
-    public void testFailsIfGlobalMetadataIsDuplicated() throws IOException {
-        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe the global metadata
-        // is duplicated
-
-        final Path[] dataPaths1 = createDataPaths();
-        final Path[] dataPaths2 = createDataPaths();
-        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                writeState(writer, 0L, ClusterState.builder(clusterState).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
-                    clusterState);
-            }
-
-            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
-            final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
-                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                    indexWriter.addIndexes(dupDirectory);
-                    indexWriter.commit();
-                }
-            }
-
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadOnDiskState()).getMessage();
-            assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
-        }
-    }
-
-    public void testFailsIfIndexMetadataIsDuplicated() throws IOException {
-        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe some index metadata
-        // is duplicated
-
-        final Path[] dataPaths1 = createDataPaths();
-        final Path[] dataPaths2 = createDataPaths();
-        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
-
-        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
-            final String indexUUID = UUIDs.randomBase64UUID(random());
-            final String indexName = randomAlphaOfLength(10);
-
-            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
-                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
-                writeState(writer, 0L, ClusterState.builder(clusterState)
-                        .metadata(Metadata.builder(clusterState.metadata())
-                            .version(1L)
-                            .coordinationMetadata(CoordinationMetadata.builder(clusterState.coordinationMetadata()).term(1L).build())
-                            .put(IndexMetadata.builder(indexName)
-                                .version(1L)
-                                .settings(Settings.builder()
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                                    .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))))
-                        .incrementVersion().build(),
-                    clusterState);
-            }
-
-            final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
-            final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
-            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
-                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
-                    indexWriter.deleteDocuments(new Term("type", "global")); // do not duplicate global metadata
-                    indexWriter.addIndexes(dupDirectory);
-                    indexWriter.commit();
-                }
-            }
-
-            final String message = expectThrows(IllegalStateException.class,
-                () -> newPersistedClusterStateService(nodeEnvironment).loadOnDiskState()).getMessage();
-            assertThat(message, allOf(
-                containsString("duplicate metadata found"),
-                containsString(brokenPath.toString()),
-                containsString(indexName),
-                containsString(indexUUID)));
-        }
-    }
-
     public void testPersistsAndReloadsTerm() throws IOException {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createTempDir())) {
             final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
@@ -363,6 +282,88 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final String message = expectThrows(IllegalStateException.class,
                 () -> newPersistedClusterStateService(nodeEnvironment).loadOnDiskState()).getMessage();
             assertThat(message, allOf(containsString("no global metadata found"), containsString(brokenPath.toString())));
+        }
+    }
+
+    public void testFailsIfGlobalMetadataIsDuplicated() throws IOException {
+        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe the global metadata
+        // is duplicated
+
+        final Path brokenPath = createTempDir();
+        final Path dupPath = createTempDir(); // this exists only to create a duplicate structure that can be copied
+
+        try (NodeEnvironment nodeEnvironment1 = newNodeEnvironment(brokenPath);
+             NodeEnvironment nodeEnvironment2 = newNodeEnvironment(dupPath)) {
+            try (Writer writer1 = newPersistedClusterStateService(nodeEnvironment1).createWriter();
+                 Writer writer2 = newPersistedClusterStateService(nodeEnvironment2).createWriter()) {
+                final ClusterState oldClusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment1));
+                final long newVersion = randomLongBetween(1L, Long.MAX_VALUE);
+                final ClusterState newClusterState = ClusterState.builder(oldClusterState).version(newVersion).build();
+                writeState(writer1, 0L, newClusterState, oldClusterState);
+                writeState(writer2, 0L, newClusterState, oldClusterState);
+            }
+
+            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                    indexWriter.addIndexes(dupDirectory);
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(IllegalStateException.class,
+                () -> newPersistedClusterStateService(nodeEnvironment1).loadOnDiskState()).getMessage();
+            assertThat(message, allOf(containsString("duplicate global metadata found"), containsString(brokenPath.toString())));
+        }
+    }
+
+    public void testFailsIfIndexMetadataIsDuplicated() throws IOException {
+        // if someone attempted surgery on the metadata index by hand, e.g. deleting broken segments, then maybe some index metadata
+        // is duplicated
+
+        final Path brokenPath = createTempDir();
+        final Path dupPath = createTempDir(); // this exists only to create a duplicate structure that can be copied
+
+        try (NodeEnvironment nodeEnvironment1 = newNodeEnvironment(brokenPath);
+             NodeEnvironment nodeEnvironment2 = newNodeEnvironment(dupPath)) {
+            final String indexUUID = UUIDs.randomBase64UUID(random());
+            final String indexName = randomAlphaOfLength(10);
+
+            try (Writer writer1 = newPersistedClusterStateService(nodeEnvironment1).createWriter();
+                 Writer writer2 = newPersistedClusterStateService(nodeEnvironment2).createWriter()) {
+                final ClusterState oldClusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment1));
+                final ClusterState newClusterState = ClusterState.builder(oldClusterState)
+                    .metadata(Metadata.builder(oldClusterState.metadata())
+                        .version(1L)
+                        .coordinationMetadata(CoordinationMetadata.builder(oldClusterState.coordinationMetadata()).term(1L).build())
+                        .put(IndexMetadata.builder(indexName)
+                            .version(1L)
+                            .settings(Settings.builder()
+                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))))
+                    .incrementVersion().build();
+                writeState(writer1, 0L, newClusterState, oldClusterState);
+                writeState(writer2, 0L, newClusterState, oldClusterState);
+            }
+
+            try (Directory directory = new SimpleFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+                 Directory dupDirectory = new SimpleFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+                try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
+                    indexWriter.deleteDocuments(new Term("type", "global")); // do not duplicate global metadata
+                    indexWriter.addIndexes(dupDirectory);
+                    indexWriter.commit();
+                }
+            }
+
+            final String message = expectThrows(IllegalStateException.class,
+                () -> newPersistedClusterStateService(nodeEnvironment1).loadOnDiskState()).getMessage();
+            assertThat(message, allOf(
+                containsString("duplicate metadata found"),
+                containsString(brokenPath.toString()),
+                containsString(indexName),
+                containsString(indexUUID)));
         }
     }
 

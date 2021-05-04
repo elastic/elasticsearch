@@ -24,7 +24,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
@@ -41,13 +40,10 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXC
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache.resolveCacheIndexFolder;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -177,9 +173,11 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         createRepository(fsRepoName, FsRepository.TYPE);
 
         final String indexName = prefix + "index";
-        createAndPopulateIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+        createAndPopulateIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
         );
 
         final String snapshotName = prefix + "snapshot";
@@ -196,11 +194,21 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
         assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));
-        assertTrue(recoveryResponse.shardRecoveryStates().get(mountedIndexName).stream()
-            .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE));
+        assertTrue(
+            recoveryResponse.shardRecoveryStates()
+                .get(mountedIndexName)
+                .stream()
+                .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
+        );
 
-        final ClusterStateResponse state = client().admin().cluster().prepareState().clear()
-            .setRoutingTable(true).setMetadata(true).setIndices(mountedIndexName).get();
+        final ClusterStateResponse state = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setRoutingTable(true)
+            .setMetadata(true)
+            .setIndices(mountedIndexName)
+            .get();
         final Index mountedIndex = state.getState().metadata().index(mountedIndexName).getIndex();
 
         final Set<DiscoveryNode> dataNodes = new HashSet<>();
@@ -221,24 +229,32 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         final DiscoveryNode excludedDataNode = randomFrom(dataNodes);
         logger.info("--> relocating mounted index {} away from {}", mountedIndex, excludedDataNode);
-        assertAcked(client().admin().indices().prepareUpdateSettings(mountedIndexName)
-            .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()))
-            .get()
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(mountedIndexName)
+                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()))
+                .get()
         );
 
         ensureGreen(mountedIndexName);
 
         recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
         assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));
-        assertTrue(recoveryResponse.shardRecoveryStates().get(mountedIndexName).stream()
-            .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE));
+        assertTrue(
+            recoveryResponse.shardRecoveryStates()
+                .get(mountedIndexName)
+                .stream()
+                .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
+        );
 
         assertBusy(() -> {
             for (DiscoveryNode dataNode : dataNodes) {
                 CacheService cacheService = internalCluster().getInstance(CacheService.class, dataNode.getName());
                 cacheService.synchronizeCache();
 
-                assertThat(cacheService.getPersistentCache().getNumDocs(),
+                assertThat(
+                    cacheService.getPersistentCache().getNumDocs(),
                     dataNode.equals(excludedDataNode) ? equalTo(0L) : greaterThan(0L)
                 );
             }

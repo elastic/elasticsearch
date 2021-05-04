@@ -146,9 +146,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                                              IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
-        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
-            return Collections.emptyList();
-        }
         return List.of(new RestGeoIpDownloaderStatsAction());
     }
 

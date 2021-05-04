@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -19,15 +20,17 @@ public class DocumentMapper {
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
 
-    public DocumentMapper(RootObjectMapper.Builder rootBuilder, MapperService mapperService) {
-        this(
-            mapperService.getIndexSettings(),
-            mapperService.getIndexAnalyzers(),
-            mapperService.documentParser(),
-            new Mapping(
-                rootBuilder.build(new ContentPath(1)),
-                mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]),
-                Collections.emptyMap()));
+    /**
+     * Create a new {@link DocumentMapper} that holds empty mappings.
+     * @param mapperService the mapper service that holds the needed components
+     * @return the newly created document mapper
+     */
+    public static DocumentMapper createEmpty(MapperService mapperService) {
+        RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT).build(new ContentPath(1));
+        MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
+        Mapping mapping = new Mapping(root, metadata, Collections.emptyMap());
+        return new DocumentMapper(
+            mapperService.getIndexSettings(), mapperService.getIndexAnalyzers(), mapperService.documentParser(), mapping);
     }
 
     DocumentMapper(IndexSettings indexSettings,

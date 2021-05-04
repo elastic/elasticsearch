@@ -167,7 +167,7 @@ final class FieldTypeLookup {
     }
 
     /**
-     * Returns a list of the full names of a simple match regex like pattern against full name and index name.
+     * Returns a set of field names that match a regex-like pattern
      *
      * All field names in the returned set are guaranteed to resolve to a field
      */

@@ -313,7 +313,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
             return mappingLookup.getMatchingFieldNames(pattern);
         }
         Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
+        if ("*".equals(pattern)) {
+            matches.addAll(runtimeMappings.keySet());
+        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcard
             if (runtimeMappings.containsKey(pattern)) {
                 matches.add(pattern);

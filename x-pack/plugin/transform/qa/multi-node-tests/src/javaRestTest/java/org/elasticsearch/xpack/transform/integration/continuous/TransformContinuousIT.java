@@ -312,8 +312,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                 if (randomBoolean()) {
                     builder.field("codec", "best_compression");
                 }
-                // TODO: crashes with assertions enabled in lucene
-                if (false && randomBoolean()) {
+                if (randomBoolean()) {
                     List<String> sortedFields = new ArrayList<>(
                         // note: no index sort for geo_point
                         randomUnique(() -> randomFrom("event", "metric", "run", "timestamp"), randomIntBetween(1, 3))

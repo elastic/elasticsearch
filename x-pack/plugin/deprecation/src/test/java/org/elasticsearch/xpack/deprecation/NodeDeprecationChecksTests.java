@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
@@ -39,15 +40,20 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testCheckDefaults() {
-        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
+        final Settings settings = Settings.EMPTY;
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final XPackLicenseState licenseState = new XPackLicenseState(settings, () -> 0);
         final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
-        assertThat(issues, empty());
+
+        final DeprecationIssue issue =
+            NodeDeprecationChecks.checkImplicitlyDisabledSecurityOnBasicAndTrial(settings, pluginsAndModules, licenseState);
+        assertThat(issues, hasItem(issue));
     }
 
     public void testJavaVersion() {
@@ -588,7 +594,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue, nullValue());
     }
 
-    public void testImplicitlyDisabledSecurity() {
+    public void testImplicitlyDisabledSecurityWarning() {
         final DeprecationIssue issue =
             NodeDeprecationChecks.checkImplicitlyDisabledSecurityOnBasicAndTrial(Settings.EMPTY,
                 null,
@@ -600,4 +606,27 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getUrl(),
             equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#implicitly-disabled-security"));
     }
+
+    public void testExplicitlyConfiguredSecurityOnBasicAndTrial() {
+        final boolean enabled = randomBoolean();
+        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), enabled).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.BASIC, License.OperationMode.TRIAL));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        assertThat(issues, empty());
+    }
+
+    public void testImplicitlyConfiguredSecurityOnGoldPlus() {
+        final boolean enabled = randomBoolean();
+        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), enabled).build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.getOperationMode())
+            .thenReturn(randomValueOtherThanMany((m -> m.equals(License.OperationMode.BASIC) || m.equals(License.OperationMode.TRIAL)),
+                () -> randomFrom(License.OperationMode.values())));
+        final List<DeprecationIssue> issues = getDeprecationIssues(settings, pluginsAndModules, licenseState);
+        assertThat(issues, empty());
+    }
+
 }

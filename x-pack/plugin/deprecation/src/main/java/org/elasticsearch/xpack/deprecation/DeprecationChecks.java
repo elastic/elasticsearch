@@ -42,10 +42,10 @@ public class DeprecationChecks {
         ));
 
 
-    static final List<TriFunction<Settings, PluginsAndModules, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS;
+    static final List<NodeDeprecationCheck<Settings, PluginsAndModules, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS;
 
         static {
-            final Stream<TriFunction<Settings, PluginsAndModules, XPackLicenseState, DeprecationIssue>> legacyRoleSettings =
+            final Stream<NodeDeprecationCheck<Settings, PluginsAndModules, XPackLicenseState, DeprecationIssue>> legacyRoleSettings =
                 DiscoveryNode.getPossibleRoles()
                 .stream()
                 .filter(r -> r.legacySetting() != null)
@@ -115,7 +115,7 @@ public class DeprecationChecks {
     }
 
     @FunctionalInterface
-    public interface TriFunction<F, S, T, R> {
+    public interface NodeDeprecationCheck<F, S, T, R> {
         R apply(F first, S second, T third);
     }
 }

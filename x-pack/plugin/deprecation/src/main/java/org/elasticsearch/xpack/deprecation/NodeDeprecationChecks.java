@@ -126,7 +126,7 @@ class NodeDeprecationChecks {
     static DeprecationIssue checkImplicitlyDisabledSecurityOnBasicAndTrial(final Settings settings,
                                                                            final PluginsAndModules pluginsAndModules,
                                                                            final XPackLicenseState licenseState) {
-        if ( settings.hasValue(XPackSettings.SECURITY_ENABLED.getKey()) == false
+        if ( XPackSettings.SECURITY_ENABLED.exists(settings) == false
             && (licenseState.getOperationMode().equals(License.OperationMode.BASIC)
             || licenseState.getOperationMode().equals(License.OperationMode.TRIAL))) {
           String details = "The behavior where the value of [xpack.security.enabled] setting is false for " +

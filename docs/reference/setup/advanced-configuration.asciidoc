@@ -21,7 +21,7 @@ Where you put the JVM options files depends on the type of installation:
 * Docker: Bind mount custom JVM options files into
 `/usr/share/elasticsearch/config/jvm.options.d/`.
 
-NOTE: Do not modify the root `jvm.options` file. Use JVM options files instead.
+NOTE: Do not modify the root `jvm.options` file. Use files in `jvm.options.d/` instead.
 
 [[jvm-options-syntax]]
 ===== JVM options syntax

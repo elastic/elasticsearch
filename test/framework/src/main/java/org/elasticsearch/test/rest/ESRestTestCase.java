@@ -713,16 +713,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * If any nodes are registered for shutdown, removes their metadata.
      */
+    @SuppressWarnings("unchecked")
     private static void deleteAllNodeShutdownMetadata() throws IOException {
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
         Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
-        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
-        List<String> nodeIds = nodesArray.stream()
-            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
-            .collect(Collectors.toUnmodifiableList());
-        for (String nodeId : nodeIds) {
-            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-            assertOK(client().performRequest(deleteRequest));
+        if (statusResponse.get("nodes") instanceof List) { // for some reason `nodes` is parsed as a Map<> if it's empty
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+            List<String> nodeIds = nodesArray.stream()
+                .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+                .collect(Collectors.toUnmodifiableList());
+            for (String nodeId : nodeIds) {
+                Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+                assertOK(client().performRequest(deleteRequest));
+            }
         }
     }
 

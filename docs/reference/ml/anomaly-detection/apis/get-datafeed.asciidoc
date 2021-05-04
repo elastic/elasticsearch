@@ -24,9 +24,8 @@ Retrieves configuration information for {dfeeds}.
 [[ml-get-datafeed-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 [[ml-get-datafeed-desc]]
 == {api-description-title}

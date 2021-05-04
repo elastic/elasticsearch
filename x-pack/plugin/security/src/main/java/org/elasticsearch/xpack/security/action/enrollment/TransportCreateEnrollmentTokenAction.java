@@ -27,22 +27,23 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenAction;
-import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenRequest;
-import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenResponse;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenRequest;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
+import org.elasticsearch.xpack.core.ssl.KeyConfig;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Transport action responsible for creating an enrollment token based on a request.
@@ -57,50 +58,65 @@ public class TransportCreateEnrollmentTokenAction
     private final SecurityContext securityContext;
     private final Environment environment;
     private final NodeService nodeService;
+    private final SSLService sslService;
 
     @Inject
     public TransportCreateEnrollmentTokenAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
                                                 SecurityContext context, CompositeRolesStore rolesStore,
-                                                NamedXContentRegistry xContentRegistry, Environment environment, NodeService nodeService) {
+                                                NamedXContentRegistry xContentRegistry, Environment environment, NodeService nodeService,
+                                                SSLService sslService) {
         super(CreateEnrollmentTokenAction.NAME, transportService, actionFilters, CreateEnrollmentTokenRequest::new);
         this.generator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
         this.securityContext = context;
         this.environment = environment;
         this.nodeService = nodeService;
+        this.sslService = sslService;
     }
 
     @Override
     protected void doExecute(Task task, CreateEnrollmentTokenRequest request,
                              ActionListener<CreateEnrollmentTokenResponse> listener) {
-        createEnrolmentToken(listener);
+        try {
+            final KeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
+            if (keyConfig instanceof StoreKeyConfig == false) {
+                listener.onFailure(new IllegalStateException(
+                    "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is not configured with a " +
+                        "keystore"));
+                return;
+            }
+            final List<X509Certificate> caCertificates = ((StoreKeyConfig) keyConfig).x509Certificates(environment).stream()
+                .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1).collect(Collectors.toList());
+            if (caCertificates.size() != 1) {
+                listener.onFailure(new IllegalStateException(
+                    "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration Keystore doesn't contain a " +
+                    "single PrivateKey entry where the associated certificate is a CA certificate"));
+
+            } else {
+                final TimeValue expiration = TimeValue.timeValueSeconds(ENROLL_API_KEY_EXPIRATION_SEC);
+                final List<RoleDescriptor> roleDescriptors = new ArrayList<>(1);
+                final String[] clusterPrivileges = { "enroll" };
+                final RoleDescriptor roleDescriptor = new RoleDescriptor("create_enrollment_token", clusterPrivileges, null, null);
+                roleDescriptors.add(roleDescriptor);
+                CreateApiKeyRequest apiRequest = new CreateApiKeyRequest("enrollment_token_API_key_" + UUIDs.base64UUID(),
+                    roleDescriptors, expiration);
+                final String fingerprint = SslUtil.calculateFingerprint(caCertificates.get(0));
+                createEnrolmentToken(fingerprint, apiRequest, listener);
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
-    private void createEnrolmentToken(ActionListener<CreateEnrollmentTokenResponse> listener) {
+    private void createEnrolmentToken(String fingerprint, CreateApiKeyRequest apiRequest,
+                                      ActionListener<CreateEnrollmentTokenResponse> listener) {
         try {
-            final TimeValue expiration = TimeValue.timeValueSeconds(ENROLL_API_KEY_EXPIRATION_SEC);
-            final List<RoleDescriptor> roleDescriptors = new ArrayList<>(1);
-            final String[] clusterPrivileges = { "enroll" };
-            final RoleDescriptor roleDescriptor = new RoleDescriptor("create_enrollment_token", clusterPrivileges, null, null);
-            roleDescriptors.add(roleDescriptor);
-            CreateApiKeyRequest apiRequest = new CreateApiKeyRequest("enrollment_token_API_key_" + UUIDs.base64UUID(),
-                roleDescriptors, expiration);
             generator.generateApiKey(securityContext.getAuthentication(), apiRequest,
                 ActionListener.wrap(
-                    CreateApiKeyResponse -> {;
-                        final String httpCaCert = "httpCa.pem";
-                        final Path httpCaCertPath = environment.configFile().resolve(httpCaCert);
-                        if (Files.exists(httpCaCertPath) == false) {
-                            listener.onFailure(new IllegalStateException("HTTP layer CA certificate " + httpCaCert + " does not exist"));
-                            return;
-                        }
+                    CreateApiKeyResponse -> {
                         final NodeInfo nodeInfo = nodeService.info(false, false, false, false, false, false,
                             true, false, false, false, false);
                         final HttpInfo httpInfo = nodeInfo.getInfo(HttpInfo.class);
                         final String address = httpInfo.getAddress().publishAddress().toString();
-
-                        final X509Certificate[] certificates = CertParsingUtils.readX509Certificates(List.of(httpCaCertPath));
-                        final X509Certificate cert = certificates[0];
-                        final String fingerprint = SslUtil.calculateFingerprint(cert);
 
                         final XContentBuilder builder = JsonXContent.contentBuilder();
                         builder.startObject();

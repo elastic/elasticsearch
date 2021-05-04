@@ -156,9 +156,9 @@ public class ClusterPrivilegeResolver {
         Set.of("cluster:admin/tasks/cancel"));
 
     public static final NamedClusterPrivilege MANAGE_ENROLLMENT = new ActionClusterPrivilege("manage_enrollment",
-        Set.of("cluster:admin/xpack/enrollment/*"));
+        Set.of("cluster:admin/xpack/security/enrollment/*"));
     public static final NamedClusterPrivilege ENROLL = new ActionClusterPrivilege("enroll",
-        Set.of("cluster:admin/xpack/enrollment/enroll"));
+        Set.of("cluster:admin/xpack/security/enrollment/enroll*"));
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,

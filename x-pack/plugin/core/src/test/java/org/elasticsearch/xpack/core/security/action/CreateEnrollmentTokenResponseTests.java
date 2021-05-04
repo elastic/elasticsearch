@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenResponse;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenResponse;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

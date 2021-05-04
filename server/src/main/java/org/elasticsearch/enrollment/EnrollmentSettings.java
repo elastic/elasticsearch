@@ -15,6 +15,6 @@ public class EnrollmentSettings {
     }
 
     /** Setting for enabling or disabling enrollment mode. Defaults to false. */
-    public static final Setting<Boolean> ENROLLMENT_ENABLED = Setting.boolSetting("cluster.enrollment.enabled", false,
+    public static final Setting<Boolean> ENROLLMENT_ENABLED = Setting.boolSetting("xpack.security.enrollment.enabled", false,
         Setting.Property.NodeScope);
 }

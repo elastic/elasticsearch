@@ -18,9 +18,9 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenAction;
-import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenRequest;
-import org.elasticsearch.xpack.core.enrollment.CreateEnrollmentTokenResponse;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenRequest;
+import org.elasticsearch.xpack.core.security.action.enrollment.CreateEnrollmentTokenResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -48,8 +48,8 @@ public class RestCreateEnrollmentTokenAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, "/_cluster/enrollment_token"),
-            new Route(PUT, "/_cluster/enrollment_token"));
+            new Route(POST, "/_security/enrollment_token"),
+            new Route(PUT, "/_security/enrollment_token"));
     }
 
     @Override

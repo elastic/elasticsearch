@@ -10,7 +10,7 @@ communicate with a secured elasticsearch cluster.
 [[cluster-create-enrollment-token-api-request]]
 ==== {api-request-title}
 
-`POST /_cluster/enrollment_token`
+`POST /_security/enrollment_token`
 
 [[cluster-create-enrollment-token-api-prereqs]]
 ==== {api-prereq-title}
@@ -28,7 +28,7 @@ communicate with a secured elasticsearch cluster.
 
 [source,console]
 --------------------------------------------------
-POST /_cluster/enrollment_token
+POST /_security/enrollment_token
 --------------------------------------------------
 
 The API returns a response such as

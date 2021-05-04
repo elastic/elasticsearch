@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_cluster/enrollment_token",
+          "path":"/_security/enrollment_token",
           "methods":[
             "POST"
           ]

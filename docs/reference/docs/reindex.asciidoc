@@ -339,7 +339,7 @@ section above, creating sub-requests which means it has some quirks:
 sub-requests are "child" tasks of the task for the request with `slices`.
 * Fetching the status of the task for the request with `slices` only contains
 the status of completed slices.
-* These sub-requests are individually addressable for things like cancelation
+* These sub-requests are individually addressable for things like cancellation
 and rethrottling.
 * Rethrottling the request with `slices` will rethrottle the unfinished
 sub-request proportionally.

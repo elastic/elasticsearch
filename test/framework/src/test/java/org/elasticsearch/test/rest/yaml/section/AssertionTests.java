@@ -18,6 +18,7 @@ import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -172,6 +173,15 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(closeToAssertion.getExpectedValue(), instanceOf(Double.class));
         assertThat((Double) closeToAssertion.getExpectedValue(), equalTo(42.2));
         assertThat(closeToAssertion.getError(), equalTo(0.001));
+        closeToAssertion.doAssert(42.2 + randomDoubleBetween(-0.001, 0.001, false), closeToAssertion.getExpectedValue());
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> closeToAssertion.doAssert(
+                42.2 + (randomBoolean() ? 1 : -1) * randomDoubleBetween(0.001001, 10, false),
+                closeToAssertion.getExpectedValue()
+            )
+        );
+        assertThat(e.getMessage(), containsString("Expected: a numeric value within <0.001> of <42.2>"));
     }
 
     public void testInvalidCloseTo() throws Exception {

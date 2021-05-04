@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
-import org.junit.After;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -33,23 +33,10 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
         return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest").build();
     }
 
-    @After
-    public void preCleanup() throws Exception {
-        // Updating a transform will leave indexing an audit message in-flight, so
-        // we need to wait for that to complete or it could interfere with deleting
-        // all the indices
-        waitForPendingTasks();
-    }
-
     public void testGetTransformStats() {
         GetTransformStatsAction.Request request = new GetTransformStatsAction.Request("_all");
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> client().execute(GetTransformStatsAction.INSTANCE, request).actionGet());
-        assertThat(
-            e.getMessage(),
-            is(equalTo("Transform requires the transform node role for at least 1 node, found no transform nodes")));
+        GetTransformStatsAction.Response response = client().execute(GetTransformStatsAction.INSTANCE, request).actionGet();
+        assertThat(response.getTransformsStats(), is(empty()));
 
         assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }
@@ -57,7 +44,7 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
     public void testGetTransform() {
         GetTransformAction.Request request = new GetTransformAction.Request("_all");
         GetTransformAction.Response response = client().execute(GetTransformAction.INSTANCE, request).actionGet();
-        assertEquals(0, response.getTransformConfigurations().size());
+        assertThat(response.getTransformConfigurations(), is(empty()));
 
         assertWarnings("Transform requires the transform node role for at least 1 node, found no transform nodes");
     }

@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.LoggedExec
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one

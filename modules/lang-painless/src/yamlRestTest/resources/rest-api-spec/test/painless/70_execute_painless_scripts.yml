@@ -9,6 +9,8 @@ setup:
                 type: long
               field:
                 type: keyword
+              keyword:
+                type: keyword
               text:
                 type: text
               point:
@@ -128,7 +130,7 @@ setup:
             document:
               date: "2015-01-01T12:10:30Z"
             index: "my-index"
-  - match: { result: [ 1420114230000 ] }
+  - match: { result: [ "2015-01-01T12:10:30.000Z" ] }
 
 ---
 "Execute with date field context (multi-value)":
@@ -143,7 +145,7 @@ setup:
               date0: "2015-01-01T12:10:30Z"
               date1: "2010-11-30T13:14:35Z"
             index: "my-index"
-  - match: { result: [ 1291122875000, 1420114230000 ] }
+  - match: { result: [ "2015-01-01T12:10:30.000Z", "2010-11-30T13:14:35.000Z" ] }
 
 ---
 "Execute with double field context (single-value)":
@@ -175,10 +177,12 @@ setup:
             document:
               rank: 4
             index: "my-index"
-  - match: { result: [ 20.0, 55.0, 400.0 ] }
+  - match: { result: [ 20.0, 400.0, 55.0 ] }
 
 ---
 "Execute with geo point field context (single-value)":
+  - skip:
+      features: close_to
   - do:
       scripts_painless_execute:
         body:
@@ -189,10 +193,14 @@ setup:
             document:
               point: "30.0,40.0"
             index: "my-index"
-  - match: { result: [ 3176939252927413179 ] }
+  - close_to: { result.0.coordinates.0: { value: 39.0, error: 0.00001 } }
+  - close_to: { result.0.coordinates.1: { value: 31.0, error: 0.00001 } }
+  - match: { result.0.type: "Point" }
 
 ---
 "Execute with geo point field context (multi-value)":
+  - skip:
+      features: close_to
   - do:
       scripts_painless_execute:
         body:
@@ -204,7 +212,12 @@ setup:
               p0: "30.0,40.0"
               p1: "40.0,30.0"
             index: "my-index"
-  - match: { result: [ 3176939252927413179, 4201758367059757556 ] }
+  - close_to: { result.0.coordinates.0: { value: 39.0, error: 0.00001 } }
+  - close_to: { result.0.coordinates.1: { value: 31.0, error: 0.00001 } }
+  - match: { result.0.type: "Point" }
+  - close_to: { result.1.coordinates.0: { value: 29.0, error: 0.00001 } }
+  - close_to: { result.1.coordinates.1: { value: 41.0, error: 0.00001 } }
+  - match: { result.1.type: "Point" }
 
 ---
 "Execute with ip field context (single-value)":
@@ -218,6 +231,7 @@ setup:
             document:
               ip: "192.168.1.254"
             index: "my-index"
+  - match: { result: [ "192.168.1.254" ] }
 
 ---
 "Execute with ip field context (multi-value)":
@@ -225,12 +239,13 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(doc['ip'].value); emit('127.0.0.1'); emit('255.255.255.255')"
+            source: "emit('2001:0db8:0000:0000:0000:8a2e:0370:7333'); emit(doc['ip'].value); emit('2001:db8::8a2e:370:7334')"
           context: "ip_field"
           context_setup:
             document:
               ip: "192.168.1.254"
             index: "my-index"
+  - match: { result: [ "2001:db8::8a2e:370:7333", "192.168.1.254", "2001:db8::8a2e:370:7334" ] }
 
 ---
 "Execute with long field context (single-value)":
@@ -262,7 +277,7 @@ setup:
             document:
               rank: 4
             index: "my-index"
-  - match: { result: [ -90, 0, 20, 20, 35 ] }
+  - match: { result: [ 20, 35, 0, -90, 20 ] }
 
 ---
 "Execute with keyword field context (single-value)":
@@ -270,13 +285,13 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(doc['point'].value.lat.toString().substring(0, 5));"
+            source: "emit(doc['keyword'].value);"
           context: "keyword_field"
           context_setup:
             document:
-              point: "30.2,40.2"
+              keyword: "my_keyword"
             index: "my-index"
-  - match: { result.0: "30.19" }
+  - match: { result.0: "my_keyword" }
 
 ---
 "Execute with keyword field context (multi-value)":
@@ -284,12 +299,11 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(doc['point'].value.lat.toString().substring(0, 5));
-                     emit(doc['point'].value.lon.toString().substring(0, 5) + 'test');"
+            source: "emit(doc['keyword'].value); emit(doc['keyword'].value + '_test');"
           context: "keyword_field"
           context_setup:
             document:
-              point: "30.2,40.2"
+              keyword: "my_keyword"
             index: "my-index"
-  - match: { result.0: "30.19" }
-  - match: { result.1: "40.19test" }
+  - match: { result.0: "my_keyword" }
+  - match: { result.1: "my_keyword_test" }

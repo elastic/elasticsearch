@@ -250,7 +250,6 @@ public class MultiSearchRequestTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71916")
     public void testWritingExpandWildcards() throws IOException {
         assertExpandWildcardsValue(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), true, true, true, randomBoolean(),
             randomBoolean(), randomBoolean(), randomBoolean()), "all");
@@ -277,8 +276,12 @@ public class MultiSearchRequestTests extends ESTestCase {
             MultiSearchRequest.writeSearchRequestParams(request, builder);
             Map<String, Object> map =
                 XContentHelper.convertToMap(XContentType.JSON.xContent(), BytesReference.bytes(builder).streamInput(), false);
-            final String value = (String) map.get("expand_wildcards");
-            assertEquals(expectedValue, value);
+            if (options.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+                final String value = (String) map.get("expand_wildcards");
+                assertEquals(expectedValue, value);
+            } else {
+                assertNull(map.get("expand_wildcards"));
+            }
         }
     }
 

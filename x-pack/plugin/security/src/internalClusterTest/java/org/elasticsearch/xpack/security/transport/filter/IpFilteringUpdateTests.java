@@ -20,6 +20,8 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = TEST, supportsDedicatedMasters = false, numDataNodes = 1)
@@ -119,6 +121,41 @@ public class IpFilteringUpdateTests extends SecurityIntegTestCase {
             assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
             assertConnectionAccepted(".http", "127.0.0.8");
+        }
+    }
+
+    public void testThatInvalidDynamicIpFilterConfigurationIsRejected() {
+        final Settings.Builder initialSettingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            initialSettingsBuilder.put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), randomBoolean());
+        }
+        if (randomBoolean()) {
+            initialSettingsBuilder.put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING.getKey(), randomBoolean());
+        }
+        final Settings initialSettings = initialSettingsBuilder.build();
+        if (initialSettings.isEmpty() == false) {
+            updateSettings(initialSettings);
+        }
+
+        final String invalidValue = "http://";
+
+        for (final String settingPrefix : new String[] {
+                "xpack.security.transport.filter",
+                "xpack.security.http.filter",
+                "transport.profiles.default.xpack.security.filter",
+                "transport.profiles.anotherprofile.xpack.security.filter"
+        }) {
+            for (final String settingSuffix : new String[]{"allow", "deny"}) {
+                final String settingName = settingPrefix + "." + settingSuffix;
+                final Settings settings = Settings.builder().put(settingName, invalidValue).build();
+                assertThat(
+                        settingName,
+                        expectThrows(
+                                IllegalArgumentException.class,
+                                settingName,
+                                () -> updateSettings(settings)).getMessage(),
+                        allOf(containsString("invalid IP filter"), containsString(invalidValue)));
+            }
         }
     }
 

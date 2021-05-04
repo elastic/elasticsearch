@@ -571,7 +571,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
+        final String value = context.parser().textOrNull();
         if (value == null) {
             return;
         }
@@ -588,7 +588,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             context.doc().add(new Field(prefixField.fieldType().name(), value, prefixField.getLuceneFieldType()));
         }
         if (fieldType().fieldType.omitNorms()) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

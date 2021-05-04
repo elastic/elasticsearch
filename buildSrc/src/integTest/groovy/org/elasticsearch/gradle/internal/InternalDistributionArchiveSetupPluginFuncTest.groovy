@@ -22,7 +22,7 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
 
     def setup() {
         buildFile << """
-        import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
+        import org.elasticsearch.gradle.internal.SymbolicLinkPreservingTar
 
         plugins {
             id 'elasticsearch.internal-distribution-archive-setup'

@@ -53,22 +53,15 @@ public final class MappingLookup {
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final DocumentParser documentParser;
     private final Mapping mapping;
-    private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
      * @param mapping the mapping source
      * @param documentParser the document parser for the current index
-     * @param indexSettings the settings for the current index
-     * @param indexAnalyzers the index analyzers for the current index
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMapping(Mapping mapping,
-                                            DocumentParser documentParser,
-                                            IndexSettings indexSettings,
-                                            IndexAnalyzers indexAnalyzers) {
+    public static MappingLookup fromMapping(Mapping mapping, DocumentParser documentParser) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -85,9 +78,7 @@ public final class MappingLookup {
             newFieldMappers,
             newObjectMappers,
             newFieldAliasMappers,
-            Objects.requireNonNull(documentParser),
-            Objects.requireNonNull(indexSettings),
-            Objects.requireNonNull(indexAnalyzers));
+            Objects.requireNonNull(documentParser));
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
@@ -126,19 +117,15 @@ public final class MappingLookup {
                                             Collection<FieldMapper> mappers,
                                             Collection<ObjectMapper> objectMappers,
                                             Collection<FieldAliasMapper> aliasMappers) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, null, null, null);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, null);
     }
 
     private MappingLookup(Mapping mapping,
                          Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
                          Collection<FieldAliasMapper> aliasMappers,
-                         DocumentParser documentParser,
-                         IndexSettings indexSettings,
-                         IndexAnalyzers indexAnalyzers) {
+                         DocumentParser documentParser) {
         this.mapping = mapping;
-        this.indexSettings = indexSettings;
-        this.indexAnalyzers = indexAnalyzers;
         this.documentParser = documentParser;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
@@ -344,7 +331,7 @@ public final class MappingLookup {
 
     /**
      * Parses the provided document. Note that a {@link DocumentParser} is required which is available only for instances created
-     * by parsing mappings (through {@link MappingLookup#fromMapping(Mapping, DocumentParser, IndexSettings, IndexAnalyzers)}).
+     * by parsing mappings (through {@link MappingLookup#fromMapping(Mapping, DocumentParser)}).
      *
      * @param source the source to parse
      * @return the parsed document
@@ -380,14 +367,6 @@ public final class MappingLookup {
      */
     public Mapping getMapping() {
         return mapping;
-    }
-
-    IndexSettings getIndexSettings() {
-        return indexSettings;
-    }
-
-    IndexAnalyzers getIndexAnalyzers() {
-        return indexAnalyzers;
     }
 
     /**

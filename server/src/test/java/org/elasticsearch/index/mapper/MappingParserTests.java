@@ -76,10 +76,8 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        IndexSettings indexSettings = createIndexSettings(Version.CURRENT, Settings.EMPTY);
-        IndexAnalyzers indexAnalyzers = createIndexAnalyzers(indexSettings);
-        DocumentParser documentParser = new DocumentParser(null, null);
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
+        DocumentParser documentParser = new DocumentParser(null, null, null, null);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, documentParser);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));

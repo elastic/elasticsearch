@@ -12,9 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -56,10 +54,8 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        IndexSettings indexSettings = createIndexSettings(Version.CURRENT, Settings.EMPTY);
-        IndexAnalyzers indexAnalyzers = createIndexAnalyzers(indexSettings);
-        DocumentParser documentParser = new DocumentParser(null, null);
-        DocumentMapper mergedMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, merged);
+        DocumentParser documentParser = new DocumentParser(null, null, null, null);
+        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged);
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }

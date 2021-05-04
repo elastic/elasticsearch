@@ -1,0 +1,106 @@
+[[painless-ingest]]
+=== Using Ingest Processors in Painless
+
+Some {ref}/processors.html[ingest processors] expose behavior through Painless
+methods that can be called in Painless scripts that execute in ingest pipelines.
+
+==== Method Usage
+
+All ingest methods available in Painless are scoped to the `Processors`
+namespace. For example:
+
+[source,js]
+--------------------------------------------------
+POST /_ingest/pipeline/_simulate?verbose
+{
+  "pipeline": {
+    "processors": [
+      {
+        "script": {
+          "lang": "painless",
+          "source": """
+            long bytes = Processors.bytes(ctx.size);
+            ctx.size_in_bytes = bytes;
+          """
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "size": "1kb"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
+==== Ingest Methods Reference
+
+* Byte conversion
++
+[source,Painless]
+----
+long bytes(String value);
+----
+
+Uses the {ref}/bytes-processor.html[bytes processor] to return the number of
+bytes in the human-readable byte value supplied in the `value` parameter.
+
+* Lowercase conversion
++
+[source,Painless]
+----
+String lowercase(String value);
+----
+
+Uses the {ref}/lowercase-processor.html[lowercase processor] to convert the
+supplied string in the `value` parameter to its lowercase equivalent.
+
+* Uppercase conversion
++
+[source,Painless]
+----
+String uppercase(String value);
+----
+
+Uses the {ref}/uppercase-processor.html[uppercase processor] to convert the
+supplied string in the `value` parameter to its uppercase equivalent.
+
+* JSON parsing
++
+[source,Painless]
+----
+Object json(Object value);
+void json(Map<String, Object> map, String key);
+----
+
+These two methods use the {ref}/json-processor.html[JSON processor] to convert
+JSON strings to structured JSON objects.
+
+The first method accepts a JSON string in the `value` parameter and returns a
+structured JSON object. This object can be be added to the document through
+the context object:
+
+[source,Painless]
+----
+Object json = Processors.json(ctx.inputJsonString);
+ctx.structuredJson = json;
+----
+
+The second method accepts a map and a key. The processor converts the JSON
+string in the map as specified by the `key` parameter to structured JSON
+content. That content is added directly to the `map` object.
+
+* URL decoding
++
+[source,Painless]
+----
+String urlDecode(String value);
+----
+
+Uses the {ref}/urldecode-processor.html[URL decode processor] to URL-decode
+the string supplied in the `value` parameter.

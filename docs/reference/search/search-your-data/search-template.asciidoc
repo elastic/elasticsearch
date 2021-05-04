@@ -206,8 +206,8 @@ GET my-index/_msearch/template
 [[get-search-templates]]
 === Get search templates
 
-// TODO: Add xref. See https://github.com/elastic/elasticsearch/pull/72175
-To retrieve a search template, use the get stored script API.
+To retrieve a search template, use the <<get-script-contexts-api,get stored
+script API>>.
 
 [source,console]
 ----
@@ -228,8 +228,8 @@ GET _cluster/state/metadata?pretty&filter_path=metadata.stored_scripts
 [[delete-search-template]]
 === Delete a search template
 
-// TODO: Add xref. See https://github.com/elastic/elasticsearch/pull/72175
-To delete a search template, use the delete stored script API.
+To delete a search template, use the <<delete-stored-script-api,delete stored
+script API>>.
 
 [source,console]
 ----

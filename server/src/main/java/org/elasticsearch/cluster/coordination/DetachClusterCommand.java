@@ -38,8 +38,8 @@ public class DetachClusterCommand extends ElasticsearchNodeCommand {
 
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
+    protected void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment env) throws IOException {
+        final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPath);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final ClusterState oldClusterState = loadTermAndClusterState(persistedClusterStateService, env).v2();

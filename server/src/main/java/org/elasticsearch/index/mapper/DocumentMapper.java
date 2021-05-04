@@ -12,8 +12,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
 
-import java.util.Collections;
-
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
@@ -28,7 +26,7 @@ public class DocumentMapper {
     public static DocumentMapper createEmpty(MapperService mapperService) {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT).build(new ContentPath(1));
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
-        Mapping mapping = new Mapping(root, metadata, Collections.emptyMap());
+        Mapping mapping = new Mapping(root, metadata, null);
         return new DocumentMapper(mapperService.documentParser(), mapping);
     }
 

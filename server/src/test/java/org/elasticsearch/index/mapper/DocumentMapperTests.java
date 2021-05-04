@@ -12,7 +12,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -271,5 +274,17 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         expected = Map.of("field", "value",
             "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(merged.getMeta(), equalTo(expected));
+    }
+
+    public void testEmptyDocumentMapper() {
+        MapperService mapperService = createMapperService(Version.CURRENT, Settings.EMPTY, () -> false);
+        DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
+        assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
+        assertTrue(documentMapper.mappers().hasMappings());
+        assertNotNull(documentMapper.idFieldMapper());
+        assertNotNull(documentMapper.sourceMapper());
+        assertNotNull(documentMapper.IndexFieldMapper());
+        assertEquals(10, documentMapper.mappers().getMapping().getMetadataMappersMap().size());
+        assertEquals(10, documentMapper.mappers().fieldTypes().size());
     }
 }

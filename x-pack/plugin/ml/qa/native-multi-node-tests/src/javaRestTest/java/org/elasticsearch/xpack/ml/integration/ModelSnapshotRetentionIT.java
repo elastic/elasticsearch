@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +72,8 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
     public void addMlState() {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), future);
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, future);
         future.actionGet();
     }
 

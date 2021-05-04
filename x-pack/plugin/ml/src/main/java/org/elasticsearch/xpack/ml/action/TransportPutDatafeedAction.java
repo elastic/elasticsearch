@@ -204,6 +204,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 MlConfigIndex::mapping,
                 client,
                 clusterState,
+                request.masterNodeTimeout(),
                 ActionListener.wrap(mappingsUpdated, listener::onFailure));
         };
 

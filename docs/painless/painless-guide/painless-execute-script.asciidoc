@@ -64,11 +64,21 @@ script being tested.
 [[painless-filter-context-parameters]]
 ===== Parameters
 
-document:: (Required, string)
-Contains the document that will be temporarily indexed in-memory and is accessible from the script.
+`context`:: (Required, string)
+The field context that the script should run in.
 
-index:: (Required, string)
-The name of an index containing a mapping that is compatible with the document being indexed.
+`context_setup`:: (Required, object)
+Additional parameters for the `context`.
++
+.Properties of `context_setup`
+[%collapsible%open]
+====
+`document`:: (Required, string)
+Document that's temporarily indexed in-memory and accessible from the script.
+
+`index`:: (Required, string)
+Index containing a mapping that's compatible with the indexed document.
+====
 
 ===== Request
 
@@ -120,13 +130,23 @@ function in a `function_score` query.
 [[painless-score-context-parameters]]
 ===== Parameters
 
-document:: (Required, string)
+`context`:: (Required, string)
+The field context that the script should run in.
+
+`context_setup`:: (Required, object)
+Additional parameters for the `context`.
++
+.Properties of `context_setup`
+[%collapsible%open]
+====
+`document`:: (Required, string)
 Document that's temporarily indexed in-memory and accessible from the script.
 
-index:: (Required, string)
+`index`:: (Required, string)
 Index containing a mapping that's compatible with the indexed document.
+====
 
-query:: (Optional)
+`query`:: (Optional)
 If `_score` is used in the script then a query can specify that it will be used to compute a score.
 
 ===== Request

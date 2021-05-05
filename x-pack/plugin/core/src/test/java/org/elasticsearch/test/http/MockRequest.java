@@ -8,7 +8,6 @@ package org.elasticsearch.test.http;
 
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.Locale;

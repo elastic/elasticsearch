@@ -143,7 +143,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
          * Collect debug information to add to the profiling results. This will
          * only be called if the aggregation is being profiled.
          */
-        abstract void collectDebugInfo(BiConsumer<String, Object> add);
+        void collectDebugInfo(BiConsumer<String, Object> add);
 
         /**
          * Does this {@link CollectorSource} need queries to calculate the score?

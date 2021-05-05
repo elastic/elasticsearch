@@ -43,7 +43,7 @@ public class PasswordToolsTests extends PackagingTestCase {
         Files.write(
             installation.config("elasticsearch.yml"),
             // Replace the existing file as it would have security explicitly disabled
-            List.of("xpack.license.self_generated.type: trial", "xpack.security.enabled: true", "ingest.geoip.downloader.enabled: false")
+            List.of("ingest.geoip.downloader.enabled: false")
         );
     }
 

@@ -8,21 +8,33 @@
 
 package org.elasticsearch.search.basic;
 
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
@@ -34,9 +46,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class TransportSearchFailuresIT extends ESIntegTestCase {
+
     @Override
     protected int maximumNumberOfReplicas() {
         return 1;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(FailingQueryPlugin.class);
     }
 
     public void testFailedSearchWithWrongQuery() throws Exception {
@@ -120,5 +138,77 @@ public class TransportSearchFailuresIT extends ESIntegTestCase {
                 .field("age", age)
                 .field("multi", multi.toString())
                 .endObject();
+    }
+
+    public void testRetryQueryPhase() throws Exception {
+        assertAcked(prepareCreate("test"));
+
+        NumShards numShards = getNumShards("test");
+        int numPrimaries = numShards.numPrimaries;
+
+        for (int i = 0; i < 10; i++) {
+            index(client(), Integer.toString(i), "test", i);
+        }
+        refresh("test");
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setSource(new SearchSourceBuilder().query(new FailingQueryBuilder()))
+            .setSearchType(SearchType.QUERY_RETRY_THEN_FETCH)
+            .get();
+        assertThat(searchResponse.getTotalShards(), equalTo(numPrimaries));
+        assertThat(searchResponse.getSuccessfulShards(), equalTo(numPrimaries));
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+    }
+
+    public static class FailingQueryPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<QuerySpec<?>> getQueries() {
+            return List.of(new QuerySpec<>(FailingQueryBuilder.NAME, FailingQueryBuilder::new, parserContext -> new FailingQueryBuilder()));
+        }
+    }
+
+    // TODO(jtibs): this is a big hack and not a solid testing strategy
+    private static class FailingQueryBuilder extends AbstractQueryBuilder<FailingQueryBuilder> {
+        public static final String NAME = "failing";
+        private static final AtomicInteger counter = new AtomicInteger();
+
+        FailingQueryBuilder() {}
+
+        FailingQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            printBoostAndQueryName(builder);
+            builder.endObject();
+        }
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) {
+            if (context.getShardRequestIndex() == 0 && counter.getAndIncrement() == 0) {
+                throw new RuntimeException("Failed to execute query");
+            }
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
+        protected boolean doEquals(FailingQueryBuilder other) {
+            return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
     }
 }

@@ -799,10 +799,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                          searchPhaseController, queryResultConsumer, dfsResults, shardIterators);
                     break;
                 case QUERY_THEN_FETCH:
+                    SearchPhaseContext queryContext = new DefaultSearchPhaseContext(searchRequest, logger, listener, queryResultConsumer,
+                        aliasFilter, concreteIndexBoosts, task, executor, searchTransportService, connectionLookup, clusterState, clusters,
+                        timeProvider, buildPointInTimeFromSearchResults);
+                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(queryContext, logger,
+                        searchPhaseController, queryResultConsumer, shardIterators);
+                    break;
+                case QUERY_RETRY_THEN_FETCH:
                     SearchPhaseContext context = new DefaultSearchPhaseContext(searchRequest, logger, listener, queryResultConsumer,
                         aliasFilter, concreteIndexBoosts, task, executor, searchTransportService, connectionLookup, clusterState, clusters,
                         timeProvider, buildPointInTimeFromSearchResults);
-                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(context, logger,
+                    searchAsyncAction = new SearchQueryRetryThenFetchAsyncAction(context, logger,
                         searchPhaseController, queryResultConsumer, shardIterators);
                     break;
                 default:

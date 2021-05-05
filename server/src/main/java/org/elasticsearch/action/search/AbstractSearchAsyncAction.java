@@ -49,7 +49,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
-    private final Map<SearchShardIterator, Integer> shardItIndexMap;
+    protected final Map<SearchShardIterator, Integer> shardItIndexMap;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -217,7 +217,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * we can continue (cf. InitialSearchPhase#maybeFork).
          */
         if (shard == null) {
-            assert assertExecuteOnStartThread();
+            //assert assertExecuteOnStartThread();
             SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(),
                 shardIt.getClusterAlias(), shardIt.getOriginalIndices());
             onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));

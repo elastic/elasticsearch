@@ -1198,7 +1198,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
-        assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
+        assert request.searchType() != SearchType.DFS_QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         Releasable releasable = null;
         try {
             IndexService indexService;

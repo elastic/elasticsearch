@@ -170,8 +170,6 @@ final class FieldTypeLookup {
      * Returns a set of field names that match a regex-like pattern
      *
      * All field names in the returned set are guaranteed to resolve to a field
-     *
-     * Note that this will only expand to the roots of dynamic fields.
      */
     Set<String> getMatchingFieldNames(String pattern) {
         if ("*".equals(pattern)) {
@@ -179,10 +177,7 @@ final class FieldTypeLookup {
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            if (fullNameToFieldType.containsKey(pattern)) {
-                return Collections.singleton(pattern);
-            }
-            return Collections.emptySet();
+            return get(pattern) == null ? Collections.emptySet() : Collections.singleton(pattern);
         }
         Set<String> matchingFields = new HashSet<>();
         for (String field : fullNameToFieldType.keySet()) {

@@ -10,12 +10,15 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 
@@ -36,53 +39,57 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
-        public static final String REQUEST_ID = "request_id";
         public static final String DEPLOYMENT_ID = "deployment_id";
-        public static final String JSON_REQUEST = "json_request";
+        public static final ParseField INPUTS = new ParseField("inputs");
+
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+        static {
+            PARSER.declareString((request, inputs) -> request.inputs = inputs, INPUTS);
+        }
+
+        public static Request parseRequest(String deploymentId, XContentParser parser) {
+            Request r = PARSER.apply(parser, null);
+            r.deploymentId = deploymentId;
+            return r;
+        }
 
         private String deploymentId;
-        private String requestId;
-        private String jsonDoc;
+        private String inputs;
 
-        public Request(String deploymentId, String requestId, String jsonDoc) {
+        private Request() {
+        }
+
+        public Request(String deploymentId, String inputs) {
             this.deploymentId = Objects.requireNonNull(deploymentId);
-            this.requestId = requestId;
-            this.jsonDoc = Objects.requireNonNull(jsonDoc);
+            this.inputs = Objects.requireNonNull(inputs);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            requestId = in.readOptionalString();
-            jsonDoc = in.readString();
+            inputs = in.readString();
         }
 
         public String getDeploymentId() {
             return deploymentId;
         }
 
-        public String getRequestId() {
-            return requestId;
-        }
-
-        public String getJsonDoc() {
-            return jsonDoc;
+        public String getInputs() {
+            return inputs;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            out.writeOptionalString(requestId);
-            out.writeString(jsonDoc);
+            out.writeString(inputs);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field(DEPLOYMENT_ID, deploymentId);
-            builder.field(REQUEST_ID, requestId);
-            builder.field(JSON_REQUEST, jsonDoc);
+            builder.field(INPUTS.getPreferredName(), inputs);
             builder.endObject();
             return builder;
         }
@@ -98,13 +105,12 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (o == null || getClass() != o.getClass()) return false;
             InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
             return Objects.equals(deploymentId, that.deploymentId)
-                && Objects.equals(requestId, that.requestId)
-                && Objects.equals(jsonDoc, that.jsonDoc);
+                && Objects.equals(inputs, that.inputs);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, requestId, jsonDoc);
+            return Objects.hash(deploymentId, inputs);
         }
     }
 

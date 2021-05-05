@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 
 import java.io.IOException;
 import java.util.Arrays;

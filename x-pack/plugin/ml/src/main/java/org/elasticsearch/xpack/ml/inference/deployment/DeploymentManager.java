@@ -105,6 +105,7 @@ public class DeploymentManager {
 
         ActionListener<SearchResponse> configListener = ActionListener.wrap(
             searchResponse -> {
+                logger.info("search response");
                 if (searchResponse.getHits().getHits().length == 0) {
                     failTask(task, new ResourceNotFoundException(
                         Messages.getMessage(Messages.PIPELINE_CONFIG_NOT_FOUND, task.getModelId())));
@@ -113,6 +114,7 @@ public class DeploymentManager {
 
                 PipelineConfig config = parseModelDefinitionDocLeniently(searchResponse.getHits().getAt(0));
                 NlpPipeline pipeline = NlpPipeline.fromConfig(config);
+                logger.info("loaded pipeline");
                 processContext.pipeline.set(pipeline);
                 processContext.startProcess();
                 processContext.loadModel(modelLoadedListener);
@@ -121,6 +123,7 @@ public class DeploymentManager {
             e -> failTask(task, e)
         );
 
+        logger.info("looking for config " + PipelineConfig.documentId(task.getModelId()));
         SearchRequest searchRequest = pipelineConfigSearchRequest(task.getModelId(), task.getIndex());
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, configListener);
     }
@@ -159,10 +162,10 @@ public class DeploymentManager {
         }
     }
 
-    public void infer(TrainedModelDeploymentTask task, String requestId, String inputs, ActionListener<PyTorchResult> listener) {
+    public void infer(TrainedModelDeploymentTask task, String inputs, ActionListener<PyTorchResult> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
 
-        final String resolvedId = requestId == null ? String.valueOf(requestIdCounter.getAndIncrement()) : requestId;
+        final String requestId = String.valueOf(requestIdCounter.getAndIncrement());
 
         executorServiceForProcess.execute(new AbstractRunnable() {
             @Override
@@ -173,8 +176,8 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    processContext.infer(inputs, resolvedId);
-                    waitForResult(processContext, resolvedId, listener);
+                    processContext.infer(inputs, requestId);
+                    waitForResult(processContext, requestId, listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
@@ -222,6 +225,7 @@ public class DeploymentManager {
 
         void infer(String inputs, String requestId) throws IOException {
             BytesReference request = pipeline.get().createRequest(inputs, requestId);
+            logger.info("I Request "+ request.utf8ToString());
             process.get().writeInferenceRequest(request);
         }
 

@@ -60,7 +60,7 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         stop(reason);
     }
 
-    public void infer(String requestId, String jsonDoc, ActionListener<PyTorchResult> listener) {
-        manager.infer(this, requestId, jsonDoc, listener);
+    public void infer(String inputs, ActionListener<PyTorchResult> listener) {
+        manager.infer(this, inputs, listener);
     }
 }

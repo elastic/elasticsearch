@@ -202,6 +202,9 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
         FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
         assertEquals(objectKey, keyedFieldType.key());
+
+        assertThat(lookup.getMatchingFieldNames("object1.*"), contains("object1.object2.field"));
+        assertThat(lookup.getMatchingFieldNames("object1.object2.field.foo*"), hasSize(0));
     }
 
     public void testFlattenedLookupWithAlias() {

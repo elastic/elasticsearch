@@ -68,8 +68,8 @@ public final class Processors {
      *
      * @param map map that contains the JSON string and will receive the
      *            structured JSON content
-     * @param field key that identifies the entry in {@param map} that contains
-     *              the JSON string
+     * @param field key that identifies the entry in <code>map</code> that
+     *             contains the JSON string
      */
     public static void json(Map<String, Object> map, String field) {
         JsonProcessor.apply(map, field);

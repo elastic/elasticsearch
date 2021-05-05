@@ -144,7 +144,6 @@ profile:
   - match: {aggregations.class.buckets.1.key: good}
   - length: { aggregations.class.buckets.1.sig_text.buckets: 1 }
   - match: {aggregations.class.buckets.1.sig_text.buckets.0.key: good}
-  - match: { profile.shards.0.aggregations.0.type: StringTermsAggregatorFromFilters }
   - match: { profile.shards.0.aggregations.0.description: class }
   - match: { profile.shards.0.aggregations.0.children.0.type: MapStringTermsAggregator }
   - match: { profile.shards.0.aggregations.0.children.0.description: sig_text }

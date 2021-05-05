@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ssl.cert;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.License;
 
 import java.io.IOException;
 import java.security.cert.X509Certificate;
@@ -43,7 +42,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
 
     public CertificateInfo(String path, String format, String alias, boolean hasPrivateKey, X509Certificate certificate) {
         Objects.requireNonNull(certificate, "Certificate cannot be null");
-        this.path = Objects.requireNonNull(path, "Certificate path cannot be null");
+        this.path = path;
         this.format = Objects.requireNonNull(format, "Certificate format cannot be null");
         this.alias = alias;
         this.subjectDn = Objects.requireNonNull(certificate.getSubjectDN().getName());
@@ -53,7 +52,11 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
     }
 
     public CertificateInfo(StreamInput in) throws IOException {
-        this.path = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.path = in.readOptionalString();
+        } else {
+            this.path = in.readString();
+        }
         this.format = in.readString();
         this.alias = in.readOptionalString();
         this.subjectDn = in.readString();
@@ -64,7 +67,11 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(path);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalString(this.path);
+        } else {
+            out.writeString(this.path);
+        }
         out.writeString(format);
         out.writeOptionalString(alias);
         out.writeString(subjectDn);
@@ -129,7 +136,7 @@ public class CertificateInfo implements ToXContentObject, Writeable, Comparable<
         }
 
         final CertificateInfo that = (CertificateInfo) other;
-        return this.path.equals(that.path)
+        return  Objects.equals(this.path, that.path)
                 && this.format.equals(that.format)
                 && this.hasPrivateKey == that.hasPrivateKey
                 && Objects.equals(this.alias, that.alias)

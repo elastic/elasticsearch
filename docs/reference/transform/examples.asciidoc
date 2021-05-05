@@ -15,9 +15,8 @@ step-by-step example, see <<ecommerce-transforms>>.
 * <<example-airline>> 
 * <<example-clientips>> 
 * <<example-last-log>> 
-* <<example-bytes>> 
-* <<example-customer-names>> 
-
+* <<example-bytes>> 
+* <<example-customer-names>>
 
 [[example-best-customers]]
 == Finding your best customers

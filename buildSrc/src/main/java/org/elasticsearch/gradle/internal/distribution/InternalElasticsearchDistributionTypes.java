@@ -10,6 +10,8 @@ package org.elasticsearch.gradle.internal.distribution;
 
 import org.elasticsearch.gradle.ElasticsearchDistributionType;
 
+import java.util.List;
+
 public class InternalElasticsearchDistributionTypes {
     public static ElasticsearchDistributionType DEB = new DebElasticsearchDistributionType();
     public static ElasticsearchDistributionType RPM = new RpmElasticsearchDistributionType();
@@ -17,4 +19,5 @@ public class InternalElasticsearchDistributionTypes {
     public static ElasticsearchDistributionType DOCKER_UBI = new DockerUbiElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER_IRONBANK = new DockerIronBankElasticsearchDistributionType();
 
+    public static List<ElasticsearchDistributionType> ALL_INTERNAL = List.of(DEB, RPM, DOCKER, DOCKER_UBI, DOCKER_IRONBANK);
 }

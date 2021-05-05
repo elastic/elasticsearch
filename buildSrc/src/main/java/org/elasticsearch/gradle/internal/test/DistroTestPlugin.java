@@ -50,6 +50,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes.ARCHIVE;
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.ALL_INTERNAL;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DEB;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER_IRONBANK;
@@ -370,7 +371,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         List<ElasticsearchDistribution> currentDistros = new ArrayList<>();
 
         for (Architecture architecture : Architecture.values()) {
-            List.of(DEB, RPM, DOCKER, DOCKER_IRONBANK, DOCKER_UBI).stream().forEach(type -> {
+            ALL_INTERNAL.stream().forEach(type -> {
                 for (boolean bundledJdk : Arrays.asList(true, false)) {
                     if (bundledJdk == false) {
                         // We'll never publish an ARM (aarch64) build without a bundled JDK.

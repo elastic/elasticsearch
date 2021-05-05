@@ -132,6 +132,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -370,50 +371,57 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    protected void executeConsistentStateUpdate(BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTask,
+                                                String source,
+                                                Consumer<Exception> onFailure) {
+        final RepositoryMetadata repositoryMetadataStart = metadata;
+        getRepositoryData(ActionListener.wrap(repositoryData -> {
+            createUpdateTask.accept(repositoryData, ActionListener.wrap(updateTask -> clusterService.submitStateUpdateTask(source,
+                    new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
+
+                        private boolean executedTask = false;
+
+                        @Override
+                        public ClusterState execute(ClusterState currentState) throws Exception {
+                            // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
+                            // If the safe generation has changed, then we have to reload repository data and start over.
+                            // If the pending generation has changed we are in the midst of a write operation and might pick up the
+                            // updated repository data and state on the retry. We don't want to wait for the write to finish though
+                            // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
+                            // to change in any form.
+                            if (repositoryMetadataStart.equals(getRepoMetadata(currentState))) {
+                                executedTask = true;
+                                return updateTask.execute(currentState);
+                            }
+                            return currentState;
+                        }
+
+                        @Override
+                        public void onFailure(String source, Exception e) {
+                            if (executedTask) {
+                                updateTask.onFailure(source, e);
+                            } else {
+                                onFailure.accept(e);
+                            }
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                            if (executedTask) {
+                                updateTask.clusterStateProcessed(source, oldState, newState);
+                            } else {
+                                executeConsistentStateUpdate(createUpdateTask, source, onFailure);
+                            }
+                        }
+                    }), onFailure));
+        }, onFailure));
+    }
+
     @Override
     public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
                                              Consumer<Exception> onFailure) {
-        final RepositoryMetadata repositoryMetadataStart = metadata;
-        getRepositoryData(ActionListener.wrap(repositoryData -> {
-            final ClusterStateUpdateTask updateTask = createUpdateTask.apply(repositoryData);
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
-
-                private boolean executedTask = false;
-
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    // Comparing the full metadata here on purpose instead of simply comparing the safe generation.
-                    // If the safe generation has changed, then we have to reload repository data and start over.
-                    // If the pending generation has changed we are in the midst of a write operation and might pick up the
-                    // updated repository data and state on the retry. We don't want to wait for the write to finish though
-                    // because it could fail for any number of reasons so we just retry instead of waiting on the cluster state
-                    // to change in any form.
-                    if (repositoryMetadataStart.equals(getRepoMetadata(currentState))) {
-                        executedTask = true;
-                        return updateTask.execute(currentState);
-                    }
-                    return currentState;
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    if (executedTask) {
-                        updateTask.onFailure(source, e);
-                    } else {
-                        onFailure.accept(e);
-                    }
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    if (executedTask) {
-                        updateTask.clusterStateProcessed(source, oldState, newState);
-                    } else {
-                        executeConsistentStateUpdate(createUpdateTask, source, onFailure);
-                    }
-                }
-            });
-        }, onFailure));
+        executeConsistentStateUpdate((repositoryData, createUpdateTaskListener) ->
+                createUpdateTaskListener.onResponse(createUpdateTask.apply(repositoryData)), source, onFailure);
     }
 
     @Override

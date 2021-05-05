@@ -134,11 +134,11 @@ class NodeDeprecationChecks {
               + "for all licenses and enable security by default."
               + "See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "."
               + Version.CURRENT.minor + "/security-minimal-setup.html to enable security, or explicitly disable security by "
-              + "setting [xpack.security.enabled] to false in elasticsearch.yml";
+              + "setting [xpack.security.enabled] to "\false\" in elasticsearch.yml";
             return new DeprecationIssue(
                 DeprecationIssue.Level.CRITICAL,
                 "Security is enabled by default for all licenses in the next major version.",
-                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#implicitly-disabled-security",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/migrating-7.14.html#implicitly-disabled-security",
                 details);
         }
         return null;

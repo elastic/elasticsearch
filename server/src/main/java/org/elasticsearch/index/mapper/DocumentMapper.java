@@ -10,12 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
+    private final DocumentParser documentParser;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -25,16 +25,13 @@ public class DocumentMapper {
      */
     public static DocumentMapper createEmpty(String type, MapperService mapperService) {
         Mapping mapping = mapperService.parseMapping(type, null, true);
-        return new DocumentMapper(
-            mapperService.getIndexSettings(), mapperService.getIndexAnalyzers(), mapperService.documentParser(), mapping);
+        return new DocumentMapper(mapperService.documentParser(), mapping);
     }
 
-    DocumentMapper(IndexSettings indexSettings,
-                   IndexAnalyzers indexAnalyzers,
-                   DocumentParser documentParser,
-                   Mapping mapping) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping) {
+        this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
+        this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = mapping.toCompressedXContent();
     }
 
@@ -83,7 +80,7 @@ public class DocumentMapper {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return mappingLookup.parseDocument(source);
+        return documentParser.parseDocument(source, mappingLookup);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

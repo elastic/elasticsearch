@@ -1016,7 +1016,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             mappingLookup.getType().equals(mapperService.resolveDocumentType(get.type())) == false) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, mappingLookup, this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
     }
 
     /**

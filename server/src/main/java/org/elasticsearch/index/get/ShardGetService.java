@@ -238,7 +238,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     assert source != null : "original source in translog must exist";
                     SourceToParse sourceToParse = new SourceToParse(shardId.getIndexName(), type, id, source,
                         XContentHelper.xContentType(source), fieldVisitor.routing(), Collections.emptyMap());
-                    ParsedDocument doc = indexShard.mapperService().mappingLookup().parseDocument(sourceToParse);
+                    MapperService mapperService = indexShard.mapperService();
+                    ParsedDocument doc = mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
                     assert doc.dynamicMappingsUpdate() == null : "mapping updates should not be required on already-indexed doc";
                     // update special fields
                     doc.updateSeqID(docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);

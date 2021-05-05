@@ -8,12 +8,16 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -32,6 +36,11 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetFieldMappingAction extends BaseRestHandler {
 
+    private static final Logger logger = LogManager.getLogger(RestGetFieldMappingAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
+        "field mapping requests is deprecated. The parameter will be removed in the next major version.";
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -48,6 +57,12 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
+
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+            request.param(INCLUDE_TYPE_NAME_PARAMETER);
+            deprecationLogger.compatibleApiWarning("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        }
+
 
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
         getMappingsRequest.indices(indices).fields(fields).includeDefaults(request.paramAsBoolean("include_defaults", false));

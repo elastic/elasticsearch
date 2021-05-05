@@ -11,6 +11,14 @@ governing data nodes.
 Estimates required storage capacity based on current ingestion into hot nodes.
 Available for policies governing hot data nodes.
 
+<<autoscaling-frozen-shards-decider,Frozen shards decider>>::
+Estimates required memory capacity based on number of frozen shards.
+Available for policies governing frozen data nodes.
+
+<<autoscaling-frozen-storage-decider,Frozen storage decider>>::
+Estimates required storage capacity as a percentage of total frozen data set.
+Available for policies governing frozen data nodes.
+
 <<autoscaling-machine-learning-decider,Machine learning decider>>::
 Estimates required memory capacity based on machine learning jobs.
 Available for policies governing machine learning nodes.
@@ -20,5 +28,7 @@ Responds with a fixed required capacity. This decider is intended for testing on
 
 include::deciders/reactive-storage-decider.asciidoc[]
 include::deciders/proactive-storage-decider.asciidoc[]
+include::deciders/frozen-shards-decider.asciidoc[]
+include::deciders/frozen-storage-decider.asciidoc[]
 include::deciders/machine-learning-decider.asciidoc[]
 include::deciders/fixed-decider.asciidoc[]

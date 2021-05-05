@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.java-rest-test'
@@ -21,6 +21,8 @@ tasks.named("javaRestTest").configure {
 
 testClusters.matching { it.name == "javaRestTest" }.configureEach {
   systemProperty "die.with.dignity.test", "whatever"
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
 }
 
 tasks.named("test").configure {

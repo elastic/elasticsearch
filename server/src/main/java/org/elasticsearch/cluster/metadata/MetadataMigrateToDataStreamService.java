@@ -20,9 +20,9 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
@@ -43,18 +43,23 @@ public class MetadataMigrateToDataStreamService {
     private final ClusterService clusterService;
     private final ActiveShardsObserver activeShardsObserver;
     private final IndicesService indexServices;
+    private final ThreadContext threadContext;
+    private final MetadataCreateIndexService metadataCreateIndexService;
 
-    @Inject
     public MetadataMigrateToDataStreamService(ThreadPool threadPool,
                                               ClusterService clusterService,
-                                              IndicesService indexServices) {
+                                              IndicesService indexServices,
+                                              MetadataCreateIndexService metadataCreateIndexService) {
         this.clusterService = clusterService;
         this.indexServices = indexServices;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
+        this.threadContext = threadPool.getThreadContext();
+        this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
     public void migrateToDataStream(MigrateToDataStreamClusterStateUpdateRequest request,
                                     ActionListener<AcknowledgedResponse> finalListener) {
+        metadataCreateIndexService.getSystemIndices().validateDataStreamAccess(request.aliasName, threadContext);
         AtomicReference<String> writeIndexRef = new AtomicReference<>();
         ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(
             response -> {
@@ -89,7 +94,9 @@ public class MetadataMigrateToDataStreamService {
                                 throw new IllegalStateException(e);
                             }
                         },
-                        request);
+                        request,
+                        threadContext,
+                        metadataCreateIndexService);
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
@@ -98,7 +105,9 @@ public class MetadataMigrateToDataStreamService {
 
     static ClusterState migrateToDataStream(ClusterState currentState,
                                             Function<IndexMetadata, MapperService> mapperSupplier,
-                                            MigrateToDataStreamClusterStateUpdateRequest request) throws Exception {
+                                            MigrateToDataStreamClusterStateUpdateRequest request,
+                                            ThreadContext threadContext,
+                                            MetadataCreateIndexService metadataCreateIndexService) throws Exception {
         validateRequest(currentState, request);
         IndexAbstraction.Alias alias = (IndexAbstraction.Alias) currentState.metadata().getIndicesLookup().get(request.aliasName);
 
@@ -117,7 +126,8 @@ public class MetadataMigrateToDataStreamService {
             .collect(Collectors.toList());
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
-        return MetadataCreateDataStreamService.createDataStream(null, currentState, request.aliasName, backingIndices, writeIndex);
+        return MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, currentState, request.aliasName,
+            backingIndices, writeIndex);
     }
 
     // package-visible for testing

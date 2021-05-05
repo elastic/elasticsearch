@@ -69,7 +69,7 @@ Female         |24.5
 aggSumWithAliasWithColumnRepeatedWithOrderDesc
 SELECT extra_gender AS g, extra_gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp_copy GROUP BY extra_gender;
 
-       g:s     | extra_gender:s |      s3:i     | SUM(salary):i |      s5:i       
+       g:s     | extra_gender:s |      s3:l     | SUM(salary):l |      s5:l
 ---------------+----------------+---------------+---------------+---------------
 Female         |Female          |4824855        |4824855        |4824855      
 ;

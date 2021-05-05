@@ -198,7 +198,7 @@ GET /_snapshot/my_backup/snapshot_1
 --------------------------------------------------
 // TEST[continued]
 
-Then log into one of the node hosts, navigate to {es} installation directory,
+Then log in to one of the node hosts, navigate to {es} installation directory,
 and follow these steps:
 
 . Add a new user with the `superuser` built-in role to the

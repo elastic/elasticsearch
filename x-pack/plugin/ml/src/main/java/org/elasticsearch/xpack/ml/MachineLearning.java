@@ -466,7 +466,14 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     // older nodes will not react to the dynamic changes. Therefore, in such mixed version clusters
     // allocation will be based on the value first read at node startup rather than the current value.
     public static final Setting<Integer> MAX_OPEN_JOBS_PER_NODE =
-            Setting.intSetting("xpack.ml.max_open_jobs", 20, 1, MAX_MAX_OPEN_JOBS_PER_NODE, Property.Dynamic, Property.NodeScope);
+            Setting.intSetting(
+                "xpack.ml.max_open_jobs",
+                MAX_MAX_OPEN_JOBS_PER_NODE,
+                1,
+                MAX_MAX_OPEN_JOBS_PER_NODE,
+                Property.Dynamic,
+                Property.NodeScope
+            );
 
     public static final Setting<TimeValue> PROCESS_CONNECT_TIMEOUT =
         Setting.timeSetting("xpack.ml.process_connect_timeout", TimeValue.timeValueSeconds(10),
@@ -571,8 +578,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         }
 
         Settings.Builder additionalSettings = Settings.builder();
-        Boolean allocationEnabled = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE);
-        if (allocationEnabled != null && allocationEnabled) {
+        if (DiscoveryNode.hasRole(settings, DiscoveryNodeRole.ML_ROLE)) {
             // TODO: stop setting this attribute in 8.0.0 but disallow it (like mlEnabledNodeAttrName below)
             // The ML UI will need to be changed to check machineMemoryAttrName instead before this is done
             addMlNodeAttribute(additionalSettings, maxOpenJobsPerNodeNodeAttrName,
@@ -1246,7 +1252,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         logger.info("Starting machine learning feature reset");
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
-            success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
+            success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(
                 resetSuccess -> finalListener.onResponse(success),
                 resetFailure -> {
                     logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
@@ -1258,7 +1264,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     );
                 })
             ),
-            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(), ActionListener.wrap(
+            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
                 resetSuccess -> finalListener.onFailure(failure),
                 resetFailure -> {
                     logger.error("failed to disable reset mode after state clean up failure", resetFailure);

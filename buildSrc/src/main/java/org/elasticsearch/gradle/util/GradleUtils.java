@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.util;
 
-import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -162,9 +162,8 @@ public abstract class GradleUtils {
      */
     public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName) {
         final List<Function<SourceSet, String>> configNameFunctions = Arrays.asList(
-            SourceSet::getCompileConfigurationName,
+            SourceSet::getCompileOnlyConfigurationName,
             SourceSet::getImplementationConfigurationName,
-            SourceSet::getRuntimeConfigurationName,
             SourceSet::getRuntimeOnlyConfigurationName
         );
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

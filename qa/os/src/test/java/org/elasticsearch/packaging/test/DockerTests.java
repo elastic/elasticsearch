@@ -86,7 +86,7 @@ public class DockerTests extends PackagingTestCase {
 
     @Before
     public void setupTest() throws IOException {
-        installation = runContainer(distribution());
+        installation = runContainer(distribution(), builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false")));
         tempDir = createTempDir(DockerTests.class.getSimpleName());
     }
 

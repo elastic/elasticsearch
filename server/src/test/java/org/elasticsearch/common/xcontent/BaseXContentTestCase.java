@@ -163,6 +163,8 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertResult("{'boolean':false}", () -> builder().startObject().field("boolean", Boolean.FALSE).endObject());
         assertResult("{'boolean':[true,false,true]}", () -> builder().startObject().array("boolean", true, false, true).endObject());
         assertResult("{'boolean':[false,true]}", () -> builder().startObject().array("boolean", new boolean[]{false, true}).endObject());
+        assertResult("{'boolean':[false,true]}",
+                () -> builder().startObject().field("boolean").value(new boolean[]{false, true}).endObject());
         assertResult("{'boolean':null}", () -> builder().startObject().array("boolean", (boolean[]) null).endObject());
         assertResult("{'boolean':[]}", () -> builder().startObject().array("boolean", new boolean[]{}).endObject());
         assertResult("{'boolean':null}", () -> builder().startObject().field("boolean").value((Boolean) null).endObject());

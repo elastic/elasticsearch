@@ -23,6 +23,10 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'path.repo', repo.absolutePath
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.named("integTest").configure {
   doFirst {
     project.delete(repo)

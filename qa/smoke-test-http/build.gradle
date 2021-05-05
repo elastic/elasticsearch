@@ -17,6 +17,10 @@ dependencies {
   testImplementation project(':plugins:transport-nio') // for http
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 tasks.named("integTest").configure {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each

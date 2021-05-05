@@ -100,6 +100,10 @@ public class StoreStats implements Writeable, ToXContentFragment {
         return totalDataSetSize();
     }
 
+    public long totalDataSetSizeInBytes() {
+        return totalDataSetSizeInBytes;
+    }
+
     /**
      * A prediction of how much larger this store will eventually grow. For instance, if we are currently doing a peer recovery or restoring
      * a snapshot into this store then we can account for the rest of the recovery using this field. A value of {@code -1B} indicates that

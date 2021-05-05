@@ -128,6 +128,9 @@ public class User implements ToXContentObject {
         sb.append(",email=").append(email);
         sb.append(",metadata=");
         sb.append(metadata);
+        if (enabled == false) {
+            sb.append(",(disabled)");
+        }
         if (authenticatedUser != null) {
             sb.append(",authenticatedUser=[").append(authenticatedUser.toString()).append("]");
         }
@@ -244,6 +247,7 @@ public class User implements ToXContentObject {
         ParseField REALM_TYPE = new ParseField("type");
         ParseField REALM_NAME = new ParseField("name");
         ParseField AUTHENTICATION_TYPE = new ParseField("authentication_type");
+        ParseField TOKEN = new ParseField("token");
     }
 }
 

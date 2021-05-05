@@ -33,16 +33,15 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.RunOnce;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.time.Instant;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -120,9 +119,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
     protected void doClose() {}
 
     public CachedBlob get(String repository, String name, String path, long offset) {
-        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false : "must not block ["
-            + Thread.currentThread().getName()
-            + "] for a cache read";
+        assert Thread.currentThread().getName().contains('[' + ThreadPool.Names.SYSTEM_READ + ']') == false
+            : "must not block [" + Thread.currentThread().getName() + "] for a cache read";
 
         final PlainActionFuture<CachedBlob> future = PlainActionFuture.newFuture();
         getAsync(repository, name, path, offset, future);
@@ -247,52 +245,11 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         }
     }
 
-    private static final Set<String> METADATA_FILES_EXTENSIONS;
-    private static final Set<String> OTHER_FILES_EXTENSIONS;
-    static {
-        // List of Lucene file extensions that are considered as "metadata" and should therefore be fully cached in the blob store cache.
-        // Those files are usually fully read by Lucene when it opens a Directory.
-        METADATA_FILES_EXTENSIONS = Set.of(
-            "cfe", // compound file's entry table
-            "dvm", // doc values metadata file
-            "fdm", // stored fields metadata file
-            "fnm", // field names metadata file
-            "kdm", // Lucene 8.6 point format metadata file
-            "nvm", // norms metadata file
-            "tmd", // Lucene 8.6 terms metadata file
-            "tvm", // terms vectors metadata file
-            "vem"  // Lucene 9.0 indexed vectors metadata
-        );
-
-        // List of extensions for which Lucene usually only reads the first 1024 byte and checks a header checksum when opening a Directory.
-        OTHER_FILES_EXTENSIONS = Set.of(
-            "cfs",
-            "dii",
-            "dim",
-            "doc",
-            "dvd",
-            "fdt",
-            "fdx",
-            "kdd",
-            "kdi",
-            "liv",
-            "nvd",
-            "pay",
-            "pos",
-            "tim",
-            "tip",
-            "tvd",
-            "tvx",
-            "vec"
-        );
-        assert Sets.intersection(METADATA_FILES_EXTENSIONS, OTHER_FILES_EXTENSIONS).isEmpty();
-    }
-
     /**
      * Computes the {@link ByteRange} corresponding to the header of a Lucene file. This range can vary depending of the type of the file
      * which is indicated by the file's extension. The returned byte range can never be larger than the file's length but it can be smaller.
      *
-     * For files that are declared as metadata files in {@link #METADATA_FILES_EXTENSIONS}, the header can be as large as the specified
+     * For files that are declared as metadata files in {@link LuceneFilesExtensions}, the header can be as large as the specified
      * maximum metadata length parameter {@code maxMetadataLength}. Non-metadata files have a fixed length header of maximum 1KB.
      *
      * @param fileName the name of the file
@@ -302,9 +259,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
      * @return the header {@link ByteRange}
      */
     public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
-        final String fileExtension = IndexFileNames.getExtension(fileName);
-        assert fileExtension == null || METADATA_FILES_EXTENSIONS.contains(fileExtension) || OTHER_FILES_EXTENSIONS.contains(fileExtension)
-            : "unknown Lucene file extension [" + fileExtension + "] - should it be considered a metadata file?";
+        final LuceneFilesExtensions fileExtension = LuceneFilesExtensions.fromExtension(IndexFileNames.getExtension(fileName));
+        assert fileExtension != null : "unknown Lucene file extension [" + fileName + "] - should it be considered a metadata file?";
 
         if (useLegacyCachedBlobSizes()) {
             if (fileLength <= ByteSizeUnit.KB.toBytes(8L)) {
@@ -314,7 +270,7 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             }
         }
 
-        if (METADATA_FILES_EXTENSIONS.contains(fileExtension)) {
+        if (fileExtension != null && fileExtension.isMetadata()) {
             final long maxAllowedLengthInBytes = maxMetadataLength.getBytes();
             if (fileLength > maxAllowedLengthInBytes) {
                 logExceedingFile(fileExtension, fileLength, maxMetadataLength);
@@ -329,11 +285,11 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         return minNodeVersion.before(OLD_CACHED_BLOB_SIZE_VERSION);
     }
 
-    private static void logExceedingFile(String extension, long length, ByteSizeValue maxAllowedLength) {
+    private static void logExceedingFile(LuceneFilesExtensions extension, long length, ByteSizeValue maxAllowedLength) {
         if (logger.isWarnEnabled()) {
             try {
                 // Use of a cache to prevent too many log traces per hour
-                LOG_EXCEEDING_FILES_CACHE.computeIfAbsent(extension, key -> {
+                LOG_EXCEEDING_FILES_CACHE.computeIfAbsent(extension.getExtension(), key -> {
                     logger.warn(
                         "file with extension [{}] is larger ([{}]) than the max. length allowed [{}] to cache metadata files in blob cache",
                         extension,

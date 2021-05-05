@@ -8,17 +8,17 @@
 
 package org.elasticsearch.gradle.internal.rest.compat;
 
-import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.test.RestIntegTestTask;
-import org.elasticsearch.gradle.test.RestTestBasePlugin;
-import org.elasticsearch.gradle.test.rest.CopyRestApiTask;
-import org.elasticsearch.gradle.test.rest.CopyRestTestsTask;
-import org.elasticsearch.gradle.test.rest.RestResourcesExtension;
-import org.elasticsearch.gradle.test.rest.RestResourcesPlugin;
-import org.elasticsearch.gradle.test.rest.RestTestUtil;
-import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin;
+import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
+import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
+import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
+import org.elasticsearch.gradle.internal.test.rest.RestResourcesExtension;
+import org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin;
+import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
+import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
@@ -37,7 +37,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupDependencies;
 
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
@@ -50,6 +50,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
     private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
+    public static final String BWC_MINOR_CONFIG_NAME = "bwcMinor";
 
     @Override
     public void apply(Project project) {
@@ -73,7 +74,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
 
         // copy compatible rest specs
-        Configuration bwcMinorConfig = project.getConfigurations().create("bwcMinor");
+        Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
         Dependency bwcMinor = project.getDependencies().project(Map.of("path", ":distribution:bwc:minor", "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 

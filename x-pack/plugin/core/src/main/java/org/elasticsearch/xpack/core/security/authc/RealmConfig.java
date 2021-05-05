@@ -30,7 +30,7 @@ public class RealmConfig {
         this.env = env;
         this.threadContext = threadContext;
         this.enabled = getSetting(RealmSettings.ENABLED_SETTING);
-        if (false == hasSetting(RealmSettings.ORDER_SETTING.apply(type()))) {
+        if (enabled && false == hasSetting(RealmSettings.ORDER_SETTING.apply(type()))) {
             throw new IllegalArgumentException("'order' is a mandatory parameter for realm config. " +
                 "Found invalid config for realm: '" + identifier.name + "'\n" +
                 "Please see the breaking changes documentation."

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.action.AbstractTransportSetResetModeAction;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
+import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 
 
 public class TransportSetResetModeAction extends AbstractTransportSetResetModeAction {
@@ -40,11 +41,21 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
 
     @Override
     protected ClusterState setState(ClusterState oldState, SetResetModeActionRequest request) {
-        MlMetadata.Builder builder = MlMetadata.Builder
-            .from(oldState.metadata().custom(MlMetadata.TYPE))
-            .isResetMode(request.isEnabled());
         ClusterState.Builder newState = ClusterState.builder(oldState);
-        newState.metadata(Metadata.builder(oldState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
+        if (request.shouldDeleteMetadata()) {
+            assert request.isEnabled() == false; // SetResetModeActionRequest should have enforced this
+            newState.metadata(Metadata.builder(oldState.getMetadata())
+                .removeCustom(MlMetadata.TYPE)
+                .removeCustom(ModelAliasMetadata.NAME)
+                .build());
+        } else {
+            MlMetadata.Builder builder = MlMetadata.Builder
+                .from(oldState.metadata().custom(MlMetadata.TYPE))
+                .isResetMode(request.isEnabled());
+            newState.metadata(Metadata.builder(oldState.getMetadata())
+                .putCustom(MlMetadata.TYPE, builder.build())
+                .build());
+        }
         return newState.build();
     }
 }

@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.function.DoubleConsumer;
 
 public abstract class DoubleFieldScript extends AbstractFieldScript {
-    public static final ScriptContext<Factory> CONTEXT = newContext("double_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("double_field", Factory.class);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

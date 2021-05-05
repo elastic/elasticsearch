@@ -26,7 +26,7 @@ public class TriangleTreeTests extends ESTestCase {
         Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 10), false);
         // write tree
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        List<IndexableField> fieldList = indexer.indexShape(null, indexer.prepareForIndexing(geometry));
+        List<IndexableField> fieldList = indexer.indexShape(geometry);
         ByteBuffersDataOutput output = new ByteBuffersDataOutput();
         TriangleTreeWriter.writeTo(output, fieldList);
         // read tree

@@ -21,7 +21,7 @@ public class VotingOnlyNodeCoordinationStateTests extends ESTestCase {
     public void testSafety() {
         new CoordinationStateTestCluster(IntStream.range(0, randomIntBetween(1, 5))
             .mapToObj(i -> new DiscoveryNode("node_" + i, buildNewFakeTransportAddress(), Map.of(),
-                randomBoolean() ? DiscoveryNodeRole.BUILT_IN_ROLES :
+                randomBoolean() ? DiscoveryNodeRole.roles() :
                 Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.INGEST_ROLE, DiscoveryNodeRole.MASTER_ROLE,
                     DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE), Version.CURRENT))
             .collect(Collectors.toList()), new VotingOnlyNodePlugin.VotingOnlyNodeElectionStrategy())

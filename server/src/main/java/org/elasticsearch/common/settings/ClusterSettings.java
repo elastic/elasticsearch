@@ -221,6 +221,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING,
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
             SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
@@ -476,7 +478,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
-            IndexingPressure.MAX_INDEXING_BYTES);
+            IndexingPressure.MAX_INDEXING_BYTES,
+            ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

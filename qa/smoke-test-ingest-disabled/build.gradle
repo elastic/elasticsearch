@@ -15,6 +15,10 @@ dependencies {
   testImplementation project(':modules:ingest-common')
 }
 
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
 testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'node.roles', '[data,master,remote_cluster_client]'
 }

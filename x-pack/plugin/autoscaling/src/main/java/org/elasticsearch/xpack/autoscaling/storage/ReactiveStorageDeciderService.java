@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -90,8 +91,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
             DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
             DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
-            DiscoveryNodeRole.DATA_COLD_NODE_ROLE,
-            DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
     }
 
@@ -561,7 +561,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             private final ClusterInfo delegate;
 
             private ExtendedClusterInfo(ImmutableOpenMap<String, Long> extraShardSizes, ClusterInfo info) {
-                super(info.getNodeLeastAvailableDiskUsages(), info.getNodeMostAvailableDiskUsages(), extraShardSizes, null, null);
+                super(
+                    info.getNodeLeastAvailableDiskUsages(),
+                    info.getNodeMostAvailableDiskUsages(),
+                    extraShardSizes,
+                    ImmutableOpenMap.of(),
+                    null,
+                    null
+                );
                 this.delegate = info;
             }
 
@@ -583,6 +590,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 } else {
                     return delegate.getShardSize(shardRouting, defaultValue);
                 }
+            }
+
+            @Override
+            public Optional<Long> getShardDataSetSize(ShardId shardId) {
+                return delegate.getShardDataSetSize(shardId);
             }
 
             @Override

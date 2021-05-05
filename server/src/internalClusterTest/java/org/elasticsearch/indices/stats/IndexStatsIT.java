@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.stats;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexShard;
@@ -607,11 +609,23 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush().get();
         client().admin().indices().prepareForceMerge().setMaxNumSegments(1).execute().actionGet();
         client().admin().indices().prepareRefresh().get();
-        stats = client().admin().indices().prepareStats().setSegments(true).get();
+
+        final boolean includeSegmentFileSizes = randomBoolean();
+        stats = client().admin().indices().prepareStats().setSegments(true).setIncludeSegmentFileSizes(includeSegmentFileSizes).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
         assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0L));
+        if (includeSegmentFileSizes) {
+            assertThat(stats.getTotal().getSegments().getFiles().size(), greaterThan(0));
+            for (ObjectObjectCursor<String, SegmentsStats.FileStats> cursor : stats.getTotal().getSegments().getFiles()) {
+                assertThat(cursor.value.getExt(), notNullValue());
+                assertThat(cursor.value.getTotal(), greaterThan(0L));
+                assertThat(cursor.value.getCount(), greaterThan(0L));
+                assertThat(cursor.value.getMin(), greaterThan(0L));
+                assertThat(cursor.value.getMax(), greaterThan(0L));
+            }
+        }
     }
 
     public void testAllFlags() throws Exception {

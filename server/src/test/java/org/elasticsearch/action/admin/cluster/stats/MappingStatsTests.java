@@ -23,7 +23,6 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -310,31 +309,16 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         }));
     }
 
-    public void testWriteToPre8_0() throws IOException {
-        FieldStats fieldStats = randomFieldStats("test");
-        MappingStats mappingStats = new MappingStats(Collections.singleton(fieldStats), Collections.emptyList());
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+    public void testWriteTo() throws IOException {
+        MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
+        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
         out.setVersion(version);
-        mappingStats.writeTo(out);
+        instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         in.setVersion(version);
         MappingStats deserialized = new MappingStats(in);
-        assertEquals("{\"mappings\":{\"field_types\":[" +
-            "{\"name\":\"test\",\"count\":" + fieldStats.count+ ",\"index_count\":" + fieldStats.indexCount +
-                ",\"script_count\":0}],\"runtime_field_types\":[]}}",
-            Strings.toString(deserialized));
-    }
-
-    public void testReadFromPre8_0() throws IOException {
-        String base64EncodedFromPre8_0 = "AQR0ZXN0qebzzQGSg/HlBgAAAAAAAAAA";
-        byte[] bytes = Base64.getDecoder().decode(base64EncodedFromPre8_0);
-        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
-        StreamInput in = StreamInput.wrap(bytes);
-        in.setVersion(version);
-        MappingStats deserialized = new MappingStats(in);
-        assertEquals("{\"mappings\":{\"field_types\":" +
-            "[{\"name\":\"test\",\"count\":431813417,\"index_count\":1824276882,\"script_count\":0}],\"runtime_field_types\":[]}}",
-            Strings.toString(deserialized));
+        assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
+        assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());
     }
 }

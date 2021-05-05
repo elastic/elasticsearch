@@ -8,13 +8,16 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -55,21 +58,65 @@ public class UriPartsProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String value = ingestDocument.getFieldValue(field, String.class);
 
-        URI uri;
+        URI uri = null;
+        URL url = null;
         try {
             uri = new URI(value);
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("unable to parse URI [" + value + "]");
+            try {
+                url = new URL(value);
+            } catch (MalformedURLException e2) {
+                throw new IllegalArgumentException("unable to parse URI [" + value + "]");
+            }
         }
-        var uriParts = new HashMap<String, Object>();
-        uriParts.put("domain", uri.getHost());
-        if (uri.getFragment() != null) {
-            uriParts.put("fragment", uri.getFragment());
-        }
+        var uriParts = getUriParts(uri, url);
         if (keepOriginal) {
             uriParts.put("original", value);
         }
-        final String path = uri.getPath();
+
+        if (removeIfSuccessful && targetField.equals(field) == false) {
+            ingestDocument.removeField(field);
+        }
+        ingestDocument.setFieldValue(targetField, uriParts);
+        return ingestDocument;
+    }
+
+    @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")
+    private static Map<String, Object> getUriParts(URI uri, URL fallbackUrl) {
+        var uriParts = new HashMap<String, Object>();
+        String domain;
+        String fragment;
+        String path;
+        int port;
+        String query;
+        String scheme;
+        String userInfo;
+
+        if (uri != null) {
+            domain = uri.getHost();
+            fragment = uri.getFragment();
+            path = uri.getPath();
+            port = uri.getPort();
+            query = uri.getQuery();
+            scheme = uri.getScheme();
+            userInfo = uri.getUserInfo();
+        } else if (fallbackUrl != null) {
+            domain = fallbackUrl.getHost();
+            fragment = fallbackUrl.getRef();
+            path = fallbackUrl.getPath();
+            port = fallbackUrl.getPort();
+            query = fallbackUrl.getQuery();
+            scheme = fallbackUrl.getProtocol();
+            userInfo = fallbackUrl.getUserInfo();
+        } else {
+            // should never occur during processor execution
+            throw new IllegalArgumentException("at least one argument must be non-null");
+        }
+
+        uriParts.put("domain", domain);
+        if (fragment != null) {
+            uriParts.put("fragment", fragment);
+        }
         if (path != null) {
             uriParts.put("path", path);
             if (path.contains(".")) {
@@ -77,14 +124,13 @@ public class UriPartsProcessor extends AbstractProcessor {
                 uriParts.put("extension", periodIndex < path.length() ? path.substring(periodIndex + 1) : "");
             }
         }
-        if (uri.getPort() != -1) {
-            uriParts.put("port", uri.getPort());
+        if (port != -1) {
+            uriParts.put("port", port);
         }
-        if (uri.getQuery() != null) {
-            uriParts.put("query", uri.getQuery());
+        if (query != null) {
+            uriParts.put("query", query);
         }
-        uriParts.put("scheme", uri.getScheme());
-        final String userInfo = uri.getUserInfo();
+        uriParts.put("scheme", scheme);
         if (userInfo != null) {
             uriParts.put("user_info", userInfo);
             if (userInfo.contains(":")) {
@@ -94,11 +140,7 @@ public class UriPartsProcessor extends AbstractProcessor {
             }
         }
 
-        if (removeIfSuccessful && targetField.equals(field) == false) {
-            ingestDocument.removeField(field);
-        }
-        ingestDocument.setFieldValue(targetField, uriParts);
-        return ingestDocument;
+        return uriParts;
     }
 
     @Override

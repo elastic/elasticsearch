@@ -9,6 +9,8 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -25,15 +27,57 @@ import java.util.List;
 import java.util.Map;
 
 public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregatorFactory.class);
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             DateHistogramAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             DateHistogramAggregator::build,
                 true);
 
         builder.register(DateHistogramAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.RANGE, DateRangeHistogramAggregator::new, true);
+
+        builder.register(
+            DateHistogramAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.BOOLEAN,
+            (
+                name,
+                factories,
+                rounding,
+                order,
+                keyed,
+                minDocCount,
+                extendedBounds,
+                hardBounds,
+                valuesSourceConfig,
+                context,
+                parent,
+                cardinality,
+                metadata) -> {
+                DEPRECATION_LOGGER.deprecate(
+                    DeprecationCategory.AGGREGATIONS,
+                    "date-histogram-boolean",
+                    "Running DateHistogram aggregations on [boolean] fields is deprecated"
+                );
+                return DateHistogramAggregator.build(
+                    name,
+                    factories,
+                    rounding,
+                    order,
+                    keyed,
+                    minDocCount,
+                    extendedBounds,
+                    hardBounds,
+                    valuesSourceConfig,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+            true
+        );
     }
 
     private final DateHistogramAggregationSupplier aggregatorSupplier;

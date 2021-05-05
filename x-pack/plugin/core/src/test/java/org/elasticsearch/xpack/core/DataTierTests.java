@@ -128,7 +128,7 @@ public class DataTierTests extends ESTestCase {
     }
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
-        Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES);
+        Set<DiscoveryNodeRole> allRoles = new HashSet<>(DiscoveryNodeRole.roles());
         allRoles.remove(DiscoveryNodeRole.DATA_ROLE);
         List<DiscoveryNode> nodesList = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {

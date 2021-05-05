@@ -276,8 +276,12 @@ public class MultiSearchRequestTests extends ESTestCase {
             MultiSearchRequest.writeSearchRequestParams(request, builder);
             Map<String, Object> map =
                 XContentHelper.convertToMap(XContentType.JSON.xContent(), BytesReference.bytes(builder).streamInput(), false);
-            final String value = (String) map.get("expand_wildcards");
-            assertEquals(expectedValue, value);
+            if (options.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+                final String value = (String) map.get("expand_wildcards");
+                assertEquals(expectedValue, value);
+            } else {
+                assertNull(map.get("expand_wildcards"));
+            }
         }
     }
 

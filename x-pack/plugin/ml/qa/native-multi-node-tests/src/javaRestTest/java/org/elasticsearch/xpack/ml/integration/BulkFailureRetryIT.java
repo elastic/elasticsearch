@@ -104,10 +104,8 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         long twoDaysAgo = now - 2 * DAY;
         startDatafeed(datafeedConfig.getId(), 0L, twoDaysAgo);

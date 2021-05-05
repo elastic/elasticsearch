@@ -10,6 +10,8 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
@@ -206,18 +208,18 @@ public class IndexShardTests extends IndexShardTestCase {
             boolean primary = randomBoolean();
             AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
             ShardStateMetadata state1 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state1, env.availableShardPaths(id));
-            ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPaths(id));
+            write(state1, env.availableShardPath(id));
+            ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPath(id));
             assertEquals(shardStateMetadata, state1);
 
             ShardStateMetadata state2 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state2, env.availableShardPaths(id));
-            shardStateMetadata = load(logger, env.availableShardPaths(id));
+            write(state2, env.availableShardPath(id));
+            shardStateMetadata = load(logger, env.availableShardPath(id));
             assertEquals(shardStateMetadata, state1);
 
             ShardStateMetadata state3 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state3, env.availableShardPaths(id));
-            shardStateMetadata = load(logger, env.availableShardPaths(id));
+            write(state3, env.availableShardPath(id));
+            shardStateMetadata = load(logger, env.availableShardPath(id));
             assertEquals(shardStateMetadata, state3);
             assertEquals("fooUUID", state3.indexUUID);
         }
@@ -3095,11 +3097,14 @@ public class IndexShardTests extends IndexShardTestCase {
         Files.walkFileTree(indexPath, corruptedVisitor);
         assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
 
+        // Close the directory under the shard first because it's probably a MockDirectoryWrapper which throws exceptions when corrupt
         try {
-            closeShards(corruptedShard);
-        } catch (RuntimeException e) {
-            // Ignored because corrupted shard can throw various exceptions on close
+            ((FilterDirectory) corruptedShard.store().directory()).getDelegate().close();
+        } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException | RuntimeException e) {
+            // ignored
         }
+
+        closeShards(corruptedShard);
     }
 
     public void testShardDoesNotStartIfCorruptedMarkerIsPresent() throws Exception {

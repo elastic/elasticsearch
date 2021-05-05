@@ -41,9 +41,10 @@ def setupPorts = tasks.register("setupPorts") {
   }
 }
 
-project.sourceSets.test.output.dir(outputDir, builtBy: [copyIdpFiles, setupPorts])
+project.sourceSets.test.output.dir(outputDir, builtBy: [copyIdpFiles])
 
 tasks.named("integTest").configure {
+  dependsOn setupPorts
   onlyIf { idpFixtureProject.postProcessFixture.state.skipped == false && Architecture.current() == Architecture.X64 }
 }
 

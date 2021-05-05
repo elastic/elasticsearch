@@ -1422,7 +1422,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                     ackListener.onNodeAck(getLocalNode(), exception); // other nodes have acked, but not the master.
                     publishListener.onFailure(exception);
                 }
-            }, EsExecutors.newDirectExecutorService(), transportService.getThreadPool().getThreadContext());
+            }, EsExecutors.DIRECT_EXECUTOR_SERVICE, transportService.getThreadPool().getThreadContext());
         }
 
         private void cancelTimeoutHandlers() {

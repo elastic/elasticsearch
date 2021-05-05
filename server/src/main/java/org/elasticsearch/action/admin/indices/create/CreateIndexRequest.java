@@ -479,4 +479,22 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        CreateIndexRequest that = (CreateIndexRequest) obj;
+        return Objects.equals(cause, that.cause) &&
+            Objects.equals(index, that.index) &&
+            Objects.equals(settings, that.settings) &&
+            Objects.equals(mappings, that.mappings) &&
+            Objects.equals(aliases, that.aliases) &&
+            Objects.equals(waitForActiveShards, that.waitForActiveShards) &&
+            Objects.equals(origin, that.origin);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(cause, index, settings, mappings, aliases, waitForActiveShards, origin);
+    }
 }

@@ -39,7 +39,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" 
-                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" 
                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
@@ -96,7 +96,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-plugin-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-plugin-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" 
-                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" 
                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
@@ -141,7 +141,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-plugin-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-plugin-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" 
-                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" 
                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
@@ -202,7 +202,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" 
-                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd" 
+                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" 
                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>

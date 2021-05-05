@@ -35,13 +35,13 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryNotEmptyException;
@@ -1319,7 +1319,7 @@ public abstract class StreamInput extends InputStream {
     }
 
     public static StreamInput wrap(byte[] bytes, int offset, int length) {
-        return new InputStreamStreamInput(new ByteArrayInputStream(bytes, offset, length), length);
+        return new ByteBufferStreamInput(ByteBuffer.wrap(bytes, offset, length));
     }
 
     /**

@@ -19,7 +19,6 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Test;
 
 import java.util.Collections;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -31,23 +30,20 @@ public class RemoveMatchTests extends TransformTests {
 
     @Test
     public void testRemoveAll() throws Exception {
-        String testName = "/rest/transform/match/match.yml";
+        String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
         validateTest(tests, true, true);
-        List<ObjectNode> transformedTests = transformTests(new LinkedList<>(tests), Collections.singletonList(new RemoveMatch("_type")));
+        List<ObjectNode> transformedTests = transformTests(tests, Collections.singletonList(new RemoveMatch("_type")));
         printTest(testName, transformedTests);
         validateTest(tests, false, true);
     }
 
     @Test
     public void testRemoveByTest() throws Exception {
-        String testName = "/rest/transform/match/match.yml";
+        String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
         validateTest(tests, true, false);
-        List<ObjectNode> transformedTests = transformTests(
-            new LinkedList<>(tests),
-            Collections.singletonList(new RemoveMatch("_type", "Last test"))
-        );
+        List<ObjectNode> transformedTests = transformTests(tests, Collections.singletonList(new RemoveMatch("_type", "Last test")));
         printTest(testName, transformedTests);
         validateTest(tests, false, false);
 

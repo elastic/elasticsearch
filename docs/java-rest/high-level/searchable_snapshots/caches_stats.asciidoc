@@ -11,8 +11,7 @@
 ==== Request
 
 Retrieves statistics about the shared cache for
-{ref}/searchable-snapshots.html#partially-mounted[partially mounted
-{search-snaps}].
+{ref}/searchable-snapshots.html#partially-mounted[partially mounted indices].
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

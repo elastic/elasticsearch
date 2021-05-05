@@ -176,10 +176,10 @@ that does not have the `data_frozen` role was deprecated in {es} 7.12.0 and has
 been removed in {es} 8.0.0.
 
 *Impact* +
-{es} only allocates partially mounted {search-snaps} to nodes with the
-`data_frozen` role. Do not set `xpack.searchable.snapshot.shared_cache.size` on
-nodes without the `data_frozen` role. Removing the setting on nodes without the
-`data_frozen` role will not impact functionality.
+{es} only allocates partially mounted indices to nodes with the `data_frozen`
+role. Do not set `xpack.searchable.snapshot.shared_cache.size` on nodes without
+the `data_frozen` role. Removing the setting on nodes without the `data_frozen`
+role will not impact functionality.
 ====
 
 .By default, destructive index actions do not allow wildcards.

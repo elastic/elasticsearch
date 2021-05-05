@@ -55,10 +55,10 @@ Defaults to `false`.
 {search-snap} index. Possible values are:
 
 `full_copy` (Default):::
-<<fully-mounted,Fully mounts>> the index.
+<<fully-mounted,Fully mounted index>>.
 
 `shared_cache`:::
-<<partially-mounted,Partially mounts>> the index.
+<<partially-mounted,Partially mounted index>>.
 --
 
 [[searchable-snapshots-api-mount-request-body]]

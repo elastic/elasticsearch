@@ -117,11 +117,11 @@ copying data from the primary.
 To search a snapshot, you must first mount it locally as an index. Usually
 {ilm-init} will do this automatically, but you can also call the
 <<searchable-snapshots-api-mount-snapshot,mount snapshot>> API yourself. There
-are two options for mounting a snapshot, each with different performance
-characteristics and local storage footprints:
+are two options for mounting an index from a snapshot, each with different
+performance characteristics and local storage footprints:
 
 [[fully-mounted]]
-Fully mounted::
+Fully mounted index::
 Loads a full copy of the snapshotted index's shards onto node-local storage
 within the cluster. {ilm-init} uses this option in the `hot` and `cold` phases.
 +
@@ -134,7 +134,7 @@ retrieve the data needed to complete the search in parallel with the ongoing
 recovery.
 
 [[partially-mounted]]
-Partially mounted::
+Partially mounted index::
 Uses a local cache containing only recently searched parts of the snapshotted
 index's data. This cache has a fixed size and is shared across nodes in the
 frozen tier. {ilm-init} uses this option in the `frozen` phase.
@@ -145,13 +145,13 @@ slower, but the fetched data is stored in the cache so that similar searches
 can be served more quickly in future. {es} will evict infrequently used data
 from the cache to free up space.
 +
-Although slower than a fully mounted {search-snap} or a regular index, a
-partially mounted {search-snap} still returns search results quickly, even for
+Although slower than a fully mounted index or a regular index, a
+partially mounted index still returns search results quickly, even for
 large data sets, because the layout of data in the repository is heavily
 optimized for search. Many searches will need to retrieve only a small subset of
 the total shard data before returning results.
 
-To partially mount a searchable snapshot, you
+To partially mount an index for a {search-snap}, you
 must have one or more nodes with a shared cache available. By default,
 dedicated frozen data tier nodes (nodes with the `data_frozen` role and no other
 data roles) have a shared cache configured using the greater of 90% of total
@@ -166,7 +166,7 @@ are only allocated to nodes that have a shared cache.
 [[searchable-snapshots-shared-cache]]
 `xpack.searchable.snapshot.shared_cache.size`::
 (<<static-cluster-setting,Static>>)
-Disk space reserved for the shared cache of partially mounted {search-snaps}.
+Disk space reserved for the shared cache of partially mounted indices.
 Accepts a percentage of total disk space or an absolute <<byte-units,byte
 value>>. Defaults to `90%` of total disk space for dedicated frozen data tier
 nodes. Otherwise defaults to `0b`.

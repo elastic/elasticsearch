@@ -7,7 +7,7 @@
 ++++
 
 Retrieves statistics about the shared cache for <<partially-mounted,partially
-mounted {search-snaps}>>.
+mounted indices>>.
 
 [[searchable-snapshots-api-cache-stats-request]]
 ==== {api-request-title}
@@ -92,8 +92,8 @@ Contains statistics about the shared cache file.
 [[searchable-snapshots-api-cache-stats-example]]
 ==== {api-examples-title}
 
-Gets the statistics about the shared cache for partially mounted {search-snaps}
-from all data nodes:
+Gets the statistics about the shared cache for partially mounted indices from
+all data nodes:
 
 [source,console]
 --------------------------------------------------

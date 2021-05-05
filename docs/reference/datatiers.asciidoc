@@ -88,15 +88,15 @@ For resiliency, indices in the cold tier can rely on
 Once data is no longer being queried, or being queried rarely, it may move from
 the cold tier to the frozen tier where it stays for the rest of its life.
 
-The frozen tier uses <<searchable-snapshots,partially mounted {search-snaps}>>
-to store and load data from a snapshot repository. When an index transitions into
-the <<ilm-index-lifecycle,frozen phase>>, {ilm-init} automatically converts it
-to a partially mounted {search-snap} on the frozen tier.
+The frozen tier uses <<searchable-snapshots,partially mounted indices>> to store
+and load data from a snapshot repository. When an index transitions into the
+<<ilm-index-lifecycle,frozen phase>>, {ilm-init} automatically converts it to a
+partially mounted index on the frozen tier.
 
-Partially mounted {search-snaps} let you search over large data sets with fewer
-compute resources, reducing both your storage and operating costs. Because {es}
-must sometimes fetch data from the snapshot repository, searches on the frozen
-tier are typically slower than on the cold tier.
+Partially mounted indices let you search over large data sets with fewer compute
+resources, reducing both your storage and operating costs. Because {es} must
+sometimes fetch data from the snapshot repository, searches on the frozen tier
+are typically slower than on the cold tier.
 
 [discrete]
 [[data-tier-allocation]]

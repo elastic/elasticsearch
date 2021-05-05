@@ -650,7 +650,7 @@ POST _transform/_preview
   }
 }
 ----------------------------------
-// TEST[skip:setup kibana sample data
+// TEST[skip:setup kibana sample data]
 
 <1> The data is grouped by a `terms` aggregation on the `customer_id` field.
 <2> Specifies the fields to return (email and name fields) in a descending order 
@@ -659,7 +659,8 @@ by the order date.
 The API returns a response that is similar to this:
 
 [source,js]
----------------------------------{
+----------------------------------
+ { 
   "preview" : [
     {
       "last" : {

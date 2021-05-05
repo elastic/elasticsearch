@@ -4,7 +4,7 @@
 Some {ref}/processors.html[ingest processors] expose behavior through Painless
 methods that can be called in Painless scripts that execute in ingest pipelines.
 
-==== Method Usage
+==== Method usage
 
 All ingest methods available in Painless are scoped to the `Processors`
 namespace. For example:

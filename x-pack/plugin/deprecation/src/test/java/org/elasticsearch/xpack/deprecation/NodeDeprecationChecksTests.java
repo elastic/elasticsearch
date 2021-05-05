@@ -604,7 +604,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertNotNull(issue.getDetails());
         assertThat(issue.getDetails(), containsString("The default behavior of disabling security on "));
         assertThat(issue.getUrl(),
-            equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#implicitly-disabled-security"));
+            equalTo("https://www.elastic.co/guide/en/elasticsearch/reference/7.14/migrating-7.14.html#implicitly-disabled-security"));
     }
 
     public void testExplicitlyConfiguredSecurityOnBasicAndTrial() {

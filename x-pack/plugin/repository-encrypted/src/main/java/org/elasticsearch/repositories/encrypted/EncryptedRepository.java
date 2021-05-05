@@ -64,6 +64,7 @@ import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -423,7 +424,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             BlobContainer deksBlobContainer = delegatedBlobStore.blobContainer(deksBlobPath);
             // the uuid ensures different clusters do not overwrite the "done." marker blobs
             String doneUUID = UUIDs.randomBase64UUID();
-            String doneBlobName = String.format(DEKS_GEN_MARKER_BLOB + "%d.%s", generation, doneUUID);
+            String doneBlobName = String.format(Locale.ROOT, DEKS_GEN_MARKER_BLOB + "%d.%s", generation, doneUUID);
             // do the pbkdf2 on the calling thread
             String passwordHash = AESKeyUtils.computeId(AESKeyUtils.generatePasswordBasedKey(password, doneUUID));
             // TODO add other troubleshooting details, eg: node id, cluster uuid, local timestamp, new password name, previous password gen

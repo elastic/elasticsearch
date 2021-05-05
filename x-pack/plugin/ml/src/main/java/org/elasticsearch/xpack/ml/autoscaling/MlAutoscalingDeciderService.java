@@ -15,9 +15,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
@@ -48,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.PriorityQueue;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -55,6 +59,8 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.getDataFrameAnalyticsState;
 import static org.elasticsearch.xpack.core.ml.MlTasks.getJobStateModifiedForReassignments;
+import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
+import static org.elasticsearch.xpack.ml.MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 import static org.elasticsearch.xpack.ml.job.NodeLoad.taskStateFilter;
 
@@ -94,13 +100,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         this.nodeLoadDetector = nodeLoadDetector;
         this.mlMemoryTracker = nodeLoadDetector.getMlMemoryTracker();
         this.maxMachineMemoryPercent = MachineLearning.MAX_MACHINE_MEMORY_PERCENT.get(settings);
-        this.maxOpenJobs = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(settings);
+        this.maxOpenJobs = MAX_OPEN_JOBS_PER_NODE.get(settings);
         this.useAuto = MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT.get(settings);
         this.timeSupplier = timeSupplier;
         this.scaleDownDetected = NO_SCALE_DOWN_POSSIBLE;
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
             this::setMaxMachineMemoryPercent);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
         clusterService.addLocalNodeMasterListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
@@ -169,6 +175,70 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             iter.remove();
         }
         return Optional.of(new NativeMemoryCapacity(tierMemory, nodeMemory));
+    }
+
+    static Optional<Tuple<NativeMemoryCapacity, List<NodeLoad>>> determineUnassignableJobs(List<String> unassignedJobs,
+                                                                                           Function<String, Long> sizeFunction,
+                                                                                           int maxNumInQueue,
+                                                                                           List<NodeLoad> nodeLoads) {
+        if (unassignedJobs.isEmpty()) {
+            return Optional.empty();
+        }
+        if (unassignedJobs.size() < maxNumInQueue) {
+            return Optional.empty();
+        }
+        PriorityQueue<NodeLoad.Builder> mostFreeMemoryFirst = new PriorityQueue<>(
+            nodeLoads.size(),
+            // If we have no more remaining jobs, its the same as having no more free memory
+            Comparator.<NodeLoad.Builder>comparingLong(v -> v.remainingJobs() == 0 ? 0L : v.getFreeMemory()).reversed()
+        );
+        for (NodeLoad load : nodeLoads) {
+            mostFreeMemoryFirst.add(NodeLoad.builder(load));
+        }
+        List<Long> jobSizes = unassignedJobs
+            .stream()
+            .map(sizeFunction)
+            .map(l -> l == null ? 0L : l)
+            .sorted(Comparator.comparingLong(Long::longValue).reversed())
+            .collect(Collectors.toList());
+
+        Iterator<Long> assignmentIter = jobSizes.iterator();
+        while (jobSizes.size() > maxNumInQueue && assignmentIter.hasNext()) {
+            long requiredMemory = assignmentIter.next();
+            NodeLoad.Builder nodeLoad = mostFreeMemoryFirst.peek();
+            assert nodeLoad != null : "unexpected null value while calculating assignable memory";
+            // We can assign it given our current size
+            if (nodeLoad.getNumAssignedJobs() == 0) {
+                requiredMemory += NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+            }
+            // Since we have the least loaded node (by memory) first, if it can't fit here, it can't fit anywhere
+            if (nodeLoad.getFreeMemory() >= requiredMemory) {
+                assignmentIter.remove();
+                // Remove and add to the priority queue to make sure the biggest node with availability is first
+                mostFreeMemoryFirst.add(mostFreeMemoryFirst.poll().incNumAssignedJobs().incAssignedJobMemory(requiredMemory));
+            }
+        }
+        List<NodeLoad> adjustedLoads = mostFreeMemoryFirst.stream().map(NodeLoad.Builder::build).collect(Collectors.toList());
+
+        List<Long> unassignableMemory = new ArrayList<>();
+        Iterator<Long> unassignableIter = jobSizes.iterator();
+        // If we cannot assign enough jobs given the current cluster size
+        while (jobSizes.size() > maxNumInQueue && unassignableIter.hasNext()) {
+            unassignableMemory.add(unassignableIter.next());
+            unassignableIter.remove();
+        }
+        if (unassignableMemory.isEmpty()) {
+            // We don't need to scale but we have adjusted node load given what we could assign
+            return Optional.of(Tuple.tuple(NativeMemoryCapacity.ZERO, adjustedLoads));
+        }
+        return Optional.of(Tuple.tuple(
+            new NativeMemoryCapacity(
+                unassignableMemory.stream().mapToLong(Long::longValue).sum(),
+                // Node memory needs to be AT LEAST the size of the largest job + the required overhead.
+                unassignableMemory.get(0) + NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
+            ),
+            adjustedLoads
+        ));
     }
 
     private static Collection<PersistentTask<?>> anomalyDetectionTasks(PersistentTasksCustomMetadata tasksCustomMetadata) {
@@ -275,14 +345,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         PersistentTasksCustomMetadata tasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         Collection<PersistentTask<?>> anomalyDetectionTasks = anomalyDetectionTasks(tasks);
         Collection<PersistentTask<?>> dataframeAnalyticsTasks = dataframeAnalyticsTasks(tasks);
-        final List<DiscoveryNode> nodes = getNodes(clusterState);
-        Optional<NativeMemoryCapacity> futureFreedCapacity = calculateFutureAvailableCapacity(
-            tasks,
-            memoryTrackingStale,
-            nodes,
-            clusterState
-        );
-
         final List<String> waitingAnomalyJobs = anomalyDetectionTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
             .map(t -> MlTasks.jobId(t.getId()))
@@ -292,6 +354,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             .map(t -> MlTasks.dataFrameAnalyticsId(t.getId()))
             .collect(Collectors.toList());
 
+        final int numAnalyticsJobsInQueue = NUM_ANALYTICS_JOBS_IN_QUEUE.get(configuration);
+        final int numAnomalyJobsInQueue = NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration);
+
+        final List<DiscoveryNode> nodes = getNodes(clusterState);
         final NativeMemoryCapacity currentScale = currentScale(nodes);
         final MlScalingReason.Builder reasonBuilder = MlScalingReason.builder()
             .setWaitingAnomalyJobs(waitingAnomalyJobs)
@@ -299,9 +365,67 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             .setCurrentMlCapacity(currentScale.autoscalingCapacity(maxMachineMemoryPercent, useAuto))
             .setPassedConfiguration(configuration);
 
+        // There are no ML nodes, scale up as quick as possible, no matter if memory is stale or not
+        if (nodes.isEmpty()
+            && (waitingAnomalyJobs.isEmpty() == false
+            || waitingAnalyticsJobs.isEmpty() == false)) {
+            return scaleUpFromZero(waitingAnomalyJobs, waitingAnalyticsJobs, reasonBuilder);
+        }
+
+        if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
+            logger.debug(() -> new ParameterizedMessage(
+                "view of job memory is stale given duration [{}]. Not attempting to make scaling decision",
+                memoryTrackingStale));
+            return buildDecisionAndRequestRefresh(reasonBuilder);
+        }
+        // We need the current node loads to determine if we need to scale up or down
+        List<NodeLoad> nodeLoads = new ArrayList<>(nodes.size());
+        boolean nodeIsMemoryAccurate = true;
+        for (DiscoveryNode node : nodes) {
+            NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState,
+                true,
+                node,
+                maxOpenJobs,
+                maxMachineMemoryPercent,
+                useAuto);
+            if (nodeLoad.getError() != null) {
+                logger.warn("[{}] failed to gather node load limits, failure [{}]. Returning no scale",
+                    node.getId(),
+                    nodeLoad.getError());
+                return noScaleResultOrRefresh(reasonBuilder, true, new AutoscalingDeciderResult(context.currentCapacity(),
+                    reasonBuilder
+                        .setSimpleReason(
+                            "Passing currently perceived capacity as there was a failure gathering node limits ["
+                                + nodeLoad.getError()
+                                + "]"
+                        )
+                        .build()));
+            }
+            nodeLoads.add(nodeLoad);
+            nodeIsMemoryAccurate = nodeIsMemoryAccurate && nodeLoad.isUseMemory();
+        }
+        // This is an exceptional case, the memory tracking became stale between us checking previously and calculating the loads
+        // We should return a no scale in this case
+        if (nodeIsMemoryAccurate == false) {
+            return noScaleResultOrRefresh(reasonBuilder, true, new AutoscalingDeciderResult(context.currentCapacity(),
+                reasonBuilder
+                    .setSimpleReason(
+                        "Passing currently perceived capacity as nodes were unable to provide an accurate view of their memory usage"
+                    )
+                    .build()));
+        }
+
+        Optional<NativeMemoryCapacity> futureFreedCapacity = calculateFutureAvailableCapacity(
+            tasks,
+            memoryTrackingStale,
+            nodes,
+            clusterState
+        );
+
         final Optional<AutoscalingDeciderResult> scaleUpDecision = checkForScaleUp(
-            NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration),
-            NUM_ANALYTICS_JOBS_IN_QUEUE.get(configuration),
+            numAnomalyJobsInQueue,
+            numAnalyticsJobsInQueue,
+            nodeLoads,
             waitingAnomalyJobs,
             waitingAnalyticsJobs,
             futureFreedCapacity.orElse(null),
@@ -316,28 +440,22 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         if (waitingAnalyticsJobs.isEmpty() == false || waitingAnomalyJobs.isEmpty() == false) {
             // We don't want to continue to consider a scale down if there are now waiting jobs
             resetScaleDownCoolDown();
-            return noScaleResultOrRefresh(reasonBuilder, memoryTrackingStale, new AutoscalingDeciderResult(
-                context.currentCapacity(),
-                reasonBuilder
-                    .setSimpleReason(
-                        String.format(
-                            Locale.ROOT,
-                            "Passing currently perceived capacity as there are [%d] analytics and [%d] anomaly jobs in the queue, "
-                                + "but the number in the queue is less than the configured maximum allowed. "
-                                + "[%d] for analytics and [%d] for anomaly jobs",
-                            waitingAnalyticsJobs.size(),
-                            waitingAnomalyJobs.size(),
-                            NUM_ANALYTICS_JOBS_IN_QUEUE.get(configuration),
-                            NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration)
+            return noScaleResultOrRefresh(reasonBuilder,
+                mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false,
+                new AutoscalingDeciderResult(
+                    context.currentCapacity(),
+                    reasonBuilder
+                        .setSimpleReason(
+                            String.format(
+                                Locale.ROOT,
+                                "Passing currently perceived capacity as there are [%d] analytics and [%d] anomaly jobs in the queue, "
+                                    + "but the number in the queue is less than the configured maximum allowed "
+                                    + " or the queued jobs will eventually be assignable at the current size. ",
+                                waitingAnalyticsJobs.size(),
+                                waitingAnomalyJobs.size()
                         )
                     )
                     .build()));
-        }
-        if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
-            logger.debug(() -> new ParameterizedMessage(
-                "view of job memory is stale given duration [{}]. Not attempting to scale down",
-                memoryTrackingStale));
-            return buildDecisionAndRequestRefresh(reasonBuilder);
         }
 
         long largestJob = Math.max(
@@ -371,7 +489,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 anomalyDetectionTasks.size(),
                 dataframeAnalyticsTasks.size()
             );
-            return noScaleResultOrRefresh(reasonBuilder, memoryTrackingStale, new AutoscalingDeciderResult(
+            return noScaleResultOrRefresh(reasonBuilder, true, new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder
                     .setSimpleReason("Passing currently perceived capacity as there are running analytics and anomaly jobs, " +
@@ -379,10 +497,30 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                     .build()));
         }
 
-        final Optional<AutoscalingDeciderResult> scaleDownDecision =
-            checkForScaleDown(nodes, clusterState, largestJob, currentScale, reasonBuilder);
+        final Optional<AutoscalingDeciderResult> scaleDownDecision = checkForScaleDown(nodeLoads, largestJob, currentScale, reasonBuilder);
 
         if (scaleDownDecision.isPresent()) {
+            // Given maxOpenJobs, could we scale down to just one node?
+            // We have no way of saying "we need X nodes"
+            if (nodeLoads.size() > 1) {
+                long totalAssignedJobs = nodeLoads.stream().mapToLong(NodeLoad::getNumAssignedJobs).sum();
+                // one volatile read
+                long maxOpenJobs = this.maxOpenJobs;
+                if (totalAssignedJobs > maxOpenJobs) {
+                    String msg = String.format(Locale.ROOT,
+                        "not scaling down as the total number of jobs [%d] exceeds the setting [%s (%d)]. "
+                            + " To allow a scale down [%s] must be increased.",
+                        totalAssignedJobs,
+                        MAX_OPEN_JOBS_PER_NODE.getKey(),
+                        maxOpenJobs,
+                        MAX_OPEN_JOBS_PER_NODE.getKey());
+                    logger.info(() -> new ParameterizedMessage("{} Calculated potential scaled down capacity [{}] ",
+                        msg,
+                        scaleDownDecision.get().requiredCapacity()));
+                    return new AutoscalingDeciderResult(context.currentCapacity(), reasonBuilder.setSimpleReason(msg).build());
+                }
+            }
+
             final long now = timeSupplier.get();
             if (newScaleDownCheck()) {
                 scaleDownDetected = now;
@@ -414,27 +552,65 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                     .build());
         }
 
-        return noScaleResultOrRefresh(reasonBuilder, memoryTrackingStale, new AutoscalingDeciderResult(context.currentCapacity(),
-            reasonBuilder
-                .setSimpleReason("Passing currently perceived capacity as no scaling changes were detected to be possible")
-                .build()));
+        return noScaleResultOrRefresh(reasonBuilder,
+            mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false,
+            new AutoscalingDeciderResult(context.currentCapacity(),
+                reasonBuilder
+                    .setSimpleReason("Passing currently perceived capacity as no scaling changes were detected to be possible")
+                    .build()));
     }
 
     AutoscalingDeciderResult noScaleResultOrRefresh(MlScalingReason.Builder reasonBuilder,
-                                                    Duration memoryTrackingStale,
+                                                    boolean memoryTrackingStale,
                                                     AutoscalingDeciderResult potentialResult) {
-        if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
-            logger.debug(() -> new ParameterizedMessage(
-                "current view of job memory is stale given the duration [{}]. Returning a no scale event",
-                memoryTrackingStale.toString()));
+        if (memoryTrackingStale) {
+            logger.debug("current view of job memory is stale given. Returning a no scale event");
             return buildDecisionAndRequestRefresh(reasonBuilder);
         } else {
             return potentialResult;
         }
     }
 
+    // This doesn't allow any jobs to wait in the queue, this is because in a "normal" scaling event, we also verify if a job
+    // can eventually start, and given the current cluster, no job can eventually start.
+    AutoscalingDeciderResult scaleUpFromZero(List<String> waitingAnomalyJobs,
+                                             List<String> waitingAnalyticsJobs,
+                                             MlScalingReason.Builder reasonBuilder) {
+        final Optional<NativeMemoryCapacity> analyticsCapacity = requiredCapacityForUnassignedJobs(waitingAnalyticsJobs,
+            this::getAnalyticsMemoryRequirement,
+            0);
+        final Optional<NativeMemoryCapacity> anomalyCapacity = requiredCapacityForUnassignedJobs(waitingAnomalyJobs,
+            this::getAnomalyMemoryRequirement,
+            0);
+        NativeMemoryCapacity updatedCapacity = NativeMemoryCapacity.ZERO
+            .merge(anomalyCapacity.orElse(NativeMemoryCapacity.ZERO))
+            .merge(analyticsCapacity.orElse(NativeMemoryCapacity.ZERO));
+        // If we still have calculated zero, this means the ml memory tracker does not have the required info.
+        // So, request a scale for the default. This is only for the 0 -> N scaling case.
+        if (updatedCapacity.getNode() == 0L) {
+            updatedCapacity.merge(new NativeMemoryCapacity(
+                ByteSizeValue.ofMb(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB).getBytes(),
+                ByteSizeValue.ofMb(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB).getBytes()
+            ));
+        }
+        updatedCapacity.merge(new NativeMemoryCapacity(
+            MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes()
+        ));
+        AutoscalingCapacity requiredCapacity = updatedCapacity.autoscalingCapacity(maxMachineMemoryPercent, useAuto);
+        return new AutoscalingDeciderResult(
+            requiredCapacity,
+            reasonBuilder
+                .setRequiredCapacity(requiredCapacity)
+                .setSimpleReason(
+                    "requesting scale up as number of jobs in queues exceeded configured limit and there are no machine learning nodes"
+                )
+                .build()
+        );
+    }
+
     Optional<AutoscalingDeciderResult> checkForScaleUp(int numAnomalyJobsInQueue,
                                                        int numAnalyticsJobsInQueue,
+                                                       List<NodeLoad> nodeLoads,
                                                        List<String> waitingAnomalyJobs,
                                                        List<String> waitingAnalyticsJobs,
                                                        @Nullable NativeMemoryCapacity futureFreedCapacity,
@@ -444,17 +620,28 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         // Are we in breach of maximum waiting jobs?
         if (waitingAnalyticsJobs.size() > numAnalyticsJobsInQueue
             || waitingAnomalyJobs.size() > numAnomalyJobsInQueue) {
-            NativeMemoryCapacity updatedCapacity = NativeMemoryCapacity.from(currentScale);
-            // We check both analytics and anomaly capacity as we want to be able to support the largest job in either queue
-            Optional<NativeMemoryCapacity> analyticsCapacity = requiredCapacityForUnassignedJobs(waitingAnalyticsJobs,
-                this::getAnalyticsMemoryRequirement,
-                numAnalyticsJobsInQueue);
-            Optional<NativeMemoryCapacity> anomalyCapacity = requiredCapacityForUnassignedJobs(waitingAnomalyJobs,
-                this::getAnomalyMemoryRequirement,
-                numAnomalyJobsInQueue);
 
-            updatedCapacity.merge(anomalyCapacity.orElse(NativeMemoryCapacity.ZERO))
-                .merge(analyticsCapacity.orElse(NativeMemoryCapacity.ZERO))
+            Tuple<NativeMemoryCapacity, List<NodeLoad>> anomalyCapacityAndNewLoad = determineUnassignableJobs(
+                waitingAnomalyJobs,
+                this::getAnomalyMemoryRequirement,
+                numAnomalyJobsInQueue,
+                nodeLoads).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, nodeLoads));
+
+            Tuple<NativeMemoryCapacity, List<NodeLoad>> analyticsCapacityAndNewLoad = determineUnassignableJobs(
+                waitingAnalyticsJobs,
+                this::getAnalyticsMemoryRequirement,
+                numAnalyticsJobsInQueue,
+                anomalyCapacityAndNewLoad.v2()).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, anomalyCapacityAndNewLoad.v2()));
+
+            if (analyticsCapacityAndNewLoad.v1().equals(NativeMemoryCapacity.ZERO)
+                && anomalyCapacityAndNewLoad.v1().equals(NativeMemoryCapacity.ZERO)) {
+                logger.debug("no_scale event as current capacity, even though there are waiting jobs, is adequate to run the queued jobs");
+                return Optional.empty();
+            }
+
+            NativeMemoryCapacity updatedCapacity = NativeMemoryCapacity.from(currentScale)
+                .merge(analyticsCapacityAndNewLoad.v1())
+                .merge(anomalyCapacityAndNewLoad.v1())
                 // Since we require new capacity, it COULD be we require a brand new node
                 // We should account for overhead in the tier capacity just in case.
                 .merge(new NativeMemoryCapacity(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), 0));
@@ -463,7 +650,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 requiredCapacity,
                 reasonBuilder
                     .setRequiredCapacity(requiredCapacity)
-                    .setSimpleReason("requesting scale up as number of jobs in queues exceeded configured limit")
+                    .setSimpleReason(
+                        "requesting scale up as number of jobs in queues exceeded configured limit "
+                            + "and current capacity is not large enough for waiting jobs"
+                    )
                     .build()
             ));
         }
@@ -569,7 +759,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 node,
                 maxOpenJobs,
                 maxMachineMemoryPercent,
-                true,
                 useAuto);
             if (nodeLoad.getError() != null || nodeLoad.isUseMemory() == false) {
                 return Optional.empty();
@@ -616,36 +805,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         return getAnomalyMemoryRequirement(MlTasks.jobId(task.getId()));
     }
 
-    Optional<AutoscalingDeciderResult> checkForScaleDown(List<DiscoveryNode> nodes,
-                                                         ClusterState clusterState,
+    Optional<AutoscalingDeciderResult> checkForScaleDown(List<NodeLoad> nodeLoads,
                                                          long largestJob,
                                                          NativeMemoryCapacity currentCapacity,
                                                          MlScalingReason.Builder reasonBuilder) {
-        List<NodeLoad> nodeLoads = new ArrayList<>();
-        boolean isMemoryAccurateFlag = true;
-        for (DiscoveryNode node : nodes) {
-            NodeLoad nodeLoad = nodeLoadDetector.detectNodeLoad(clusterState,
-                true,
-                node,
-                maxOpenJobs,
-                maxMachineMemoryPercent,
-                true,
-                useAuto);
-            if (nodeLoad.getError() != null) {
-                logger.warn("[{}] failed to gather node load limits, failure [{}]. Returning no scale",
-                    node.getId(),
-                    nodeLoad.getError());
-                return Optional.empty();
-            }
-            nodeLoads.add(nodeLoad);
-            isMemoryAccurateFlag = isMemoryAccurateFlag && nodeLoad.isUseMemory();
-        }
-        // Even if we verify that memory usage is up to date before checking node capacity, we could still run into stale information.
-        // We should not make a decision if the memory usage is stale/inaccurate.
-        if (isMemoryAccurateFlag == false) {
-            assert isMemoryAccurateFlag : "view of memory is inaccurate after recent check";
-            return Optional.empty();
-        }
         long currentlyNecessaryTier = nodeLoads.stream().mapToLong(NodeLoad::getAssignedJobMemory).sum();
         // The required NATIVE node memory is the largest job and our static overhead.
         long currentlyNecessaryNode = largestJob == 0 ? 0 : largestJob + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
@@ -687,4 +850,3 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         return List.of(DiscoveryNodeRole.ML_ROLE);
     }
 }
-

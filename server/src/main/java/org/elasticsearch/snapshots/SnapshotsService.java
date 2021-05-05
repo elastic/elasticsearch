@@ -1088,8 +1088,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (Index index : dataStream.getIndices()) {
                     final String indexName = index.getName();
                     if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
-                        assert snapshot.partial() : "Data stream [" + dataStreamName +
-                                "] is missing index [" + index + "] but snapshot was not partial.";
                         missingIndex = true;
                         break;
                     }
@@ -1691,9 +1689,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         final SnapshotInfo snapshotInfo = new SnapshotInfo(
                                 snapshot.getSnapshotId(),
                                 finalIndices,
-                                entry.partial() ? entry.dataStreams().stream()
-                                        .filter(metaForSnapshot.dataStreams()::containsKey)
-                                        .collect(Collectors.toList()) : entry.dataStreams(),
+                                entry.dataStreams().stream().filter(metaForSnapshot.dataStreams()::containsKey)
+                                    .collect(Collectors.toList()),
                                 entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                                 failure,
                                 threadPool.absoluteTimeInMillis(),

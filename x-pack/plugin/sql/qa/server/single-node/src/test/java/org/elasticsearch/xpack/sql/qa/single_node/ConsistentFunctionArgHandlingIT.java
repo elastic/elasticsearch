@@ -8,14 +8,15 @@
 package org.elasticsearch.xpack.sql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcIntegrationTestCase;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -78,7 +79,9 @@ public class ConsistentFunctionArgHandlingIT extends JdbcIntegrationTestCase {
     static {
         try {
             Class<?> c = ConsistentFunctionArgHandlingIT.class;
-            NON_TESTED_FUNCTIONS = Files.readAllLines(Path.of(c.getResource(c.getSimpleName() + "-non-tested-functions.txt").toURI()));
+            NON_TESTED_FUNCTIONS = Files.readAllLines(
+                PathUtils.get(c.getResource(c.getSimpleName() + "-non-tested-functions.txt").toURI())
+            );
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }

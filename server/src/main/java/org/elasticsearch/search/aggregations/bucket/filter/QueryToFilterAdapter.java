@@ -52,14 +52,17 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     public static QueryToFilterAdapter<?> build(IndexSearcher searcher, String key, Query query) throws IOException {
         query = searcher.rewrite(query);
+        if (query instanceof ConstantScoreQuery) {
+            /*
+             * Unwrap constant score because it gets in the way of us
+             * understanding what the queries are trying to do and we
+             * don't use the score at all anyway. Effectively we always
+             * run in constant score mode.
+             */
+            query = ((ConstantScoreQuery) query).getQuery();
+        }
         if (query instanceof TermQuery) {
             return new TermQueryToFilterAdapter(searcher, key, (TermQuery) query);
-        }
-        if (query instanceof ConstantScoreQuery) {
-            Query wrapped = ((ConstantScoreQuery) query).getQuery();
-            if (wrapped instanceof DocValuesFieldExistsQuery) {
-                return new DocValuesFieldExistsAdapter(searcher, key, (DocValuesFieldExistsQuery) wrapped);
-            }
         }
         if (query instanceof DocValuesFieldExistsQuery) {
             return new DocValuesFieldExistsAdapter(searcher, key, (DocValuesFieldExistsQuery) query);

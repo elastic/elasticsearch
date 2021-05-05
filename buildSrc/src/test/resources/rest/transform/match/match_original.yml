@@ -88,6 +88,8 @@ teardown:
   - match: { _shards.successful: 2 }
   - match: { _shards.skipped : 1}
   - match: { _shards.failed: 0 }
+  - match: { _replace_in_last_test_only: "the value does not matter" }
+
 ---
 "Last test":
 
@@ -104,6 +106,7 @@ teardown:
 
   - match: { _index:   test_1 }
   - match: { _type:    "the value does not matter" }
+  - match: { _replace_in_last_test_only:    "the value does not matter" }
   - match: { _id:      中文      }
   - match: { _source:  { foo: "Hello: 中文" } }
 

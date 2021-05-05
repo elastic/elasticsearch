@@ -208,26 +208,16 @@ GET logs-my_app-default/_search
 }
 ----
 // TEST[continued]
+// TEST[s/_search/_search?filter_path=hits.hits&size=1/]
 
 The response contains each hit's `fields` values as a flat array.
 
 [source,console-result]
 ----
 {
-  "took": 8,
-  "timed_out": false,
-  "_shards": {
-    "total": 1,
-    "successful": 1,
-    "skipped": 0,
-    "failed": 0
-  },
+  ...
   "hits": {
-    "total": {
-      "value": 3,
-      "relation": "eq"
-    },
-    "max_score": null,
+    ...
     "hits": [
       {
         "_index": ".ds-logs-my_app-default-2099-05-06-000001",
@@ -247,10 +237,10 @@ The response contains each hit's `fields` values as a flat array.
   }
 }
 ----
-// TESTRESPONSE[s/"took": 8/"took": $body.took/]
+// TESTRESPONSE[s/\.\.\.//]
 // TESTRESPONSE[s/"_index": ".ds-logs-my_app-default-2099-05-06-000001"/"_index": $body.hits.hits.0._index/]
 // TESTRESPONSE[s/"_id": "PdjWongB9KPnaVm2IyaL"/"_id": $body.hits.hits.0._id/]
-// TESTRESPONSE[s/\.\.\./$body.hits.hits.1,$body.hits.hits.2/]
+// TESTRESPONSE[s/4081940742000\n        \]\n      \},\n/4081940742000\]}/]
 
 [discrete]
 [[search-date-range]]

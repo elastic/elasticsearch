@@ -213,7 +213,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
+    public static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
         return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
     }
 

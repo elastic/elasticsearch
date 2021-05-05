@@ -135,17 +135,33 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private final ScheduledThreadPoolExecutor scheduler;
 
+    private final long slowSchedulerWarnThresholdNanos;
+
     @SuppressWarnings("rawtypes")
     public Collection<ExecutorBuilder> builders() {
         return Collections.unmodifiableCollection(builders.values());
     }
 
-    public static Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING =
-        Setting.timeSetting("thread_pool.estimated_time_interval",
-            TimeValue.timeValueMillis(200), TimeValue.ZERO, Setting.Property.NodeScope);
-    public static Setting<TimeValue> LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING =
-        Setting.timeSetting("thread_pool.estimated_time_interval.warn_threshold",
-            TimeValue.timeValueSeconds(5), TimeValue.ZERO, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> ESTIMATED_TIME_INTERVAL_SETTING = Setting.timeSetting(
+            "thread_pool.estimated_time_interval",
+            TimeValue.timeValueMillis(200),
+            TimeValue.ZERO,
+            Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING = Setting.timeSetting(
+            "thread_pool.estimated_time_interval.warn_threshold",
+            TimeValue.timeValueSeconds(5),
+            TimeValue.ZERO,
+            Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING = Setting.timeSetting(
+            "thread_pool.scheduler.warn_threshold",
+            TimeValue.timeValueSeconds(5),
+            TimeValue.ZERO,
+            Setting.Property.NodeScope
+    );
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
@@ -209,6 +225,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                         .collect(Collectors.toList());
         this.threadPoolInfo = new ThreadPoolInfo(infos);
         this.scheduler = Scheduler.initScheduler(settings, "scheduler");
+        this.slowSchedulerWarnThresholdNanos = SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.get(settings).nanos();
         this.cachedTimeThread = new CachedTimeThread(
                 EsExecutors.threadName(settings, "[timer]"),
                 ESTIMATED_TIME_INTERVAL_SETTING.get(settings).millis(),
@@ -337,11 +354,39 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      */
     @Override
     public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
-        command = threadContext.preserveContext(command);
+        final Runnable contextPreservingRunnable = threadContext.preserveContext(command);
+        final Runnable toSchedule;
         if (Names.SAME.equals(executor) == false) {
-            command = new ThreadedRunnable(command, executor(executor));
+            toSchedule = new ThreadedRunnable(contextPreservingRunnable, executor(executor));
+        } else if (slowSchedulerWarnThresholdNanos > 0) {
+            toSchedule = new Runnable() {
+                @Override
+                public void run() {
+                    final long startTime = ThreadPool.this.relativeTimeInNanos();
+                    try {
+                        contextPreservingRunnable.run();
+                    } finally {
+                        final long took = ThreadPool.this.relativeTimeInNanos() - startTime;
+                        if (took > slowSchedulerWarnThresholdNanos) {
+                            logger.warn(
+                                    "execution of [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                                    contextPreservingRunnable,
+                                    TimeUnit.NANOSECONDS.toMillis(took),
+                                    TimeUnit.NANOSECONDS.toMillis(slowSchedulerWarnThresholdNanos)
+                            );
+                        }
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return contextPreservingRunnable.toString();
+                }
+            };
+        } else {
+            toSchedule = contextPreservingRunnable;
         }
-        return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
+        return new ScheduledCancellableAdapter(scheduler.schedule(toSchedule, delay.millis(), TimeUnit.MILLISECONDS));
     }
 
     public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
@@ -491,7 +536,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         final long interval;
         private final TimeChangeChecker timeChangeChecker;
-        private final long thresholdMillis;
 
         volatile boolean running = true;
         volatile long relativeNanos;
@@ -500,7 +544,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         CachedTimeThread(String name, long intervalMillis, long thresholdMillis) {
             super(name);
             this.interval = intervalMillis;
-            this.thresholdMillis = thresholdMillis;
             this.relativeNanos = System.nanoTime();
             this.absoluteMillis = System.currentTimeMillis();
             this.timeChangeChecker = new TimeChangeChecker(thresholdMillis, absoluteMillis, relativeNanos);

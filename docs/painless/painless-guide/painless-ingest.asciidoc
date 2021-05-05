@@ -67,17 +67,17 @@ String uppercase(String value);
 
 ===== JSON parsing
 Use the {ref}/json-processor.html[JSON processor] to convert JSON strings to structured
-JSON objects. The first `json` method accepts a JSON string in the `value` parameter and
-returns a structured JSON object.
+JSON objects. The first `json` method accepts a map and a key. The processor converts
+the JSON string in the map as specified by the `key` parameter to structured JSON content.
+That content is added directly to the `map` object.
 
-The second `json` method accepts a map and a key. The processor converts the JSON 
-string in the map as specified by the `key` parameter to structured JSON content. That
-content is added directly to the `map` object.
+The second `json` method accepts a JSON string in the `value` parameter and
+returns a structured JSON object.
 
 [source,Painless]
 ----
-Object json(Object value);
 void json(Map<String, Object> map, String key);
+Object json(Object value);
 ----
 
 You can then add this object to the document through the context object:

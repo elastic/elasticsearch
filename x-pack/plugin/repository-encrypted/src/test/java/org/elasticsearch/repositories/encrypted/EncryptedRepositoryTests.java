@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -34,7 +35,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.contains;
+import static org.elasticsearch.repositories.encrypted.EncryptedRepository.DEKS_GEN_MARKER_BLOB;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -103,8 +105,21 @@ public class EncryptedRepositoryTests extends ESTestCase {
                 String DEKId = ((String) invocationOnMockBlobContainer.getArguments()[0]);
                 return new ByteArrayInputStream(blobsMap.get(blobPath.add(DEKId)));
             }).when(blobContainer).readBlob(any(String.class));
+            // list blobs by prefix
+            doAnswer(invocationOnMockBlobContainer -> {
+                String prefix = ((String) invocationOnMockBlobContainer.getArguments()[0]);
+                Map<String, BlobMetadata> ans = new HashMap<>();
+                for (BlobPath itemPath : blobsMap.keySet()) {
+                    String[] itemPathArray = itemPath.toArray();
+                    if (itemPathArray[itemPathArray.length - 1].startsWith(prefix)) {
+                        ans.put(itemPathArray[itemPathArray.length - 1], mock(BlobMetadata.class));
+                    }
+                }
+                return ans;
+            }).when(blobContainer).listBlobsByPrefix(any(String.class));
             return blobContainer;
         }).when(this.delegatedBlobStore).blobContainer(any(BlobPath.class));
+        this.encryptedBlobStore.createPasswordGeneration(repoPassword, 0);
     }
 
     public void testStoreDEKSuccess() throws Exception {
@@ -113,14 +128,13 @@ public class EncryptedRepositoryTests extends ESTestCase {
 
         encryptedBlobStore.storeDEK(DEKId, DEK);
 
-        SecretKey KEK = encryptedRepository.generateKEK(DEKId);
-        assertThat(
-            blobsMap.keySet(),
-            contains(
-                delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER).add("0").add(DEKId)
-            )
-        );
-        byte[] wrappedKey = blobsMap.values().iterator().next();
+        BlobPath encryptedDekPath = delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER)
+                .add(encryptedBlobStore.inferLatestPasswordGeneration()).add(DEKId);
+        BlobPath doneMarkerPath = delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER)
+                .add(DEKS_GEN_MARKER_BLOB + encryptedBlobStore.inferLatestPasswordGeneration());
+        assertThat(blobsMap.keySet(), containsInAnyOrder(encryptedDekPath, doneMarkerPath));
+        byte[] wrappedKey = blobsMap.get(encryptedDekPath);
+        SecretKey KEK = encryptedBlobStore.getKEKForDek(repoPassword, DEKId);
         SecretKey unwrappedKey = AESKeyUtils.unwrap(KEK, wrappedKey);
         assertThat(unwrappedKey.getEncoded(), equalTo(DEK.getEncoded()));
     }
@@ -128,12 +142,13 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void testGetDEKSuccess() throws Exception {
         String DEKId = randomAlphaOfLengthBetween(16, 32); // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec(randomByteArrayOfLength(32), "AES");
-        SecretKey KEK = encryptedRepository.generateKEK(DEKId);
+        SecretKey KEK = encryptedBlobStore.getKEKForDek(repoPassword, DEKId);
 
         byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
         blobsMap.put(
-            delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER).add("0").add(DEKId),
-            wrappedDEK
+                delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER)
+                        .add(encryptedBlobStore.inferLatestPasswordGeneration()).add(DEKId),
+                wrappedDEK
         );
 
         SecretKey loadedDEK = encryptedBlobStore.getDEKById(DEKId);
@@ -143,14 +158,15 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void testGetTamperedDEKFails() throws Exception {
         String DEKId = randomAlphaOfLengthBetween(16, 32);  // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec("01234567890123456789012345678901".getBytes(StandardCharsets.UTF_8), "AES");
-        SecretKey KEK = encryptedRepository.generateKEK(DEKId);
+        SecretKey KEK = encryptedBlobStore.getKEKForDek(repoPassword, DEKId);
 
         byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
         int tamperPos = randomIntBetween(0, wrappedDEK.length - 1);
         wrappedDEK[tamperPos] ^= 0xFF;
         blobsMap.put(
-            delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER).add("0").add(DEKId),
-            wrappedDEK
+                delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER)
+                        .add(encryptedBlobStore.inferLatestPasswordGeneration()).add(DEKId),
+                wrappedDEK
         );
 
         RepositoryException e = expectThrows(RepositoryException.class, () -> encryptedBlobStore.getDEKById(DEKId));
@@ -165,6 +181,21 @@ public class EncryptedRepositoryTests extends ESTestCase {
             // read
             doAnswer(invocationOnMockBlobContainer -> { throw new IOException("Tested IOException"); }).when(blobContainer)
                 .readBlob(any(String.class));
+            // list blobs by prefix
+            doAnswer(invocationOnMockBlobContainer -> {
+                if (randomBoolean()) {
+                    throw new IOException("Tested IOException");
+                }
+                String prefix = ((String) invocationOnMockBlobContainer.getArguments()[0]);
+                Map<String, BlobMetadata> ans = new HashMap<>();
+                for (BlobPath itemPath : blobsMap.keySet()) {
+                    String[] itemPathArray = itemPath.toArray();
+                    if (itemPathArray[itemPathArray.length - 1].startsWith(prefix)) {
+                        ans.put(itemPathArray[itemPathArray.length - 1], mock(BlobMetadata.class));
+                    }
+                }
+                return ans;
+            }).when(blobContainer).listBlobsByPrefix(any(String.class));
             return blobContainer;
         }).when(this.delegatedBlobStore).blobContainer(any(BlobPath.class));
         IOException e = expectThrows(IOException.class, () -> encryptedBlobStore.getDEKById("this must be at least 16"));
@@ -174,9 +205,9 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void testGenerateKEK() {
         String id1 = "fixed identifier 1";
         String id2 = "fixed identifier 2";
-        SecretKey KEK1 = encryptedRepository.generateKEK(id1);
-        SecretKey KEK2 = encryptedRepository.generateKEK(id2);
-        SecretKey sameKEK1 = encryptedRepository.generateKEK(id1);
+        SecretKey KEK1 = encryptedBlobStore.getKEKForDek(repoPassword, id1);
+        SecretKey KEK2 = encryptedBlobStore.getKEKForDek(repoPassword, id2);
+        SecretKey sameKEK1 = encryptedBlobStore.getKEKForDek(repoPassword, id1);
         assertThat(KEK1.getEncoded(), equalTo(sameKEK1.getEncoded()));
         assertThat(KEK1.getEncoded(), not(equalTo(KEK2.getEncoded())));
     }

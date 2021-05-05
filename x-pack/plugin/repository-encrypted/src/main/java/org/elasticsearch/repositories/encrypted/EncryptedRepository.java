@@ -313,7 +313,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             this.loadGenerationForPasswordCache = CacheBuilder.<SecureString, String>builder().setMaximumWeight(1).build();
         }
 
-        private SecretKey getKEKForDek(SecureString repositoryPassword, String dekId) {
+        // protected for tests
+        SecretKey getKEKForDek(SecureString repositoryPassword, String dekId) {
             try {
                 // we rely on the DEK Id being generated randomly so it can be used as a salt
                 final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(repositoryPassword, dekId);
@@ -329,7 +330,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             return delegatedBlobStore.blobContainer(deksBlobPath);
         }
 
-        private String inferLatestPasswordGeneration() throws IOException {
+        // protected for tests
+        String inferLatestPasswordGeneration() throws IOException {
             final BlobContainer deksBlobContainer = getDeksBlobContainer();
             final Set<String> doneMarkersSet = deksBlobContainer.listBlobsByPrefix(DEKS_GEN_MARKER_BLOB).keySet();
             try {
@@ -356,11 +358,16 @@ public class EncryptedRepository extends BlobStoreRepository {
                     return latestDoneMarker.substring(DEKS_GEN_MARKER_BLOB.length());
                 });
             } catch (ExecutionException e) {
-                throw new RepositoryException(repositoryName, "Cannot determine DEK generation container", e);
+                // in order for the encrypted repo to act "transparently" do not wrap IOExceptions, and pass them through
+                if (e.getCause() instanceof IOException) {
+                    throw (IOException) e.getCause();
+                } else {
+                    throw new RepositoryException(repositoryName, "Cannot determine DEK generation container", e.getCause());
+                }
             }
         }
 
-        private void verifyPasswordForGeneration(SecureString repositoryPassword, String passwordGeneration) {
+    private void verifyPasswordForGeneration(SecureString repositoryPassword, String passwordGeneration) throws IOException {
             final boolean equalHashes;
             try {
                 equalHashes = this.verifyPasswordForGenerationCache.computeIfAbsent(new Tuple<>(repositoryPassword, passwordGeneration),
@@ -373,13 +380,19 @@ public class EncryptedRepository extends BlobStoreRepository {
                                 passwordHash = parser.mapStrings().get("password_hash");
                             }
                             // password verification, which requires pbkdf2 computation, is performed on the calling thread (snapshot)
-                            final String uuid = passwordGeneration.substring(passwordGeneration.lastIndexOf('.'));
+                            final String uuid = passwordGeneration.substring(passwordGeneration.lastIndexOf('.') + 1);
                             final String computedPasswordHash =
                                     AESKeyUtils.computeId(AESKeyUtils.generatePasswordBasedKey(repositoryPassword, uuid));
                             return passwordHash.equals(computedPasswordHash);
                         });
             } catch (ExecutionException e) {
-                throw new RepositoryException(repositoryName, "Failed to verify password for generation [" + passwordGeneration + "]", e);
+                // in order for the encrypted repo to act "transparently" do not wrap IOExceptions, and pass them through
+                if (e.getCause() instanceof IOException) {
+                    throw (IOException) e.getCause();
+                } else {
+                    throw new RepositoryException(repositoryName, "Failed to verify password for generation [" + passwordGeneration + "]",
+                            e.getCause());
+                }
             }
             if (false == equalHashes) {
                 throw new RepositoryException(repositoryName,
@@ -476,7 +489,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             } catch (GeneralSecurityException e) {
                 // unwrap should not fail because the password has been verified, and all the DEKs in a generation are
                 // encrypted using the same password
-                throw new RepositoryException(repositoryName, "Unexpected exception retrieving DEK [" + dekId + "]", e);
+                throw new RepositoryException(repositoryName, "Unexpected exception retrieving DEK [" + dekId + "]. " +
+                        "Failure to AES unwrap the DEK", e);
             }
         }
 

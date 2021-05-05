@@ -90,12 +90,14 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                 .map(hn -> (Callable<TransportAddress[]>) () -> transportService.addressesFromString(hn))
                 .collect(Collectors.toList());
         final SetOnce<List<Future<TransportAddress[]>>> futures = new SetOnce<>();
+        final long startTimeNanos = transportService.getThreadPool().relativeTimeInNanos();
         try {
             cancellableThreads.execute(() ->
                 futures.set(executorService.get().invokeAll(callables, resolveTimeout.nanos(), TimeUnit.NANOSECONDS)));
         } catch (CancellableThreads.ExecutionCancelledException e) {
             return Collections.emptyList();
         }
+        final TimeValue duration = TimeValue.timeValueNanos(transportService.getThreadPool().relativeTimeInNanos() - startTimeNanos);
         final List<TransportAddress> transportAddresses = new ArrayList<>();
         final Set<TransportAddress> localAddresses = new HashSet<>();
         localAddresses.add(transportService.boundAddress().publishAddress());
@@ -105,13 +107,13 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
         final Iterator<String> it = hosts.iterator();
         for (final Future<TransportAddress[]> future : futures.get()) {
             assert future.isDone();
+            assert it.hasNext();
             final String hostname = it.next();
             if (future.isCancelled() == false) {
                 try {
                     final TransportAddress[] addresses = future.get();
                     logger.trace("resolved host [{}] to {}", hostname, addresses);
-                    for (int addressId = 0; addressId < addresses.length; addressId++) {
-                        final TransportAddress address = addresses[addressId];
+                    for (final TransportAddress address : addresses) {
                         // no point in pinging ourselves
                         if (localAddresses.contains(address) == false) {
                             transportAddresses.add(address);
@@ -126,7 +128,13 @@ public class SeedHostsResolver extends AbstractLifecycleComponent implements Con
                     // ignore
                 }
             } else {
-                logger.warn("timed out after [{}] resolving host [{}]", resolveTimeout, hostname);
+                logger.warn(
+                        "timed out after [{}/{}ms] ([{}]=[{}]) resolving host [{}]",
+                        duration,
+                        duration.getMillis(),
+                        DISCOVERY_SEED_RESOLVER_TIMEOUT_SETTING.getKey(),
+                        resolveTimeout,
+                        hostname);
             }
         }
         return Collections.unmodifiableList(transportAddresses);

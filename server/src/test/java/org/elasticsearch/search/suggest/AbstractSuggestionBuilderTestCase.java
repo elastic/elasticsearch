@@ -172,7 +172,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
-            MappingLookup lookup = new MappingLookup(Mapping.EMPTY, mappers, emptyList(), emptyList(), null, null, null);
+            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
             SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings, null,
                 null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
                     System::currentTimeMillis, null, null, () -> true, null, emptyMap());

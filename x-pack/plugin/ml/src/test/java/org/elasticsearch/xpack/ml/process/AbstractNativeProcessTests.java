@@ -195,6 +195,15 @@ public class AbstractNativeProcessTests extends ESTestCase {
         }
     }
 
+    public void testConsumeAndCloseOutputStream_GivenNoOutputStream() throws Exception {
+        when(processPipes.getProcessOutStream()).thenReturn(Optional.empty());
+        try (AbstractNativeProcess process = new TestNativeProcess()) {
+            process.consumeAndCloseOutputStream();
+        } finally {
+            mockNativeProcessLoggingStreamEnds.countDown();
+        }
+    }
+
     /**
      * Mock-based implementation of {@link AbstractNativeProcess}.
      */

@@ -48,7 +48,6 @@ Features/ILM+SLM::
 * Make all the shrink action steps retryable {es-pull}70107[#70107] (issue: {es-issue}48183[#48183])
 
 Features/Ingest::
-* Add tool for preparing local `GeoIp` database service {es-pull}71018[#71018] (issue: {es-issue}68920[#68920])
 * Add support for validating IPv4/IPv6 addresses to Convert processor {es-pull}69989[#69989] (issue: {es-issue}36145[#36145])
 * Add registered domain processor {es-pull}67611[#67611]
 
@@ -133,9 +132,7 @@ Features/Indices APIs::
 
 Features/Ingest::
 * Accept more ingest simulate params as integers or strings {es-pull}66197[#66197] (issues: {es-issue}23823[#23823], {es-issue}65992[#65992])
-* Allow custom geoip databases to be updated at runtime {es-pull}68901[#68901]
 * Extract device type from user agent info {es-pull}69322[#69322]
-* GeoIP database downloader {es-pull}68424[#68424] (issue: {es-issue}68920[#68920])
 * Network direction processor additions {es-pull}68712[#68712]
 * Summary option for listing ingest pipelines without their definitions {es-pull}69756[#69756] (issue: {es-issue}31954[#31954])
 * `MurmurHash3` support for fingerprint processor {es-pull}70632[#70632] (issue: {es-issue}69182[#69182])

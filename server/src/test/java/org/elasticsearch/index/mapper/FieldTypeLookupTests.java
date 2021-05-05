@@ -204,6 +204,9 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertEquals(objectKey, keyedFieldType.key());
 
         assertThat(lookup.getMatchingFieldNames("object1.*"), contains("object1.object2.field"));
+        // We can directly find dynamic subfields
+        assertThat(lookup.getMatchingFieldNames("object1.object2.field.foo"), contains("object1.object2.field.foo"));
+        // But you can't generate dynamic subfields from a wildcard pattern
         assertThat(lookup.getMatchingFieldNames("object1.object2.field.foo*"), hasSize(0));
     }
 

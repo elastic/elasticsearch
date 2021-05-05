@@ -41,12 +41,29 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "date_range" : { "date_range" : { "field" : "date", "ranges": [ { "from" : 1000, "to": 3000 }, { "from": 3000, "to": 4000 } ] } } } }
+        body: {
+              "size": 0,
+              "aggs": {
+                "date_range": {
+                  "date_range": {
+                    "field": "date",
+                    "ranges": [
+                      {
+                        "from": 1000,
+                        "to": 3000
+                      },
+                      {
+                        "from": 3000,
+                        "to": 4000
+                      }
+                    ]
+                  }
+                }
+              }
+            }
 
   - match: { hits.total: 3 }
-
   - length: { aggregations.date_range.buckets: 2 }
-
   - match: { aggregations.date_range.buckets.0.doc_count: 2 }
   - match: { aggregations.date_range.buckets.0.key: "1000-3000" }
   - match: { aggregations.date_range.buckets.0.from: 1000000 }
@@ -112,19 +129,12 @@ setup:
                   to: "200000"
 
   - match: { hits.total: 5 }
-
   - length: { aggregations.age_groups.buckets: 3 }
-
   - match: { aggregations.age_groups.buckets.0.key: "Other" }
-
   - match: { aggregations.age_groups.buckets.0.doc_count: 2 }
-
   - match: { aggregations.age_groups.buckets.1.key: "Generation X" }
-
   - match: { aggregations.age_groups.buckets.1.doc_count: 1 }
-
   - match: { aggregations.age_groups.buckets.2.key: "Generation Y" }
-
   - match: { aggregations.age_groups.buckets.2.doc_count: 2 }
 
 

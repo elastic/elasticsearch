@@ -14,8 +14,6 @@ setup:
       cluster.health:
         wait_for_status: green
 
----
-"Double range":
   - do:
       index:
         index: test
@@ -37,10 +35,33 @@ setup:
   - do:
       indices.refresh: {}
 
+---
+"Double range":
   - do:
       search:
         rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "double_range" : { "range" : { "field" : "double", "ranges": [ { "to": 50 }, { "from": 50, "to": 150 }, { "from": 150 } ] } } } }
+        body: {
+              "size": 0,
+              "aggs": {
+                "double_range": {
+                  "range": {
+                    "field": "double",
+                    "ranges": [
+                      {
+                        "to": 50
+                      },
+                      {
+                        "from": 50,
+                        "to": 150
+                      },
+                      {
+                        "from": 150
+                      }
+                    ]
+                  }
+                }
+              }
+            }
 
   - match: { hits.total: 3 }
   - length: { aggregations.double_range.buckets: 3 }
@@ -60,7 +81,30 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
-        body: { "size" : 0, "aggs" : { "double_range" : { "range" : { "field" : "double", "ranges": [ { "from": null, "to": 50 }, { "from": 50, "to": 150 }, { "from": 150, "to": null } ] } } } }
+        body: {
+              "size": 0,
+              "aggs": {
+                "double_range": {
+                  "range": {
+                    "field": "double",
+                    "ranges": [
+                      {
+                        "from": null,
+                        "to": 50
+                      },
+                      {
+                        "from": 50,
+                        "to": 150
+                      },
+                      {
+                        "from": 150,
+                        "to": null
+                      }
+                    ]
+                  }
+                }
+              }
+            }
 
   - match: { hits.total: 3 }
   - length: { aggregations.double_range.buckets: 3 }

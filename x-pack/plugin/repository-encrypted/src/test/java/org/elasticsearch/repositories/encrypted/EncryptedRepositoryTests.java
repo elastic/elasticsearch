@@ -128,10 +128,13 @@ public class EncryptedRepositoryTests extends ESTestCase {
 
         encryptedBlobStore.storeDEK(DEKId, DEK);
 
-        BlobPath encryptedDekPath = delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER)
-                .add(encryptedBlobStore.inferLatestPasswordGeneration()).add(DEKId);
-        BlobPath doneMarkerPath = delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER)
-                .add(DEKS_GEN_MARKER_BLOB + encryptedBlobStore.inferLatestPasswordGeneration());
+        BlobPath encryptedDekPath = delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER)
+            .add(EncryptedRepository.DEKS_GEN_CONTAINER)
+            .add(encryptedBlobStore.inferLatestPasswordGeneration())
+            .add(DEKId);
+        BlobPath doneMarkerPath = delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER)
+            .add(EncryptedRepository.DEKS_GEN_CONTAINER)
+            .add(DEKS_GEN_MARKER_BLOB + encryptedBlobStore.inferLatestPasswordGeneration());
         assertThat(blobsMap.keySet(), containsInAnyOrder(encryptedDekPath, doneMarkerPath));
         byte[] wrappedKey = blobsMap.get(encryptedDekPath);
         SecretKey KEK = encryptedBlobStore.getKEKForDek(repoPassword, DEKId);
@@ -146,9 +149,11 @@ public class EncryptedRepositoryTests extends ESTestCase {
 
         byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
         blobsMap.put(
-                delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER)
-                        .add(encryptedBlobStore.inferLatestPasswordGeneration()).add(DEKId),
-                wrappedDEK
+            delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER)
+                .add(EncryptedRepository.DEKS_GEN_CONTAINER)
+                .add(encryptedBlobStore.inferLatestPasswordGeneration())
+                .add(DEKId),
+            wrappedDEK
         );
 
         SecretKey loadedDEK = encryptedBlobStore.getDEKById(DEKId);
@@ -164,9 +169,11 @@ public class EncryptedRepositoryTests extends ESTestCase {
         int tamperPos = randomIntBetween(0, wrappedDEK.length - 1);
         wrappedDEK[tamperPos] ^= 0xFF;
         blobsMap.put(
-                delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER).add(EncryptedRepository.DEKS_GEN_CONTAINER)
-                        .add(encryptedBlobStore.inferLatestPasswordGeneration()).add(DEKId),
-                wrappedDEK
+            delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER)
+                .add(EncryptedRepository.DEKS_GEN_CONTAINER)
+                .add(encryptedBlobStore.inferLatestPasswordGeneration())
+                .add(DEKId),
+            wrappedDEK
         );
 
         RepositoryException e = expectThrows(RepositoryException.class, () -> encryptedBlobStore.getDEKById(DEKId));

@@ -171,13 +171,13 @@ public class EncryptedRepository extends BlobStoreRepository {
             return;
         }
         super.finalizeSnapshot(
-                shardGenerations,
-                repositoryStateId,
-                clusterMetadata,
-                snapshotInfo,
-                repositoryMetaVersion,
-                stateTransformer,
-                listener
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            listener
         );
     }
 
@@ -191,9 +191,11 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected void executeConsistentStateUpdate(BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTask,
-                                                String source,
-                                                Consumer<Exception> onFailure) {
+    protected void executeConsistentStateUpdate(
+        BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTask,
+        String source,
+        Consumer<Exception> onFailure
+    ) {
         super.executeConsistentStateUpdate((repositoryData, createUpdateTaskListener) -> {
             if (repositoryData.equals(RepositoryData.EMPTY)) {
                 threadPool().generic().execute(ActionRunnable.wrap(createUpdateTaskListener, (l) -> {
@@ -308,8 +310,9 @@ public class EncryptedRepository extends BlobStoreRepository {
                 return newDEK;
             });
             this.inferLatestPasswordGenerationCache = CacheBuilder.<Set<String>, String>builder().setMaximumWeight(1).build();
-            this.verifyPasswordForGenerationCache =
-                    CacheBuilder.<Tuple<SecureString, String>, Boolean>builder().setMaximumWeight(1).build();
+            this.verifyPasswordForGenerationCache = CacheBuilder.<Tuple<SecureString, String>, Boolean>builder()
+                .setMaximumWeight(1)
+                .build();
             this.loadGenerationForPasswordCache = CacheBuilder.<SecureString, String>builder().setMaximumWeight(1).build();
         }
 
@@ -340,8 +343,9 @@ public class EncryptedRepository extends BlobStoreRepository {
                     String latestDoneMarker = null;
                     int latestGeneration = -1; // valid generations start at "0"
                     for (String doneMarker : doneMarkersSet) {
-                        int generation = Integer.parseInt(doneMarker.substring(DEKS_GEN_MARKER_BLOB.length(),
-                                doneMarker.indexOf('.', DEKS_GEN_MARKER_BLOB.length())));
+                        int generation = Integer.parseInt(
+                            doneMarker.substring(DEKS_GEN_MARKER_BLOB.length(), doneMarker.indexOf('.', DEKS_GEN_MARKER_BLOB.length()))
+                        );
                         if (generation > latestGeneration) {
                             latestGeneration = generation;
                             latestDoneMarker = doneMarker;
@@ -367,37 +371,49 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
         }
 
-    private void verifyPasswordForGeneration(SecureString repositoryPassword, String passwordGeneration) throws IOException {
+        private void verifyPasswordForGeneration(SecureString repositoryPassword, String passwordGeneration) throws IOException {
             final boolean equalHashes;
             try {
-                equalHashes = this.verifyPasswordForGenerationCache.computeIfAbsent(new Tuple<>(repositoryPassword, passwordGeneration),
-                        ignored -> {
-                            final BlobContainer deksBlobContainer = getDeksBlobContainer();
-                            final String passwordHash;
-                            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                                    deksBlobContainer.readBlob(DEKS_GEN_MARKER_BLOB + passwordGeneration))) {
-                                passwordHash = parser.mapStrings().get("password_hash");
-                            }
-                            // password verification, which requires pbkdf2 computation, is performed on the calling thread (snapshot)
-                            final String uuid = passwordGeneration.substring(passwordGeneration.lastIndexOf('.') + 1);
-                            final String computedPasswordHash =
-                                    AESKeyUtils.computeId(AESKeyUtils.generatePasswordBasedKey(repositoryPassword, uuid));
-                            return passwordHash.equals(computedPasswordHash);
-                        });
+                equalHashes = this.verifyPasswordForGenerationCache.computeIfAbsent(
+                    new Tuple<>(repositoryPassword, passwordGeneration),
+                    ignored -> {
+                        final BlobContainer deksBlobContainer = getDeksBlobContainer();
+                        final String passwordHash;
+                        try (
+                            XContentParser parser = JsonXContent.jsonXContent.createParser(
+                                NamedXContentRegistry.EMPTY,
+                                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                                deksBlobContainer.readBlob(DEKS_GEN_MARKER_BLOB + passwordGeneration)
+                            )
+                        ) {
+                            passwordHash = parser.mapStrings().get("password_hash");
+                        }
+                        // password verification, which requires pbkdf2 computation, is performed on the calling thread (snapshot)
+                        final String uuid = passwordGeneration.substring(passwordGeneration.lastIndexOf('.') + 1);
+                        final String computedPasswordHash = AESKeyUtils.computeId(
+                            AESKeyUtils.generatePasswordBasedKey(repositoryPassword, uuid)
+                        );
+                        return passwordHash.equals(computedPasswordHash);
+                    }
+                );
             } catch (ExecutionException e) {
                 // in order for the encrypted repo to act "transparently" do not wrap IOExceptions, and pass them through
                 if (e.getCause() instanceof IOException) {
                     throw (IOException) e.getCause();
                 } else {
-                    throw new RepositoryException(repositoryName, "Failed to verify password for generation [" + passwordGeneration + "]",
-                            e.getCause());
+                    throw new RepositoryException(
+                        repositoryName,
+                        "Failed to verify password for generation [" + passwordGeneration + "]",
+                        e.getCause()
+                    );
                 }
             }
             if (false == equalHashes) {
-                throw new RepositoryException(repositoryName,
-                        "The repository password is incorrect. Previous snapshots have used a different password, or the repository " +
-                                "password has been changed.");
+                throw new RepositoryException(
+                    repositoryName,
+                    "The repository password is incorrect. Previous snapshots have used a different password, or the repository "
+                        + "password has been changed."
+                );
             }
         }
 
@@ -452,9 +468,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                     throw new RepositoryException(repositoryName, "Unexpected exception retrieving DEK [" + dekId + "]", e);
                 }
             }
-            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER)
-                .add(DEKS_GEN_CONTAINER)
-                .add(passwordGeneration);
+            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(DEKS_GEN_CONTAINER).add(passwordGeneration);
             logger.debug("Repository [{}] loading wrapped DEK [{}] from blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
             final SecretKey kek = getKEKForDek(repositoryPassword, dekId);
@@ -477,9 +491,12 @@ public class EncryptedRepository extends BlobStoreRepository {
                 // most likely this node hasn't observed that the repository password changed because it is part of a different
                 // cluster than the one that performed the password change
                 // the repository should be remounted with the new password
-                throw new RepositoryException(repositoryName,
-                        "The repository password is probably incorrect. Most likely it has been changed outside of this cluster. " +
-                                "Try remounting the repository with the new password.", e);
+                throw new RepositoryException(
+                    repositoryName,
+                    "The repository password is probably incorrect. Most likely it has been changed outside of this cluster. "
+                        + "Try remounting the repository with the new password.",
+                    e
+                );
             }
             logger.trace("Repository [{}] successfully read DEK [{}] from path {}", repositoryName, dekId, dekBlobPath);
             try {
@@ -489,8 +506,11 @@ public class EncryptedRepository extends BlobStoreRepository {
             } catch (GeneralSecurityException e) {
                 // unwrap should not fail because the password has been verified, and all the DEKs in a generation are
                 // encrypted using the same password
-                throw new RepositoryException(repositoryName, "Unexpected exception retrieving DEK [" + dekId + "]. " +
-                        "Failure to AES unwrap the DEK", e);
+                throw new RepositoryException(
+                    repositoryName,
+                    "Unexpected exception retrieving DEK [" + dekId + "]. " + "Failure to AES unwrap the DEK",
+                    e
+                );
             }
         }
 
@@ -504,9 +524,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             // DEK stores are relatively rare ops, so a LIST on every store is not a big overhead
             final String passwordGeneration = inferLatestPasswordGeneration();
             verifyPasswordForGeneration(repositoryPassword, passwordGeneration);
-            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER)
-                .add(DEKS_GEN_CONTAINER)
-                .add(passwordGeneration);
+            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(DEKS_GEN_CONTAINER).add(passwordGeneration);
             logger.debug("Repository [{}] storing wrapped DEK [{}] under blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
             final SecretKey kek = getKEKForDek(repositoryPassword, dekId);
@@ -541,8 +559,14 @@ public class EncryptedRepository extends BlobStoreRepository {
                 delegatedBlobContainerPath = delegatedBlobContainerPath.add(pathIterator.next());
             }
             final BlobContainer delegatedBlobContainer = delegatedBlobStore.blobContainer(delegatedBlobContainerPath);
-            return new EncryptedBlobContainer(path, repositoryName, bigArrays, delegatedBlobContainer, singleUseDEKSupplier,
-                    this::getDEKById);
+            return new EncryptedBlobContainer(
+                path,
+                repositoryName,
+                bigArrays,
+                delegatedBlobContainer,
+                singleUseDEKSupplier,
+                this::getDEKById
+            );
         }
 
         @Override

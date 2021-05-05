@@ -9,7 +9,8 @@ about how to use runtime fields.
 *Methods*
 
 --
-`emit` (Required)::
+// tag::runtime-field-emit[]
+`emit`:: (Required)
         Accepts the values from the script valuation. Scripts can call the
         `emit` method multiple times to emit multiple values.
 +
@@ -22,16 +23,15 @@ the referenced fields do not have any values.
 The signature for `emit` depends on the `type` of the field.
 
 [horizontal]
-[[emit-boolean]]   `boolean`::   `emit(boolean)`
-[[emit-date]]      `date`::      `emit(long)`
-[[emit-double]]    `double`::    `emit(double)`
-[[emit-geo-point]] `geo_point`:: `emit(double lat, double long)`
-[[emit-ip]]        `ip`::        `emit(String)`
-[[emit-long]]      `long`::      `emit(long)`
-[[emit-keyword]]   `keyword`::   `emit(String)`
-
+`boolean`::   `emit(boolean)`
+`date`::      `emit(long)`
+`double`::    `emit(double)`
+`geo_point`:: `emit(double lat, double long)`
+`ip`::        `emit(String)`
+`long`::      `emit(long)`
+`keyword`::   `emit(String)`
 ====
-
+// end::runtime-field-emit[]
 --
 
 --

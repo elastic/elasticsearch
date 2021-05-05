@@ -65,7 +65,8 @@ script being tested.
 ===== Parameters
 
 `context`:: (Required, string)
-The field context that the script should run in.
+The field context that the script should run in. Set this parameter to `filter` to use
+this context.
 
 `context_setup`:: (Required, object)
 Additional parameters for the `context`.
@@ -131,7 +132,8 @@ function in a `function_score` query.
 ===== Parameters
 
 `context`:: (Required, string)
-The field context that the script should run in.
+The field context that the script should run in. Set this parameter to `score` to use
+this context.
 
 `context_setup`:: (Required, object)
 Additional parameters for the `context`.
@@ -200,13 +202,48 @@ POST /_scripts/painless/_execute
 The <<painless-runtime-fields-context,runtime field context>> runs a script used
 for a runtime field and returns results in doc-values order.
 
+Although runtime fields have their own context within the Painless execute API, you
+indicate the context for a runtime field based on the data type.
+
+NOTE: Result ordering in the runtime field context is not guaranteed.
+
 [[painless-execute-api-runtime-parameters]]
 ===== Parameters
 `script`:: (Required, object)
 The Painless script to execute.
++
+.Properties of `script`
+--
+include::../painless-contexts/painless-runtime-fields-context.asciidoc[tag=runtime-field-emit]
+--
 
 `context`:: (Required, string)
 The runtime field context that the script should run in.
++
+.Properties of `context`
+[%collapsible%open]
+====
+`boolean_field`:: 
+Emits a `boolean` data type and returns a sorted list of `boolean` values.
+
+`date_field`:: 
+Emits a `long` data type and returns a sorted list of `long` values.
+
+`double_field`::
+Emits a `long` data type and returns a sorted list of `double` values.
+
+`geo_point_field`::
+Emits a `long` data type and returns a sorted list of `double` values.
+
+`ip_field`::
+Emits a `string` data type and returns a sorted list of `string` values.
+
+`keyword_field`::
+Emits a `string` data type and returns a sorted list of `string` values.
+
+`long_field`::
+Emits a `long` data type and returns a sorted list of `long` values.
+====
 
 `context_setup`:: (Required, object)
 Additional parameters for the `context`.
@@ -224,12 +261,11 @@ Index containing a mapping that's compatible with the indexed document.
 `params`:: (`Map`, read-only)
 User-defined parameters passed in as part of the query.
 
-*Examples*
+[[painless-runtime-boolean-request]]
+===== Request (boolean_field)
 
-* boolean_field
-+
 [source,console]
-----------------------------------------------------------------
+----
 PUT /my-index-boolean
 {
   "mappings": {
@@ -257,20 +293,21 @@ POST /_scripts/painless/_execute
     }
   }
 }
-----------------------------------------------------------------
-+
-Response:
-+
+----
+
+[[painless-runtime-boolean-response]]
+===== Response (boolean_field)
+
 [source,console-result]
---------------------------------------------------
+----
 {
   "result": [
     false,
     true
   ]
 }
---------------------------------------------------
-+
+----
+
 * date_field
 +
 [source,console]

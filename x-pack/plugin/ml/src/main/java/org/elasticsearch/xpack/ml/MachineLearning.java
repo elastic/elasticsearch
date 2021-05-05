@@ -252,6 +252,8 @@ import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
+import org.elasticsearch.xpack.ml.job.categorization.MlStandardTokenizer;
+import org.elasticsearch.xpack.ml.job.categorization.MlStandardTokenizerFactory;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
@@ -351,6 +353,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -1086,7 +1089,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
-        return Collections.singletonMap(MlClassicTokenizer.NAME, MlClassicTokenizerFactory::new);
+        Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new HashMap<>();
+        tokenizers.put(MlClassicTokenizer.NAME, MlClassicTokenizerFactory::new);
+        tokenizers.put(MlStandardTokenizer.NAME, MlStandardTokenizerFactory::new);
+        return Collections.unmodifiableMap(tokenizers);
     }
 
     @Override

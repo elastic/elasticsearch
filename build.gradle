@@ -22,6 +22,8 @@ import org.gradle.util.GradleVersion
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.internal.test.RestTestBasePlugin
+import org.elasticsearch.gradle.internal.InternalTestClustersPlugin
 
 plugins {
   id 'lifecycle-base'
@@ -121,8 +123,8 @@ subprojects {
   // Ultimately the RestTestBase Plugin should apply the InternalTestClusters Plugin itself instead of TestClusters
   // but this requires major rework on the func test infrastructure.
   // TODO: This will be addressed once we have https://github.com/elastic/elasticsearch/issues/71593 resolved
-  project.plugins.withType(org.elasticsearch.gradle.internal.test.RestTestBasePlugin) {
-    project.plugins.apply(org.elasticsearch.gradle.internal.InternalTestClustersPlugin)
+  project.plugins.withType(RestTestBasePlugin) {
+    project.plugins.apply(InternalTestClustersPlugin)
   }
 }
 

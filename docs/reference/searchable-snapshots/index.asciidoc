@@ -239,12 +239,3 @@ at rest in the repository.
 The blob storage offered by all major public cloud providers typically offers
 very good protection against data loss or corruption. If you manage your own
 repository storage then you are responsible for its reliability.
-
-[discrete]
-[[searchable-snapshots-frozen-tier-on-cloud]]
-=== Configure a frozen tier on {ess}
-
-The frozen data tier is not yet available on {ess-trial}[{ess}]. However, you
-can configure another tier to use <<shared-cache,shared snapshot caches>>. This
-effectively recreates a frozen tier in your deployment. See
-<<set-up-data-tiers,Set up data tiers>>.

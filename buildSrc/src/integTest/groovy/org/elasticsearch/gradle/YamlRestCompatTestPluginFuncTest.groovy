@@ -191,13 +191,13 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
             // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
             import org.elasticsearch.gradle.testclusters.TestDistribution;
-     
+
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"
             }
             tasks.named("transformV7RestTests").configure({ task ->
-              task.replaceMatch("_type", "_doc")
-              task.replaceMatch("_source.values", ["z", "x", "y"], "one")
+              task.replaceValueInMatch("_type", "_doc")
+              task.replaceValueInMatch("_source.values", ["z", "x", "y"], "one")
               task.removeMatch("_source.blah")
               task.removeMatch("_source.junk", "two")
               task.addMatch("_source.added", [name: 'jake', likes: 'cheese'], "one")
@@ -208,6 +208,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.removeWarning("one", "warning to remove")
               task.replaceIsTrue("value_to_replace", "replaced_value")
               task.replaceIsFalse("value_to_replace", "replaced_value")
+              task.replaceKeyInMatch("some.key_to_replace", "some.key_that_was_replaced")
+              task.replaceKeyInLength("key.in_length_to_replace", "key.in_length_that_was_replaced")
             })
             // can't actually spin up test cluster from this test
            tasks.withType(Test).configureEach{ enabled = false }
@@ -227,10 +229,12 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - match: { _type: "_foo" }
           - match: { _source.blah: 1234 }
           - match: { _source.junk: true }
+          - match: { some.key_to_replace: true }
           - is_true: "value_to_replace"
           - is_false: "value_to_replace"
           - is_true: "value_not_to_replace"
           - is_false: "value_not_to_replace"
+          - length: { key.in_length_to_replace: 1 }
         ---
         "two":
           - do:
@@ -294,14 +298,18 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - match: {}
         - match:
             _source.junk: true
+        - match:
+            some.key_that_was_replaced : true
         - is_true: "replaced_value"
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"
         - is_false: "value_not_to_replace"
+        - length: { key.in_length_that_was_replaced: 1 }
         - match:
             _source.added:
               name: "jake"
               likes: "cheese"
+
         ---
         two:
         - do:

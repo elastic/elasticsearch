@@ -233,13 +233,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            XContentParser parser = context.parser();
-            value =  parser.textOrNull();
-        }
+        XContentParser parser = context.parser();
+        final String value = parser.textOrNull();
 
         if (value == null) {
             throw new IllegalArgumentException("[constant_keyword] field [" + name() + "] doesn't accept [null] values");

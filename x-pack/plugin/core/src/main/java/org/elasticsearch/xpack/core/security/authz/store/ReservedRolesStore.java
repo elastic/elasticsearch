@@ -209,9 +209,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             // APM Server under fleet (data streams)
                             RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*")
                             .privileges("read", "view_index_metadata").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm-*")
+                            .privileges("read", "view_index_metadata").build(),
                             RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm.*")
                             .privileges("read", "view_index_metadata").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm-*")
+                            .privileges("read", "view_index_metadata").build(),
                             RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm.*")
+                            .privileges("read", "view_index_metadata").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*")
                             .privileges("read", "view_index_metadata").build(),
 
                             // Machine Learning indices. Only needed for legacy reasons

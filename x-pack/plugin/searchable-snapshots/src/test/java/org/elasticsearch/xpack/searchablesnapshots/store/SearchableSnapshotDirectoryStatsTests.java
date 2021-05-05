@@ -641,7 +641,7 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
         final StoreFileMetadata metadata = new StoreFileMetadata(fileName, fileContent.length, fileChecksum, Version.CURRENT.luceneVersion);
         final List<FileInfo> files = List.of(new FileInfo(blobName, metadata, new ByteSizeValue(fileContent.length)));
         final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(snapshotId.getName(), 0L, files, 0L, 0L, 0, 0L);
-        final Path shardDir = randomShardPath(shardId);
+        final Path shardDir = shardPath(shardId);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
 

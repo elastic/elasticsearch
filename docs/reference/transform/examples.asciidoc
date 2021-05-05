@@ -11,12 +11,12 @@ from your data. All the examples use one of the
 {kibana-ref}/add-sample-data.html[{kib} sample datasets]. For a more detailed, 
 step-by-step example, see <<ecommerce-transforms>>.
 
-* <<example-best-customers>>
-* <<example-airline>>
-* <<example-clientips>>
-* <<example-last-log>>
-* <<example-bytes>>
-* <<example-customer-names>>
+* <<example-best-customers>> 
+* <<example-airline>> 
+* <<example-clientips>> 
+* <<example-last-log>> 
+* <<example-bytes>> 
+* <<example-customer-names>> 
 
 
 [[example-best-customers]]

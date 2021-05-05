@@ -19,7 +19,7 @@ public class LoggerUsagePrecommitPlugin extends PrecommitPlugin implements Inter
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         Configuration loggerUsageConfig = project.getConfigurations().create("loggerUsagePlugin");
-        // this makes it better testable by not requiring this project to be always available in our
+        // this makes it easier to test by not requiring this project to be always available in our
         // test sample projects
         if (project.findProject(":test:logger-usage") != null) {
             project.getDependencies().add("loggerUsagePlugin", project.project(":test:logger-usage"));

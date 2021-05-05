@@ -99,8 +99,7 @@ public final class ShardPath {
     }
 
     /**
-     * This method walks through the nodes shard paths to find the data and state path for the given shard. If multiple
-     * directories with a valid shard state exist the one with the highest version will be used.
+     * This method resolves the node's shard path using the given {@link NodeEnvironment}.
      * <b>Note:</b> this method resolves custom data locations for the shard if such a custom data path is provided.
      */
     public static ShardPath loadShardPath(Logger logger, NodeEnvironment env,
@@ -111,32 +110,31 @@ public final class ShardPath {
     }
 
     /**
-     * This method walks through the nodes shard paths to find the data and state path for the given shard. If multiple
-     * directories with a valid shard state exist the one with the highest version will be used.
+     * This method resolves the node's shard path using the given data paths.
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
-    public static ShardPath loadShardPath(Logger logger, ShardId shardId, String customDataPath, Path availableShardPath,
+    public static ShardPath loadShardPath(Logger logger, ShardId shardId, String customDataPath, Path shardPath,
                                           Path sharedDataPath) throws IOException {
         final String indexUUID = shardId.getIndex().getUUID();
         // EMPTY is safe here because we never call namedObject
-        ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, availableShardPath);
+        ShardStateMetadata load = ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPath);
         if (load != null) {
             if (load.indexUUID.equals(indexUUID) == false && IndexMetadata.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
                 logger.warn("{} found shard on path: [{}] with a different index UUID - this "
                     + "shard seems to be leftover from a different index with the same name. "
-                    + "Remove the leftover shard in order to reuse the path with the current index", shardId, availableShardPath);
+                    + "Remove the leftover shard in order to reuse the path with the current index", shardId, shardPath);
                 throw new IllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID
-                    + " expected: " + indexUUID + " on shard path: " + availableShardPath);
+                    + " expected: " + indexUUID + " on shard path: " + shardPath);
             }
             final Path dataPath;
             final boolean hasCustomDataPath = Strings.isNotEmpty(customDataPath);
             if (hasCustomDataPath) {
                 dataPath = NodeEnvironment.resolveCustomLocation(customDataPath, shardId, sharedDataPath);
             } else {
-                dataPath = availableShardPath;
+                dataPath = shardPath;
             }
-            logger.debug("{} loaded data path [{}], state path [{}]", shardId, dataPath, availableShardPath);
-            return new ShardPath(hasCustomDataPath, dataPath, availableShardPath, shardId);
+            logger.debug("{} loaded data path [{}], state path [{}]", shardId, dataPath, shardPath);
+            return new ShardPath(hasCustomDataPath, dataPath, shardPath, shardId);
         }
         return null;
     }

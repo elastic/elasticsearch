@@ -90,15 +90,13 @@ public class TransportCreateEnrollmentTokenAction
                 listener.onFailure(new IllegalStateException(
                     "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration Keystore doesn't contain a " +
                     "single PrivateKey entry where the associated certificate is a CA certificate"));
-
             } else {
                 final TimeValue expiration = TimeValue.timeValueSeconds(ENROLL_API_KEY_EXPIRATION_SEC);
                 final List<RoleDescriptor> roleDescriptors = new ArrayList<>(1);
                 final String[] clusterPrivileges = { "enroll" };
                 final RoleDescriptor roleDescriptor = new RoleDescriptor("create_enrollment_token", clusterPrivileges, null, null);
                 roleDescriptors.add(roleDescriptor);
-                CreateApiKeyRequest apiRequest = new CreateApiKeyRequest("enrollment_token_API_key_" + UUIDs.base64UUID(),
-                    roleDescriptors, expiration);
+                CreateApiKeyRequest apiRequest = new CreateApiKeyRequest(UUIDs.base64UUID(), roleDescriptors, expiration);
                 final String fingerprint = SslUtil.calculateFingerprint(caCertificates.get(0));
                 createEnrolmentToken(fingerprint, apiRequest, listener);
             }
@@ -113,22 +111,27 @@ public class TransportCreateEnrollmentTokenAction
             generator.generateApiKey(securityContext.getAuthentication(), apiRequest,
                 ActionListener.wrap(
                     CreateApiKeyResponse -> {
-                        final NodeInfo nodeInfo = nodeService.info(false, false, false, false, false, false,
-                            true, false, false, false, false);
-                        final HttpInfo httpInfo = nodeInfo.getInfo(HttpInfo.class);
-                        final String address = httpInfo.getAddress().publishAddress().toString();
+                        try {
+                            final NodeInfo nodeInfo = nodeService.info(false, false, false, false, false, false,
+                                true, false, false, false, false);
+                            final HttpInfo httpInfo = nodeInfo.getInfo(HttpInfo.class);
+                            final String address = httpInfo.getAddress().publishAddress().toString();
 
-                        final XContentBuilder builder = JsonXContent.contentBuilder();
-                        builder.startObject();
-                        builder.field("adr", address);
-                        builder.field("fgr", fingerprint);
-                        builder.field("key", CreateApiKeyResponse.getKey().toString());
-                        builder.endObject();
-                        final String jsonString = Strings.toString(builder);
-                        final String token = Base64.getEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
+                            final XContentBuilder builder = JsonXContent.contentBuilder();
+                            builder.startObject();
+                            builder.field("adr", address);
+                            builder.field("fgr", fingerprint);
+                            builder.field("key", CreateApiKeyResponse.getKey().toString());
+                            builder.endObject();
+                            final String jsonString = Strings.toString(builder);
+                            final String token = Base64.getEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
 
-                        final CreateEnrollmentTokenResponse response = new CreateEnrollmentTokenResponse(token);
-                        listener.onResponse(response);
+                            final CreateEnrollmentTokenResponse response = new CreateEnrollmentTokenResponse(token);
+                            listener.onResponse(response);
+                        } catch (Exception e) {
+                            logger.error(() -> new ParameterizedMessage("Error generating enrollment token"), e);
+                            listener.onFailure(e);
+                        }
                     },
                     listener::onFailure
                 )

@@ -1,0 +1,40 @@
+--
+:api: create-enrollment-token
+:request: CreateEnrollmentTokenRequest
+:response: CreateEnrollmentTokenResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Create Enrollment Token API
+
+Enrollment Token can be created using this API.
+
+[id="{upid}-{api}-request"]
+==== Create Enrollment Token Request
+
+A +{request}+ contains no parameters.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+
+include::../execution.asciidoc[]
+
+[id="{upid}-{api}-response"]
+==== Create Enrollment Token Response
+
+The returned +{response}+ contains a string that contains the enrollment token with which user can enroll a new node
+in an existing secured elasticsearch cluster, or a client can configure itself to
+communicate with a secured elasticsearch cluster.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> The enrollment token contains the following information:
+- IP Address and port number for the interface where the Elasticsearch node is listening for HTTP connections;
+- The fingerprint of the CA certificate that is used to sign the certificate that the Elasticsearch node presents for TLS on the HTTP layer;
+- An API key which allows a holder of the token to authenticate themself to the elasticsearch node;
+
+as Base64 encoded string.

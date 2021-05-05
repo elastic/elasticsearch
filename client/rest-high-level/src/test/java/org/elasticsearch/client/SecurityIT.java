@@ -11,6 +11,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.security.AuthenticateResponse;
+import org.elasticsearch.client.security.CreateEnrollmentTokenResponse;
 import org.elasticsearch.client.security.DeleteRoleRequest;
 import org.elasticsearch.client.security.DeleteRoleResponse;
 import org.elasticsearch.client.security.DeleteUserRequest;
@@ -42,9 +43,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.client.RequestOptions.DEFAULT;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SecurityIT extends ESRestHighLevelClientTestCase {
 
@@ -138,7 +141,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(createRoleResponse.isCreated(), is(true));
 
         final GetRolesRequest getRoleRequest = new GetRolesRequest(role.getName());
-        final GetRolesResponse getRoleResponse = securityClient.getRoles(getRoleRequest, RequestOptions.DEFAULT);
+        final GetRolesResponse getRoleResponse = securityClient.getRoles(getRoleRequest, DEFAULT);
         // assert role is equal
         assertThat(getRoleResponse.getRoles(), contains(role));
 
@@ -147,9 +150,18 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(updateRoleResponse.isCreated(), is(false));
 
         final DeleteRoleRequest deleteRoleRequest = new DeleteRoleRequest(role.getName());
-        final DeleteRoleResponse deleteRoleResponse = securityClient.deleteRole(deleteRoleRequest, RequestOptions.DEFAULT);
+        final DeleteRoleResponse deleteRoleResponse = securityClient.deleteRole(deleteRoleRequest, DEFAULT);
         // assert role deleted
         assertThat(deleteRoleResponse.isFound(), is(true));
+    }
+
+    @AwaitsFix(bugUrl = "Requires SSL")
+    public void testCreateEnrollmentTokenClient() throws Exception {
+        final SecurityClient securityClient = highLevelClient().security();
+        CreateEnrollmentTokenResponse clientResponse =
+            execute(securityClient::createEnrollmentToken, securityClient::createEnrollmentTokenAsync, DEFAULT);
+
+        assertThat(clientResponse, notNullValue());
     }
 
     private void deleteUser(User user) throws IOException {
@@ -222,7 +234,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
     }
 
     private static RequestOptions authorizationRequestOptions(String authorizationHeader) {
-        final RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+        final RequestOptions.Builder builder = DEFAULT.toBuilder();
         builder.addHeader("Authorization", authorizationHeader);
         return builder.build();
     }

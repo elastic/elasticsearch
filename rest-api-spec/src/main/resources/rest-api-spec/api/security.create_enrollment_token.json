@@ -1,0 +1,24 @@
+{
+  "security.create_enrollment_token":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-create-enrollment-token.html",
+      "description":"Create an enrollment token to allow a new node to enroll in an existing secured elasticsearch cluster, or a client to configure itself to\ncommunicate with a secured elasticsearch cluster."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/enrollment_token",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    }
+  }
+}

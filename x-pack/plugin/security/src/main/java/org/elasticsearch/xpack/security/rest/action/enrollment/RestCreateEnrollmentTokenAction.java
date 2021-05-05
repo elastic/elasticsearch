@@ -69,7 +69,7 @@ public class RestCreateEnrollmentTokenAction extends SecurityBaseRestHandler {
                 @Override
                 public RestResponse buildResponse(CreateEnrollmentTokenResponse response, XContentBuilder builder) throws Exception {
                     builder.startObject();
-                    builder.field("enrollment_token", response.getEnrollmentToken().toString());
+                    builder.field("enrollment_token", response.getEnrollmentToken());
                     builder.endObject();
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

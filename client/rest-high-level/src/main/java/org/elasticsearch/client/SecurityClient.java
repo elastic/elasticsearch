@@ -22,6 +22,8 @@ import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
+import org.elasticsearch.client.security.CreateEnrollmentTokenRequest;
+import org.elasticsearch.client.security.CreateEnrollmentTokenResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
@@ -1129,5 +1131,30 @@ public final class SecurityClient {
             ActionListener<DelegatePkiAuthenticationResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Create an Enrollment Token used to enroll a client to a secured cluster using the Enroll Client API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public CreateEnrollmentTokenResponse createEnrollmentToken(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(CreateEnrollmentTokenRequest.INSTANCE,
+            CreateEnrollmentTokenRequest::getRequest, options,
+            CreateEnrollmentTokenResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously create an Enrollment Token used to enroll a client to a secured cluster using the Enroll Client API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public Cancellable createEnrollmentTokenAsync(RequestOptions options, ActionListener<CreateEnrollmentTokenResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(CreateEnrollmentTokenRequest.INSTANCE,
+            CreateEnrollmentTokenRequest::getRequest, options,
+            CreateEnrollmentTokenResponse::fromXContent, listener, emptySet());
     }
 }

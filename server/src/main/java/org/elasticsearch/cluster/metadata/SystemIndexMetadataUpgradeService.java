@@ -81,6 +81,14 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     if (isSystem != cursor.value.isSystem()) {
                         updatedMetadata.add(IndexMetadata.builder(cursor.value).system(cursor.value.isSystem() == false).build());
                     }
+
+                    // TODO: do we have test coverage for this?
+                    if (isSystem) {
+                        if (cursor.value.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
+                            throw new IllegalStateException("Index " + cursor.value.getIndex().getName() + "is a system " +
+                                "index, but has the [index.hidden] setting set to true.");
+                        }
+                    }
                 }
             }
 

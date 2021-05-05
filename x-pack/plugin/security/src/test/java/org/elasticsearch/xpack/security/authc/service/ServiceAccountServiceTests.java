@@ -60,7 +60,7 @@ import static org.mockito.Mockito.when;
 public class ServiceAccountServiceTests extends ESTestCase {
 
     private ThreadContext threadContext;
-    private ServiceAccountsTokenStore serviceAccountsTokenStore;
+    private ServiceAccountTokenStore serviceAccountTokenStore;
     private ServiceAccountService serviceAccountService;
     private Transport transport;
 
@@ -68,7 +68,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws UnknownHostException {
         threadContext = new ThreadContext(Settings.EMPTY);
-        serviceAccountsTokenStore = mock(ServiceAccountsTokenStore.class);
+        serviceAccountTokenStore = mock(ServiceAccountTokenStore.class);
         final Settings.Builder builder = Settings.builder()
             .put("xpack.security.enabled", true);
         transport = mock(Transport.class);
@@ -85,7 +85,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         }
         when(transport.boundAddress()).thenReturn(
             new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
-        serviceAccountService = new ServiceAccountService(serviceAccountsTokenStore,
+        serviceAccountService = new ServiceAccountService(
+            serviceAccountTokenStore,
             new HttpTlsRuntimeCheck(builder.build(), new SetOnce<>(transport)));
     }
 
@@ -253,7 +254,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
             listener.onResponse(true);
             return null;
-        }).when(serviceAccountsTokenStore).authenticate(any(), any());
+        }).when(serviceAccountTokenStore).authenticate(any(), any());
         final String nodeName = randomAlphaOfLengthBetween(3, 8);
         serviceAccountService.authenticateToken(
             new ServiceAccountToken(new ServiceAccountId("elastic", "fleet-server"), "token1",
@@ -325,14 +326,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
                 listener.onResponse(true);
                 return null;
-            }).when(serviceAccountsTokenStore).authenticate(eq(token3), any());
+            }).when(serviceAccountTokenStore).authenticate(eq(token3), any());
 
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
                 final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
                 listener.onResponse(false);
                 return null;
-            }).when(serviceAccountsTokenStore).authenticate(eq(token4), any());
+            }).when(serviceAccountTokenStore).authenticate(eq(token4), any());
 
             final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
             serviceAccountService.authenticateToken(token3, nodeName, future3);
@@ -413,7 +414,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
         when(transport.boundAddress()).thenReturn(
             new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
 
-        final ServiceAccountService service = new ServiceAccountService(serviceAccountsTokenStore,
+        final ServiceAccountService service = new ServiceAccountService(
+            serviceAccountTokenStore,
             new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
 
         final PlainActionFuture<Authentication> future1 = new PlainActionFuture<>();

@@ -1,12 +1,12 @@
 import org.elasticsearch.gradle.Architecture
-import org.elasticsearch.gradle.DockerBase
-import org.elasticsearch.gradle.LoggedExec
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.docker.DockerBuildTask
-import org.elasticsearch.gradle.docker.ShellRetry
-import org.elasticsearch.gradle.docker.TransformLog4jConfigFilter
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
+import org.elasticsearch.gradle.internal.DockerBase
+import org.elasticsearch.gradle.internal.LoggedExec
+import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.internal.docker.DockerBuildTask
+import org.elasticsearch.gradle.internal.docker.ShellRetry
+import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin
 
 import java.nio.file.Path
 

@@ -467,7 +467,7 @@ The possible solutions to this problem are:
 - Advise your users to close their browser after logging out of {kib}
 - Enable the `force_authn` setting on your SAML realm. This setting causes the
   Elastic Stack to request fresh authentication from the IdP every time a user
-  attempts to log into {kib}.
+  attempts to log in to {kib}.
   This setting defaults to `false` because it can be a more cumbersome user
   experience, but it can also be an effective protection to stop users
   piggy-backing on existing IdP sessions.

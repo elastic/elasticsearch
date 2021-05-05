@@ -66,3 +66,14 @@ setup:
 
   - match: { global_checkpoints.0: 1 }
   - match: { timed_out: false }
+
+---
+"Wait for index timeout":
+  - do:
+      catch: missing
+      fleet.global_checkpoints:
+        index: "index-does-not-exist"
+        wait_for_advance: true
+        wait_for_index: true
+        checkpoints: []
+        timeout: "50ms"

@@ -249,7 +249,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
         ImmutableOpenMap<String, DiskUsage> leastUsages = leastUsagesBuilder.build();
         ImmutableOpenMap<String, DiskUsage> mostUsages = mostUsagesBuilder.build();
-        info = new ClusterInfo(leastUsages, mostUsages, null, null, null);
+        info = new ClusterInfo(leastUsages, mostUsages, null, null, null, null);
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, n -> memory);
 
         assertThat(context.nodes(), equalTo(expectedNodes));
@@ -288,7 +288,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 )
             );
 
-            info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null);
+            info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null, null);
             context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, n -> memory);
             assertThat(context.nodes(), equalTo(expectedNodes));
             if (hasDataRole) {

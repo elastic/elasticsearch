@@ -1,8 +1,22 @@
+[testenv="basic"]
 [[text]]
-=== Text field type
+=== Text type family
 ++++
 <titleabbrev>Text</titleabbrev>
 ++++
+
+The text family includes the following field types:
+
+* <<text-field-type,`text`>>, the traditional field type for full-text content
+such as the body of an email or the description of a product.
+* <<match-only-text-field-type,`match_only_text`>>, a space-optimized variant
+of `text` that disables scoring and performs slower on queries that need
+positions. It is best suited for indexing log messages.
+
+
+[discrete]
+[[text-field-type]]
+=== Text field type
 
 A field to index full-text values, such as the body of an email or the
 description of a product. These fields are `analyzed`, that is they are passed through an
@@ -253,3 +267,5 @@ PUT my-index-000001
   }
 }
 --------------------------------------------------
+
+include::match-only-text.asciidoc[]

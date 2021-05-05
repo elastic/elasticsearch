@@ -81,6 +81,9 @@ repositories {
   gradlePluginPortal()
 }
 
+configurations {
+  integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
+}
 dependencies {
   api localGroovy()
   api gradleApi()
@@ -92,7 +95,9 @@ dependencies {
   api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
   api 'org.apache.rat:apache-rat:0.11'
   api "org.elasticsearch:jna:5.7.0-1"
-  api 'com.github.jengelman.gradle.plugins:shadow:6.1.0'
+  api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+  // for our ide tweaking
+  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api 'de.thetaphi:forbiddenapis:3.1'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
@@ -117,7 +122,7 @@ dependencies {
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }
-  integTestRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+  testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
     because 'allows JUnit 3 and JUnit 4 tests to run'
   }
 
@@ -125,11 +130,16 @@ dependencies {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }
 
+  testImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+  testImplementation("org.spockframework:spock-core") {
+    exclude module: "groovy"
+  }
   integTestImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
   integTestImplementation("org.spockframework:spock-core") {
     exclude module: "groovy"
   }
-  integTestImplementation "org.spockframework:spock-junit4"  // you can remove this if your code does not rely on old JUnit 4 rules
+  // required as we rely on junit4 rules
+  integTestImplementation "org.spockframework:spock-junit4"
   integTestImplementation "org.xmlunit:xmlunit-core:2.8.2"
 }
 
@@ -138,6 +148,8 @@ dependencies {
  *****************************************************************************/
 // this will only happen when buildSrc is built on its own during build init
 if (project == rootProject) {
+  apply plugin: 'groovy-gradle-plugin'
+
   repositories {
     if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
@@ -206,9 +218,14 @@ if (project != rootProject) {
     }
   }
 
-  // Track reaper jar as a test input using runtime classpath normalization strategy
   tasks.withType(Test).configureEach {
+    // Track reaper jar as a test input using runtime classpath normalization strategy
     inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+    useJUnitPlatform()
+  }
+
+  tasks.named("test").configure {
+    include("**/*TestSpec.class")
   }
 
   normalization {
@@ -232,10 +249,10 @@ if (project != rootProject) {
     naming.clear()
     naming {
       Tests {
-        baseClass 'org.elasticsearch.gradle.test.GradleUnitTestCase'
+        baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
       }
-      IT {
-        baseClass 'org.elasticsearch.gradle.test.GradleIntegrationTestCase'
+      TestSpec {
+        baseClass 'spock.lang.Specification'
       }
     }
   }
@@ -251,9 +268,9 @@ if (project != rootProject) {
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
+    onlyIf { org.elasticsearch.gradle.internal.info.BuildParams.inFipsJvm == false }
     it.executable = Jvm.current().getJavaExecutable()
-    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
+    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.internal.info.BuildParams.defaultParallel.toString()) as Integer
   }
 
   publishing.publications.named("elastic").configure {

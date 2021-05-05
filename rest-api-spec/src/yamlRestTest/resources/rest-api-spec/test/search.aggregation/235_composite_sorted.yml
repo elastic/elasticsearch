@@ -1,0 +1,179 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sorted
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
+              kw:
+                type: keyword
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+              sort:
+                field: date
+                order: desc
+
+  # Index single documents at a time and refresh. That'll create as many
+  # segments as possible which has revealed bugs in the past.
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-01T00:00:00.000Z", "kw": "cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-02T00:00:00.000Z", "kw": "cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-03T00:00:00.000Z", "kw": "cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-04T00:00:00.000Z", "kw": "cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-05T00:00:00.000Z", "kw": "cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-06T00:00:00.000Z", "kw": "cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-07T00:00:00.000Z", "kw": "cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-08T00:00:00.000Z", "kw": "cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-09T00:00:00.000Z", "kw": "not a cat"}
+        refresh: true
+  - do:
+      index:
+        index:   sorted
+        body:    {"date": "2021-01-10T00:00:00.000Z", "kw": "also not a cat"}
+        refresh: true
+
+---
+one source - first page:
+  - do:
+      search:
+        index: sorted
+        body:
+          size: 0
+          aggs:
+            c:
+              composite:
+                size: 2
+                sources:
+                  - date:
+                      date_histogram:
+                        field: date
+                        calendar_interval: day
+                        format: iso8601 # Format makes the comparisons a little more obvious
+  - length: { aggregations.c.buckets: 2 }
+  - match: { aggregations.c.buckets.0.key.date: "2021-01-01T00:00:00.000Z" }
+  - match: { aggregations.c.buckets.0.doc_count: 1 }
+  - match: { aggregations.c.buckets.1.key.date: "2021-01-02T00:00:00.000Z" }
+  - match: { aggregations.c.buckets.1.doc_count: 1 }
+
+---
+one source - second page:
+  - do:
+      search:
+        index: sorted
+        body:
+          size: 0
+          aggs:
+            c:
+              composite:
+                size: 2
+                sources:
+                  - date:
+                      date_histogram:
+                        field: date
+                        calendar_interval: day
+                        format: iso8601 # Format makes the comparisons a little more obvious
+                after:
+                  date: "2021-01-02T00:00:00.000Z"
+  - length: { aggregations.c.buckets: 2 }
+  - match: { aggregations.c.buckets.0.key.date: "2021-01-03T00:00:00.000Z" }
+  - match: { aggregations.c.buckets.0.doc_count: 1 }
+  - match: { aggregations.c.buckets.1.key.date: "2021-01-04T00:00:00.000Z" }
+  - match: { aggregations.c.buckets.1.doc_count: 1 }
+
+---
+two sources - first page:
+  - do:
+      search:
+        index: sorted
+        body:
+          size: 0
+          aggs:
+            c:
+              composite:
+                size: 2
+                sources:
+                  - date:
+                      date_histogram:
+                        field: date
+                        calendar_interval: day
+                        format: iso8601 # Format makes the comparisons a little more obvious
+                  - kw:
+                      terms:
+                        field: kw
+  - length: { aggregations.c.buckets: 2 }
+  - match: { aggregations.c.buckets.0.key.date: "2021-01-01T00:00:00.000Z" }
+  - match: { aggregations.c.buckets.0.key.kw: cat }
+  - match: { aggregations.c.buckets.0.doc_count: 1 }
+  - match: { aggregations.c.buckets.1.key.date: "2021-01-02T00:00:00.000Z" }
+  - match: { aggregations.c.buckets.1.key.kw: cat }
+  - match: { aggregations.c.buckets.1.doc_count: 1 }
+
+---
+two sources - second page:
+  - do:
+      search:
+        index: sorted
+        body:
+          size: 0
+          aggs:
+            c:
+              composite:
+                size: 2
+                sources:
+                  - date:
+                      date_histogram:
+                        field: date
+                        calendar_interval: day
+                        format: iso8601 # Format makes the comparisons a little more obvious
+                  - kw:
+                      terms:
+                        field: kw
+                after:
+                  date: "2021-01-02T00:00:00.000Z"
+                  kw: cat
+  - length: { aggregations.c.buckets: 2 }
+  - match: { aggregations.c.buckets.0.key.date: "2021-01-03T00:00:00.000Z" }
+  - match: { aggregations.c.buckets.0.key.kw: cat }
+  - match: { aggregations.c.buckets.0.doc_count: 1 }
+  - match: { aggregations.c.buckets.1.key.date: "2021-01-04T00:00:00.000Z" }
+  - match: { aggregations.c.buckets.1.key.kw: cat }
+  - match: { aggregations.c.buckets.1.doc_count: 1 }

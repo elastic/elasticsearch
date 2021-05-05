@@ -444,6 +444,10 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * Returns total size of all files that where snapshotted
      */
     public long totalSize() {
+        return totalSize(indexFiles);
+    }
+
+    public static long totalSize(List<FileInfo> indexFiles) {
         return indexFiles.stream().mapToLong(fi -> fi.metadata().length()).sum();
     }
 

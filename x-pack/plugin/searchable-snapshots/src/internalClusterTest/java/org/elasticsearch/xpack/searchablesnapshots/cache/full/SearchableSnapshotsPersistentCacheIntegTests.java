@@ -181,9 +181,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         );
 
         final String snapshotName = prefix + "snapshot";
-        final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
-        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
+        createFullSnapshot(fsRepoName, snapshotName);
 
         assertAcked(client().admin().indices().prepareDelete(prefix + '*'));
 

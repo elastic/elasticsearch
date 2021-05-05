@@ -446,7 +446,7 @@ public class BlobAnalyzeAction extends ActionType<BlobAnalyzeAction.Response> {
                 logger.trace(new ParameterizedMessage("analysis failed [{}] cleaning up", request.getDescription()), exception);
             }
             try {
-                blobContainer.deleteBlobsIgnoringIfNotExists(List.of(request.blobName));
+                blobContainer.deleteBlobsIgnoringIfNotExists(List.of(request.blobName).iterator());
             } catch (IOException ioException) {
                 exception.addSuppressed(ioException);
                 logger.warn(

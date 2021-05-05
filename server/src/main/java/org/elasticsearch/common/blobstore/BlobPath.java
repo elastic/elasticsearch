@@ -12,38 +12,26 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
  */
-public class BlobPath implements Iterable<String> {
+public class BlobPath {
+
+    public static final BlobPath EMPTY = new BlobPath(Collections.emptyList());
 
     private static final String SEPARATOR = "/";
 
     private final List<String> paths;
 
-    public BlobPath() {
-        this.paths = Collections.emptyList();
-    }
-
-    public static BlobPath cleanPath() {
-        return new BlobPath();
-    }
-
     private BlobPath(List<String> paths) {
         this.paths = paths;
     }
 
-    @Override
-    public Iterator<String> iterator() {
-        return paths.iterator();
-    }
-
-    public String[] toArray() {
-        return paths.toArray(new String[paths.size()]);
+    public List<String> parts() {
+        return paths;
     }
 
     public BlobPath add(String path) {

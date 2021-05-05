@@ -38,7 +38,6 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -158,8 +157,10 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        while (blobNames.hasNext()) {
+            IOUtils.rm(path.resolve(blobNames.next()));
+        }
     }
 
     @Override
@@ -202,7 +203,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName).iterator());
             writeToPath(inputStream, file, blobSize);
         }
         IOUtils.fsync(path, true);
@@ -217,7 +218,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName).iterator());
             writeToPath(bytes, file);
         }
         IOUtils.fsync(path, true);
@@ -232,7 +233,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob));
+                deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob).iterator());
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }
@@ -268,7 +269,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
             } else {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(targetBlobName));
+                deleteBlobsIgnoringIfNotExists(Collections.singletonList(targetBlobName).iterator());
             }
         }
         Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);

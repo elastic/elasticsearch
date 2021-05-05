@@ -42,9 +42,11 @@ import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -53,6 +55,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
@@ -429,21 +432,23 @@ public class MockRepository extends FsRepository {
                 long deleteByteCount = 0L;
                 for (String blob : blobs.values().stream().map(BlobMetadata::name).collect(Collectors.toList())) {
                     maybeIOExceptionOrBlock(blob);
-                    deleteBlobsIgnoringIfNotExists(Collections.singletonList(blob));
+                    deleteBlobsIgnoringIfNotExists(Stream.of(blob).iterator());
                     deleteByteCount += blobs.get(blob).length();
                 }
                 blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(
-                    List.of(path().toArray()[path().toArray().length - 1]));
+                    Stream.of(path().parts().get(path().parts().size() - 1)).iterator());
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 
             @Override
-            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-                if (blockOnDeleteIndexN && blobNames.stream().anyMatch(
+            public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+                final List<String> names = new ArrayList<>();
+                blobNames.forEachRemaining(names::add);
+                if (blockOnDeleteIndexN && names.stream().anyMatch(
                     name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
                     blockExecutionAndMaybeWait("index-{N}");
                 }
-                super.deleteBlobsIgnoringIfNotExists(blobNames);
+                super.deleteBlobsIgnoringIfNotExists(names.iterator());
             }
 
             @Override

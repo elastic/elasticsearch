@@ -339,6 +339,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                 }
                 builder.endObject();
 
+                // gh#72741 : index sort does not support unsigned_long
                 final String metricType = sortedFields.contains("metric")
                     ? randomFrom("integer", "long")
                     : randomFrom("integer", "long", "unsigned_long");

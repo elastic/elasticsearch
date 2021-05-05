@@ -55,7 +55,7 @@ public class ServerUtils {
 
     private static final Logger logger = LogManager.getLogger(ServerUtils.class);
 
-    private static String SECURITY_ENABLED = "xpack.security.enabled: true";
+    private static String SECURITY_DISABLED = "xpack.security.enabled: false";
     private static String SSL_ENABLED = "xpack.security.http.ssl.enabled: true";
 
     // generous timeout as nested virtualization can be quite slow ...
@@ -70,7 +70,7 @@ public class ServerUtils {
             Path configFilePath = installation.config("elasticsearch.yml");
             // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
-            xpackEnabled = configFile.contains(SECURITY_ENABLED) || configFile.contains(SSL_ENABLED);
+            xpackEnabled = configFile.contains(SECURITY_DISABLED) == false;
         } else {
             // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
             // we currently enable security in all tests

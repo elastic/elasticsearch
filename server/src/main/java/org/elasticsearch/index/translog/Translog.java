@@ -1394,7 +1394,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public String toString() {
             return "Delete{" +
-                "seqNo=" + seqNo +
+                "id='" + id +
+                "', seqNo=" + seqNo +
                 ", primaryTerm=" + primaryTerm +
                 ", version=" + version +
                 '}';

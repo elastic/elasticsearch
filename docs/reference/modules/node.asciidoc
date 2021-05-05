@@ -364,6 +364,10 @@ xpack.ml.enabled: true <2>
 Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
 <2> The `xpack.ml.enabled` setting is enabled by default.
 
+NOTE: If you use {ccs} in your {anomaly-jobs}, the `remote_cluster_client` role 
+is also required on all master-eligible nodes. Otherwise, the {dfeed} cannot 
+start.
+
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
 

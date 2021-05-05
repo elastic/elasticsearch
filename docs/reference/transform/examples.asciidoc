@@ -656,7 +656,7 @@ POST _transform/_preview
 <2> Specifies the fields to return (email and name fields) in a descending order 
 by the order date.
 
-The API returns a response like this:
+The API returns a response that is similar to this:
 
 [source,js]
 ---------------------------------{

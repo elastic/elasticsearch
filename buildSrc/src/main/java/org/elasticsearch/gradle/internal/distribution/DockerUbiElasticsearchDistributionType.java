@@ -20,11 +20,6 @@ public class DockerUbiElasticsearchDistributionType implements ElasticsearchDist
     }
 
     @Override
-    public boolean shouldExtract() {
-        return false;
-    }
-
-    @Override
     public boolean isDocker() {
         return true;
     }

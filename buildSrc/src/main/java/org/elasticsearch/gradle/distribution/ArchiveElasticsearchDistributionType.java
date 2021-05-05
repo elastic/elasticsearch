@@ -37,9 +37,4 @@ public class ArchiveElasticsearchDistributionType implements ElasticsearchDistri
         return true;
     }
 
-    @Override
-    public boolean isDocker() {
-        return false;
-    }
-
 }

@@ -26,13 +26,4 @@ public class DebElasticsearchDistributionType implements ElasticsearchDistributi
         return ":amd64";
     }
 
-    @Override
-    public boolean shouldExtract() {
-        return false;
-    }
-
-    @Override
-    public boolean isDocker() {
-        return false;
-    }
 }

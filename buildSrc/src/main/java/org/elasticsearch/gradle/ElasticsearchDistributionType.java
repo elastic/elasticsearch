@@ -9,11 +9,16 @@
 package org.elasticsearch.gradle;
 
 public interface ElasticsearchDistributionType {
-    boolean shouldExtract();
-
-    boolean isDocker();
 
     String getName();
+
+    default boolean isDocker() {
+        return false;
+    };
+
+    default boolean shouldExtract() {
+        return false;
+    };
 
     default String getExtension(ElasticsearchDistribution.Platform platform) {
         return getName();

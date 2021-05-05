@@ -23,9 +23,4 @@ public class IntegTestZipElasticsearchDistributionType implements ElasticsearchD
     public boolean shouldExtract() {
         return true;
     }
-
-    @Override
-    public boolean isDocker() {
-        return false;
-    }
 }

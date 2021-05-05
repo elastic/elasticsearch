@@ -20,13 +20,7 @@ public class DockerIronBankElasticsearchDistributionType implements Elasticsearc
     }
 
     @Override
-    public boolean shouldExtract() {
-        return false;
-    }
-
-    @Override
     public boolean isDocker() {
         return true;
     }
-
 }

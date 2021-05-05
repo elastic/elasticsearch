@@ -317,9 +317,9 @@ setup:
       scripts_painless_execute:
         body:
           script:
-            source: "emit(doc['rank'].value * (long)params.max_rank)"
+            source: "emit((long)params.max_rank)"
             params:
-              max_rank: 5.0
+              max_rank: 20.0
           context: "long_field"
           context_setup:
             document:

@@ -651,6 +651,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
                     MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
                     DocumentParser documentParser = indexService.mapperService().documentParser();
+                    //Note that we are not doing anything with dynamic mapping updates, hence fields that are not mapped but are present
+                    //in the sample doc are not accessible from the script through doc['field'].
+                    //This is a problem especially for indices that have no mappings, as no fields will be accessible, neither through doc
+                    //nor _source (if there are no mappings there are no metadata fields).
                     ParsedDocument parsedDocument = documentParser.parseDocument(sourceToParse, mappingLookup);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {

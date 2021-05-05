@@ -45,15 +45,30 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
     public static class UsageTransportAction extends XPackUsageFeatureTransportAction {
 
         @Inject
-        public UsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(XPackUsageFeatureAction.VOTING_ONLY.name(), transportService, clusterService,
-                threadPool, actionFilters, indexNameExpressionResolver);
+        public UsageTransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                XPackUsageFeatureAction.VOTING_ONLY.name(),
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                indexNameExpressionResolver
+            );
         }
 
         @Override
-        protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                       ActionListener<XPackUsageFeatureResponse> listener) {
+        protected void masterOperation(
+            Task task,
+            XPackUsageRequest request,
+            ClusterState state,
+            ActionListener<XPackUsageFeatureResponse> listener
+        ) {
             final VotingOnlyNodeFeatureSetUsage usage = new VotingOnlyNodeFeatureSetUsage();
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }

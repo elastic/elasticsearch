@@ -81,6 +81,9 @@ repositories {
   gradlePluginPortal()
 }
 
+configurations {
+  integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
+}
 dependencies {
   api localGroovy()
   api gradleApi()
@@ -119,7 +122,7 @@ dependencies {
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }
-  integTestRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+  testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
     because 'allows JUnit 3 and JUnit 4 tests to run'
   }
 
@@ -127,11 +130,16 @@ dependencies {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }
 
+  testImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+  testImplementation("org.spockframework:spock-core") {
+    exclude module: "groovy"
+  }
   integTestImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
   integTestImplementation("org.spockframework:spock-core") {
     exclude module: "groovy"
   }
-  integTestImplementation "org.spockframework:spock-junit4"  // you can remove this if your code does not rely on old JUnit 4 rules
+  // required as we rely on junit4 rules
+  integTestImplementation "org.spockframework:spock-junit4"
   integTestImplementation "org.xmlunit:xmlunit-core:2.8.2"
 }
 
@@ -210,9 +218,14 @@ if (project != rootProject) {
     }
   }
 
-  // Track reaper jar as a test input using runtime classpath normalization strategy
   tasks.withType(Test).configureEach {
+    // Track reaper jar as a test input using runtime classpath normalization strategy
     inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+    useJUnitPlatform()
+  }
+
+  tasks.named("test").configure {
+    include("**/*TestSpec.class")
   }
 
   normalization {
@@ -238,8 +251,8 @@ if (project != rootProject) {
       Tests {
         baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
       }
-      IT {
-        baseClass 'org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase'
+      TestSpec {
+        baseClass 'spock.lang.Specification'
       }
     }
   }

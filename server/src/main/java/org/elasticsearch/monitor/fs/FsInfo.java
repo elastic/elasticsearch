@@ -248,8 +248,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
                 currentIOTime = in.readLong();
                 previousIOTime = in.readLong();
             } else {
-                currentIOTime = 0;
-                previousIOTime = 0;
+                currentIOTime = -1;
+                previousIOTime = -1;
             }
         }
 
@@ -380,7 +380,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
                 this.totalIOTimeInMillis = in.readLong();
             } else {
-                this.totalIOTimeInMillis = 0;
+                this.totalIOTimeInMillis = -1;
             }
         }
 

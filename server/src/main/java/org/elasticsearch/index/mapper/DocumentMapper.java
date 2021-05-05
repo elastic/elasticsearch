@@ -11,14 +11,12 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-
-import java.util.Collections;
 
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
+    private final DocumentParser documentParser;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -28,17 +26,14 @@ public class DocumentMapper {
     public static DocumentMapper createEmpty(MapperService mapperService) {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME, Version.CURRENT).build(new ContentPath(1));
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
-        Mapping mapping = new Mapping(root, metadata, Collections.emptyMap());
-        return new DocumentMapper(
-            mapperService.getIndexSettings(), mapperService.getIndexAnalyzers(), mapperService.documentParser(), mapping);
+        Mapping mapping = new Mapping(root, metadata, null);
+        return new DocumentMapper(mapperService.documentParser(), mapping);
     }
 
-    DocumentMapper(IndexSettings indexSettings,
-                   IndexAnalyzers indexAnalyzers,
-                   DocumentParser documentParser,
-                   Mapping mapping) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping) {
+        this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
-        this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
+        this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = mapping.toCompressedXContent();
     }
 
@@ -79,7 +74,7 @@ public class DocumentMapper {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return mappingLookup.parseDocument(source);
+        return documentParser.parseDocument(source, mappingLookup);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

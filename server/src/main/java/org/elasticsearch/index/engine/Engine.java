@@ -46,6 +46,7 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -581,7 +582,8 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get, MappingLookup mappingLookup, Function<Engine.Searcher, Engine.Searcher> searcherWrapper);
+    public abstract GetResult get(Get get, MappingLookup mappingLookup, DocumentParser documentParser,
+                                  Function<Engine.Searcher, Engine.Searcher> searcherWrapper);
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.

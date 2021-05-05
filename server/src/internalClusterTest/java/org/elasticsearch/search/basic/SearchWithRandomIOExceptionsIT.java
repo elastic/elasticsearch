@@ -43,9 +43,6 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
         return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
-    public void testRemoveWhenAwaitsFixIsResolved() {
-    }
-
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
         String mapping = Strings.toString(XContentFactory.jsonBuilder().
             startObject().

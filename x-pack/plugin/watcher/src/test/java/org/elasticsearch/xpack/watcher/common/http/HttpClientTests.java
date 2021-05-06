@@ -204,6 +204,7 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72396")
     public void testHttpsWithTLSv1GeneratesWarnings() throws Exception {
         Path trustedCertPath = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.crt");
         Path certPath = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.crt");

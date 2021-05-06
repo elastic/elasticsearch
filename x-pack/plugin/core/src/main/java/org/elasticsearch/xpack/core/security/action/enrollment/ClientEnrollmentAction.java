@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 
 public final class ClientEnrollmentAction extends ActionType<ClientEnrollmentResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/enroll/client";
+    public static final String NAME = "cluster:admin/xpack/security/enrollment/enroll/client";
     public static final ClientEnrollmentAction INSTANCE = new ClientEnrollmentAction();
 
     private ClientEnrollmentAction() {

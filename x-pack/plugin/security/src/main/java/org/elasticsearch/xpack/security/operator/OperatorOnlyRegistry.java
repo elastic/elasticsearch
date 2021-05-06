@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.PutLicenseAction;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.action.enrollment.ClientEnrollmentAction;
 
 import java.util.List;
 import java.util.Set;
@@ -36,8 +35,7 @@ public class OperatorOnlyRegistry {
         // Repository analysis actions are not mentioned in core, literal strings are needed.
         "cluster:admin/repository/analyze",
         "cluster:admin/repository/analyze/blob",
-        "cluster:admin/repository/analyze/blob/read",
-        ClientEnrollmentAction.NAME
+        "cluster:admin/repository/analyze/blob/read"
         );
 
     private final ClusterSettings clusterSettings;

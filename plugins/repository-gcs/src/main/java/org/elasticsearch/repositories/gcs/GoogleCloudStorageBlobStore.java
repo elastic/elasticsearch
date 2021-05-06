@@ -437,21 +437,23 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 while (blobIdsToDelete.hasNext()) {
                     BlobId blob = blobIdsToDelete.next();
                     batch.delete(blob).notify(
-                            new BatchResult.Callback<>() {
-                                @Override
-                                public void success(Boolean result) {
-                                }
+                        new BatchResult.Callback<>() {
+                            @Override
+                            public void success(Boolean result) {
+                            }
 
-                                @Override
-                                public void error(StorageException exception) {
-                                    if (exception.getCode() != HTTP_NOT_FOUND) {
+                            @Override
+                            public void error(StorageException exception) {
+                                if (exception.getCode() != HTTP_NOT_FOUND) {
+                                    if (failedBlobs.size() < 10) {
                                         failedBlobs.add(blob);
-                                        if (ioe.compareAndSet(null, exception) == false) {
-                                            ioe.get().addSuppressed(exception);
-                                        }
+                                    }
+                                    if (ioe.compareAndSet(null, exception) == false) {
+                                        ioe.get().addSuppressed(exception);
                                     }
                                 }
-                            });
+                            }
+                        });
                 }
                 batch.submit();
 

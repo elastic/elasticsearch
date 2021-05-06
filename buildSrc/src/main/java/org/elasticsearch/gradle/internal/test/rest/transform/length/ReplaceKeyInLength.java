@@ -30,10 +30,10 @@ public class ReplaceKeyInLength extends ReplaceByKey {
     }
 
     @Override
-    public void transformTest(ObjectNode matchParent) {
-        ObjectNode matchNode = (ObjectNode) matchParent.get(getKeyToFind());
-        JsonNode previousValue = matchNode.get(requiredChildKey());
-        matchNode.remove(requiredChildKey());
-        matchNode.set(getNewChildKey(), previousValue);
+    public void transformTest(ObjectNode lengthParent) {
+        ObjectNode lengthNode = (ObjectNode) lengthParent.get(getKeyToFind());
+        JsonNode previousValue = lengthNode.get(requiredChildKey());
+        lengthNode.remove(requiredChildKey());
+        lengthNode.set(getNewChildKey(), previousValue);
     }
 }

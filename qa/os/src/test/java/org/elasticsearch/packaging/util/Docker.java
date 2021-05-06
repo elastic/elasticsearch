@@ -525,6 +525,18 @@ public class Docker {
         withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
     }
 
+    public static void waitForElasticsearch(Installation installation, String username, String password) {
+        try {
+            waitForElasticsearch("green", null, installation, username, password);
+        } catch (Exception e) {
+            throw new AssertionError(
+                "Failed to check whether Elasticsearch had started. This could be because "
+                    + "authentication isn't working properly. Check the container logs",
+                e
+            );
+        }
+    }
+
     /**
      * Runs the provided closure, and captures logging information if an exception is thrown.
      * @param r the closure to run

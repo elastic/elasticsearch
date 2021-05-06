@@ -112,15 +112,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the /_xpack API endpoint's presence is correct for the type of distribution being tested.
      */
     public void test011PresenceOfXpack() throws Exception {
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
         final int statusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200/_xpack"), USERNAME, PASSWORD, null);
         assertThat(statusCode, equalTo(200));
     }
@@ -158,15 +150,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that when the keystore is created on startup, it is created with the correct permissions.
      */
     public void test042KeystorePermissionsAreCorrect() throws Exception {
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         assertPermissionsAndOwnership(installation.config("elasticsearch.keystore"), p660);
     }
@@ -176,15 +160,7 @@ public class DockerTests extends PackagingTestCase {
      * is minimally functional.
      */
     public void test050BasicApiTests() throws Exception {
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
@@ -227,15 +203,7 @@ public class DockerTests extends PackagingTestCase {
                 )
         );
 
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD).get("nodes");
         final String nodeId = nodes.fieldNames().next();
@@ -266,15 +234,7 @@ public class DockerTests extends PackagingTestCase {
                 builder().volumes(volumes).envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
             );
 
-            try {
-                waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-            } catch (Exception e) {
-                throw new AssertionError(
-                    "Failed to check whether Elasticsearch had started. This could be because "
-                        + "authentication isn't working properly. Check the container logs",
-                    e
-                );
-            }
+            waitForElasticsearch(installation, USERNAME, PASSWORD);
 
             final JsonNode nodes = getJson("/_nodes", USERNAME, PASSWORD);
 
@@ -330,15 +290,7 @@ public class DockerTests extends PackagingTestCase {
                 .uid(501, 501)
         );
 
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
     }
 
     /**
@@ -354,15 +306,7 @@ public class DockerTests extends PackagingTestCase {
                 .extraArgs("--group-add 0")
         );
 
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
     }
 
     /**
@@ -710,15 +654,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the container logs contain the expected content for Elasticsearch itself.
      */
     public void test120DockerLogsIncludeElasticsearchLogs() throws Exception {
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
         final Result containerLogs = getContainerLogs();
 
         assertThat("Container logs should contain full class names", containerLogs.stdout, containsString("org.elasticsearch.node.Node"));
@@ -734,15 +670,7 @@ public class DockerTests extends PackagingTestCase {
             builder().envVars(Map.of("ES_LOG_STYLE", "file", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
         );
 
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
@@ -764,15 +692,7 @@ public class DockerTests extends PackagingTestCase {
             builder().envVars(Map.of("ES_LOG_STYLE", "console", "ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
         );
 
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         final Result containerLogs = getContainerLogs();
         final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
@@ -823,15 +743,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that Elasticsearch reports per-node cgroup information.
      */
     public void test140CgroupOsStatsAreAvailable() throws Exception {
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         final JsonNode nodes = getJson("/_nodes/stats/os", USERNAME, PASSWORD).get("nodes");
 
@@ -868,15 +780,7 @@ public class DockerTests extends PackagingTestCase {
                 .volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath))
                 .envVars(Map.of("ingest.geoip.downloader.enabled", "false", "ELASTIC_PASSWORD", PASSWORD))
         );
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
 
         // Grab the container output and find the line where it print the JVM arguments. This will
         // let us see what the automatic heap sizing calculated.

@@ -20,6 +20,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -46,6 +48,8 @@ public class CertGenCliTests extends PackagingTestCase {
 
     public void test10Install() throws Exception {
         install();
+        // Enable security for this test only where it is necessary, until we can enable it for all
+        ServerUtils.enableSecurityFeatures(installation);
     }
 
     public void test20Help() {
@@ -85,7 +89,6 @@ public class CertGenCliTests extends PackagingTestCase {
         FileUtils.cp(certsDir, installation.config("certs"));
     }
 
-    @AwaitsFix(bugUrl = "Fix Packaging tests")
     public void test40RunWithCert() throws Exception {
         // windows 2012 r2 has powershell 4.0, which lacks Expand-Archive
         assumeFalse(Platforms.OS_NAME.equals("Windows Server 2012 R2"));
@@ -109,7 +112,26 @@ public class CertGenCliTests extends PackagingTestCase {
         Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
 
         assertWhileRunning(
-            () -> ServerUtils.makeRequest(Request.Get("https://127.0.0.1:9200"), null, null, installation.config("certs/ca/ca.crt"))
+            () -> {
+                final String password = setElasticPassword();
+                assertNotNull(password);
+                ServerUtils.makeRequest(
+                    Request.Get("https://127.0.0.1:9200"), "elastic", password, installation.config("certs/ca/ca.crt"));
+            }
         );
     }
+
+    private String setElasticPassword() {
+        final Pattern userpassRegex = Pattern.compile("PASSWORD (\\w+) = ([^\\s]+)");
+        Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
+        Matcher matcher = userpassRegex.matcher(result.stdout);
+        assertNotNull(matcher);
+        while (matcher.find()) {
+            if (matcher.group(1).equals("elastic")) {
+                return matcher.group(2);
+            }
+        }
+        return null;
+    }
+
 }

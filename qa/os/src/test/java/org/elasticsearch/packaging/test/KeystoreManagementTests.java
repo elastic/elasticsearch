@@ -262,7 +262,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via an environment variable.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to copy with resource busy")
+    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
     public void test60DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
         String password = "keystore-password";
@@ -281,15 +281,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             PASSWORD
         );
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
-        try {
-            waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-        } catch (Exception e) {
-            throw new AssertionError(
-                "Failed to check whether Elasticsearch had started. This could be because "
-                    + "authentication isn't working properly. Check the container logs",
-                e
-            );
-        }
+        waitForElasticsearch(installation, USERNAME, PASSWORD);
         ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
     }
 
@@ -297,7 +289,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that we can mount a password-protected keystore to a docker image
      * and provide a password via a file, pointed at from an environment variable.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to copy with resource busy")
+    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
     public void test61DockerEnvironmentVariablePasswordFromFile() throws Exception {
         assumeTrue(distribution().isDocker());
 
@@ -327,15 +319,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
-            try {
-                waitForElasticsearch("green", null, installation, USERNAME, PASSWORD);
-            } catch (Exception e) {
-                throw new AssertionError(
-                    "Failed to check whether Elasticsearch had started. This could be because "
-                        + "authentication isn't working properly. Check the container logs",
-                    e
-                );
-            }
+            waitForElasticsearch(installation, USERNAME, PASSWORD);
             ServerUtils.runElasticsearchTests(USERNAME, PASSWORD);
         } finally {
             if (tempDir != null) {
@@ -348,7 +332,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      * Check that if we provide the wrong password for a mounted and password-protected
      * keystore, Elasticsearch doesn't start.
      */
-    @AwaitsFix(bugUrl = "Keystore fails to copy with resource busy")
+    @AwaitsFix(bugUrl = "Keystore fails to save with resource busy")
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
         String password = "keystore-password";

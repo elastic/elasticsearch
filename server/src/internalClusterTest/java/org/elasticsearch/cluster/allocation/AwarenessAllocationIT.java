@@ -326,6 +326,6 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(expectThrows(IllegalArgumentException.class, () ->
                         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
                                 Settings.builder().put(prefix + "attr.values.junk", "foo")).get()).getMessage(),
-                containsString("[cluster.routing.allocation.awareness.force.attr.values.junk./g]"));
+                containsString("[cluster.routing.allocation.awareness.force.attr.values.junk]"));
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal;
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import nebula.plugin.info.InfoBrokerPlugin;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.precommit.PrecommitTaskPlugin;

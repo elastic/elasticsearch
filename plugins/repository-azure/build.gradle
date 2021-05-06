@@ -25,6 +25,7 @@ versions << [
   'azure': '12.11.0',
   'azureCore': '1.15.0',
   'azureCoreHttpNetty': '1.9.1',
+  'azureAvro': '12.0.3',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
@@ -42,6 +43,7 @@ dependencies {
   api "com.azure:azure-storage-blob:${versions.azure}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
+  api "com.azure:azure-storage-internal-avro:${versions.azureAvro}"
 
   // jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"

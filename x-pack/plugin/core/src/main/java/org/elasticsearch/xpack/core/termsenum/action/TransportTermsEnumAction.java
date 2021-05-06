@@ -349,7 +349,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         ThreadContext threadContext        
     ) throws IOException {
         if (frozenLicenseState.isSecurityEnabled()) {
-            var licenseChecker = new MemoizedSupplier<>(() -> frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
+            MemoizedSupplier<Boolean> licenseChecker = new MemoizedSupplier<>(() -> 
+                frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
 

@@ -100,9 +100,8 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
-        protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
+        protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Dynamic dynamic,
                 Map<String, Mapper> mappers, Version indexCreatedVersion) {
-            assert nested.isNested() == false;
             return new RootObjectMapper(name, enabled, dynamic, mappers,
                     runtimeFields == null ? Collections.emptyMap() : runtimeFields,
                     dynamicDateTimeFormatters,
@@ -112,7 +111,7 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     /**
-     * Removes redundant root includes in {@link ObjectMapper.Nested} trees to avoid duplicate
+     * Removes redundant root includes in {@link NestedObjectMapper} trees to avoid duplicate
      * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
      * itself included into a parent node, for which either {@code isIncludeInRoot} is
      * {@code true} or which is transitively included in root by a chain of nodes with
@@ -124,15 +123,13 @@ public class RootObjectMapper extends ObjectMapper {
 
     private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
         for (Mapper mapper : objectMapper) {
-            if (mapper instanceof ObjectMapper) {
-                ObjectMapper child = (ObjectMapper) mapper;
-                Nested nested = child.nested();
-                boolean isNested = nested.isNested();
-                boolean includeInRootViaParent = parentIncluded && isNested && nested.isIncludeInParent();
-                boolean includedInRoot = isNested && nested.isIncludeInRoot();
+            if (mapper instanceof NestedObjectMapper) {
+                NestedObjectMapper child = (NestedObjectMapper) mapper;
+                boolean includeInRootViaParent = parentIncluded && child.isIncludeInParent();
+                boolean includedInRoot = child.isIncludeInRoot();
                 if (includeInRootViaParent && includedInRoot) {
-                    nested.setIncludeInParent(true);
-                    nested.setIncludeInRoot(false);
+                    child.setIncludeInParent(true);
+                    child.setIncludeInRoot(false);
                 }
                 fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
             }

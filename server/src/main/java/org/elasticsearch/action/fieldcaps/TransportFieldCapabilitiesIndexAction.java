@@ -141,7 +141,7 @@ public class TransportFieldCapabilitiesIndexAction
                             if (searchExecutionContext.getFieldType(parentField) == null) {
                                 // no field type, it must be an object field
                                 ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
-                                String type = mapper.nested().isNested() ? "nested" : "object";
+                                String type = mapper.typeName();
                                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
                                     false, false, false, Collections.emptyMap());
                                 responseMap.put(parentField, fieldCap);

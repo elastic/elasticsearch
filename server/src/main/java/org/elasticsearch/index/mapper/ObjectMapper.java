@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -220,11 +219,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private final String fullPath;
 
-    private Explicit<Boolean> enabled;
+    protected Explicit<Boolean> enabled;
 
-    private volatile Dynamic dynamic;
+    protected volatile Dynamic dynamic;
 
-    private volatile CopyOnWriteHashMap<String, Mapper> mappers;
+    protected volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers) {
         super(name);
@@ -326,7 +325,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     protected void doMerge(final ObjectMapper mergeWith, MergeReason reason) {
-        nested().merge(mergeWith.nested(), reason);
 
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
@@ -376,15 +374,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
         builder.startObject(simpleName());
-        if (nested.isNested()) {
-            builder.field("type", NESTED_CONTENT_TYPE);
-            if (nested.isIncludeInParent()) {
-                builder.field("include_in_parent", true);
-            }
-            if (nested.isIncludeInRoot()) {
-                builder.field("include_in_root", true);
-            }
-        } else if (mappers.isEmpty() && custom == null) {
+        if (mappers.isEmpty() && custom == null) {
             // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);
         }
@@ -400,7 +390,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         doXContent(builder, params);
+        serializeMappers(builder, params);
+        builder.endObject();
+    }
 
+    protected void serializeMappers(XContentBuilder builder, Params params) throws IOException {
         // sort the mappers so we get consistent serialization format
         Mapper[] sortedMappers = mappers.values().toArray(Mapper[]::new);
         Arrays.sort(sortedMappers, Comparator.comparing(Mapper::name));
@@ -417,7 +411,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (count > 0) {
             builder.endObject();
         }
-        builder.endObject();
     }
 
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {

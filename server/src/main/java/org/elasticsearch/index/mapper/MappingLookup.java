@@ -148,7 +148,7 @@ public final class MappingLookup {
             if (objects.put(mapper.fullPath(), mapper) != null) {
                 throw new MapperParsingException("Object mapper [" + mapper.fullPath() + "] is defined more than once");
             }
-            if (mapper.nested().isNested()) {
+            if (mapper instanceof NestedObjectMapper) {
                 hasNested = true;
             }
         }
@@ -271,7 +271,7 @@ public final class MappingLookup {
     private void checkNestedLimit(long limit) {
         long actualNestedFields = 0;
         for (ObjectMapper objectMapper : objectMappers.values()) {
-            if (objectMapper.nested().isNested()) {
+            if (objectMapper instanceof NestedObjectMapper) {
                 actualNestedFields++;
             }
         }
@@ -300,7 +300,7 @@ public final class MappingLookup {
     public String getNestedScope(String path) {
         for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
             ObjectMapper objectMapper = objectMappers.get(parentPath);
-            if (objectMapper != null && objectMapper.nested().isNested()) {
+            if (objectMapper instanceof NestedObjectMapper) {
                 return parentPath;
             }
         }
@@ -399,7 +399,7 @@ public final class MappingLookup {
             return false;
         }
         while (mapper != null) {
-            if (mapper.nested().isNested() == false) {
+            if (mapper instanceof NestedObjectMapper == false) {
                 return true;
             }
             if (path.contains(".") == false) {
@@ -417,7 +417,7 @@ public final class MappingLookup {
     public List<ObjectMapper> getNestedMappers() {
         List<ObjectMapper> childMappers = new ArrayList<>();
         for (ObjectMapper mapper : objectMappers().values()) {
-            if (mapper.nested().isNested() == false) {
+            if (mapper instanceof NestedObjectMapper == false) {
                 continue;
             }
             childMappers.add(mapper);
@@ -438,7 +438,7 @@ public final class MappingLookup {
                 continue;
             }
             ObjectMapper parent = objectMappers().get(nestedParentPath);
-            if (parent.nested().isNested()) {
+            if (parent instanceof NestedObjectMapper) {
                 parents.add(parent);
             }
         }
@@ -466,7 +466,7 @@ public final class MappingLookup {
             if (mapper == null) {
                 return null;
             }
-            if (mapper.nested().isNested()) {
+            if (mapper instanceof NestedObjectMapper) {
                 return path;
             }
             if (path.contains(".") == false) {

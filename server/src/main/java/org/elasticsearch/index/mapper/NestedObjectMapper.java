@@ -11,10 +11,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 
 public class NestedObjectMapper extends ObjectMapper {
@@ -55,6 +58,8 @@ public class NestedObjectMapper extends ObjectMapper {
 
             return new NestedObjectMapper(name, contentPath.pathAsText(name), mappers, this);
         }
+
+        protected void fixRedundantIncludes(boolean includeInParent)
     }
 
     public static class TypeParser extends ObjectMapper.TypeParser {
@@ -89,8 +94,8 @@ public class NestedObjectMapper extends ObjectMapper {
         }
     }
 
-    private final Explicit<Boolean> includeInRoot;
-    private final Explicit<Boolean> includeInParent;
+    private Explicit<Boolean> includeInRoot;
+    private Explicit<Boolean> includeInParent;
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
 
@@ -117,5 +122,57 @@ public class NestedObjectMapper extends ObjectMapper {
 
     public String nestedTypePath() {
         return this.nestedTypePath;
+    }
+
+    public boolean isIncludeInParent() {
+        return this.includeInParent.value();
+    }
+
+    public boolean isIncludeInRoot() {
+        return this.includeInRoot.value();
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(simpleName());
+        builder.field("type", CONTENT_TYPE);
+        if (includeInParent.explicit()) {
+            builder.field("include_in_parent", includeInParent.value());
+        }
+        if (includeInRoot.explicit()) {
+            builder.field("include_in_root", includeInRoot.value());
+        }
+        if (dynamic != null) {
+            builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
+        }
+        if (isEnabled() != Defaults.ENABLED) {
+            builder.field("enabled", enabled.value());
+        }
+        serializeMappers(builder, params);
+        return builder.endObject();
+    }
+
+    @Override
+    protected void doMerge(ObjectMapper mergeWith, MapperService.MergeReason reason) {
+        if (mergeWith instanceof NestedObjectMapper == false) {
+            throw new MapperParsingException("Cannot merge mapper of type [" + mergeWith.typeName() + "] with one of type [nested]");
+        }
+        super.doMerge(mergeWith, reason);
+        NestedObjectMapper nestedMergeWith = (NestedObjectMapper) mergeWith;
+        if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
+            if (nestedMergeWith.includeInParent.explicit()) {
+                includeInParent = nestedMergeWith.includeInParent;
+            }
+            if (nestedMergeWith.includeInRoot.explicit()) {
+                includeInRoot = nestedMergeWith.includeInRoot;
+            }
+        } else {
+            if (includeInParent.value() != nestedMergeWith.includeInParent.value()) {
+                throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
+            }
+            if (includeInRoot.value() != nestedMergeWith.includeInRoot.value()) {
+                throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
+            }
+        }
     }
 }

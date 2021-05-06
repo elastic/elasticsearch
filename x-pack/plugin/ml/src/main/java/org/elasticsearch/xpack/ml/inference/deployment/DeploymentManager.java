@@ -224,6 +224,7 @@ public class DeploymentManager {
         }
 
         void infer(String inputs, String requestId) throws IOException {
+            logger.info("tokenizing input [{}]",  inputs);
             BytesReference request = pipeline.get().createRequest(inputs, requestId);
             logger.info("I Request "+ request.utf8ToString());
             process.get().writeInferenceRequest(request);

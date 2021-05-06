@@ -28,6 +28,8 @@ public class BertTokenizer {
     public static final String CLASS_TOKEN = "[CLS]";
     public static final String MASK_TOKEN = "[MASK]";
 
+    public static final int SPECIAL_TOKEN_POSITION = -1;
+
     public static final int DEFAULT_MAX_INPUT_CHARS_PER_WORD = 100;
 
     private final WordPieceTokenizer wordPieceTokenizer;
@@ -50,6 +52,10 @@ public class BertTokenizer {
         this.neverSplit = neverSplit;
     }
 
+    public TokenizationResult tokenize(String text) {
+        return tokenize(text, true);
+    }
+
     /**
      * Tokenize the input according to the basic tokenization options
      * then perform Word Piece tokenization with the given vocabulary.
@@ -57,14 +63,19 @@ public class BertTokenizer {
      * The result is the Word Piece tokens, a map of the Word Piece
      * token position to the position of the token in the source
      * @param text Text to tokenize
+     * @param withSpecialTokens Include CLS and SEP tokens
      * @return Tokenized text, token Ids and map
      */
-    public TokenizationResult tokenize(String text) {
+    public TokenizationResult tokenize(String text, boolean withSpecialTokens) {
         BasicTokenizer basicTokenizer = new BasicTokenizer(doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
 
         List<String> delineatedTokens = basicTokenizer.tokenize(text);
         List<WordPieceTokenizer.TokenAndId> wordPieceTokens = new ArrayList<>();
         List<Integer> tokenPositionMap = new ArrayList<>();
+        if (withSpecialTokens) {
+            // insert the first token to simplify the loop counter logic later
+            tokenPositionMap.add(SPECIAL_TOKEN_POSITION);
+        }
 
         for (int sourceIndex = 0; sourceIndex < delineatedTokens.size(); sourceIndex++) {
             String token = delineatedTokens.get(sourceIndex);
@@ -80,15 +91,29 @@ public class BertTokenizer {
             }
         }
 
-        assert tokenPositionMap.size() == wordPieceTokens.size();
+        int numTokens = withSpecialTokens ? wordPieceTokens.size() + 2 : wordPieceTokens.size();
+        List<String> tokens = new ArrayList<>(numTokens);
+        int [] tokenIds = new int[numTokens];
+        int [] tokenMap = new int[numTokens];
 
-        List<String> tokens = new ArrayList<>(wordPieceTokens.size());
-        int [] tokenIds = new int[wordPieceTokens.size()];
-        int [] tokenMap = new int[wordPieceTokens.size()];
-        for (int i = 0; i < wordPieceTokens.size(); i++) {
-            tokens.add(wordPieceTokens.get(i).getToken());
-            tokenIds[i] = wordPieceTokens.get(i).getId();
+        if (withSpecialTokens) {
+            tokens.add(CLASS_TOKEN);
+            tokenIds[0] = vocab.get(CLASS_TOKEN);
+            tokenMap[0] = SPECIAL_TOKEN_POSITION;
+        }
+
+        int i = withSpecialTokens ? 1 : 0;
+        for (WordPieceTokenizer.TokenAndId tokenAndId : wordPieceTokens) {
+            tokens.add(tokenAndId.getToken());
+            tokenIds[i] = tokenAndId.getId();
             tokenMap[i] = tokenPositionMap.get(i);
+            i++;
+        }
+
+        if (withSpecialTokens) {
+            tokens.add(SEPARATOR_TOKEN);
+            tokenIds[i] = vocab.get(SEPARATOR_TOKEN);
+            tokenMap[i] = SPECIAL_TOKEN_POSITION;
         }
 
         return new TokenizationResult(tokens, tokenIds, tokenMap);
@@ -141,7 +166,7 @@ public class BertTokenizer {
     public static class Builder {
 
         private final Map<String, Integer> vocab;
-        private boolean doLowerCase = true;
+        private boolean doLowerCase = false;
         private boolean doTokenizeCjKChars = true;
         private Boolean doStripAccents = null;
         private Set<String> neverSplit;

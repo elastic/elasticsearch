@@ -24,6 +24,7 @@ public class PipelineConfig implements ToXContentObject {
 
     public static final ParseField VOCAB = new ParseField("vocab");
     public static final ParseField TASK_TYPE = new ParseField("task_type");
+    public static final ParseField LOWER_CASE = new ParseField("do_lower_case");
 
     private static final ObjectParser<PipelineConfig.Builder, Void> STRICT_PARSER = createParser(false);
     private static final ObjectParser<PipelineConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -35,6 +36,7 @@ public class PipelineConfig implements ToXContentObject {
 
         parser.declareStringArray(Builder::setVocabulary, VOCAB);
         parser.declareString(Builder::setTaskType, TASK_TYPE);
+        parser.declareBoolean(Builder::setDoLowerCase, LOWER_CASE);
         return parser;
     }
 
@@ -48,10 +50,12 @@ public class PipelineConfig implements ToXContentObject {
 
     private final TaskType taskType;
     private final List<String> vocabulary;
+    private final boolean doLowerCase;
 
-    PipelineConfig(TaskType taskType, List<String> vocabulary) {
+    PipelineConfig(TaskType taskType, List<String> vocabulary, boolean doLowerCase) {
         this.taskType = taskType;
         this.vocabulary = vocabulary;
+        this.doLowerCase = doLowerCase;
     }
 
     public TaskType getTaskType() {
@@ -59,7 +63,7 @@ public class PipelineConfig implements ToXContentObject {
     }
 
     public BertTokenizer buildTokenizer() {
-        return BertTokenizer.builder(vocabMap()).build();
+        return BertTokenizer.builder(vocabMap()).setDoLowerCase(doLowerCase).build();
     }
 
     SortedMap<String, Integer> vocabMap() {
@@ -84,12 +88,14 @@ public class PipelineConfig implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PipelineConfig that = (PipelineConfig) o;
-        return taskType == that.taskType && Objects.equals(vocabulary, that.vocabulary);
+        return taskType == that.taskType &&
+            doLowerCase == that.doLowerCase &&
+            Objects.equals(vocabulary, that.vocabulary);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskType, vocabulary);
+        return Objects.hash(taskType, vocabulary, doLowerCase);
     }
 
     public static Builder builder() {
@@ -100,6 +106,7 @@ public class PipelineConfig implements ToXContentObject {
 
         private TaskType taskType;
         private List<String> vocabulary;
+        private boolean doLowerCase = false;
 
         public Builder setTaskType(TaskType taskType) {
             this.taskType = taskType;
@@ -116,8 +123,13 @@ public class PipelineConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setDoLowerCase(boolean doLowerCase) {
+            this.doLowerCase = doLowerCase;
+            return this;
+        }
+
         public PipelineConfig build() {
-            return new PipelineConfig(taskType, vocabulary);
+            return new PipelineConfig(taskType, vocabulary, doLowerCase);
         }
     }
 }

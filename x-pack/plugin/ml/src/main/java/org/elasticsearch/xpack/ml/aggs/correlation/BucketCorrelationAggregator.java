@@ -36,7 +36,7 @@ public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
 
     @Override
     public InternalAggregation doReduce(Aggregations aggregations, InternalAggregation.ReduceContext context) {
-        CorrelativeValue bucketPathValue = null;
+        CountCorrelationIndicator bucketPathValue = null;
         List<String> parsedPath = AggregationPath.parse(bucketsPaths()[0]).getPathElementsAsStringList();
         for (Aggregation aggregation : aggregations) {
             if (aggregation.getName().equals(parsedPath.get(0))) {
@@ -57,7 +57,7 @@ public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
                     }
                     docCount += bucket.getDocCount();
                 }
-                bucketPathValue = new CorrelativeValue(
+                bucketPathValue = new CountCorrelationIndicator(
                     values.stream().mapToDouble(Double::doubleValue).toArray(),
                     null,
                     docCount

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -43,6 +44,14 @@ public class BucketCorrelationAggregationBuilder extends AbstractPipelineAggrega
             ConstructingObjectParser.constructorArg(),
             (p, c, n) -> p.namedObject(CorrelationFunction.class, n, null),
             FUNCTION
+        );
+    }
+
+    public static SearchPlugin.PipelineAggregationSpec buildSpec() {
+        return new SearchPlugin.PipelineAggregationSpec(
+            NAME,
+            BucketCorrelationAggregationBuilder::new,
+            BucketCorrelationAggregationBuilder.PARSER
         );
     }
 

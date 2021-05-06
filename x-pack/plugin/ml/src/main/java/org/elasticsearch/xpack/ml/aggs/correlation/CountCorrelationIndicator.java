@@ -22,17 +22,20 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public class CorrelativeValue implements Writeable, ToXContentObject {
+/**
+ * This contains values necessary for calculating the specific count correlation function.
+ */
+public class CountCorrelationIndicator implements Writeable, ToXContentObject {
 
     private static final ParseField EXPECTATIONS = new ParseField("expectations");
     private static final ParseField FRACTIONS = new ParseField("fractions");
     private static final ParseField DOC_COUNT = new ParseField("doc_count");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<org.elasticsearch.xpack.ml.aggs.correlation.CorrelativeValue, Void> PARSER =
+    private static final ConstructingObjectParser<CountCorrelationIndicator, Void> PARSER =
         new ConstructingObjectParser<>(
             "correlative_value",
-            a -> new org.elasticsearch.xpack.ml.aggs.correlation.CorrelativeValue((List<Double>) a[0], (List<Double>) a[2], (Long) a[1])
+            a -> new CountCorrelationIndicator((List<Double>) a[0], (List<Double>) a[2], (Long) a[1])
         );
     static {
         PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), EXPECTATIONS);
@@ -43,7 +46,7 @@ public class CorrelativeValue implements Writeable, ToXContentObject {
     private final double[] expectations;
     private final double[] fractions;
     private final long docCount;
-    private CorrelativeValue(List<Double> values, List<Double> fractions, long docCount) {
+    private CountCorrelationIndicator(List<Double> values, List<Double> fractions, long docCount) {
         this(
             values.stream().mapToDouble(Double::doubleValue).toArray(),
             fractions == null ? null : fractions.stream().mapToDouble(Double::doubleValue).toArray(),
@@ -51,7 +54,7 @@ public class CorrelativeValue implements Writeable, ToXContentObject {
         );
     }
 
-    public CorrelativeValue(double[] values, double[] fractions, long docCount) {
+    public CountCorrelationIndicator(double[] values, double[] fractions, long docCount) {
         Objects.requireNonNull(values);
         if (fractions != null) {
             if (values.length != fractions.length) {
@@ -69,24 +72,34 @@ public class CorrelativeValue implements Writeable, ToXContentObject {
         this.docCount = docCount;
     }
 
-    public CorrelativeValue(StreamInput in) throws IOException {
+    public CountCorrelationIndicator(StreamInput in) throws IOException {
         this.expectations = in.readDoubleArray();
         this.fractions = in.readBoolean() ? in.readDoubleArray() : null;
         this.docCount = in.readVLong();
     }
 
-    public static org.elasticsearch.xpack.ml.aggs.correlation.CorrelativeValue fromXContent(XContentParser parser) {
+    public static CountCorrelationIndicator fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
+    /**
+     * @return The expectations with which to correlate
+     */
     public double[] getExpectations() {
         return expectations;
     }
 
+    /**
+     * @return The fractions related to each specific expectation.
+     *         Useful for when there are gaps in the data and one expectation should be weighted higher than others
+     */
     public double[] getFractions() {
         return fractions;
     }
 
+    /**
+     * @return The total doc_count contained in this indicator. Usually simply a sum of the expectations
+     */
     public long getDocCount() {
         return docCount;
     }
@@ -95,17 +108,14 @@ public class CorrelativeValue implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        org.elasticsearch.xpack.ml.aggs.correlation.CorrelativeValue that =
-            (org.elasticsearch.xpack.ml.aggs.correlation.CorrelativeValue) o;
+        CountCorrelationIndicator that =
+            (CountCorrelationIndicator) o;
         return docCount == that.docCount && Arrays.equals(expectations, that.expectations) && Arrays.equals(fractions, that.fractions);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(docCount);
-        result = 31 * result + Arrays.hashCode(expectations);
-        result = 31 * result + Arrays.hashCode(fractions);
-        return result;
+        return Objects.hash(docCount, Arrays.hashCode(expectations), Arrays.hashCode(fractions));
     }
 
     @Override

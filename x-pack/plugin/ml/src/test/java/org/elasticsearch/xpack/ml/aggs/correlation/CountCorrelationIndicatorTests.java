@@ -15,30 +15,30 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.stream.Stream;
 
-public class CorrelativeValueTests extends AbstractSerializingTestCase<CorrelativeValue> {
+public class CountCorrelationIndicatorTests extends AbstractSerializingTestCase<CountCorrelationIndicator> {
 
-    public static CorrelativeValue randomInstance() {
+    public static CountCorrelationIndicator randomInstance() {
         double[] expectations = Stream.generate(ESTestCase::randomDouble)
             .limit(randomIntBetween(5, 100))
             .mapToDouble(Double::doubleValue).toArray();
         double[] fractions = Stream.generate(ESTestCase::randomDouble)
             .limit(expectations.length)
             .mapToDouble(Double::doubleValue).toArray();
-        return new CorrelativeValue(expectations, randomBoolean() ? null : fractions, randomLongBetween(1, Long.MAX_VALUE - 1));
+        return new CountCorrelationIndicator(expectations, randomBoolean() ? null : fractions, randomLongBetween(1, Long.MAX_VALUE - 1));
     }
 
     @Override
-    protected CorrelativeValue doParseInstance(XContentParser parser) throws IOException {
-        return CorrelativeValue.fromXContent(parser);
+    protected CountCorrelationIndicator doParseInstance(XContentParser parser) throws IOException {
+        return CountCorrelationIndicator.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<CorrelativeValue> instanceReader() {
-        return CorrelativeValue::new;
+    protected Writeable.Reader<CountCorrelationIndicator> instanceReader() {
+        return CountCorrelationIndicator::new;
     }
 
     @Override
-    protected CorrelativeValue createTestInstance() {
+    protected CountCorrelationIndicator createTestInstance() {
         return randomInstance();
     }
 }

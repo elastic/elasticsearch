@@ -16,11 +16,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.xpack.core.XPackField;
@@ -69,6 +72,17 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         PARSER.declareString(InferencePipelineAggregationBuilder::setModelId, MODEL_ID);
         PARSER.declareNamedObject(InferencePipelineAggregationBuilder::setInferenceConfig,
             (p, c, n) -> p.namedObject(InferenceConfigUpdate.class, n, c), INFERENCE_CONFIG);
+    }
+
+    public static SearchPlugin.PipelineAggregationSpec buildSpec(SetOnce<ModelLoadingService> modelLoadingService,
+                                                                 XPackLicenseState xPackLicenseState) {
+        SearchPlugin.PipelineAggregationSpec spec = new SearchPlugin.PipelineAggregationSpec(InferencePipelineAggregationBuilder.NAME,
+            in -> new InferencePipelineAggregationBuilder(in, xPackLicenseState, modelLoadingService),
+            (ContextParser<String, ? extends PipelineAggregationBuilder>)
+                (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, xPackLicenseState, name, parser)
+        );
+        spec.addResultReader(InternalInferenceAggregation::new);
+        return spec;
     }
 
     private final Map<String, String> bucketPathMap;

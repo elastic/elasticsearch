@@ -20,9 +20,10 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.correlation.CorrelativeValue;
+import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationIndicator;
 import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationFunction;
 
 import java.util.ArrayList;
@@ -158,28 +159,23 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
                 "correlates",
                 "correlation_range>_count",
                 new CountCorrelationFunction(
-                    new CorrelativeValue(expectations, fractions.stream().mapToDouble(Double::doubleValue).toArray(), totalCount)
+                    new CountCorrelationIndicator(expectations, fractions.stream().mapToDouble(Double::doubleValue).toArray(), totalCount)
                 )
             )
         );
     }
 
     private double pearsonCorrelation(double[] xs, int[] ys) {
-        double meanX = sum(xs)/xs.length;
+        double meanX = MovingFunctions.unweightedAvg(xs);
         double meanY = sum(ys)/(double)ys.length;
-        double varX = 0.0;
-        for (double x : xs) {
-            varX += Math.pow(x - meanX, 2);
-        }
-        varX /= xs.length;
-
+        double varX = Math.pow(MovingFunctions.stdDev(xs, meanX), 2.0);
         double varY = 0.0;
         for (int y : ys) {
             varY += Math.pow(y - meanY, 2);
         }
         varY /= ys.length;
 
-        if (varY == 0 || varX == 0) {
+        if (varY == 0 || varX == 0 || Double.isNaN(varX) || Double.isNaN(varY)) {
             fail("failed to calculate true correlation due to 0 variance in the data");
         }
 
@@ -188,14 +184,6 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
             corXY += (((xs[i] - meanX)*(ys[i] - meanY))/Math.sqrt(varX*varY));
         }
         return corXY/xs.length;
-    }
-
-    private static double sum(double[] xs) {
-        double s = 0;
-        for (double x : xs) {
-            s += x;
-        }
-        return s;
     }
 
     private static int sum(int[] xs) {
@@ -215,9 +203,9 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
             for (BulkItemResponse itemResponse : bulkResponse) {
                 if (itemResponse.isFailed()) {
                     failures++;
-                    logger.error("Item response failure [{}]", itemResponse.getFailureMessage());
                 }
             }
+            logger.error("Item response failure [{}]", bulkResponse.buildFailureMessage());
             fail("Bulk response contained " + failures + " failures");
         }
     }

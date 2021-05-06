@@ -14,16 +14,8 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 public interface CorrelationFunction extends NamedWriteable, NamedXContentObject {
 
-    double execute(CorrelativeValue y);
+    double execute(CountCorrelationIndicator y);
 
     void validate(PipelineAggregationBuilder.ValidationContext context, String bucketPath);
-
-    static double sum(double[] xs) {
-        double s = 0;
-        for (double x : xs) {
-            s += x;
-        }
-        return s;
-    }
 
 }

@@ -52,7 +52,7 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
             .limit(2)
             .collect(Collectors.toList());
 
-        CorrelationFunction function = new CountCorrelationFunction(CorrelativeValueTests.randomInstance());
+        CorrelationFunction function = new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance());
         return new BucketCorrelationAggregationBuilder(
             NAME,
             randomAlphaOfLength(8),
@@ -74,7 +74,7 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
                 new BucketCorrelationAggregationBuilder(
                     NAME,
                     "missing>metric",
-                    new CountCorrelationFunction(CorrelativeValueTests.randomInstance())
+                    new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance())
                 )
             ),
             containsString("aggregation does not exist for aggregation")
@@ -87,7 +87,7 @@ public class BucketCorrelationAggregationBuilderTests extends BasePipelineAggreg
                 new BucketCorrelationAggregationBuilder(
                     NAME,
                     "global>metric",
-                    new CountCorrelationFunction(CorrelativeValueTests.randomInstance())
+                    new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance())
                 )
             ),
             containsString("must be a multi-bucket aggregation for aggregation")

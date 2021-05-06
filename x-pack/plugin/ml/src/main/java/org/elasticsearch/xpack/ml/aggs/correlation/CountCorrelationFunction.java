@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,21 +28,21 @@ public class CountCorrelationFunction implements CorrelationFunction {
     private static final ConstructingObjectParser<CountCorrelationFunction, Void> PARSER = new ConstructingObjectParser<>(
         "count_correlation_function",
         false,
-        a -> new CountCorrelationFunction((CorrelativeValue)a[0])
+        a -> new CountCorrelationFunction((CountCorrelationIndicator)a[0])
     );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> CorrelativeValue.fromXContent(p), INDICATOR);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> CountCorrelationIndicator.fromXContent(p), INDICATOR);
     }
 
-    private final CorrelativeValue indicator;
+    private final CountCorrelationIndicator indicator;
 
-    public CountCorrelationFunction(CorrelativeValue indicator) {
+    public CountCorrelationFunction(CountCorrelationIndicator indicator) {
         this.indicator = indicator;
     }
 
     public CountCorrelationFunction(StreamInput in) throws IOException {
-        this.indicator = new CorrelativeValue(in);
+        this.indicator = new CountCorrelationIndicator(in);
     }
 
     public static CountCorrelationFunction fromXContent(XContentParser parser) {
@@ -84,8 +85,19 @@ public class CountCorrelationFunction implements CorrelationFunction {
         return Objects.equals(indicator, other.indicator);
     }
 
+    /**
+     * This does an approximate Pearson's correlation with the stored `indicator with the passed value `y`.
+     *
+     * This approximation makes many assumptions about the data distribution:
+     *
+     *  - That both the stored `indicator` and `y` are from the same distribution
+     *  - That `y` is effectively a queried subset of the `indicator`
+     *  - That the document count of `y` is always less than or equal to the document count of the `indicator`
+     * @param y the value with which to calculate correlation
+     * @return The correlation
+     */
     @Override
-    public double execute(CorrelativeValue y) {
+    public double execute(CountCorrelationIndicator y) {
         if (indicator.getExpectations().length != y.getExpectations().length) {
             throw new AggregationExecutionException(
                 "value lengths do not match; indicator.expectations ["
@@ -98,17 +110,22 @@ public class CountCorrelationFunction implements CorrelationFunction {
         final double xMean;
         final double xVar;
         if (indicator.getFractions() == null) {
-            double sum = CorrelationFunction.sum(indicator.getExpectations());
-            xMean = sum / indicator.getExpectations().length;
-            double var = 0;
-            for (double v : indicator.getExpectations()) {
-                var += Math.pow(v - xMean, 2);
+            xMean = MovingFunctions.unweightedAvg(indicator.getExpectations());
+            if (Double.isNaN(xMean)) {
+                return Double.NaN;
             }
-            xVar = var / indicator.getExpectations().length;
+            double stdDev = MovingFunctions.stdDev(indicator.getExpectations(), xMean);
+            if (Double.isNaN(stdDev)) {
+                return Double.NaN;
+            }
+            xVar = Math.pow(stdDev, 2.0);
         } else {
             double mean = 0;
             for (int i = 0; i < indicator.getExpectations().length; i++) {
                 mean += indicator.getExpectations()[i] * indicator.getFractions()[i];
+            }
+            if (Double.isNaN(mean)) {
+                return Double.NaN;
             }
             xMean = mean;
             double var = 0;
@@ -117,22 +134,22 @@ public class CountCorrelationFunction implements CorrelationFunction {
             }
             xVar = var;
         }
-        final double weight = CorrelationFunction.sum(y.getExpectations())/indicator.getDocCount();
+        final double weight = MovingFunctions.sum(y.getExpectations())/indicator.getDocCount();
         if (weight > 1.0) {
             throw new AggregationExecutionException(
                 "doc_count of indicator must be larger than the total count of the correlating values indicator count ["
                     + indicator.getDocCount()
                     + "] correlating value total count ["
-                    + CorrelationFunction.sum(y.getExpectations())
+                    + MovingFunctions.sum(y.getExpectations())
                     + "]"
             );
         }
         final double yMean = weight;
         final double yVar = (1 - weight) * yMean * yMean + weight * (1 - yMean) * (1 - yMean);
         double xyCov = 0;
-        if (indicator.getFractions() != null) {
+        if (indicator.getFractions() == null) {
+            final double fraction = 1.0 / indicator.getExpectations().length;
             for (int i = 0; i < indicator.getExpectations().length; i++) {
-                final double fraction = indicator.getFractions()[i];
                 final double xVal = indicator.getExpectations()[i];
                 final double nX = y.getExpectations()[i];
                 xyCov = xyCov
@@ -140,8 +157,8 @@ public class CountCorrelationFunction implements CorrelationFunction {
                     + nX * (xVal - xMean) * (1 - yMean);
             }
         } else {
-            final double fraction = 1.0 / indicator.getExpectations().length;
             for (int i = 0; i < indicator.getExpectations().length; i++) {
+                final double fraction = indicator.getFractions()[i];
                 final double xVal = indicator.getExpectations()[i];
                 final double nX = y.getExpectations()[i];
                 xyCov = xyCov

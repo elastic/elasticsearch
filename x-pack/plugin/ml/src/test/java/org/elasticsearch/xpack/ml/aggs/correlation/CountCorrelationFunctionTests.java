@@ -28,7 +28,7 @@ public class CountCorrelationFunctionTests extends ESTestCase {
 
     public void testExecute() {
         AtomicLong xs = new AtomicLong(1);
-        CorrelativeValue x = new CorrelativeValue(
+        CountCorrelationIndicator x = new CountCorrelationIndicator(
             Stream.generate(xs::incrementAndGet)
                 .limit(100)
                 .mapToDouble(l -> (double)l).toArray(),
@@ -37,7 +37,7 @@ public class CountCorrelationFunctionTests extends ESTestCase {
         );
         CountCorrelationFunction countCorrelationFunction = new CountCorrelationFunction(x);
         AtomicLong ys = new AtomicLong(0);
-        CorrelativeValue yValues = new CorrelativeValue(
+        CountCorrelationIndicator yValues = new CountCorrelationIndicator(
             Stream.generate(() -> Math.min(ys.incrementAndGet(), 10)).limit(100).mapToDouble(l -> (double)l).toArray(),
             x.getFractions(),
            1000
@@ -46,7 +46,7 @@ public class CountCorrelationFunctionTests extends ESTestCase {
         assertThat(value, greaterThan(0.0));
 
         AtomicLong otherYs = new AtomicLong(0);
-        CorrelativeValue lesserYValues = new CorrelativeValue(
+        CountCorrelationIndicator lesserYValues = new CountCorrelationIndicator(
             Stream.generate(() -> Math.min(otherYs.incrementAndGet(), 5)).limit(100).mapToDouble(l -> (double)l).toArray(),
             x.getFractions(),
             1000
@@ -58,7 +58,7 @@ public class CountCorrelationFunctionTests extends ESTestCase {
         AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING);
         final Set<AggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(multiBucketAgg);
-        CountCorrelationFunction function = new CountCorrelationFunction(CorrelativeValueTests.randomInstance());
+        CountCorrelationFunction function = new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance());
         PipelineAggregationBuilder.ValidationContext validationContext =
             PipelineAggregationBuilder.ValidationContext.forTreeRoot(aggBuilders, Collections.emptyList(), null);
         function.validate(validationContext, "terms>metric_agg");

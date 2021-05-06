@@ -8,8 +8,8 @@ fi
 folders=("jobs" "templates" "views")
 for folder in "${folders[@]}"
 do
-  #rm -Rf .ci/$folder;
-  #mkdir -p .ci/$folder
+  rm -Rf .ci/$folder;
+  mkdir -p .ci/$folder
   cp -r .ci/${folder}.t/* .ci/$folder/
   sed -i "s/%BRANCH%/${BRANCH}/g" .ci/$folder/*.yml
 done

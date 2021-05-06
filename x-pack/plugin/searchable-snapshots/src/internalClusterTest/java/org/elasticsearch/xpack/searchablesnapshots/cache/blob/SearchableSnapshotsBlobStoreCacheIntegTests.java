@@ -207,7 +207,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                     .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
                     .get()
                     .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTierAllocationDecider.INDEX_ROUTING_PREFER),
-                equalTo(DATA_TIERS_CACHE_INDEX_PREFERENCE)
+                equalTo("data_content,data_hot")
             );
         }
 

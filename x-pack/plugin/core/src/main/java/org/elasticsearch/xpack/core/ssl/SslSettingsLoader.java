@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +51,14 @@ public class SslSettingsLoader extends SslConfigurationLoader {
 
     @Override
     protected boolean hasSettings(String prefix) {
-        return settings.getAsSettings(prefix).isEmpty() == false;
+        Settings group = settings;
+        if (Strings.hasLength(prefix)) {
+            if (prefix.endsWith(".")) {
+                prefix = prefix.substring(0, prefix.length() - 1);
+            }
+            group = settings.getAsSettings(prefix);
+        }
+        return group.isEmpty() == false;
     }
 
     @Override

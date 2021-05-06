@@ -16,6 +16,7 @@ import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.PemTrustConfig;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslKeyConfig;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.ssl.StoreKeyConfig;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -349,6 +350,31 @@ public class SslSettingsLoaderTests extends ESTestCase {
         TrustManager trustManager = keyConfig.asTrustConfig().createTrustManager();
         assertNotNull(trustManager);
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{configurationSettings.x509KeyPair.legacyKeyPassword});
+    }
+
+    public void testExplicitlyConfigured() {
+        assertThat(SslSettingsLoader.load(Settings.EMPTY, null, environment).isExplicitlyConfigured(), is(false));
+        assertThat(SslSettingsLoader.load(
+            Settings.builder()
+                .put("cluster.name", randomAlphaOfLength(8))
+                .put("xpack.security.transport.ssl.certificate", randomAlphaOfLength(12))
+                .put("xpack.security.transport.ssl.key", randomAlphaOfLength(12))
+                .build(),
+            "xpack.http.ssl.",
+            environment
+        ).isExplicitlyConfigured(), is(false));
+
+        assertThat(SslSettingsLoader.load(
+            Settings.builder().put("verification_mode", randomFrom(SslVerificationMode.values()).name()).build(),
+            null,
+            environment
+        ).isExplicitlyConfigured(), is(true));
+
+        assertThat(SslSettingsLoader.load(
+            Settings.builder().putList("xpack.security.transport.ssl.truststore.path", "truststore.p12").build(),
+            "xpack.security.transport.ssl.",
+            environment
+        ).isExplicitlyConfigured(), is(true));
     }
 
     private void assertCombiningTrustConfigContainsCorrectIssuers(SslConfiguration sslConfig) {

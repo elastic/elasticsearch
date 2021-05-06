@@ -11,9 +11,9 @@ import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.internal.BuildPlugin
 import org.elasticsearch.gradle.internal.BwcVersions
-import org.elasticsearch.gradle.internal.LoggedExec
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.test.Fixture
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin

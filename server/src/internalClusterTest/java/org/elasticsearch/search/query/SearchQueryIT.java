@@ -1790,7 +1790,7 @@ public class SearchQueryIT extends ESIntegTestCase {
    }
 
     /**
-     * Test that wildcard queries on text fields get normalized
+     * Test that wildcard queries on text fields don't get normalized
      */
      public void testWildcardQueryNormalizationOnTextField() {
         assertAcked(prepareCreate("test")
@@ -1806,6 +1806,11 @@ public class SearchQueryIT extends ESIntegTestCase {
          {
              WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
              SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+             assertHitCount(searchResponse, 0L);
+
+             // the following works not because of normalization but because of the `case_insensitive` parameter
+             wildCardQuery = wildcardQuery("field1", "Bb*").caseInsensitive(true);
+             searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
              assertHitCount(searchResponse, 1L);
 
              wildCardQuery = wildcardQuery("field1", "bb*");

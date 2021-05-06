@@ -851,12 +851,7 @@ public class TextFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        final String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            value = context.parser().textOrNull();
-        }
+        final String value = context.parser().textOrNull();
 
         if (value == null) {
             return;
@@ -866,7 +861,7 @@ public class TextFieldMapper extends FieldMapper {
             Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
-                createFieldNamesField(context);
+                context.addToFieldNames(fieldType().name());
             }
             if (prefixFieldInfo != null) {
                 context.doc().add(new Field(prefixFieldInfo.field, value, prefixFieldInfo.fieldType));

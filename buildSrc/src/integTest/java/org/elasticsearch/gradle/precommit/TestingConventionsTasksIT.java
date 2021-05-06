@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.precommit;
 
-import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
+import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
 import org.junit.Before;

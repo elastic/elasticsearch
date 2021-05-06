@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.IntervalIterator;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -45,7 +46,8 @@ public class SourceIntervalsSourceTests extends ESTestCase {
         final FieldType ft = new FieldType(TextField.TYPE_STORED);
         ft.setIndexOptions(IndexOptions.DOCS);
         ft.freeze();
-        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setMergePolicy(NoMergePolicy.INSTANCE))) {
 
             Document doc = new Document();
             doc.add(new Field("body", "a b", ft));

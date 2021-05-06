@@ -60,7 +60,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
     public void setUpMocks() {
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -29,7 +28,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.gradle.util.Util.capitalize;
+import static org.elasticsearch.gradle.internal.util.Util.capitalize;
 
 public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
 

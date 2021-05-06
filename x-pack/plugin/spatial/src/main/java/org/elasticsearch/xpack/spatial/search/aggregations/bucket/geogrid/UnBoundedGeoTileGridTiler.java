@@ -25,7 +25,7 @@ public class UnBoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     }
 
     @Override
-    protected long getMaxTiles() {
+    protected long getMaxCells() {
         return maxTiles;
     }
 }

@@ -303,6 +303,8 @@ public class TransformContinuousIT extends ESRestTestCase {
      * index sorting, triggers query optimizations.
      */
     private void putIndex(String indexName, String dateType, boolean isDataStream) throws IOException {
+        List<String> sortedFields = Collections.emptyList();
+
         // create mapping and settings
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -312,9 +314,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                 if (randomBoolean()) {
                     builder.field("codec", "best_compression");
                 }
-                // TODO: crashes with assertions enabled in lucene
-                if (false && randomBoolean()) {
-                    List<String> sortedFields = new ArrayList<>(
+                if (randomBoolean()) {
+                    sortedFields = new ArrayList<>(
                         // note: no index sort for geo_point
                         randomUnique(() -> randomFrom("event", "metric", "run", "timestamp"), randomIntBetween(1, 3))
                     );
@@ -338,11 +339,16 @@ public class TransformContinuousIT extends ESRestTestCase {
                 }
                 builder.endObject();
 
+                // gh#72741 : index sort does not support unsigned_long
+                final String metricType = sortedFields.contains("metric")
+                    ? randomFrom("integer", "long")
+                    : randomFrom("integer", "long", "unsigned_long");
+
                 builder.startObject("event")
                     .field("type", "keyword")
                     .endObject()
                     .startObject("metric")
-                    .field("type", randomFrom("integer", "long", "unsigned_long"))
+                    .field("type", metricType)
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")
@@ -399,8 +405,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .endObject()
                     .endObject();
 
-                // random overlay of existing field
-                if (randomBoolean()) {
+                // random overlay of existing field, only if its not part of sorted fields
+                if (sortedFields.contains("metric") == false && randomBoolean()) {
                     if (randomBoolean()) {
                         builder.startObject("metric").field("type", "long").endObject();
                     } else {

@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -38,6 +39,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -56,6 +58,11 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
 
     @Override
     protected boolean supportsSearchLookup() {
+        return false;
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
         return false;
     }
 
@@ -263,6 +270,17 @@ public class GeoShapeWithDocValuesFieldMapperTests extends MapperTestCase {
 
         GeoShapeWithDocValuesFieldMapper geoShapeFieldMapper = (GeoShapeWithDocValuesFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
+    }
+
+    public void testInvalidCurrentVersion() {
+        MapperParsingException e =
+            expectThrows(MapperParsingException.class,
+                () -> super.createMapperService(Version.CURRENT, fieldMapping((b) -> {
+                    b.field("type", "geo_shape").field("strategy", "recursive");
+                })));
+        assertThat(e.getMessage(),
+            containsString("using deprecated parameters [strategy] " +
+                "in mapper [field] of type [geo_shape] is no longer allowed"));
     }
 
     public void testSerializeDefaults() throws Exception {

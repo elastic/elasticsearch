@@ -34,7 +34,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.extrac
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
 
@@ -232,12 +231,15 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
                     "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference");
                 request.setOptions(expectWarnings("this request accesses system indices: [.snapshot-blob-cache], but in a future major " +
                     "version, direct access to system indices will be prevented by default"));
+                request.addParameter("flat_settings", "true");
 
                 final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
                 assertThat(snapshotBlobCacheSettings, notNullValue());
-
-                final String tierPreference = (String) snapshotBlobCacheSettings.get("");
-                assertThat(tierPreference, nullValue());
+                final String tierPreference = (String) extractValue(
+                    ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
+                    snapshotBlobCacheSettings
+                );
+                assertThat(tierPreference, equalTo("data_content,data_hot"));
             }
 
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {

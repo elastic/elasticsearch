@@ -128,7 +128,7 @@ data in the cold or frozen tier.
 === Data frame analytics and inference are generally available
 
 The ability to train outlier detection, regression, and classification models 
-and then use those models to infer against incoming data  becomes generally 
+and then use those models to infer against incoming data becomes generally 
 available in 7.13.
 
 [discrete]

@@ -23,7 +23,7 @@ public class DebElasticsearchDistributionType implements ElasticsearchDistributi
 
     @Override
     public String getClassifier(ElasticsearchDistribution.Platform platform, Version version) {
-        return ":amd64";
+        return version.onOrAfter("7.0.0") ? ":amd64" : "";
     }
 
 }

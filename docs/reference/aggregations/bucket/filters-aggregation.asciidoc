@@ -4,7 +4,7 @@
 <titleabbrev>Filters</titleabbrev>
 ++++
 
-A multi bucket aggregation where each bucket contains the documents
+A multi-bucket aggregation where each bucket contains the documents
 that match a <<query-dsl,query>>.
 
 Example:

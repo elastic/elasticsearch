@@ -26,8 +26,8 @@ POST /sales/_search?size=0&filter_path=aggregations
 ----
 // TEST[setup:sales]
 
-In the above example, we calculate the average price of all sales as well as
-well as the avergae price of all t-shirts.
+The previous example calculates the average price of all sales as well as
+the average price of all T-shirt sales.
 
 Response:
 
@@ -44,11 +44,14 @@ Response:
 }
 ----
 
-==== Prefer top level queries to limit all results
+[[use-top-level-query-to-limit-all-aggs]]
+==== Use a top-level `query` to limit all aggregations
 
-If you have to limit all of results of running all of the aggregations based
-on a query then it is faster if you change the top level `query` rather than
-using a single `filter` aggregation. So do this:
+To limit the documents on which all aggregations in a search run, use a
+top-level `query`. This is faster than a single `filter` aggregation with
+sub-aggregations.
+
+For example, use this:
 
 
 [source,console,id=filter-aggregation-top-good]
@@ -106,11 +109,14 @@ POST /sales/_search?size=0&filter_path=aggregations
 ----
 ////
 
-==== Prefer `filters` for multiple filters
+[[use-filters-agg-for-multiple-filters]]
+==== Use the `filters` aggregation for multiple filters
 
-If you have to group documents into more than one filter it is faster
-to use the <<search-aggregations-bucket-filters-aggregation,`filters` aggregation>>
-rather than many `filter` aggregations. So do this:
+To group documents using multiple filters, use the
+<<search-aggregations-bucket-filters-aggregation,`filters` aggregation>>. This
+is faster than multiple `filter` aggregations.
+
+For example, use this:
 
 [source,console,id=filter-aggregation-many-good]
 ----

@@ -291,10 +291,10 @@ tasks.named("yamlRestCompatTest").configure {
 }
 
 tasks.named("transformV7RestTests").configure({ task ->
-  task.replaceMatch("_type", "_doc")
+  task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.replaceMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")
-  task.replaceMatch("nodes.\$node_id.roles.9", "remote_cluster_client", "node_info role test")
+  task.replaceValueInMatch("nodes.\$node_id.roles.8", "ml", "node_info role test")
+  task.replaceValueInMatch("nodes.\$node_id.roles.9", "remote_cluster_client", "node_info role test")
   task.removeMatch("nodes.\$node_id.roles.10", "node_info role test")
   task.replaceIsTrue("test_index.mappings.type_1", "test_index.mappings._doc")
   task.replaceIsFalse("test_index.mappings.type_1", "test_index.mappings._doc")

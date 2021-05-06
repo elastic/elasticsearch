@@ -551,7 +551,7 @@ tiebreaker value after events with a value.
 
 If you don't specify a tiebreaker field or the events also share the same
 tiebreaker value, {es} considers the events concurrent and may
-not return the events in a consistent sort order.
+not return them in a consistent sort order.
 
 To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you use
 the {ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker field.

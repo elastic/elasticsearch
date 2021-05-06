@@ -23,7 +23,7 @@ public class NlpPipeline {
     }
 
     public BytesReference createRequest(String inputs, String requestId) throws IOException {
-        BertTokenizer.TokenizationResult tokens = tokenizer.tokenize(inputs);
+        BertTokenizer.TokenizationResult tokens = tokenizer.tokenize(inputs, true);
         return taskType.jsonRequest(tokens.getTokenIds(), requestId);
     }
 

@@ -245,4 +245,19 @@ public class FunctionRef {
         this.delegateInjections = delegateInjections;
         this.factoryMethodType = factoryMethodType;
     }
+
+    public FunctionRef withDelegateMethodName(String delegateMethodName) {
+        return new FunctionRef(
+                this.interfaceMethodName,
+                this.interfaceMethodType,
+                this.delegateClassName,
+                this.isDelegateInterface,
+                this.isDelegateAugmented,
+                this.delegateInvokeType,
+                delegateMethodName,
+                this.delegateMethodType,
+                this.delegateInjections,
+                this.factoryMethodType
+        );
+    }
 }

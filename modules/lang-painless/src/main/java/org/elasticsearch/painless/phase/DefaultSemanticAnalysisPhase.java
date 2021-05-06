@@ -119,6 +119,7 @@ import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.TypeParameters;
 import org.elasticsearch.painless.symbol.Decorations.UnaryType;
 import org.elasticsearch.painless.symbol.Decorations.UpcastPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.UserFunction;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.FunctionTable;
@@ -216,8 +217,8 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
      */
     public void visitFunction(SFunction userFunctionNode, ScriptScope scriptScope) {
         String functionName = userFunctionNode.getFunctionName();
-        LocalFunction localFunction =
-                scriptScope.getFunctionTable().getFunction(functionName, userFunctionNode.getCanonicalTypeNameParameters().size());
+        int arity = userFunctionNode.getCanonicalTypeNameParameters().size();
+        LocalFunction localFunction = scriptScope.getFunctionTable().getFunction(functionName, arity);
         Class<?> returnType = localFunction.getReturnType();
         List<Class<?>> typeParameters = localFunction.getTypeParameters();
         FunctionScope functionScope = newFunctionScope(scriptScope, localFunction.getReturnType());
@@ -226,6 +227,10 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             Class<?> typeParameter = localFunction.getTypeParameters().get(index);
             String parameterName = userFunctionNode.getParameterNames().get(index);
             functionScope.defineVariable(userFunctionNode.getLocation(), typeParameter, parameterName, false);
+        }
+
+        if (localFunction.isInternal() == false) {
+            functionScope.putDecoration(userFunctionNode, new UserFunction(localFunction.getFunctionName(), arity));
         }
 
         SBlock userBlockNode = userFunctionNode.getBlockNode();
@@ -1773,6 +1778,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             semanticScope.putDecoration(userCallLocalNode, new StandardLocalFunction(localFunction));
 
             typeParameters = new ArrayList<>(localFunction.getTypeParameters());
+            semanticScope.putDecoration(userCallLocalNode, new UserFunction(localFunction.getFunctionName(), typeParameters.size()));
             valueType = localFunction.getReturnType();
         } else if (importedMethod != null) {
             semanticScope.putDecoration(userCallLocalNode, new StandardPainlessMethod(importedMethod));
@@ -2270,12 +2276,19 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 valueType = String.class;
                 String defReferenceEncoding = "S" + symbol + "." + methodName + ",0";
                 semanticScope.putDecoration(userFunctionRefNode, new EncodingDecoration(defReferenceEncoding));
+                if (symbol.equals("this")) {
+                    semanticScope.putDecoration(userFunctionRefNode, new UserFunction(methodName));
+                }
             } else {
                 FunctionRef ref = FunctionRef.create(scriptScope.getPainlessLookup(), scriptScope.getFunctionTable(),
                         location, targetType.getTargetType(), symbol, methodName, 0,
                         scriptScope.getCompilerSettings().asMap());
                 valueType = targetType.getTargetType();
                 semanticScope.putDecoration(userFunctionRefNode, new ReferenceDecoration(ref));
+                if (symbol.equals("this")) {
+                    semanticScope.putDecoration(userFunctionRefNode,
+                            new UserFunction(methodName, ref.interfaceMethodType.parameterCount()));
+                }
             }
         } else {
             if (semanticScope.getCondition(userFunctionRefNode, Write.class)) {

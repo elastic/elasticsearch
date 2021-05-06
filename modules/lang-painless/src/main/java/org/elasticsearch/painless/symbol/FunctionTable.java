@@ -32,29 +32,38 @@ public class FunctionTable {
         protected final List<Class<?>> typeParameters;
         protected final boolean isInternal;
         protected final boolean isStatic;
+        protected final String renamed;
 
         protected final MethodType methodType;
         protected final Method asmMethod;
 
         public LocalFunction(
                 String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+            this(functionName, returnType, typeParameters, isInternal, isStatic, null);
+        }
+
+        private LocalFunction(
+                String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic,
+                String renamed) {
 
             this.functionName = Objects.requireNonNull(functionName);
             this.returnType = Objects.requireNonNull(returnType);
             this.typeParameters = Collections.unmodifiableList(Objects.requireNonNull(typeParameters));
             this.isInternal = isInternal;
             this.isStatic = isStatic;
+            this.renamed = renamed;
 
             Class<?> javaReturnType = PainlessLookupUtility.typeToJavaType(returnType);
             Class<?>[] javaTypeParameters = typeParameters.stream().map(PainlessLookupUtility::typeToJavaType).toArray(Class<?>[]::new);
 
             this.methodType = MethodType.methodType(javaReturnType, javaTypeParameters);
-            this.asmMethod = new org.objectweb.asm.commons.Method(functionName,
+            this.asmMethod = new org.objectweb.asm.commons.Method(renamed != null ? renamed : functionName,
                     MethodType.methodType(javaReturnType, javaTypeParameters).toMethodDescriptorString());
         }
 
         public String getFunctionName() {
-            return functionName;
+            // During dynamic resolution, use the updated name
+            return renamed != null ? renamed : functionName;
         }
 
         public Class<?> getReturnType() {
@@ -80,6 +89,15 @@ public class FunctionTable {
         public Method getAsmMethod() {
             return asmMethod;
         }
+
+        public LocalFunction rename(String rename) {
+            if (renamed != null) {
+                throw new IllegalStateException(
+                    "Cannot rename [" + functionName + "/" + typeParameters.size() + "], to [" + rename + "]," +
+                        "already renamed [" + renamed + "]");
+            }
+            return new LocalFunction(functionName, returnType, typeParameters, isInternal, isStatic, rename);
+        }
     }
 
     /**
@@ -98,9 +116,28 @@ public class FunctionTable {
             String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
 
         String functionKey = buildLocalFunctionKey(functionName, typeParameters.size());
+        if (localFunctions.containsKey(functionKey)) {
+            throw new IllegalStateException("Function [" + functionKey + "] already exists");
+        }
         LocalFunction function = new LocalFunction(functionName, returnType, typeParameters, isInternal, isStatic);
         localFunctions.put(functionKey, function);
         return function;
+    }
+
+    public LocalFunction rename(LocalFunction localFunction, String name) {
+        int arity = localFunction.getTypeParameters().size();
+        String oldKey = buildLocalFunctionKey(localFunction.getFunctionName(), arity);
+        String newKey = buildLocalFunctionKey(name, arity);
+        LocalFunction old = localFunctions.remove(oldKey);
+        if (old == null) {
+            throw new IllegalStateException("Cannot rename [" + oldKey + "] to [" + newKey + "], function does not exist");
+        }
+
+        LocalFunction renamed = localFunction.rename(name);
+        localFunctions.put(newKey, renamed);
+        // Method references may not have been updated, so keep an entry for the old key
+        localFunctions.put(oldKey, renamed);
+        return renamed;
     }
 
     public LocalFunction addFunction(LocalFunction function) {

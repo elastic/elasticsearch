@@ -19,7 +19,6 @@ import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.Decorator.Condition;
 import org.elasticsearch.painless.symbol.Decorator.Decoration;
-import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.util.ArrayList;
@@ -173,6 +172,45 @@ public class Decorations {
 
     public interface ListShortcut extends Condition {
 
+    }
+
+    /**
+     * A call, method reference or definition of a local user function
+     */
+    public static class UserFunction implements Decoration {
+        private static final String PREFIX = "&";
+
+        private static final int UNKNOWN_ARITY = -1;
+        private final String functionName;
+        private final int arity;
+
+        public UserFunction(String functionName, int arity) {
+            this.functionName = Objects.requireNonNull(functionName);
+            this.arity = arity;
+        }
+
+        public UserFunction(String functionName) {
+            this(functionName, UNKNOWN_ARITY);
+        }
+
+        public String getMangledFunctionName() {
+            return PREFIX + functionName;
+        }
+
+        public String getFunctionName() {
+            return functionName;
+        }
+
+        public boolean arityKnown() {
+            return UNKNOWN_ARITY == arity;
+        }
+
+        public int getArity() {
+            if (arityKnown() == false) {
+                throw new IllegalStateException("unknown arity for [" + functionName + "]");
+            }
+            return arity;
+        }
     }
 
     public static class ExpressionPainlessCast implements Decoration {
@@ -405,13 +443,13 @@ public class Decorations {
 
     public static class StandardLocalFunction implements Decoration {
 
-        private final LocalFunction localFunction;
+        private final FunctionTable.LocalFunction localFunction;
 
-        public StandardLocalFunction(LocalFunction localFunction) {
+        public StandardLocalFunction(FunctionTable.LocalFunction localFunction) {
             this.localFunction = Objects.requireNonNull(localFunction);
         }
 
-        public LocalFunction getLocalFunction() {
+        public FunctionTable.LocalFunction getLocalFunction() {
             return localFunction;
         }
     }
@@ -591,12 +629,12 @@ public class Decorations {
     }
 
     public static class Converter implements Decoration {
-        private final LocalFunction converter;
-        public Converter(LocalFunction converter) {
+        private final FunctionTable.LocalFunction converter;
+        public Converter(FunctionTable.LocalFunction converter) {
             this.converter = converter;
         }
 
-        public LocalFunction getConverter() {
+        public FunctionTable.LocalFunction getConverter() {
             return converter;
         }
     }

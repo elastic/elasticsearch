@@ -184,6 +184,7 @@ import org.elasticsearch.painless.symbol.Decorations.TargetType;
 import org.elasticsearch.painless.symbol.Decorations.TypeParameters;
 import org.elasticsearch.painless.symbol.Decorations.UnaryType;
 import org.elasticsearch.painless.symbol.Decorations.UpcastPainlessCast;
+import org.elasticsearch.painless.symbol.Decorations.UserFunction;
 import org.elasticsearch.painless.symbol.Decorations.ValueType;
 import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.FunctionTable;
@@ -559,6 +560,11 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         String functionName = userFunctionNode.getFunctionName();
         int functionArity = userFunctionNode.getCanonicalTypeNameParameters().size();
         LocalFunction localFunction = scriptScope.getFunctionTable().getFunction(functionName, functionArity);
+        if (scriptScope.hasDecoration(userFunctionNode, UserFunction.class)) {
+            UserFunction userFunction = scriptScope.getDecoration(userFunctionNode, UserFunction.class);
+            functionName = userFunction.getMangledFunctionName();
+            localFunction = scriptScope.getFunctionTable().rename(localFunction, functionName);
+        }
         Class<?> returnType = localFunction.getReturnType();
         boolean methodEscape = scriptScope.getCondition(userFunctionNode, MethodEscape.class);
 
@@ -608,7 +614,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         FunctionNode irFunctionNode = new FunctionNode(userFunctionNode.getLocation());
         irFunctionNode.setBlockNode(irBlockNode);
-        irFunctionNode.attachDecoration(new IRDName(userFunctionNode.getFunctionName()));
+        irFunctionNode.attachDecoration(new IRDName(functionName));
         irFunctionNode.attachDecoration(new IRDReturnType(returnType));
         irFunctionNode.attachDecoration(new IRDTypeParameters(new ArrayList<>(localFunction.getTypeParameters())));
         irFunctionNode.attachDecoration(new IRDParameterNames(new ArrayList<>(userFunctionNode.getParameterNames())));
@@ -1210,6 +1216,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         if (scriptScope.hasDecoration(callLocalNode, StandardLocalFunction.class)) {
             LocalFunction localFunction = scriptScope.getDecoration(callLocalNode, StandardLocalFunction.class).getLocalFunction();
+            if (scriptScope.hasDecoration(callLocalNode, UserFunction.class)) {
+                UserFunction userFunction = scriptScope.getDecoration(callLocalNode, UserFunction.class);
+                localFunction = localFunction.rename(userFunction.getMangledFunctionName());
+            }
             irInvokeCallMemberNode.attachDecoration(new IRDFunction(localFunction));
         } else if (scriptScope.hasDecoration(callLocalNode, StandardPainlessMethod.class)) {
             PainlessMethod importedMethod =
@@ -1391,6 +1401,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         } else {
             FunctionRef reference = scriptScope.getDecoration(userFunctionRefNode, ReferenceDecoration.class).getReference();
             TypedInterfaceReferenceNode typedInterfaceReferenceNode = new TypedInterfaceReferenceNode(userFunctionRefNode.getLocation());
+            if (scriptScope.hasDecoration(userFunctionRefNode, UserFunction.class)) {
+                UserFunction userFunction = scriptScope.getDecoration(userFunctionRefNode, UserFunction.class);
+                reference = reference.withDelegateMethodName(userFunction.getMangledFunctionName());
+            }
             typedInterfaceReferenceNode.attachDecoration(new IRDReference(reference));
             irReferenceNode = typedInterfaceReferenceNode;
         }

@@ -10,7 +10,7 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
-
+import org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin
 import java.util.concurrent.TimeUnit
 
 long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
@@ -106,17 +106,19 @@ buildScan {
 }
 
 subprojects {
-  tasks.withType(Test).configureEach(new Action<Test>() {
-    @Override
-    void execute(Test test) {
-      test.doLast(new Action<Test>() {
-        @Override
-        void execute(Test t) {
-          if(t.rerun.didRerun.get() == true) {
-            buildScan.tag 'unexpected-test-jvm-exit'
+  project.getPlugins().withType(TestRerunPlugin) {
+    tasks.withType(Test).configureEach(new Action<Test>() {
+      @Override
+      void execute(Test test) {
+        test.doLast(new Action<Test>() {
+          @Override
+          void execute(Test t) {
+            if(t.rerun.didRerun.get() == true) {
+              buildScan.tag 'unexpected-test-jvm-exit'
+            }
           }
-        }
-      })
-    }
-  })
+        })
+      }
+    })
+  }
 }

@@ -16,16 +16,21 @@ import static org.elasticsearch.gradle.internal.test.TestClasspathUtils.setupJar
 
 public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
+    @Override
+    public String projectName() {
+        return "thirdPartyAudit";
+    }
+
     @Before
     public void setUp() throws Exception {
         // Build the sample jars
-        getGradleRunner("thirdPartyAudit").withArguments(":sample_jars:build", "-s").build();
+        getGradleRunner().withArguments(":sample_jars:build", "-s").build();
         // propagate jdkjarhell jar
-        setupJarJdkClasspath(getProjectDir("thirdPartyAudit"));
+        setupJarJdkClasspath(getProjectDir());
     }
 
     public void testElasticsearchIgnored() {
-        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+        BuildResult result = getGradleRunner().withArguments(
             ":clean",
             ":empty",
             "-s",
@@ -39,7 +44,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testViolationFoundAndCompileOnlyIgnored() {
-        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+        BuildResult result = getGradleRunner().withArguments(
             ":clean",
             ":absurd",
             "-s",
@@ -56,7 +61,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testClassNotFoundAndCompileOnlyIgnored() {
-        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+        BuildResult result = getGradleRunner().withArguments(
             ":clean",
             ":absurd",
             "-s",
@@ -78,7 +83,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testJarHellWithJDK() {
-        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+        BuildResult result = getGradleRunner().withArguments(
             ":clean",
             ":absurd",
             "-s",
@@ -100,7 +105,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testElasticsearchIgnoredWithViolations() {
-        BuildResult result = getGradleRunner("thirdPartyAudit").withArguments(
+        BuildResult result = getGradleRunner().withArguments(
             ":clean",
             ":absurd",
             "-s",

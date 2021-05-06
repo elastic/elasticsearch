@@ -275,10 +275,11 @@ node.roles: [ data_cold ]
 [[data-frozen-node]]
 ==== [x-pack]#Frozen data node#
 
-Frozen data nodes store searchable snapshots mounted with the `shared_cache`
-option exclusively.
+The frozen tier stores <<partially-mounted,partially mounted indices>>
+exclusively. We recommend you use dedicated nodes in the frozen tier.
 
 To create a dedicated frozen node, set:
+
 [source,yaml]
 ----
 node.roles: [ data_frozen ]

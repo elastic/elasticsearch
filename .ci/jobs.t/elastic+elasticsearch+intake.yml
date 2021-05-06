@@ -46,10 +46,6 @@
               kill-phase-on: NEVER
               current-parameters: true
               git-revision: true
-            - name: elastic+elasticsearch+%BRANCH%+intake+multijob+rest-compat
-              kill-phase-on: NEVER
-              current-parameters: true
-              git-revision: true
       - multijob:
           name: Update last good commit
           projects:

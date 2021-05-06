@@ -152,9 +152,13 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         }
 
         if (distribution.getType() == ElasticsearchDistributionTypes.ARCHIVE) {
-            return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
-                ? "-zip"
-                : "-tar");
+            if (Version.fromString(distribution.getVersion()).onOrAfter("7.0.0")) {
+                return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
+                        ? "-zip"
+                        : "-tar");
+            } else {
+                return "zip";
+            }
         }
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER) {
             return projectName + "docker" + archString + "-export";

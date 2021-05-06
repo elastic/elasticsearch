@@ -15,7 +15,7 @@ import org.gradle.api.tasks.Internal;
 
 /**
  * A transformation to replace the key in a length assertion.
- * For example, change from "length ":{"index._type": 1} to "length ":{"index._doc": 1}
+ * For example, change from "length":{"index._type": 1} to "length":{"index._doc": 1}
  */
 public class ReplaceKeyInLength extends ReplaceByKey {
 

@@ -111,14 +111,11 @@ public class CertGenCliTests extends PackagingTestCase {
 
         Files.write(installation.config("elasticsearch.yml"), yaml, CREATE, APPEND);
 
-        assertWhileRunning(
-            () -> {
-                final String password = setElasticPassword();
-                assertNotNull(password);
-                ServerUtils.makeRequest(
-                    Request.Get("https://127.0.0.1:9200"), "elastic", password, installation.config("certs/ca/ca.crt"));
-            }
-        );
+        assertWhileRunning(() -> {
+            final String password = setElasticPassword();
+            assertNotNull(password);
+            ServerUtils.makeRequest(Request.Get("https://127.0.0.1:9200"), "elastic", password, installation.config("certs/ca/ca.crt"));
+        });
     }
 
     private String setElasticPassword() {

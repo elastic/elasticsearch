@@ -6,6 +6,14 @@
  */
 package org.elasticsearch.xpack.core.termsenum.rest;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
+import java.io.IOException;
+import java.util.List;
+
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -15,19 +23,13 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
 
-import java.io.IOException;
-import java.util.List;
-
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-
 public class RestTermsEnumAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
+        return unmodifiableList(asList(
             new Route(GET, "/{index}/_terms_enum"),
-            new Route(POST, "/{index}/_terms_enum"));
+            new Route(POST, "/{index}/_terms_enum")));
     }
 
     @Override

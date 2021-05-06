@@ -481,12 +481,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         protected void performOperation(final String nodeId, final Set<ShardId> shardIds, final int nodeIndex) {
             if (shardIds.size() == 0) {
                 // no more active shards... (we should not really get here, just safety)
-                // MH TODO somewhat arbitrarily returining firsy
                 onNoOperation(nodeId);
             } else {
                 try {
-                    // TODO pass through a reduced timeout (the original time limit, minus whatever we may have
-                    // spent already getting to this point.
                     final NodeTermsEnumRequest nodeRequest = newNodeRequest(nodeId, shardIds, request);
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     DiscoveryNode node = nodes.get(nodeId);

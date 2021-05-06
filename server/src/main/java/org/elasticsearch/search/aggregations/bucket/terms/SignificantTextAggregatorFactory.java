@@ -183,76 +183,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             throw new IllegalArgumentException("No analyzer configured for field " + f);
         });
         if (context.profiling()) {
-            return new SignificantTextCollectorSource(
+            return new ProfilingSignificantTextCollectorSource(
                 context.lookup().source(),
                 context.bigArrays(),
                 fieldType,
                 analyzer,
                 sourceFieldNames,
                 filterDuplicateText
-            ) {
-                private final Timer extract = new Timer();
-                private final Timer collectAnalyzed = new Timer();
-                private long valuesFetched;
-                private long charsFetched;
-
-                @Override
-                protected void processTokenStream(
-                    StringFilter includeExclude,
-                    int doc,
-                    long owningBucketOrd,
-                    String text,
-                    TokenStream ts,
-                    BytesRefHash inDocTerms,
-                    DuplicateByteSequenceSpotter spotter,
-                    LongConsumer addRequestCircuitBreakerBytes,
-                    LeafBucketCollector sub,
-                    CollectConsumer consumer
-                ) throws IOException {
-                    valuesFetched++;
-                    charsFetched += text.length();
-                    super.processTokenStream(
-                        includeExclude,
-                        doc,
-                        owningBucketOrd,
-                        text,
-                        ts,
-                        inDocTerms,
-                        spotter,
-                        addRequestCircuitBreakerBytes,
-                        sub,
-                        (subCollector, d, o, bytes) -> {
-                            collectAnalyzed.start();
-                            try {
-                                consumer.accept(subCollector, d, o, bytes);
-                            } finally {
-                                collectAnalyzed.stop();
-                            }
-                        }
-                    );
-                }
-
-                @Override
-                protected List<Object> extractRawValues(String field) {
-                    extract.start();
-                    try {
-                        return super.extractRawValues(field);
-                    } finally {
-                        extract.stop();
-                    }
-                }
-
-                @Override
-                public void collectDebugInfo(BiConsumer<String, Object> add) {
-                    super.collectDebugInfo(add);
-                    add.accept("extract_ns", extract.getApproximateTiming());
-                    add.accept("extract_count", extract.getCount());
-                    add.accept("collect_analyzed_ns", collectAnalyzed.getApproximateTiming());
-                    add.accept("collect_analyzed_count", collectAnalyzed.getCount());
-                    add.accept("values_fetched", valuesFetched);
-                    add.accept("chars_fetched", charsFetched);
-                }
-            };
+            );
         }
         return new SignificantTextCollectorSource(
             context.lookup().source(),
@@ -432,6 +370,81 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         @Override
         public void close() {
             Releasables.close(dupSequenceSpotters);
+        }
+    }
+
+    private static class ProfilingSignificantTextCollectorSource extends SignificantTextCollectorSource {
+        private final Timer extract = new Timer();
+        private final Timer collectAnalyzed = new Timer();
+        private long valuesFetched;
+        private long charsFetched;
+
+        private ProfilingSignificantTextCollectorSource(
+            SourceLookup sourceLookup,
+            BigArrays bigArrays,
+            MappedFieldType fieldType,
+            Analyzer analyzer,
+            String[] sourceFieldNames,
+            boolean filterDuplicateText
+        ) {
+            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, filterDuplicateText);
+        }
+
+        @Override
+        protected void processTokenStream(
+            StringFilter includeExclude,
+            int doc,
+            long owningBucketOrd,
+            String text,
+            TokenStream ts,
+            BytesRefHash inDocTerms,
+            DuplicateByteSequenceSpotter spotter,
+            LongConsumer addRequestCircuitBreakerBytes,
+            LeafBucketCollector sub,
+            CollectConsumer consumer
+        ) throws IOException {
+            valuesFetched++;
+            charsFetched += text.length();
+            super.processTokenStream(
+                includeExclude,
+                doc,
+                owningBucketOrd,
+                text,
+                ts,
+                inDocTerms,
+                spotter,
+                addRequestCircuitBreakerBytes,
+                sub,
+                (subCollector, d, o, bytes) -> {
+                    collectAnalyzed.start();
+                    try {
+                        consumer.accept(subCollector, d, o, bytes);
+                    } finally {
+                        collectAnalyzed.stop();
+                    }
+                }
+            );
+        }
+
+        @Override
+        protected List<Object> extractRawValues(String field) {
+            extract.start();
+            try {
+                return super.extractRawValues(field);
+            } finally {
+                extract.stop();
+            }
+        }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
+            super.collectDebugInfo(add);
+            add.accept("extract_ns", extract.getApproximateTiming());
+            add.accept("extract_count", extract.getCount());
+            add.accept("collect_analyzed_ns", collectAnalyzed.getApproximateTiming());
+            add.accept("collect_analyzed_count", collectAnalyzed.getCount());
+            add.accept("values_fetched", valuesFetched);
+            add.accept("chars_fetched", charsFetched);
         }
     }
 }

@@ -13,13 +13,13 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -48,13 +48,15 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
+        SslClientAuthenticationMode clientAuth = randomBoolean()
+            ? SslClientAuthenticationMode.REQUIRED
+            : SslClientAuthenticationMode.OPTIONAL;
 
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings());
         addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
         builder.put("xpack.security.http.ssl.enabled", true)
-            .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
+            .put("xpack.security.http.ssl.client_authentication", clientAuth)
             .put("xpack.security.authc.realms.file.file.order", "0")
             .put("xpack.security.authc.realms.pki.pki1.order", "2")
             .putList("xpack.security.authc.realms.pki.pki1.certificate_authorities",

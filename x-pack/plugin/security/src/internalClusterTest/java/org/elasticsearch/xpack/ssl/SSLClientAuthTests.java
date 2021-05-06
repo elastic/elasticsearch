@@ -20,11 +20,11 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -88,13 +88,13 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
 
         return builder
                 // invert the require auth settings
-                .put("xpack.security.transport.ssl.client_authentication", SSLClientAuth.NONE)
+                .put("xpack.security.transport.ssl.client_authentication", SslClientAuthenticationMode.NONE)
                 // Due to the TLSv1.3 bug with session resumption when client authentication is not
                 // used, we need to set the protocols since we disabled client auth for transport
                 // to avoid failures on pre 11.0.3 JDKs. See #getProtocols
                 .putList("xpack.security.transport.ssl.supported_protocols", getProtocols())
                 .put("xpack.security.http.ssl.enabled", true)
-                .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.REQUIRED)
+                .put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.REQUIRED)
                 .build();
     }
 

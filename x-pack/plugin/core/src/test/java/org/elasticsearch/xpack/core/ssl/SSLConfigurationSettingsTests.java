@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.test.ESTestCase;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -42,9 +43,9 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.clientAuth.match("client_authentication"), is(false));
 
         final Settings settings = Settings.builder()
-                .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
+                .put("xpack.security.http.ssl.client_authentication", SslClientAuthenticationMode.OPTIONAL.name())
                 .build();
-        assertThat(ssl.clientAuth.get(settings).get(), is(SSLClientAuth.OPTIONAL));
+        assertThat(ssl.clientAuth.get(settings).get(), is(SslClientAuthenticationMode.OPTIONAL));
     }
 
     public void testParseKeystoreAlgorithmWithPrefix() {

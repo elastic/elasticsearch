@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import javax.net.ssl.TrustManagerFactory;
@@ -41,7 +42,7 @@ public class SSLConfigurationSettings {
     public final Setting<Optional<String>> truststoreType;
     public final Setting<Optional<String>> trustRestrictionsPath;
     public final Setting<List<String>> caPaths;
-    public final Setting<Optional<SSLClientAuth>> clientAuth;
+    public final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
     public final Setting<Optional<VerificationMode>> verificationMode;
 
     // public for PKI realm
@@ -192,13 +193,15 @@ public class SSLConfigurationSettings {
             Setting.affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.certificate_authorities",
                     CAPATH_SETTING_TEMPLATE);
 
-    private static final Function<String, Setting<Optional<SSLClientAuth>>> CLIENT_AUTH_SETTING_TEMPLATE =
-            key -> new Setting<>(key, (String) null, s -> s == null ? Optional.empty() : Optional.of(SSLClientAuth.parse(s)),
+    private static final Function<String, Setting<Optional<SslClientAuthenticationMode>>> CLIENT_AUTH_SETTING_TEMPLATE =
+            key -> new Setting<>(key, (String) null, s -> s == null ? Optional.empty() : Optional.of(SslClientAuthenticationMode.parse(s)),
                     Property.NodeScope, Property.Filtered);
-    public static final Setting<Optional<SSLClientAuth>> CLIENT_AUTH_SETTING_PROFILES = Setting.affixKeySetting("transport.profiles.",
-            "xpack.security.ssl.client_authentication", CLIENT_AUTH_SETTING_TEMPLATE);
-    public static final Function<String, Setting.AffixSetting<Optional<SSLClientAuth>>> CLIENT_AUTH_SETTING_REALM = realmType ->
-            Setting.affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.client_authentication",
+    public static final Setting<Optional<SslClientAuthenticationMode>> CLIENT_AUTH_SETTING_PROFILES = Setting.affixKeySetting(
+            "transport.profiles.",
+            "xpack.security.ssl.client_authentication",
+        CLIENT_AUTH_SETTING_TEMPLATE);
+    public static final Function<String, Setting.AffixSetting<Optional<SslClientAuthenticationMode>>> CLIENT_AUTH_SETTING_REALM =
+            realmType -> Setting.affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.client_authentication",
                     CLIENT_AUTH_SETTING_TEMPLATE);
 
     private static final Function<String, Setting<Optional<VerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE =

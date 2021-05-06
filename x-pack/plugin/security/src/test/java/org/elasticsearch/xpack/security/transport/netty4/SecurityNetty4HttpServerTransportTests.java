@@ -13,6 +13,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -21,15 +22,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.transport.AbstractSimpleSecurityTransportTestCase;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
 import javax.net.ssl.SSLEngine;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Locale;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -77,7 +77,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testOptionalClientAuth() throws Exception {
-        String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.OPTIONAL);;
         Settings settings = Settings.builder()
                 .put(env.settings())
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -94,7 +94,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testRequiredClientAuth() throws Exception {
-        String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.REQUIRED);;
         Settings settings = Settings.builder()
                 .put(env.settings())
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
@@ -111,7 +111,7 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testNoClientAuth() throws Exception {
-        String value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
+        String value = AbstractSimpleSecurityTransportTestCase.randomCapitalisation(SslClientAuthenticationMode.NONE);;
         Settings settings = Settings.builder()
                 .put(env.settings())
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)

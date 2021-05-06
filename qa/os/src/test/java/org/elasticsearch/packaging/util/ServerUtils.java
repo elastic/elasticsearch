@@ -313,4 +313,13 @@ public class ServerUtils {
             }
         }
     }
+
+    public static void enableSecurityFeatures(Installation installation) throws IOException {
+        Path yml = installation.config("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith("xpack.security.enabled") == false).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
 }

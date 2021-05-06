@@ -40,11 +40,8 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     public void test010Install() throws Exception {
         install();
-        Files.write(
-            installation.config("elasticsearch.yml"),
-            // Replace the existing file as it would have security explicitly disabled
-            List.of("ingest.geoip.downloader.enabled: false")
-        );
+        // Enable security for this test only where it is necessary, until we can enable it for all
+        ServerUtils.enableSecurityFeatures(installation);
     }
 
     public void test20GeneratePasswords() throws Exception {

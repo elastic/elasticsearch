@@ -980,8 +980,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     mapperService.mappingLookup().getType() + "]");
         }
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        final Engine.Delete delete = prepareDelete(type, id, uid, seqNo, opPrimaryTerm, version,
+        final Engine.Delete delete = prepareDelete(resolvedType, id, uid, seqNo, opPrimaryTerm, version,
             versionType, origin, ifSeqNo, ifPrimaryTerm);
+        assert Objects.equals(resolvedType, delete.type());
         return delete(engine, delete);
     }
 

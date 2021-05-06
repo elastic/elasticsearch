@@ -2572,7 +2572,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::client-enrollment-kibana-request
             char[] kibanaSystemPassword = new char[]{'k','i','b','a','n','a', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest("kibana", kibanaSystemPassword);
+            ClientEnrollmentRequest request = new ClientEnrollmentRequest(
+                "kibana",    // <1>
+                kibanaSystemPassword   // <2>
+            );
             // end::client-enrollment-kibana-request
 
             // tag::client-enrollment-kibana-execute
@@ -2583,11 +2586,15 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             String httoCa = response.getHttpCa(); // <1>
             List<String> nodesAddresses = response.getNodesAddresses();  // <2>
             // end::client-enrollment-kibana-response
+            assertThat(nodesAddresses.size(), equalTo(1)); // single-node cluster for docs tests
         }
 
         {
             // tag::client-enrollment-generic-client-request
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest("generic_client", null);
+            ClientEnrollmentRequest request = new ClientEnrollmentRequest(
+                "generic_client", // <1>
+                null  // <2>
+            );
             // end::client-enrollment-generic-client-request
 
             // tag::client-enrollment-generic-client-execute

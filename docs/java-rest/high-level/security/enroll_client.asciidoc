@@ -19,12 +19,24 @@ A +{request}+:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-kibana-request]
 --------------------------------------------------
-
+<1> The type of the client to enroll to the node. Supported client types are `kibana`, `generic_client`
+<2> The enrolling client can optionally request to set the password of an existing
+user so that it can use it to authenticate future requests to the secured {es}
+cluster. Different client types have different limitations whether they
+can set a password and which user passwords they can set.
+When the `client_type` is `kibana`, the provided value is used to set the password
+of the `kibana_system` user.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-generic-client-request]
 --------------------------------------------------
+<1> The type of the client to enroll to the node. Supported client types are `kibana`, `generic_client`
+<2> The enrolling client can optionally request to set the password of an existing
+user so that it can use it to authenticate future requests to the secured {es}
+cluster. Different client types have different limitations whether they
+can set a password and which user passwords they can set.
+When the `client_type` is `generic_client`, the provided value must be null
 
 include::../execution.asciidoc[]
 
@@ -38,8 +50,9 @@ executed operation as follows:
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-kibana-response]
 --------------------------------------------------
-<1> The CA certificate that has signed the certificate that the cluster uses for TLS on the HTTP layer
-<2> A list of addresses (`<hostname>:<port>`) where the nodes of the cluster listen for HTTP connections
+<1> The CA certificate that has signed the certificate that the cluster uses for TLS on the HTTP layer,
+as a Base64 encoded string of the ASN.1 DER encoding of the certificate.
+<2> A list of addresses (`<hostname>:<port>`) where the nodes of the cluster listen for HTTPS connections
 
 
 [id="{upid}-{api}-execute-async"]

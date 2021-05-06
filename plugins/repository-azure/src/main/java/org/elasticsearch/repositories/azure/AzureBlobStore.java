@@ -265,8 +265,8 @@ public class AzureBlobStore implements BlobStore {
         throw exception;
     }
 
-    void deleteBlobList(Iterator<String> blobs) throws IOException {
-        if (blobs.hasNext()) {
+    void deleteBlobs(Iterator<String> blobs) throws IOException {
+        if (blobs.hasNext() == false) {
             return;
         }
 

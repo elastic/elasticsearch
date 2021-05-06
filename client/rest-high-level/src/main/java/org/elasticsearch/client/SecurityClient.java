@@ -1135,7 +1135,7 @@ public final class SecurityClient {
 
 
     /**
-     * Allows a node to join to a secured cluster using the Enroll Node API.
+     * Allows a node to join to a cluster with security features enabled using the Enroll Node API.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
@@ -1147,7 +1147,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Asynchronously allows a node to join to a secured cluster using the Enroll Node API.
+     * Asynchronously allows a node to join to a cluster with security features enabled using the Enroll Node API.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
      */

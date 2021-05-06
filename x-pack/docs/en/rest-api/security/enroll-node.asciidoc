@@ -4,7 +4,7 @@
 <titleabbrev>Enroll Node</titleabbrev>
 ++++
 
-Allows a new node to join an existing cluster with security enabled.
+Allows a new node to join an existing cluster with security features enabled.
 
 [[security-api-node-enrollment-api-request]]
 ==== {api-request-title}

@@ -36,8 +36,8 @@
           type: user-defined
           name: PACKAGING_TASK
           values:
-            - 'destructiveDistroTest.default-windows-archive'
-            - 'destructiveDistroTest.default-windows-archive-no-jdk'
+            - 'default-windows-archive'
+            - 'default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -49,5 +49,5 @@
           mkdir %USERPROFILE%\.gradle\init.d
           copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
           (
-            echo call %GRADLEW_BAT% --max-workers=4 -Dbwc.checkout.align=true %PACKAGING_TASK% ^|^| exit /b 1
+             echo powershell.exe .\.ci\os.ps1 -GradleTasks destructiveDistroTest.%PACKAGING_TASK%   ^|^| exit /b 1
           ) | java -jar "C:\Program Files\infra\bin\runbld" --redirect-stderr -

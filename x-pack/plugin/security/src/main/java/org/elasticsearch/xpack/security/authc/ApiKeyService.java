@@ -1218,11 +1218,10 @@ public class ApiKeyService {
 
         public CachedApiKeyDoc toCachedApiKeyDoc() {
             final MessageDigest digest = MessageDigests.sha256();
-            digest.update(BytesReference.toBytes(roleDescriptorsBytes));
-            final String roleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+            final String roleDescriptorsHash = MessageDigests.toHexString(MessageDigests.digest(roleDescriptorsBytes, digest));
             digest.reset();
-            digest.update(BytesReference.toBytes(limitedByRoleDescriptorsBytes));
-            final String limitedByRoleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+            final String limitedByRoleDescriptorsHash =
+                MessageDigests.toHexString(MessageDigests.digest(limitedByRoleDescriptorsBytes, digest));
             return new CachedApiKeyDoc(
                 creationTime,
                 expirationTime,

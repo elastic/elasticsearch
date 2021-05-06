@@ -132,7 +132,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               long nowInMillis,
                               AliasFilter aliasFilter) {
         this(OriginalIndices.NONE, shardId, -1, -1, SearchType.QUERY_THEN_FETCH, null, types, null,
-            aliasFilter, 1.0f, false, null, nowInMillis, null, null, null);
+            aliasFilter, 1.0f, true, null, nowInMillis, null, null, null);
     }
 
     private ShardSearchRequest(OriginalIndices originalIndices,

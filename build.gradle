@@ -23,6 +23,7 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin
+import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin
 
 plugins {
@@ -110,15 +111,12 @@ subprojects {
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
 
-  // We substitute dependencies introduced by the PluginBuildPlugin but this won't work for projects
-  // consuming plugin projects. TODO: find a more elegant approach
-  project.getConfigurations().matching(c -> c.getName().matches("es\\d+") == false ).configureEach(c -> {
-    // add dependency substitution rules
-    c.getResolutionStrategy().dependencySubstitution(subs -> {
-      subs.substitute(subs.module("org.elasticsearch.test:framework")).with(subs.project(":test:framework"));
-      subs.substitute(subs.module("org.elasticsearch:elasticsearch")).with(subs.project(":server"));
-    });
-  });
+  plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
+    project.dependencies {
+      compileOnly project(":server")
+      testImplementation project(":test:framework")
+    }
+  }
 
   // Ultimately the RestTestBase Plugin should apply the InternalTestClusters Plugin itself instead of TestClusters
   // but this requires major rework on the func test infrastructure.

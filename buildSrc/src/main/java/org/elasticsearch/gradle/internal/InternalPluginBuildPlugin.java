@@ -25,6 +25,12 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
     public void apply(Project project) {
         project.getPluginManager().apply(BuildPlugin.class);
         project.getPluginManager().apply(PluginBuildPlugin.class);
+        // Clear default dependencies added by public PluginBuildPlugin as we add our
+        // own project dependencies for internal builds
+        // TODO remove once we removed default dependencies from PluginBuildPlugin
+        project.getConfigurations().getByName("compileOnly").getDependencies().clear();
+        project.getConfigurations().getByName("testImplementation").getDependencies().clear();
+
         project.getPluginManager().apply(RestTestBasePlugin.class);
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 

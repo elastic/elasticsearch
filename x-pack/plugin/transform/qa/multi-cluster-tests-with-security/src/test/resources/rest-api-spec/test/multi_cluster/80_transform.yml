@@ -26,6 +26,7 @@ setup:
   - do:
       security.put_role:
         name: "x_cluster_role"
+        # gh#72715: the my_remote_cluster privileges should not be needed
         body:  >
           {
             "cluster": [],
@@ -38,7 +39,6 @@ setup:
                 "names": ["simple-remote-transform*", "simple-local-remote-transform"],
                 "privileges": ["create_index", "index", "read"]
               },
-              # gh#72715 the following privilege should not be needed
               {
                 "names": ["my_remote_cluster:remote_test_i*", "my_remote_cluster:aliased_test_index"],
                 "privileges": ["read", "view_index_metadata"]

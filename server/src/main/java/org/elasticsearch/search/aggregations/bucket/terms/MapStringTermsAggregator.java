@@ -170,15 +170,15 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
      * Fetch values from a {@link ValuesSource}.
      */
     public static class ValuesSourceCollectorSource implements CollectorSource {
-        private final ValuesSourceConfig valuesSource;
+        private final ValuesSourceConfig valuesSourceConfig;
 
-        public ValuesSourceCollectorSource(ValuesSourceConfig valuesSource) {
-            this.valuesSource = valuesSource;
+        public ValuesSourceCollectorSource(ValuesSourceConfig valuesSourceConfig) {
+            this.valuesSourceConfig = valuesSourceConfig;
         }
 
         @Override
         public String describe() {
-            return "from " + valuesSource.getDescription();
+            return "from " + valuesSourceConfig.getDescription();
         }
 
         @Override
@@ -186,7 +186,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
         @Override
         public boolean needsScores() {
-            return valuesSource.getValuesSource().needsScores();
+            return valuesSourceConfig.getValuesSource().needsScores();
         }
 
         @Override
@@ -197,7 +197,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             LongConsumer addRequestCircuitBreakerBytes,
             CollectConsumer consumer
         ) throws IOException {
-            SortedBinaryDocValues values = valuesSource.getValuesSource().bytesValues(ctx);
+            SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 final BytesRefBuilder previous = new BytesRefBuilder();
 

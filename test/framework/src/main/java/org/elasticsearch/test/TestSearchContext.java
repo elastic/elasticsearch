@@ -87,7 +87,7 @@ public class TestSearchContext extends SearchContext {
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.indexShard = indexService.getShardOrNull(0);
         searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap());
-        this.request = new ShardSearchRequest(indexShard.shardId(), 0L, AliasFilter.EMPTY);
+        this.request = new ShardSearchRequest(indexShard.shardId(), new String[0], 0L, AliasFilter.EMPTY);
     }
 
     public TestSearchContext(SearchExecutionContext searchExecutionContext) {
@@ -107,7 +107,7 @@ public class TestSearchContext extends SearchContext {
         this.searcher = searcher;
         this.scrollContext = scrollContext;
         ShardId shardId = indexShard != null ? indexShard.shardId() : new ShardId("N/A", "N/A", 0);
-        this.request = new ShardSearchRequest(shardId, 0L, AliasFilter.EMPTY);
+        this.request = new ShardSearchRequest(shardId, new String[0], 0L, AliasFilter.EMPTY);
     }
 
     public void setSearcher(ContextIndexSearcher searcher) {

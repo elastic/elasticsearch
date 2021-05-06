@@ -1,12 +1,13 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.internal.DockerBase
-import org.elasticsearch.gradle.internal.LoggedExec
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.docker.DockerBuildTask
 import org.elasticsearch.gradle.internal.docker.ShellRetry
 import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER
 
 import java.nio.file.Path
 
@@ -149,7 +150,7 @@ elasticsearch_distributions {
   Architecture.values().each { eachArchitecture ->
     "docker_${ eachArchitecture == Architecture.AARCH64 ? '_aarch64' : '' }" {
       architecture = eachArchitecture
-      type = 'docker'
+      type = DOCKER
       version = VersionProperties.getElasticsearch()
       failIfUnavailable = false // This ensures we don't attempt to build images if docker is unavailable
     }

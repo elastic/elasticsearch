@@ -86,17 +86,6 @@ myCidrRange.contains('2001:0db8:85a3:0001:0000:8a2e:0370:7334'); // false
 ----
 
 [discrete]
-[[automatic-updates-geoip-processor]]
-=== Automatic updates for the GeoIP processor
-
-By default, {es} now automatically downloads GeoIP2 database updates for the
-`geoip` processor from the Elastic GeoIP endpoint:
-https://geoip.elastic.co/v1/database. You can use the new
-{ref}/geoip-stats-api.html[GeoIP stats API] to get download stats for these
-updates. For more information, see the updated
-{ref}/geoip-processor.html[`geoip` processor documentation].
-
-[discrete]
 [[new-combined-fields-query-type]]
 === New `combined_fields` query type
 

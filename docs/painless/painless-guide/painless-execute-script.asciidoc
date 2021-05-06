@@ -4,72 +4,78 @@ experimental::[]
 
 The Painless execute API runs a script and returns a result.
 
-_Contexts_ control how scripts are executed, what variables are available at
-runtime, and what the return type is.
+[[painless-execute-api-request]]
+==== {api-request-title}
+`POST /_scripts/painless/_execute`
 
-[[painless-execute-test]]
-==== Test context
-The `painless_test` context runs scripts without additional parameters. The only
-variable that is available is `params`, which can be used to access user defined
-values. The result of the script is always converted to a string.
+[[painless-execute-api-desc]]
+==== {api-description-title}
+This API is useful for building and testing scripts with very few dependencies. The API
+uses several _contexts_, which control how scripts are executed, what variables are
+available at runtime, and what the return type is.
 
-[[painless-execute-api-parameters]]
-===== Parameters
+Each context requires a script, but the additional 
+
+[[painless-execute-api-request-body]]
+==== {api-request-body-title}
 `script`:: (Required, object)
 The Painless script to execute.
++
+.Properties of `script`
+--
+include::../painless-contexts/painless-runtime-fields-context.asciidoc[tag=runtime-field-emit]
+--
 
 `context`:: (Optional, string)
 The context that the script should run in. Defaults to `painless_test` if no
 context is specified.
++
+.Properties of `context`
+[%collapsible%open]
+====
+`painless_test`::
+The default context if no other context is specified.
 
-`context_setup`:: (Optional, object)
-Additional parameters for the `context`.
+`filter`::
+Treats scripts as if they were run inside a `script` query.
 
-`params`:: (`Map`, read-only)
-User-defined parameters passed in as part of the query.
+`score`::
+Treats scripts as if they were run inside a `script_score` function in a
+`function_score` query.
 
-===== Request
+[[painless-execute-runtime-context]]
+.Runtime fields context
+[%collapsible%open]
+=====
+`boolean_field`:: 
+Runtime field that emits a `boolean` data type and returns a sorted list of `boolean` values.
 
-[source,console]
-----------------------------------------------------------------
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": "params.count / params.total",
-    "params": {
-      "count": 100.0,
-      "total": 1000.0
-    }
-  }
-}
-----------------------------------------------------------------
+`date_field`:: 
+Runtime field that emits a `long` data type and returns a sorted list of `long` values.
 
-===== Response
+`double_field`::
+Runtime field that emits a `long` data type and returns a sorted list of `double` values.
 
-[source,console-result]
---------------------------------------------------
-{
-  "result": "0.1"
-}
---------------------------------------------------
+`geo_point_field`::
+Runtime field that emits a `long` data type and returns a sorted list of `double` values.
 
-[[painless-execute-filter-context]]
-==== Filter context
-The `filter` context treats scripts as if they were run inside a `script` query.
-For testing purposes, a document must be provided so that it will be temporarily
-indexed in-memory and is accessible from the script. More precisely, the
-`_source`, stored fields and doc values of such a document are available to the
-script being tested.
+`ip_field`::
+Runtime field that emits a `string` data type and returns a sorted list of `string` values.
 
-[[painless-filter-context-parameters]]
-===== Parameters
+`keyword_field`::
+Runtime field that emits a `string` data type and returns a sorted list of `string` values.
 
-`context`:: (Required, string)
-The field context that the script should run in. Set this parameter to `filter` to use
-this context.
+`long_field`::
+Runtime field that emits a `long` data type and returns a sorted list of `long` values.
+=====
+
+====
 
 `context_setup`:: (Required, object)
 Additional parameters for the `context`.
++
+NOTE: This parameter is required for all contexts except `painless_test`, which is the
+default if no value is provided for `context`.
 +
 .Properties of `context_setup`
 [%collapsible%open]
@@ -81,7 +87,61 @@ Document that's temporarily indexed in-memory and accessible from the script.
 Index containing a mapping that's compatible with the indexed document.
 ====
 
-===== Request
+`params`:: (`Map`, read-only)
+User-defined parameters passed in as part of the query.
+
+`query`:: (Optional, object)
+NOTE: This parameter only applies when `score` is specified as the script `context`.
++
+Use this parameter to specify a query for computing a score. Besides deciding whether
+or not the document matches, the {ref}/query-filter-context.html#query-context[query clause] also calculates a relevance score in the
+`_score` metadata field.
+
+==== {api-examples-title}
+
+[[painless-execute-test]]
+===== Test context
+The `painless_test` context runs scripts without additional parameters. The only
+variable that is available is `params`, which can be used to access user defined
+values. The result of the script is always converted to a string.
+
+Because the default context is `painless_test`, you don't need to specify the `context`
+or `context_setup`.
+
+====== Request
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "params.count / params.total",
+    "params": {
+      "count": 100.0,
+      "total": 1000.0
+    }
+  }
+}
+----
+
+====== Response
+
+[source,console-result]
+----
+{
+  "result": "0.1"
+}
+----
+
+[[painless-execute-filter-context]]
+===== Filter context
+The `filter` context treats scripts as if they were run inside a `script` query.
+For testing purposes, a document must be provided so that it will be temporarily
+indexed in-memory and is accessible from the script. More precisely, the
+`_source`, stored fields and doc values of such a document are available to the
+script being tested.
+
+====== Request
 
 [source,console]
 ----
@@ -114,7 +174,7 @@ POST /_scripts/painless/_execute
 }
 ----
 
-===== Response
+====== Response
 
 [source,console-result]
 ----
@@ -124,7 +184,7 @@ POST /_scripts/painless/_execute
 ----
 
 [[painless-execute-core-context]]
-==== Score context
+===== Score context
 The `score` context treats scripts as if they were run inside a `script_score`
 function in a `function_score` query.
 
@@ -197,8 +257,8 @@ POST /_scripts/painless/_execute
 }
 ----
 
-[[painless-execute-runtime-context]]
-==== Runtime field context
+[[painless-execute-runtime-field-context]]
+===== Runtime field context
 The <<painless-runtime-fields-context,runtime field context>> runs a script used
 for a runtime field and returns results in doc-values order.
 
@@ -207,62 +267,8 @@ indicate the context for a runtime field based on the data type.
 
 NOTE: Result ordering in the runtime field context is not guaranteed.
 
-[[painless-execute-api-runtime-parameters]]
-===== Parameters
-`script`:: (Required, object)
-The Painless script to execute.
-+
-.Properties of `script`
---
-include::../painless-contexts/painless-runtime-fields-context.asciidoc[tag=runtime-field-emit]
---
-
-`context`:: (Required, string)
-The runtime field context that the script should run in.
-+
-.Properties of `context`
-[%collapsible%open]
-====
-`boolean_field`:: 
-Emits a `boolean` data type and returns a sorted list of `boolean` values.
-
-`date_field`:: 
-Emits a `long` data type and returns a sorted list of `long` values.
-
-`double_field`::
-Emits a `long` data type and returns a sorted list of `double` values.
-
-`geo_point_field`::
-Emits a `long` data type and returns a sorted list of `double` values.
-
-`ip_field`::
-Emits a `string` data type and returns a sorted list of `string` values.
-
-`keyword_field`::
-Emits a `string` data type and returns a sorted list of `string` values.
-
-`long_field`::
-Emits a `long` data type and returns a sorted list of `long` values.
-====
-
-`context_setup`:: (Required, object)
-Additional parameters for the `context`.
-+
-.Properties of `context_setup`
-[%collapsible%open]
-====
-`document`:: (Required, string)
-Document that's temporarily indexed in-memory and accessible from the script.
-
-`index`:: (Required, string)
-Index containing a mapping that's compatible with the indexed document.
-====
-
-`params`:: (`Map`, read-only)
-User-defined parameters passed in as part of the query.
-
 [[painless-runtime-boolean-request]]
-===== Request (boolean_field)
+====== Request (boolean_field)
 
 [source,console]
 ----
@@ -469,50 +475,59 @@ Response:
   ]
 }
 --------------------------------------------------
-+
-* keyword_field
-+
+
+[[painless-runtime-keyword-request]]
+===== Request (keyword_field)
+The following request adds a `@timestamp` field of type `date` to the index mappings:
+
 [source,console]
-----------------------------------------------------------------
-PUT /my-index-keyword
+----
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
-      "k": {
-        "type": "keyword"
+      "@timestamp": {
+        "type": "date"
       }
     }
   }
 }
+----
 
+If you have a timestamp but want to return the equivalent day of the week, you can
+create a script in the `keyword_field` context:
+
+[source,console]
+----
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "emit(doc['k'].value + '_value'); emit('0'); emit('word');"
+    "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));"
   },
   "context": "keyword_field",
   "context_setup": {
-    "index": "my-index-keyword",
+    "index": "my-index-000001",
     "document": {
-      "k": "my_keyword"
+      "@timestamp": "2020-04-30T14:31:43-05:00"
     }
   }
 }
-----------------------------------------------------------------
-+
-Response:
-+
+----
+// TEST[continued]
+
+[[painless-runtime-keyword-response]]
+===== Response (keyword_field)
+The script 
+
 [source,console-result]
---------------------------------------------------
+----
 {
-  "result": [
-    "0",
-    "my_keyword_value",
-    "word"
+  "result" : [
+    "Thursday"
   ]
 }
---------------------------------------------------
-+
+----
+
 * long_field
 +
 [source,console]

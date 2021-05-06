@@ -10,11 +10,13 @@ The Painless execute API runs a script and returns a result.
 
 [[painless-execute-api-desc]]
 ==== {api-description-title}
-This API is useful for building and testing scripts with very few dependencies. The API
-uses several _contexts_, which control how scripts are executed, what variables are
-available at runtime, and what the return type is.
+This API is useful for building and testing scripts with very few dependencies,
+especially if you don't have permissions to write documents on a cluster. The
+API uses several _contexts_, which control how scripts are executed, what
+variables are available at runtime, and what the return type is.
 
-Each context requires a script, but the additional 
+Each context requires a script, but additional parameters depend on the context
+you're using for that script.
 
 [[painless-execute-api-request-body]]
 ==== {api-request-body-title}
@@ -46,27 +48,36 @@ Treats scripts as if they were run inside a `script_score` function in a
 [[painless-execute-runtime-context]]
 .Runtime fields context
 [%collapsible%open]
+The following contexts are specific to runtime fields.
+
+NOTE: Result ordering in the runtime field context is not guaranteed.
+
+See the <<painless-execute-runtime-field-context,runtime field context>>
+examples for how to use these different contexts.
 =====
 `boolean_field`:: 
-Runtime field that emits a `boolean` data type and returns a sorted list of `boolean` values.
+Emits a `boolean` data type and returns a sorted list of `boolean` values.
 
 `date_field`:: 
-Runtime field that emits a `long` data type and returns a sorted list of `long` values.
+Emits a `long` data type and returns a sorted list of `long` values.
 
 `double_field`::
-Runtime field that emits a `long` data type and returns a sorted list of `double` values.
+Emits a `long` data type and returns a sorted list of `double` values.
 
 `geo_point_field`::
-Runtime field that emits a `long` data type and returns a sorted list of `double` values.
+Emits a `long` data type and returns a sorted list of `double` values.
 
 `ip_field`::
-Runtime field that emits a `string` data type and returns a sorted list of `string` values.
+Emits a `string` data type and returns a sorted list of `string` values. See
+<<painless-runtime-ip-request,ip_field>>.
 
 `keyword_field`::
-Runtime field that emits a `string` data type and returns a sorted list of `string` values.
+Emits a `string` data type and returns a sorted list of `string` values. See
+<<painless-runtime-keyword-request,keyword_field>>.
 
 `long_field`::
-Runtime field that emits a `long` data type and returns a sorted list of `long` values.
+Emits a `long` data type and returns a sorted list of `long` values. See
+<<painless-runtime-long-request,long_field>>.
 =====
 
 ====
@@ -74,8 +85,8 @@ Runtime field that emits a `long` data type and returns a sorted list of `long` 
 `context_setup`:: (Required, object)
 Additional parameters for the `context`.
 +
-NOTE: This parameter is required for all contexts except `painless_test`, which is the
-default if no value is provided for `context`.
+NOTE: This parameter is required for all contexts except `painless_test`,
+which is the default if no value is provided for `context`.
 +
 .Properties of `context_setup`
 [%collapsible%open]
@@ -91,11 +102,13 @@ Index containing a mapping that's compatible with the indexed document.
 User-defined parameters passed in as part of the query.
 
 `query`:: (Optional, object)
-NOTE: This parameter only applies when `score` is specified as the script `context`.
+NOTE: This parameter only applies when `score` is specified as the script 
+`context`.
 +
-Use this parameter to specify a query for computing a score. Besides deciding whether
-or not the document matches, the {ref}/query-filter-context.html#query-context[query clause] also calculates a relevance score in the
-`_score` metadata field.
+Use this parameter to specify a query for computing a score. Besides deciding
+whether or not the document matches, the 
+{ref}/query-filter-context.html#query-context[query clause] also calculates a 
+relevance score in the `_score` metadata field.
 
 ==== {api-examples-title}
 
@@ -105,8 +118,8 @@ The `painless_test` context runs scripts without additional parameters. The only
 variable that is available is `params`, which can be used to access user defined
 values. The result of the script is always converted to a string.
 
-Because the default context is `painless_test`, you don't need to specify the `context`
-or `context_setup`.
+Because the default context is `painless_test`, you don't need to specify the
+`context` or `context_setup`.
 
 ====== Request
 
@@ -188,29 +201,6 @@ POST /_scripts/painless/_execute
 The `score` context treats scripts as if they were run inside a `script_score`
 function in a `function_score` query.
 
-[[painless-score-context-parameters]]
-===== Parameters
-
-`context`:: (Required, string)
-The field context that the script should run in. Set this parameter to `score` to use
-this context.
-
-`context_setup`:: (Required, object)
-Additional parameters for the `context`.
-+
-.Properties of `context_setup`
-[%collapsible%open]
-====
-`document`:: (Required, string)
-Document that's temporarily indexed in-memory and accessible from the script.
-
-`index`:: (Required, string)
-Index containing a mapping that's compatible with the indexed document.
-====
-
-`query`:: (Optional)
-If `_score` is used in the script then a query can specify that it will be used to compute a score.
-
 ===== Request
 
 [source,console]
@@ -262,13 +252,11 @@ POST /_scripts/painless/_execute
 The <<painless-runtime-fields-context,runtime field context>> runs a script used
 for a runtime field and returns results in doc-values order.
 
-Although runtime fields have their own context within the Painless execute API, you
-indicate the context for a runtime field based on the data type.
-
-NOTE: Result ordering in the runtime field context is not guaranteed.
+Although runtime fields have their own context within the Painless execute API,
+you indicate the context for a runtime field based on the data type.
 
 [[painless-runtime-boolean-request]]
-====== Request (boolean_field)
+====== `boolean_field` request
 
 [source,console]
 ----
@@ -302,7 +290,7 @@ POST /_scripts/painless/_execute
 ----
 
 [[painless-runtime-boolean-response]]
-===== Response (boolean_field)
+===== `boolean_field` response
 
 [source,console-result]
 ----
@@ -434,51 +422,77 @@ Response:
   ]
 }
 --------------------------------------------------
-+
-* ip_field
-+
+
+[[painless-runtime-ip-request]]
+===== `ip_field` request
+The `ip_field` context is useful for data that includes properly formatted IP
+addresses. For example, let's say you have a `message` field from an Apache log.
+This field contains an IP address, but also other data that you don't need. 
+
+You can add the `message` field to your index mappings as a `wildcard` to accept
+pretty much any data you want to put in that field.
+
 [source,console]
-----------------------------------------------------------------
-PUT /my-index-ip
+----
+PUT /my-index-000001/
 {
   "mappings": {
     "properties": {
-      "i": {
-        "type": "ip"
+      "message": {
+        "type": "wildcard"
       }
     }
   }
 }
+----
 
+You can then define a runtime script with a grok pattern that extracts
+structured fields out of the `message` field.
+
+The script matches on the `%{COMMONAPACHELOG}` log pattern, which understands
+the structure of Apache logs. If the pattern matches, the script emits the
+value matching the IP address. If the pattern doesn’t match
+(`clientip != null`), the script just returns the field value without crashing.
+
+[source,console]
+----
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "emit(doc['i'].value)"
+    "source": """
+        String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
+        if (clientip != null) emit(clientip); 
+      """
   },
   "context": "ip_field",
   "context_setup": {
-    "index": "my-index-ip",
+    "index": "my-index-000001",
     "document": {
-      "i": "127.0.0.1"
+      "message": "40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
     }
   }
 }
-----------------------------------------------------------------
-+
-Response:
-+
+----
+// TEST[continued]
+
+[[painless-runtime-ip-response]]
+===== `ip_field` response
+The response includes only the IP address, ignoring all of the other data in the
+`message` field.
+
 [source,console-result]
---------------------------------------------------
+----
 {
-  "result": [
-    "AAAAAAAAAAAAAP//fwAAAQ=="
+  "result" : [
+    "40.135.0.0"
   ]
 }
---------------------------------------------------
+----
 
 [[painless-runtime-keyword-request]]
-===== Request (keyword_field)
-The following request adds a `@timestamp` field of type `date` to the index mappings:
+===== `keyword_field` request
+The following request adds a `@timestamp` field of type `date` to the index
+mappings:
 
 [source,console]
 ----
@@ -494,8 +508,8 @@ PUT /my-index-000001
 }
 ----
 
-If you have a timestamp but want to return the equivalent day of the week, you can
-create a script in the `keyword_field` context:
+If you have a timestamp but want to return the equivalent day of the week, you
+can create a script in the `keyword_field` context:
 
 [source,console]
 ----
@@ -516,8 +530,9 @@ POST /_scripts/painless/_execute
 // TEST[continued]
 
 [[painless-runtime-keyword-response]]
-===== Response (keyword_field)
-The script 
+===== `keyword_field` response
+The script operates on the value provided for the `@timestamp` field to
+calculate the day of the week:
 
 [source,console-result]
 ----
@@ -528,43 +543,69 @@ The script
 }
 ----
 
-* long_field
-+
+[[painless-runtime-long-request]]
+===== `long_field` request
+The following request adds a `message` object to the mappings with two fields,
+both of type `long`. 
+
 [source,console]
-----------------------------------------------------------------
-PUT /my-index-long
+----
+PUT /my-index-000001/
 {
   "mappings": {
     "properties": {
-      "l": {
-        "type": "long"
+      "measures": {
+        "properties": {
+          "start": {
+            "type": "long"
+          },
+          "end": {
+           "type": "long" 
+          }
+        }
       }
     }
   }
 }
+----
 
+You can then define a script that assigns values to the `start` and `end` fields
+and operate on them. The following script extracts the value for the `end`
+field from the `measures` object and subtracts it from the `start` field.
+
+[source,console]
+----
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "emit(doc['l'][0] + doc['l'][1])"
+    "source": """
+          emit(doc['measures.end'].value - doc['measures.start'].value);
+          """
   },
   "context": "long_field",
   "context_setup": {
-    "index": "my-index-long",
+    "index": "my-index-000001",
     "document": {
-      "l": [2, 1]
+      "measures": {
+        "voltage": "4.0",
+        "start": "400",
+        "end": "8625309"
+      }
     }
   }
 }
-----------------------------------------------------------------
-+
-Response:
-+
+----
+// TEST [continued]
+
+[[painless-runtime-long-response]]
+===== `long_field` response
+The response includes the calculated value from the script valuation.
+
 [source,console-result]
---------------------------------------------------
+----
 {
-  "result": [
-    3
+  "result" : [
+    8624909
   ]
 }
---------------------------------------------------
+----

@@ -23,7 +23,7 @@ public abstract class AbstractMlTokenizer extends Tokenizer {
     protected int nextOffset;
     protected int skippedPositions;
 
-    AbstractMlTokenizer() {
+    protected AbstractMlTokenizer() {
     }
 
     @Override

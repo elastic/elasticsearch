@@ -33,8 +33,8 @@
           type: user-defined
           name: PACKAGING_TASK
           values:
-            - 'default-windows-archive'
-            - 'default-windows-archive-no-jdk'
+            - 'destructiveDistroTest.default-windows-archive'
+            - 'destructiveDistroTest.default-windows-archive-no-jdk'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

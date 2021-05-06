@@ -89,7 +89,7 @@ public class RestCatComponentTemplateActionTests extends RestActionTestCase {
         assertThat(channel.responses().get(), equalTo(1));
         assertThat(channel.capturedResponse().status(), equalTo(RestStatus.OK));
         assertThat(channel.capturedResponse().content().utf8ToString(),
-            equalTo("test_ct 2 0 0 2 0\n"));
+            equalTo("test_ct 2 0 0 2 0 []\n"));
     }
 
     public void testRestCatComponentActionWithParam() throws Exception {

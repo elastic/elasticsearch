@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Table;
@@ -22,8 +23,11 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -58,6 +62,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         table.addCell("mapping_count", "alias:m;desc:mapping count");
         table.addCell("settings_count", "alias:s;desc:settings count");
         table.addCell("metadata_count", "alias:me;desc:metadata count");
+        table.addCell("included_in", "alias:i;desc:included in");
         table.endHeaders();
         return table;
     }
@@ -80,6 +85,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
     public Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) {
         Table table = getTableWithHeader(request);
         Metadata metadata = clusterStateResponse.getState().metadata();
+        Map<String, Set<String>> reverseIndexOnComposedOfToIndexName = buildReverseIndexOnComposedOfToIndexName(metadata);
 
         for (Map.Entry<String, ComponentTemplate> entry : metadata.componentTemplates().entrySet()) {
             String name = entry.getKey();
@@ -94,9 +100,23 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
                     XContentHelper.convertToMap(template.mappings().uncompressed(), true, XContentType.JSON).v2().size());
                 table.addCell(template == null  || template.settings() == null ? 0: template.settings().keySet().size());
                 table.addCell(componentTemplate.metadata() == null ? 0: componentTemplate.metadata().size());
+                table.addCell(reverseIndexOnComposedOfToIndexName.getOrDefault(name, new HashSet<>()));
                 table.endRow();
             }
         }
         return table;
+    }
+
+    private Map<String, Set<String>> buildReverseIndexOnComposedOfToIndexName(Metadata metadata) {
+        Map<String, ComposableIndexTemplate> allTemplates = metadata.templatesV2();
+        Map<String, Set<String>> reverseIndex = new HashMap<>();
+
+        for (Map.Entry<String, ComposableIndexTemplate> templateEntry: allTemplates.entrySet()) {
+            String templateName = templateEntry.getKey();
+            ComposableIndexTemplate template = templateEntry.getValue();
+            template.composedOf()
+                .forEach(composed_of -> reverseIndex.computeIfAbsent(composed_of, k -> new HashSet<>()).add(templateName));
+        }
+        return reverseIndex;
     }
 }

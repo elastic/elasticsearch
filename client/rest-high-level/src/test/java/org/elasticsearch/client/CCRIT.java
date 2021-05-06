@@ -244,8 +244,10 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
     public void testAutoFollowing() throws Exception {
         CcrClient ccrClient = highLevelClient().ccr();
-        PutAutoFollowPatternRequest putAutoFollowPatternRequest =
-            new PutAutoFollowPatternRequest("pattern1", "local_cluster", Collections.singletonList("logs-*"));
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest("pattern1",
+                "local_cluster",
+                Collections.singletonList("logs-*"),
+                Collections.singletonList("logs-excluded"));
         putAutoFollowPatternRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
         final int followerNumberOfReplicas = randomIntBetween(0, 4);
         final Settings autoFollowerPatternSettings =
@@ -270,6 +272,20 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             getIndexSettingsAsMap("copy-logs-20200101"),
             hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas)));
 
+        CreateIndexRequest createExcludedIndexRequest = new CreateIndexRequest("logs-excluded");
+        CreateIndexResponse createExcludedIndexResponse =
+            highLevelClient().indices().create(createExcludedIndexRequest, RequestOptions.DEFAULT);
+        assertThat(createExcludedIndexResponse.isAcknowledged(), is(true));
+
+        assertBusy(() -> {
+            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
+            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
+            assertThat(ccrStatsResponse.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
+        });
+
+        assertThat(indexExists("copy-logs-excluded"), is(false));
+
         GetAutoFollowPatternRequest getAutoFollowPatternRequest =
             randomBoolean() ? new GetAutoFollowPatternRequest("pattern1") : new GetAutoFollowPatternRequest();
         GetAutoFollowPatternResponse getAutoFollowPatternResponse =
@@ -279,6 +295,7 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
         assertThat(pattern, notNullValue());
         assertThat(pattern.getRemoteCluster(), equalTo(putAutoFollowPatternRequest.getRemoteCluster()));
         assertThat(pattern.getLeaderIndexPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexPatterns()));
+        assertThat(pattern.getLeaderIndexExclusionPatterns(), equalTo(putAutoFollowPatternRequest.getLeaderIndexExclusionPatterns()));
         assertThat(pattern.getFollowIndexNamePattern(), equalTo(putAutoFollowPatternRequest.getFollowIndexNamePattern()));
         assertThat(pattern.getSettings(), equalTo(autoFollowerPatternSettings));
 

@@ -101,7 +101,10 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
     public void testPutAutofollowPattern() throws Exception {
         PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(randomAlphaOfLength(4),
-            randomAlphaOfLength(4), Arrays.asList(generateRandomStringArray(4, 4, false)));
+            randomAlphaOfLength(4),
+            Arrays.asList(generateRandomStringArray(4, 4, false)),
+            Arrays.asList(generateRandomStringArray(4, 4, false))
+        );
         if (randomBoolean()) {
             putAutoFollowPatternRequest.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }

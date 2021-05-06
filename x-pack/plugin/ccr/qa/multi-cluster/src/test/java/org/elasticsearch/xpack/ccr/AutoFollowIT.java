@@ -174,6 +174,64 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
     }
 
+    public void testAutoFollowExclusionPatterns() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            logger.info("skipping test, waiting for target cluster [follow]");
+            return;
+        }
+
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+        try {
+            final String excludedIndex = "metrics-20220102";
+            int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
+            Request request = new Request("PUT", "/_ccr/auto_follow/" + autoFollowPatternName);
+            try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
+                bodyBuilder.startObject();
+                {
+                    bodyBuilder.startArray("leader_index_patterns");
+                    {
+                        bodyBuilder.value("metrics-*");
+                    }
+                    bodyBuilder.endArray();
+                    bodyBuilder.startArray("leader_index_exclusion_patterns");
+                    {
+                        bodyBuilder.value(excludedIndex);
+                    }
+                    bodyBuilder.endArray();
+                    bodyBuilder.field("remote_cluster", "leader_cluster");
+                }
+                bodyBuilder.endObject();
+                request.setJsonEntity(Strings.toString(bodyBuilder));
+            }
+            assertOK(client().performRequest(request));
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                request = new Request("PUT", "/metrics-20220101");
+                request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+                assertOK(leaderClient.performRequest(request));
+            }
+
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+                ensureYellow("metrics-20220101");
+            });
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                request = new Request("PUT", "/" + excludedIndex);
+                request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+                assertOK(leaderClient.performRequest(request));
+            }
+
+            assertBusy(() -> {
+                assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
+            });
+
+            assertThat(indexExists(excludedIndex), is(false));
+        } finally {
+            cleanUpFollower(List.of("metrics-20220101"), List.of(), List.of(autoFollowPatternName));
+        }
+    }
+
     public void testPutAutoFollowPatternThatOverridesRequiredLeaderSetting() throws IOException {
         if ("follow".equals(targetCluster) == false) {
             logger.info("skipping test, waiting for target cluster [follow]");

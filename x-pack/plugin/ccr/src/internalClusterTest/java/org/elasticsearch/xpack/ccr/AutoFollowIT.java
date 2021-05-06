@@ -514,13 +514,53 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertThat(followerClient().admin().indices().prepareStats("copy-*").get().getIndices().size(), equalTo(leaderIndices.get()));
     }
 
+    public void testAutoFollowExclusion() throws Exception {
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"}, Collections.singletonList("logs-2018*"));
+
+        createLeaderIndex("logs-201701", leaderIndexSettings);
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
+            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        });
+        assertTrue(ESIntegTestCase.indexExists("copy-logs-201701", followerClient()));
+
+        createLeaderIndex("logs-201801", leaderIndexSettings);
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(0L));
+            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        });
+
+        assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
+    }
+
+    public void testUpdatingExclusionPatternsIsNotAllowed() {
+        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"}, Collections.singletonList("logs-2018*"));
+        expectThrows(IllegalArgumentException.class, () ->
+            putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"}, List.of("logs-2018*", "new-entry")));
+    }
+
     private void putAutoFollowPatterns(String name, String[] patterns) {
+        putAutoFollowPatterns(name, patterns, Collections.emptyList());
+    }
+
+    private void putAutoFollowPatterns(String name, String[] patterns, List<String> exclusionPatterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName(name);
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndexPatterns(Arrays.asList(patterns));
+        request.setLeaderIndexExclusionPatterns(exclusionPatterns);
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
+
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 

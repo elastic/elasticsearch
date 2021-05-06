@@ -96,6 +96,7 @@ The API returns the following result:
         [
           "leader_index*"
         ],
+        "leader_index_exclusion_patterns": [],
         "follow_index_pattern" : "{{leader_index}}-follower"
       }
     }

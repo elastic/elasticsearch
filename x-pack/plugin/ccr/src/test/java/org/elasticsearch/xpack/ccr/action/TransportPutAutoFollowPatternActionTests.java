@@ -119,6 +119,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
             new AutoFollowPattern(
                 "eu_cluster",
                 existingPatterns,
+                Collections.emptyList(),
                 null,
                 Settings.EMPTY,
                 true,
@@ -169,6 +170,53 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(numLeaderIndices + 1));
         assertThat(autoFollowMetadata.getHeaders().size(), equalTo(1));
         assertThat(autoFollowMetadata.getHeaders().get("name1"), notNullValue());
+    }
+
+    public void testInnerPutWithExcludingPatterns() {
+        PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
+        request.setName("name1");
+        request.setRemoteCluster("eu_cluster");
+        request.setLeaderIndexPatterns(Collections.singletonList("logs-*"));
+        request.setLeaderIndexExclusionPatterns(Collections.singletonList("logs-2018*"));
+        final int numberOfReplicas = randomIntBetween(0, 4);
+        request.setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numberOfReplicas).build());
+
+        ClusterState localState = ClusterState.builder(new ClusterName("us_cluster"))
+            .metadata(Metadata.builder())
+            .build();
+
+        int numLeaderIndices = randomIntBetween(1, 8);
+        int numMatchingLeaderIndices = randomIntBetween(1, 8);
+        Metadata.Builder mdBuilder = Metadata.builder();
+        for (int i = 0; i < numLeaderIndices; i++) {
+            mdBuilder.put(IndexMetadata.builder("logs-2018" + i)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0));
+        }
+        for (int i = 0; i < numMatchingLeaderIndices; i++) {
+            mdBuilder.put(IndexMetadata.builder("logs-2017" + i)
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(1)
+                .numberOfReplicas(0));
+        }
+
+        ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster"))
+            .metadata(mdBuilder)
+            .build();
+
+        ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().custom(AutoFollowMetadata.TYPE);
+        assertThat(autoFollowMetadata, notNullValue());
+        assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().size(), equalTo(1));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexPatterns().get(0), equalTo("logs-*"));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexExclusionPatterns().size(), equalTo(1));
+        assertThat(autoFollowMetadata.getPatterns().get("name1").getLeaderIndexExclusionPatterns().get(0), equalTo("logs-2018*"));
+
+        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().size(), equalTo(1));
+        assertThat(autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("name1").size(), equalTo(numMatchingLeaderIndices));
     }
 
 }

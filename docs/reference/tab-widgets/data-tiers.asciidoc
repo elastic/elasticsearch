@@ -36,19 +36,8 @@ node.roles: [ data_cold ]
 node.roles: [ data_frozen ]
 ----
 
-For nodes in the frozen tier, set
-<<searchable-snapshots-shared-cache,`xpack.searchable.snapshot.shared_cache.size`>>
-to up to 90% of the node's available disk space. The frozen tier uses this space
-to create a <<shared-cache,shared, fixed-size cache>> for
-<<searchable-snapshots,searchable snapshots>>.
-
-[source,yaml]
-----
-node.roles: [ data_frozen ]
-xpack.searchable.snapshot.shared_cache.size: 50GB
-----
-
-If needed, you can assign a node to more than one tier.
+We recommend you use dedicated nodes in the frozen tier. If needed, you can
+assign other nodes to more than one tier.
 
 [source,yaml]
 ----

@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -428,5 +429,21 @@ public abstract class MappedFieldType {
         NONE, // this field is not collapsable
         KEYWORD,
         NUMERIC
+    }
+
+    /**
+     * This method is used to support auto-complete services and implementations
+     * are expected to find terms beginning with the provided string very quickly.
+     * If fields cannot look up matching terms quickly they should return null.  
+     * The returned TermEnum should implement next(), term() and doc_freq() methods
+     * but postings etc are not required.
+     * @param caseInsensitive if matches should be case insensitive
+     * @param string the partially complete word the user has typed (can be empty)
+     * @param queryShardContext the shard context
+     * @return null or an enumeration of matching terms and their doc frequencies
+     * @throws IOException Errors accessing data
+     */
+    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext) throws IOException {
+        return null;
     }
 }

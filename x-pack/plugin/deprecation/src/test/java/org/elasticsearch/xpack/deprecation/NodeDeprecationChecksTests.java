@@ -25,7 +25,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testCheckBootstrapSystemCallFilterSetting() {
         final boolean boostrapSystemCallFilter = randomBoolean();
-        final Settings settings = Settings.builder().put(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(), boostrapSystemCallFilter).build();
+        final Settings settings =
+            Settings.builder().put(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(), boostrapSystemCallFilter).build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(List.of(), List.of());
         final List<DeprecationIssue> issues =
             DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));

@@ -331,6 +331,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * @return all mapped field types, including runtime fields defined in the request
+     */
+    public Collection<MappedFieldType> getAllFieldTypes() {
+        return getMatchingFieldTypes("*");
+    }
+
+    /**
      * Returns all mapped field types that match a given pattern
      *
      * Includes any runtime fields that have been defined in the request. Note

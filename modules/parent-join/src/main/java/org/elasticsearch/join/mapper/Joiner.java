@@ -36,7 +36,7 @@ public final class Joiner {
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(SearchExecutionContext context) {
-        return getJoiner(context.getMatchingFieldTypes("*"));
+        return getJoiner(context.getAllFieldTypes());
     }
 
     /**

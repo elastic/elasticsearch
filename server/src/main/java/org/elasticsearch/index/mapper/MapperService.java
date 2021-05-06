@@ -373,7 +373,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (this.mapper == null) {
             return Collections.emptySet();
         }
-        return this.mapper.mappers().getMatchingFieldTypes("*").stream()
+        return this.mapper.mappers().getAllFieldTypes().stream()
             .filter(MappedFieldType::eagerGlobalOrdinals)
             .collect(Collectors.toList());
     }

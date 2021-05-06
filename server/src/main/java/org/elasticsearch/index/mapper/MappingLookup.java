@@ -314,6 +314,13 @@ public final class MappingLookup {
     }
 
     /**
+     * @return all mapped field types
+     */
+    public Collection<MappedFieldType> getAllFieldTypes() {
+        return fieldTypeLookup.getMatchingFieldTypes("*");
+    }
+
+    /**
      * Returns the mapped field type for the given field name.
      */
     public MappedFieldType getFieldType(String field) {

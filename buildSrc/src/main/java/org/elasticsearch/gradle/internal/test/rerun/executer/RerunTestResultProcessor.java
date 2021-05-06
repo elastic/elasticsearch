@@ -110,10 +110,6 @@ final class RerunTestResultProcessor implements TestResultProcessor {
         illegalArgumentException.printStackTrace();
     }
 
-    private void logActiveDescriptors() {
-
-    }
-
     public void reset() {
         this.activeDescriptorsById.clear();
         this.activeDescriptorsById.put(rootTestDescriptor.getId(), rootTestDescriptor);

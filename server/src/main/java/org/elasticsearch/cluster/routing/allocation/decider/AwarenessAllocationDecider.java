@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -76,8 +77,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING =
         Setting.listSetting("cluster.routing.allocation.awareness.attributes", emptyList(), Function.identity(), Property.Dynamic,
             Property.NodeScope);
-    public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING =
-        Setting.groupSetting("cluster.routing.allocation.awareness.force.", Property.Dynamic, Property.NodeScope);
+
+    private static final String FORCE_GROUP_SETTING_PREFIX = "cluster.routing.allocation.awareness.force.";
+
+    public static final Setting<Settings> CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING = Setting.groupSetting(
+            FORCE_GROUP_SETTING_PREFIX,
+            AwarenessAllocationDecider::validateForceAwarenessSettings,
+            Property.Dynamic,
+            Property.NodeScope);
 
     private volatile List<String> awarenessAttributes;
 
@@ -230,5 +237,20 @@ public class AwarenessAllocationDecider extends AllocationDecider {
                 "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]", awarenessAttribute,
                 CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
                 Strings.collectionToCommaDelimitedString(awarenessAttributes));
+    }
+
+    private static void validateForceAwarenessSettings(Settings forceSettings) {
+        for (Map.Entry<String, Settings> entry : forceSettings.getAsGroups().entrySet()) {
+            final Optional<String> notValues = entry.getValue().keySet().stream().filter(s -> s.equals("values") == false).findFirst();
+            if (notValues.isPresent()) {
+                throw new IllegalArgumentException(
+                        "invalid forced awareness setting [" +
+                                FORCE_GROUP_SETTING_PREFIX +
+                                entry.getKey() +
+                                "." +
+                                notValues.get() +
+                                "]");
+            }
+        }
     }
 }

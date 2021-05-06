@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -29,8 +30,10 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -110,7 +113,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
     public void testAwarenessZones() {
         Settings commonSettings = Settings.builder()
-                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b")
+                .put(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b")
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
                 .build();
 
@@ -306,5 +309,23 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         assertThat(counts.get(B_0), equalTo(3));
         assertThat(counts.get(B_1), equalTo(2));
         assertThat(counts.get(noZoneNode), equalTo(2));
+    }
+
+    public void testForceAwarenessSettingValidation() {
+        final String prefix = CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey();
+
+        expectThrows(SettingsException.class, () ->
+                client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                        Settings.builder().put(prefix + "nonsense", "foo")).get());
+
+        assertThat(expectThrows(IllegalArgumentException.class, () ->
+                        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                                Settings.builder().put(prefix + "attr.not_values", "foo")).get()).getMessage(),
+                containsString("[cluster.routing.allocation.awareness.force.attr.not_values]"));
+
+        assertThat(expectThrows(IllegalArgumentException.class, () ->
+                        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
+                                Settings.builder().put(prefix + "attr.values.junk", "foo")).get()).getMessage(),
+                containsString("[cluster.routing.allocation.awareness.force.attr.values.junk./g]"));
     }
 }

@@ -62,12 +62,12 @@ the current <<data-streams-generation,generation>> and timestamp field.
 
 You can also choose to include only specific backing indices in a snapshot.
 However, these backups do not include the associated data stream's
-metadata or its other backing indices. Snapshots can also include data streams
-but exclude specific backing indices. In this case, the data stream will be
-restored with only the backing indices present in the snapshot. In the case
-that the original write index of the data stream was not present in the
-snapshot, the data stream's most recent backing index that is present in the
-snapshot will become the current write index.
+metadata or its other backing indices.
+
+Snapshots can also include a data stream but exclude specific backing indices.
+When you restore the data stream, it will contain only backing indices present
+in the snapshot. If the stream's original write index is not in the snapshot,
+the most recent backing index from the snapshot becomes the stream's write index.
 
 [discrete]
 [[create-snapshot-process-details]]

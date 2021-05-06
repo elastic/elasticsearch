@@ -280,6 +280,12 @@ Machine Learning::
 is stopped and restarted, for example, if the node fails {ml-pull}1848[#1848]
 * Fail gracefully if insufficient data is supplied for classification or regression training {ml-pull}1855[#1855]
 * Fail gracefully on encountering unexpected state in restore from snapshot for anomaly detection {ml-pull}1872[#1872]
+* Use appropriate memory ordering flags for aarch64 with string store to avoid excessive string duplication {ml-pull}1888[#1888]
+* Fix autoscaling bug where many jobs take a long time to open {es-pull}72423[#72423]
+* Use appropriate master timeouts for master actions {es-pull}72492[#72492]
+* Fix empty overall_buckets response {es-pull}72542[#72542]
+* Check the out stream exists before consuming it {es-pull}72455[#72455]
+* Prevent data frame analytics freeze after loading data {es-pull}72412[#72412]
 
 
 Mapping::
@@ -291,4 +297,7 @@ Search::
 * In ARS, correct default number of outstanding requests {es-pull}71022[#71022] (issue: {es-issue}70283[#70283])
 * Prevent aliased fields being used for index sorts {es-pull}70879[#70879]
 
+Transforms::
+* Fix bug where group_by ordering could break when serializing between nodes {es-pull}72016[#72016]
+* Avoid transform failure during rolling upgrade {es-pull}72533[#72533]
 

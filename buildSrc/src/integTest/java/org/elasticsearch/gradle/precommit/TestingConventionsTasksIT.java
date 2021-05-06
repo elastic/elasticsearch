@@ -10,20 +10,16 @@ package org.elasticsearch.gradle.precommit;
 import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
-import org.junit.Before;
 
 public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
 
-    @Before
-    public void setUp() {}
+    @Override
+    public String projectName() {
+        return "testingConventions";
+    }
 
     public void testInnerClasses() {
-        GradleRunner runner = getGradleRunner("testingConventions").withArguments(
-            "clean",
-            ":no_tests_in_inner_classes:testingConventions",
-            "-i",
-            "-s"
-        );
+        GradleRunner runner = getGradleRunner().withArguments("clean", ":no_tests_in_inner_classes:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
         assertOutputContains(
             result.getOutput(),
@@ -37,12 +33,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
     }
 
     public void testNamingConvention() {
-        GradleRunner runner = getGradleRunner("testingConventions").withArguments(
-            "clean",
-            ":incorrect_naming_conventions:testingConventions",
-            "-i",
-            "-s"
-        );
+        GradleRunner runner = getGradleRunner().withArguments("clean", ":incorrect_naming_conventions:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
         assertOutputContains(
             result.getOutput(),
@@ -55,12 +46,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
     }
 
     public void testNoEmptyTasks() {
-        GradleRunner runner = getGradleRunner("testingConventions").withArguments(
-            "clean",
-            ":empty_test_task:testingConventions",
-            "-i",
-            "-s"
-        );
+        GradleRunner runner = getGradleRunner().withArguments("clean", ":empty_test_task:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
         assertOutputContains(
             result.getOutput(),
@@ -70,12 +56,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
     }
 
     public void testAllTestTasksIncluded() {
-        GradleRunner runner = getGradleRunner("testingConventions").withArguments(
-            "clean",
-            ":all_classes_in_tasks:testingConventions",
-            "-i",
-            "-s"
-        );
+        GradleRunner runner = getGradleRunner().withArguments("clean", ":all_classes_in_tasks:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
         assertOutputContains(
             result.getOutput(),
@@ -85,12 +66,7 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
     }
 
     public void testTaskNotImplementBaseClass() {
-        GradleRunner runner = getGradleRunner("testingConventions").withArguments(
-            "clean",
-            ":not_implementing_base:testingConventions",
-            "-i",
-            "-s"
-        );
+        GradleRunner runner = getGradleRunner().withArguments("clean", ":not_implementing_base:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
         assertOutputContains(
             result.getOutput(),
@@ -104,29 +80,19 @@ public class TestingConventionsTasksIT extends GradleIntegrationTestCase {
     }
 
     public void testValidSetupWithoutBaseClass() {
-        GradleRunner runner = getGradleRunner("testingConventions").withArguments(
-            "clean",
-            ":valid_setup_no_base:testingConventions",
-            "-i",
-            "-s"
-        );
+        GradleRunner runner = getGradleRunner().withArguments("clean", ":valid_setup_no_base:testingConventions", "-i", "-s");
         BuildResult result = runner.build();
         assertTaskSuccessful(result, ":valid_setup_no_base:testingConventions");
     }
 
     public void testValidSetupWithBaseClass() {
-        GradleRunner runner = getGradleRunner("testingConventions").withArguments(
-            "clean",
-            ":valid_setup_with_base:testingConventions",
-            "-i",
-            "-s"
-        );
+        GradleRunner runner = getGradleRunner().withArguments("clean", ":valid_setup_with_base:testingConventions", "-i", "-s");
         BuildResult result = runner.build();
         assertTaskSuccessful(result, ":valid_setup_with_base:testingConventions");
     }
 
     public void testTestsInMain() {
-        GradleRunner runner = getGradleRunner("testingConventions").withArguments("clean", ":tests_in_main:testingConventions", "-i", "-s");
+        GradleRunner runner = getGradleRunner().withArguments("clean", ":tests_in_main:testingConventions", "-i", "-s");
         BuildResult result = runner.buildAndFail();
         assertOutputContains(
             result.getOutput(),

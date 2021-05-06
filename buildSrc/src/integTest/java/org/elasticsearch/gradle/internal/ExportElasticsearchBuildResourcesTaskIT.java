@@ -15,22 +15,27 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
 
     public static final String PROJECT_NAME = "elasticsearch-build-resources";
 
-    public void testUpToDateWithSourcesConfigured() {
-        getGradleRunner(PROJECT_NAME).withArguments("clean", "-s").build();
+    @Override
+    public String projectName() {
+        return PROJECT_NAME;
+    }
 
-        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
+    public void testUpToDateWithSourcesConfigured() {
+        getGradleRunner().withArguments("clean", "-s").build();
+
+        BuildResult result = getGradleRunner().withArguments("buildResources", "-s", "-i").build();
         assertTaskSuccessful(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
 
-        result = getGradleRunner(PROJECT_NAME).withArguments("buildResources", "-s", "-i").build();
+        result = getGradleRunner().withArguments("buildResources", "-s", "-i").build();
         assertTaskUpToDate(result, ":buildResources");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle.xml");
         assertBuildFileExists(result, PROJECT_NAME, "build-tools-exported/checkstyle_suppressions.xml");
     }
 
     public void testOutputAsInput() {
-        BuildResult result = getGradleRunner(PROJECT_NAME).withArguments("clean", "sampleCopy", "-s", "-i").build();
+        BuildResult result = getGradleRunner().withArguments("clean", "sampleCopy", "-s", "-i").build();
 
         assertTaskSuccessful(result, ":sampleCopy");
         assertBuildFileExists(result, PROJECT_NAME, "sampleCopy/checkstyle.xml");
@@ -39,8 +44,9 @@ public class ExportElasticsearchBuildResourcesTaskIT extends GradleIntegrationTe
 
     public void testIncorrectUsage() {
         assertOutputContains(
-            getGradleRunner(PROJECT_NAME).withArguments("noConfigAfterExecution", "-s", "-i").buildAndFail().getOutput(),
+            getGradleRunner().withArguments("noConfigAfterExecution", "-s", "-i").buildAndFail().getOutput(),
             "buildResources can't be configured after the task ran"
         );
     }
+
 }

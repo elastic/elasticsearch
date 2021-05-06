@@ -228,10 +228,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // Compute md5 here so #writeBlobResumable forces the integrity check on the resumable upload.
             // This is needed since we rely on atomic write behavior when writing BytesReferences in BlobStoreRepository which is not
             // guaranteed for resumable uploads.
-            writeBlobResumable(
-                    BlobInfo.newBuilder(bucketName, blobName)
-                            .setMd5(Base64.getEncoder().encodeToString(MessageDigests.digest(bytes, MessageDigests.md5()))).build(),
-                bytes.streamInput(), bytes.length(), failIfAlreadyExists);
+            final String md5 = Base64.getEncoder().encodeToString(MessageDigests.digest(bytes, MessageDigests.md5()));
+            writeBlobResumable(BlobInfo.newBuilder(bucketName, blobName).setMd5(md5).build(), bytes.streamInput(), bytes.length(),
+                failIfAlreadyExists);
         } else {
             writeBlob(bytes.streamInput(), bytes.length(), failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
         }

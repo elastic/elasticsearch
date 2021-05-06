@@ -282,12 +282,14 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
         }
 
         public static boolean match(List<String> leaderIndexPatterns, IndexAbstraction indexAbstraction) {
-            boolean matches = Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getName());
+            boolean matches = indexAbstraction.isSystem() == false && Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getName());
             if (matches) {
                 return true;
             } else {
-                return indexAbstraction.getParentDataStream() != null &&
-                    Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getParentDataStream().getName());
+                final IndexAbstraction.DataStream parentDataStream = indexAbstraction.getParentDataStream();
+                return parentDataStream != null &&
+                       parentDataStream.isSystem() == false &&
+                       Regex.simpleMatch(leaderIndexPatterns, parentDataStream.getName());
             }
         }
 

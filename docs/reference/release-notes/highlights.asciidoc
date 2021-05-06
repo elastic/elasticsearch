@@ -123,4 +123,23 @@ We've significantly improved the speed of the `terms` aggregation when:
 Many time series use cases are likely to meet these criteria, particularly for
 data in the cold or frozen tier.
 
+[discrete]
+[[dfa-inference-ga]]
+=== Data frame analytics and inference are generally available
+
+The ability to train outlier detection, regression, and classification models 
+and then use those models to infer against incoming data becomes generally 
+available in 7.13.
+
+[discrete]
+[[trained-model-aliases]]
+=== Trained model aliases
+
+To simplify the deployment and upgrade of trained models, the concept of model 
+aliases is introduced in 7.13. When using a `model_alias` in an ingest pipeline, 
+it is now possible to make changes to the underlying referenced model without 
+having to update the pipeline. The underlying referenced model changes in place 
+for all ingest pipelines automatically when the new model is loaded into cache.
+
+
 // end::notable-highlights[]

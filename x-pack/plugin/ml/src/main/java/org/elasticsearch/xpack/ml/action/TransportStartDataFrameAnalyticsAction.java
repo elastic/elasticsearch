@@ -619,6 +619,7 @@ public class TransportStartDataFrameAnalyticsAction
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment =
                 getPotentialAssignment(params, clusterState, isMemoryTrackerRecentlyRefreshed);
+            // NOTE: this will return here if isMemoryTrackerRecentlyRefreshed is false, we don't allow assignment with stale memory
             if (optionalAssignment.isPresent()) {
                 return optionalAssignment.get();
             }
@@ -638,7 +639,6 @@ public class TransportStartDataFrameAnalyticsAction
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,
                 maxNodeMemory,
-                isMemoryTrackerRecentlyRefreshed,
                 useAutoMemoryPercentage
             );
             auditRequireMemoryIfNecessary(params.getId(), auditor, assignment, jobNodeSelector, isMemoryTrackerRecentlyRefreshed);
@@ -695,14 +695,14 @@ public class TransportStartDataFrameAnalyticsAction
             // in a mixed version cluster where the master node is on an older version than this node relying on auto-creation
             // might use outdated mappings.
             MlIndexAndAlias.createSystemIndexIfNecessary(client, clusterState, MachineLearning.getInferenceIndexSecurityDescriptor(),
-                indexCheckListener);
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT, indexCheckListener);
         }
 
         private void executeTask(DataFrameAnalyticsTask task) {
             DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
                 task.getAllocationId(), null);
             task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                response -> manager.execute(task, clusterState),
+                response -> manager.execute(task, clusterState, MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT),
                 task::markAsFailed));
         }
 

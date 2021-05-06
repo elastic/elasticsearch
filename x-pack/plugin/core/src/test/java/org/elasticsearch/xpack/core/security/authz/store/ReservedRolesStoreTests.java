@@ -1261,12 +1261,18 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNoAccessAllowed(role, "foo");
         assertNoAccessAllowed(role, "foo-apm");
         assertNoAccessAllowed(role, "foo-logs-apm.bar");
+        assertNoAccessAllowed(role, "foo-logs-apm-bar");
         assertNoAccessAllowed(role, "foo-traces-apm.bar");
+        assertNoAccessAllowed(role, "foo-traces-apm-bar");
         assertNoAccessAllowed(role, "foo-metrics-apm.bar");
+        assertNoAccessAllowed(role, "foo-metrics-apm-bar");
 
         assertOnlyReadAllowed(role, "logs-apm." + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "logs-apm-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "traces-apm." + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "traces-apm-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "metrics-apm." + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, "metrics-apm-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
 

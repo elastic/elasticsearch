@@ -306,10 +306,6 @@ public class Node implements Closeable {
                     Build.CURRENT.getQualifiedVersion());
             }
 
-            if (Environment.dataPathUsesList(tmpSettings)) {
-                throw new IllegalArgumentException("[path.data] is a list. Specify as a string value.");
-            }
-
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
                     initialEnvironment.configFile(), initialEnvironment.dataFile(),
@@ -818,7 +814,7 @@ public class Node implements Closeable {
             try {
                 assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
                 final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
-                    nodeEnvironment.nodeDataPaths());
+                    nodeEnvironment.nodeDataPath());
                 assert nodeMetadata != null;
                 assert nodeMetadata.nodeVersion().equals(Version.CURRENT);
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());

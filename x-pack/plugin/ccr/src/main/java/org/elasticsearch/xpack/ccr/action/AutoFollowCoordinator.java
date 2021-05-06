@@ -379,7 +379,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 // for the remote cluster it is tracking and will continue to operate, while in
                 // the meantime in updateAutoFollowers() method another AutoFollower instance has been
                 // started for the same remote cluster.)
-                LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
+                LOGGER.trace("auto-follower instance for cluster [{}] has been removed", remoteCluster);
                 return;
             }
 
@@ -387,7 +387,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final ClusterState clusterState = followerClusterStateSupplier.get();
             final AutoFollowMetadata autoFollowMetadata = clusterState.metadata().custom(AutoFollowMetadata.TYPE);
             if (autoFollowMetadata == null) {
-                LOGGER.info("AutoFollower for cluster [{}] has stopped, because there is no autofollow metadata", remoteCluster);
+                LOGGER.info("auto-follower for cluster [{}] has stopped, because there is no autofollow metadata", remoteCluster);
                 return;
             }
 
@@ -398,7 +398,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 .sorted()
                 .collect(Collectors.toList());
             if (patterns.isEmpty()) {
-                LOGGER.info("AutoFollower for cluster [{}] has stopped, because there are no more patterns", remoteCluster);
+                LOGGER.info("auto-follower for cluster [{}] has stopped, because there are no more patterns", remoteCluster);
                 return;
             }
 
@@ -416,7 +416,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             getRemoteClusterState(remoteCluster, Math.max(1L, nextMetadataVersion), (remoteClusterStateResponse, remoteError) -> {
                 // Also check removed flag here, as it may take a while for this remote cluster state api call to return:
                 if (removed) {
-                    LOGGER.info("AutoFollower instance for cluster [{}] has been removed", remoteCluster);
+                    LOGGER.trace("auto-follower instance for cluster [{}] has been removed", remoteCluster);
                     return;
                 }
 
@@ -433,7 +433,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 } else {
                     assert remoteError != null;
                     if (remoteError instanceof NoSuchRemoteClusterException) {
-                        LOGGER.info("AutoFollower for cluster [{}] has stopped, because remote connection is gone", remoteCluster);
+                        LOGGER.info("auto-follower for cluster [{}] has stopped, because remote connection is gone", remoteCluster);
                         remoteClusterConnectionMissing = true;
                         return;
                     }
@@ -592,7 +592,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {
-                LOGGER.info("Auto followed leader index [{}] as follow index [{}]", leaderIndexName, followIndexName);
+                LOGGER.info("auto followed leader index [{}] as follow index [{}]", indexToFollow, followIndexName);
 
                 // This function updates the auto follow metadata in the cluster to record that the leader index has been followed:
                 // (so that we do not try to follow it in subsequent auto follow runs)

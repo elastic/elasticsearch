@@ -23,6 +23,9 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
     /** check if the provided hash is in the solution space of this tiler */
     protected abstract boolean validHash(String hash);
 
+    /** Max size of the solution space */
+    protected abstract long getMaxHashes();
+
     @Override
     public long encode(double x, double y) {
         return Geohash.longEncode(x, y, precision);
@@ -105,12 +108,29 @@ abstract class AbstractGeoHashGridTiler extends GeoGridTiler {
                     values.resizeCell(valuesIndex + 1);
                     values.add(valuesIndex++, Geohash.longEncode(hashes[i]));
                 } else {
-                    values.resizeCell(valuesIndex + (int) Math.pow(32, precision - hash.length()) + 1);
+                    int numTilesAtPrecision = getNumTilesAtPrecision(precision, hash.length());
+                    values.resizeCell(getNewSize(valuesIndex, numTilesAtPrecision + 1));
                     valuesIndex = setValuesForFullyContainedTile(hashes[i],values, valuesIndex, precision);
                 }
             }
         }
         return valuesIndex;
+    }
+
+    private int getNewSize(int valuesIndex, int increment) {
+        long newSize  = (long) valuesIndex + increment;
+        if (newSize > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Tile aggregation array overflow");
+        }
+        return (int) newSize;
+    }
+
+    private int getNumTilesAtPrecision(int finalPrecision, int currentPrecision) {
+        final long numTilesAtPrecision  = Math.min((long) Math.pow(32, finalPrecision - currentPrecision) + 1, getMaxHashes());
+        if (numTilesAtPrecision > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Tile aggregation array overflow");
+        }
+        return (int) numTilesAtPrecision;
     }
 
     protected int setValuesForFullyContainedTile(String hash, GeoShapeCellValues values,

@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal
 
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.FixtureStop
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.gradle.api.file.FileSystemOperations
 import org.gradle.api.tasks.Internal

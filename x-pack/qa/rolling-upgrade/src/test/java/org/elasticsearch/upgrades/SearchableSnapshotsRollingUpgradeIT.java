@@ -226,6 +226,22 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
 
+            if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)) { // TODO Adjust to 7.13.0
+                final Request request = new Request("GET",
+                    "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference");
+                request.setOptions(expectWarnings("this request accesses system indices: [.snapshot-blob-cache], but in a future major " +
+                    "version, direct access to system indices will be prevented by default"));
+                request.addParameter("flat_settings", "true");
+
+                final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
+                assertThat(snapshotBlobCacheSettings, notNullValue());
+                final String tierPreference = (String) extractValue(
+                    ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
+                    snapshotBlobCacheSettings
+                );
+                assertThat(tierPreference, equalTo("data_content,data_hot"));
+            }
+
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             for (String snapshot : snapshots) {
                 deleteSnapshot(repository, snapshot);

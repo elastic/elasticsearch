@@ -7,6 +7,10 @@
     child-workspace: "C:\\Users\\jenkins\\workspace\\pr-packaging-windows\\${BUILD_NUMBER}"
     project-type: matrix
     node: master
+    scm:
+      - git:
+          refspec: "+refs/pull/${{ghprbPullId}}/*:refs/remotes/origin/pr/${{ghprbPullId}}/*"
+          branch: "${ghprbActualCommit}"
     triggers:
       - github-pull-request:
           org-list:

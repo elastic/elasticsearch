@@ -14,7 +14,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.opensaml.saml.common.xml.SAMLConstants;
@@ -107,7 +106,7 @@ public abstract class SamlTestCase extends ESTestCase {
         Path certPath = PathUtils.get(SamlTestCase.class.getResource
                 ("/org/elasticsearch/xpack/security/authc/saml/saml_" + algorithm + "_" + keySize + ".crt").toURI());
         X509Certificate certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(certPath))[0];
-        PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, ""::toCharArray);
+        PrivateKey privateKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(keyPath, ""::toCharArray);
         return new Tuple<>(certificate, privateKey);
     }
 
@@ -117,7 +116,7 @@ public abstract class SamlTestCase extends ESTestCase {
         Path certPath = PathUtils.get(SamlTestCase.class.getResource
             ("/org/elasticsearch/xpack/security/authc/saml/saml_" + keyName+ ".crt").toURI());
         X509Certificate certificate = CertParsingUtils.readX509Certificates(Collections.singletonList(certPath))[0];
-        PrivateKey privateKey = PemUtils.readPrivateKey(keyPath, ""::toCharArray);
+        PrivateKey privateKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(keyPath, ""::toCharArray);
         return new Tuple<>(certificate, privateKey);
     }
 

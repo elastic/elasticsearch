@@ -16,7 +16,6 @@ import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -51,7 +50,6 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder.ContactInfo;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.io.MarshallingException;
@@ -299,13 +297,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         } else {
             Path cert = resolvePath(signingCertPathSpec.value(options));
             Path key = resolvePath(signingKeyPathSpec.value(options));
-            final String resolvedSigningCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedSigningCertPath), env);
-            if (certificates.length != 1) {
-                throw new IllegalArgumentException("expected a single certificate in file [" + resolvedSigningCertPath + "] but found [" +
-                        certificates.length + "]");
-            }
-            signingCertificate = (X509Certificate) certificates[0];
+            signingCertificate = CertParsingUtils.readX509Certificate(cert);
             signingKey = readSigningKey(key, password, terminal);
         }
         return new BasicX509Credential(signingCertificate, signingKey);
@@ -333,14 +325,14 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
             throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
-            return PemUtils.readPrivateKey(path, () -> {
-                if (password != null) {
-                    return password;
-                }
-                char[] promptedValue = terminal.readSecret("Enter password for the signing key (" + path.getFileName() + ") : ");
-                passwordReference.set(promptedValue);
-                return promptedValue;
-            });
+            return org.elasticsearch.common.ssl.PemUtils.readPrivateKey(path, () -> {
+                    if (password != null) {
+                        return password;
+                    }
+                    char[] promptedValue = terminal.readSecret("Enter password for the signing key (" + path.getFileName() + ") : ");
+                    passwordReference.set(promptedValue);
+                    return promptedValue;
+                });
         } finally {
             if (passwordReference.get() != null) {
                 Arrays.fill(passwordReference.get(), (char) 0);

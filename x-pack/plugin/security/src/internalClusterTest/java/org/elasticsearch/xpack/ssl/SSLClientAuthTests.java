@@ -24,7 +24,6 @@ import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -33,12 +32,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.security.cert.CertPathBuilderException;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 
@@ -134,14 +132,18 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
 
     private SSLContext getSSLContext() {
         try {
-            String certPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt";
+            String certPathName = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt";
             String nodeCertPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt";
             String nodeEcCertPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode_ec.crt";
-            String keyPath = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
-            TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(Arrays.asList(getDataPath
-                (certPath), getDataPath(nodeCertPath), getDataPath(nodeEcCertPath))));
-            KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
-                (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), "testclient"::toCharArray), "testclient".toCharArray());
+            String keyPathName = "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem";
+
+            final Path certPath = getDataPath(certPathName);
+            final Path keyPath = getDataPath(keyPathName);
+
+            final List<Path> caCerts = List.of(certPath, getDataPath(nodeCertPath), getDataPath(nodeEcCertPath));
+            final TrustManager tm = CertParsingUtils.getTrustManagerFromPEM(caCerts);
+
+            KeyManager km = CertParsingUtils.getKeyManagerFromPEM(certPath, keyPath, "testclient".toCharArray());
             SSLContext context = SSLContext.getInstance(inFipsJvm() ? "TLSv1.2" : randomFrom("TLSv1.3", "TLSv1.2"));
             context.init(new KeyManager[] { km }, new TrustManager[] { tm }, new SecureRandom());
             return context;

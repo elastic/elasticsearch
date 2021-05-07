@@ -28,6 +28,7 @@ import org.apache.http.ssl.SSLContextBuilder;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -55,6 +56,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.AccessController;
+import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -569,12 +571,12 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         return server;
     }
 
-    private static MockWebServer getSslServer(Path keyPath, Path certPath, String password) throws KeyStoreException, CertificateException,
-        NoSuchAlgorithmException, IOException, KeyManagementException, UnrecoverableKeyException {
+    private static MockWebServer getSslServer(Path keyPath, Path certPath, String password) throws GeneralSecurityException,
+        IOException {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, password.toCharArray());
         keyStore.setKeyEntry("testnode_ec", PemUtils.readPrivateKey(keyPath, password::toCharArray), password.toCharArray(),
-            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+            CertParsingUtils.readCertificates(Collections.singletonList(certPath)).toArray(Certificate[]::new));
         final SSLContext sslContext = new SSLContextBuilder()
             .loadKeyMaterial(keyStore, password.toCharArray())
             .build();

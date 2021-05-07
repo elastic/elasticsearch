@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemKeyConfig;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.env.Environment;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.security.Key;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -35,7 +37,6 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -65,6 +66,23 @@ public class CertParsingUtils {
         }
     }
 
+    public static X509Certificate readX509Certificate(Path path) throws CertificateException, IOException {
+        List<Certificate> certificates = readCertificates(List.of(path));
+        if (certificates.size() != 1) {
+            throw new IllegalArgumentException("expected a single certificate in file [" + path.toAbsolutePath() + "] but found [" +
+                certificates.size() + "]");
+        }
+        final Certificate cert = certificates.get(0);
+        if (cert instanceof X509Certificate) {
+            return (X509Certificate) cert;
+        } else {
+            throw new IllegalArgumentException("the certificate in " + path.toAbsolutePath() + " is not an X.509 certificate ("
+                + cert.getType()
+                + " : "
+                + cert.getClass() + ")");
+        }
+    }
+
     /**
      * Reads the provided paths and parses them into {@link Certificate} objects
      *
@@ -72,24 +90,14 @@ public class CertParsingUtils {
      * @param environment the environment to resolve files against. May be not be {@code null}
      * @return an array of {@link Certificate} objects
      */
-    public static Certificate[] readCertificates(List<String> certPaths, Environment environment)
+    public static List<Certificate> readCertificates(List<String> certPaths, Environment environment)
         throws CertificateException, IOException {
         final List<Path> resolvedPaths = resolvePaths(certPaths, environment);
-        return readCertificates(resolvedPaths);
+        return org.elasticsearch.common.ssl.PemUtils.readCertificates(resolvedPaths);
     }
 
-    public static Certificate[] readCertificates(List<Path> certPaths) throws CertificateException, IOException {
-        Collection<Certificate> certificates = new ArrayList<>();
-        CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        for (Path path : certPaths) {
-            try (InputStream input = Files.newInputStream(path)) {
-                certificates.addAll(certFactory.generateCertificates(input));
-                if (certificates.isEmpty()) {
-                    throw new CertificateException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
-                }
-            }
-        }
-        return certificates.toArray(new Certificate[0]);
+    public static List<Certificate> readCertificates(List<Path> certPaths) throws CertificateException, IOException {
+        return org.elasticsearch.common.ssl.PemUtils.readCertificates(certPaths);
     }
 
     @SuppressWarnings("unchecked")
@@ -149,10 +157,20 @@ public class CertParsingUtils {
      * Creates a {@link KeyStore} from a PEM encoded certificate and key file
      */
     public static KeyStore getKeyStoreFromPEM(Path certificatePath, Path keyPath, char[] keyPassword)
-        throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException {
-        final PrivateKey key = PemUtils.readPrivateKey(keyPath, () -> keyPassword);
-        final Certificate[] certificates = readCertificates(Collections.singletonList(certificatePath));
-        return getKeyStore(certificates, key, keyPassword);
+        throws IOException,GeneralSecurityException {
+        final PrivateKey privateKey = org.elasticsearch.common.ssl.PemUtils.readPrivateKey(keyPath, () -> keyPassword);
+        final List<Certificate> certificates = readCertificates(List.of(certificatePath));
+        return KeyStoreUtil.buildKeyStore(certificates, privateKey, keyPassword);
+    }
+
+
+    /**
+     * Creates a {@link X509ExtendedKeyManager} from a PEM encoded certificate and key file
+     */
+    public static X509ExtendedKeyManager getKeyManagerFromPEM(Path certificatePath, Path keyPath, char[] keyPassword)
+        throws IOException, GeneralSecurityException {
+        final KeyStore keyStore = getKeyStoreFromPEM(certificatePath, keyPath, keyPassword);
+        return keyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
     }
 
     /**
@@ -233,6 +251,14 @@ public class CertParsingUtils {
     }
 
     /**
+     * Creates a {@link X509ExtendedTrustManager} based on the provided PEM certificate authorities
+     */
+    public static X509ExtendedTrustManager getTrustManagerFromPEM(List<Path> caPaths) throws GeneralSecurityException, IOException {
+        final List<Certificate> certificates = readCertificates(caPaths);
+        return trustManager(certificates.toArray(Certificate[]::new));
+    }
+
+    /**
      * Creates a {@link X509ExtendedTrustManager} based on the provided certificates
      *
      * @param certificates the certificates to trust
@@ -304,4 +330,5 @@ public class CertParsingUtils {
         }
         return true;
     }
+
 }

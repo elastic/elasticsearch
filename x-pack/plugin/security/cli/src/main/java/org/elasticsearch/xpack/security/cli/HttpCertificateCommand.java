@@ -29,10 +29,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.IOException;
@@ -1003,7 +1003,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
                 terminal.println("");
                 return terminal.readSecret("Password for " + path.getFileName() + ":");
             });
-        } catch (IOException e) {
+        } catch (IOException | GeneralSecurityException e) {
             throw new ElasticsearchException("Failed to read private key from " + path, e);
         }
     }

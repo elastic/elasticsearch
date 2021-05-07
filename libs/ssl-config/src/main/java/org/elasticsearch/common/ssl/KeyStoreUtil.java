@@ -37,7 +37,7 @@ import java.util.stream.Stream;
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
  */
-final class KeyStoreUtil {
+public final class KeyStoreUtil {
 
     private KeyStoreUtil() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -80,7 +80,7 @@ final class KeyStoreUtil {
      * @param password         The password for the private key
      * @throws GeneralSecurityException If there is a problem with the provided certificates/key
      */
-    static KeyStore buildKeyStore(Collection<Certificate> certificateChain, PrivateKey privateKey, char[] password)
+    public static KeyStore buildKeyStore(Collection<Certificate> certificateChain, PrivateKey privateKey, char[] password)
         throws GeneralSecurityException {
         KeyStore keyStore = buildNewKeyStore();
         keyStore.setKeyEntry("key", privateKey, password, certificateChain.toArray(new Certificate[0]));

@@ -189,7 +189,7 @@ public class PemUtilsTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(path.toAbsolutePath().toString()));
     }
 
-    public void testReadPemCertificateAsKey() {
+    public void testErrorWhenReadingPemCertificateAsKey() {
         final Path path = getDataPath("/certs/pem-utils/testnode.crt");
         SslConfigException e = expectThrows(SslConfigException.class, () -> PemUtils.readPrivateKey(path, TESTNODE_PASSWORD));
         assertThat(e.getMessage(), containsString("file does not contain a supported key format"));

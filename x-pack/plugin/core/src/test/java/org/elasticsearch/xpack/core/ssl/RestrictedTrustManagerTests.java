@@ -13,7 +13,6 @@ import org.junit.Assert;
 import org.junit.Before;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -21,7 +20,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.GeneralSecurityException;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -45,10 +43,9 @@ public class RestrictedTrustManagerTests extends ESTestCase {
     @Before
     public void readCertificates() throws GeneralSecurityException, IOException {
 
-        Certificate[] caCert
-                = CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
-                ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt")));
-        baseTrustManager = CertParsingUtils.trustManager(caCert);
+        final Path caPath = getDataPath
+            ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/ca.crt");
+        baseTrustManager = CertParsingUtils.getTrustManagerFromPEM(List.of(caPath));
         certificates = new HashMap<>();
         Files.walkFileTree(getDataPath
                 ("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/nodes/self-signed"), new SimpleFileVisitor<Path>() {

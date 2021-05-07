@@ -28,20 +28,20 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.core.security.authc.support.CachingRealm;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 
 import javax.net.ssl.X509TrustManager;
+import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
@@ -54,6 +54,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 public class PkiRealm extends Realm implements CachingRealm {
 
@@ -306,8 +307,8 @@ public class PkiRealm extends Realm implements CachingRealm {
     private static X509TrustManager trustManagersFromCAs(List<String> certificateAuthorities, Environment env) {
         assert certificateAuthorities != null;
         try {
-            Certificate[] certificates = CertParsingUtils.readCertificates(certificateAuthorities, env);
-            return CertParsingUtils.trustManager(certificates);
+            final List<Path> caPaths = certificateAuthorities.stream().map(env.configFile()::resolve).collect(Collectors.toList());
+            return CertParsingUtils.getTrustManagerFromPEM(caPaths);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load certificate authorities for PKI realm", e);
         }

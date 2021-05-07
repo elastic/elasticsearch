@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -61,10 +60,7 @@ public class EmailSslTests extends ESTestCase {
         final Path keyPath = tempDir.resolve("test-smtp.pem");
         Files.copy(getDataPath("/org/elasticsearch/xpack/watcher/actions/email/test-smtp.crt"), certPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/watcher/actions/email/test-smtp.pem"), keyPath);
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
-        keyStore.load(null, keystorePassword);
-        keyStore.setKeyEntry("test-smtp", PemUtils.readPrivateKey(keyPath, keystorePassword::clone), keystorePassword,
-            CertParsingUtils.readCertificates(Collections.singletonList(certPath)));
+        KeyStore keyStore = CertParsingUtils.getKeyStoreFromPEM(certPath, keyPath, keystorePassword);
         final SSLContext sslContext = new SSLContextBuilder().loadKeyMaterial(keyStore, keystorePassword).build();
         server = EmailServer.localhost(logger, sslContext);
     }

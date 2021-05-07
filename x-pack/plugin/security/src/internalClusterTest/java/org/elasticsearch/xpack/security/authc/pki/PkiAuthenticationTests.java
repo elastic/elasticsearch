@@ -19,15 +19,14 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -118,10 +117,9 @@ public class PkiAuthenticationTests extends SecuritySingleNodeTestCase {
 
     private SSLContext getRestSSLContext(String keyPath, String password, String certPath, List<String> trustedCertPaths) throws Exception {
         SSLContext context = SSLContext.getInstance("TLS");
-        TrustManager tm = CertParsingUtils.trustManager(CertParsingUtils.readCertificates(trustedCertPaths.stream().map(p -> getDataPath
-            (p)).collect(Collectors.toList())));
-        KeyManager km = CertParsingUtils.keyManager(CertParsingUtils.readCertificates(Collections.singletonList(getDataPath
-            (certPath))), PemUtils.readPrivateKey(getDataPath(keyPath), password::toCharArray), password.toCharArray());
+        final List<Path> resolvedPaths = trustedCertPaths.stream().map(p -> getDataPath(p)).collect(Collectors.toList());
+        TrustManager tm = CertParsingUtils.getTrustManagerFromPEM(resolvedPaths);
+        KeyManager km = CertParsingUtils.getKeyManagerFromPEM(getDataPath(certPath), getDataPath(keyPath), password.toCharArray());
         context.init(new KeyManager[]{km}, new TrustManager[]{tm}, new SecureRandom());
         return context;
     }

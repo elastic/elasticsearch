@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import javax.net.ssl.TrustManagerFactory;
@@ -43,7 +44,7 @@ public class SSLConfigurationSettings {
     public final Setting<Optional<String>> trustRestrictionsPath;
     public final Setting<List<String>> caPaths;
     public final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
-    public final Setting<Optional<VerificationMode>> verificationMode;
+    public final Setting<Optional<SslVerificationMode>> verificationMode;
 
     // public for PKI realm
     public final Setting<SecureString> legacyTruststorePassword;
@@ -204,12 +205,12 @@ public class SSLConfigurationSettings {
             realmType -> Setting.affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.client_authentication",
                     CLIENT_AUTH_SETTING_TEMPLATE);
 
-    private static final Function<String, Setting<Optional<VerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE =
-            key -> new Setting<>(key, (String) null, s -> s == null ? Optional.empty() : Optional.of(VerificationMode.parse(s)),
+    private static final Function<String, Setting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE =
+            key -> new Setting<>(key, (String) null, s -> s == null ? Optional.empty() : Optional.of(SslVerificationMode.parse(s)),
                     Property.NodeScope, Property.Filtered);
-    public static final Setting<Optional<VerificationMode>> VERIFICATION_MODE_SETTING_PROFILES = Setting.affixKeySetting(
+    public static final Setting<Optional<SslVerificationMode>> VERIFICATION_MODE_SETTING_PROFILES = Setting.affixKeySetting(
             "transport.profiles.", "xpack.security.ssl.verification_mode", VERIFICATION_MODE_SETTING_TEMPLATE);
-    public static final Function<String, Setting.AffixSetting<Optional<VerificationMode>>> VERIFICATION_MODE_SETTING_REALM = realmType ->
+    public static final Function<String, Setting.AffixSetting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_REALM = realmType ->
             Setting.affixKeySetting("xpack.security.authc.realms." + realmType + ".", "ssl.verification_mode",
                     VERIFICATION_MODE_SETTING_TEMPLATE);
 

@@ -21,6 +21,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,7 +36,6 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 
@@ -223,9 +223,9 @@ public class HttpClientTests extends ESTestCase {
             .put("xpack.http.ssl.certificate_authorities", certPath);
         if (inFipsJvm()) {
             //Can't use TrustAllConfig in FIPS mode
-            builder.put("xpack.http.ssl.verification_mode", VerificationMode.CERTIFICATE);
+            builder.put("xpack.http.ssl.verification_mode", SslVerificationMode.CERTIFICATE);
         } else {
-            builder.put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE));
+            builder.put("xpack.http.ssl.verification_mode", randomFrom(SslVerificationMode.NONE, SslVerificationMode.CERTIFICATE));
         }
         final Settings settings = builder.build();
         final SSLService ssl = new SSLService(TestEnvironment.newEnvironment(settings));

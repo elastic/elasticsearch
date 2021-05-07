@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.DiagnosticTrustManager;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -31,7 +32,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.VerificationMode;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLHandshakeException;
@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -57,7 +58,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
     public void testMessageForHttpClientHostnameVerificationFailure() throws IOException, URISyntaxException {
         final Settings sslSetup = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
-            SslClientAuthenticationMode.NONE, VerificationMode.FULL, null)
+            SslClientAuthenticationMode.NONE, SslVerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(sslSetup)));
@@ -77,7 +78,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
     public void testMessageForRestClientHostnameVerificationFailure() throws IOException, URISyntaxException {
         final Settings sslSetup = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
-            SslClientAuthenticationMode.NONE, VerificationMode.FULL, null)
+            SslClientAuthenticationMode.NONE, SslVerificationMode.FULL, null)
             // Client
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
@@ -98,7 +99,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
         assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final Settings settings = getPemSSLSettings(HTTP_SERVER_SSL, "not-this-host.crt", "not-this-host.key",
-            SslClientAuthenticationMode.NONE, VerificationMode.FULL, null)
+            SslClientAuthenticationMode.NONE, SslVerificationMode.FULL, null)
             .putList("xpack.http.ssl.certificate_authorities", getPath("ca1.crt"))
             .build();
         final SSLService sslService = new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings)));
@@ -184,14 +185,14 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     private Settings.Builder getPemSSLSettings(String prefix, String certificatePath, String keyPath,
-                                               SslClientAuthenticationMode clientAuth, VerificationMode verificationMode,
+                                               SslClientAuthenticationMode clientAuth, SslVerificationMode sslVerification,
                                                String caPath) throws FileNotFoundException {
         final Settings.Builder builder = Settings.builder()
             .put(prefix + ".enabled", true)
             .put(prefix + ".certificate", getPath(certificatePath))
             .put(prefix + ".key", getPath(keyPath))
-            .put(prefix + ".client_authentication", clientAuth.name())
-            .put(prefix + ".verification_mode", verificationMode.name());
+            .put(prefix + ".client_authentication", randomBoolean() ? clientAuth.name() : clientAuth.name().toLowerCase(Locale.ROOT))
+            .put(prefix + ".verification_mode", randomBoolean() ? sslVerification.name() : sslVerification.name().toLowerCase(Locale.ROOT));
         if (caPath != null) {
             builder.putList(prefix + ".certificate_authorities", getPath(caPath));
         }

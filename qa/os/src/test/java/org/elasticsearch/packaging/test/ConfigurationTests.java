@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.junit.Before;
 
@@ -32,6 +33,7 @@ public class ConfigurationTests extends PackagingTestCase {
         String hostnameKey = Platforms.WINDOWS ? "COMPUTERNAME" : "HOSTNAME";
         sh.getEnv().put(hostnameKey, "mytesthost");
         withCustomConfig(confPath -> {
+            FileUtils.append(confPath.resolve("elasticsearch.yml"), "node.name: ${HOSTNAME}");
             if (distribution.isPackage()) {
                 append(installation.envFile, "HOSTNAME=mytesthost");
             }

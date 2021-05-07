@@ -282,6 +282,7 @@ public class PkiRealm extends Realm implements CachingRealm {
         return trustManager;
     }
 
+    // TODO : Migrate this to use SSLSettingsLoader
     private static X509TrustManager trustManagersFromTruststore(String truststorePath, RealmConfig realmConfig) {
         if (realmConfig.hasSetting(PkiRealmSettings.TRUST_STORE_PASSWORD) == false
                 && realmConfig.hasSetting(PkiRealmSettings.LEGACY_TRUST_STORE_PASSWORD) == false) {
@@ -296,8 +297,13 @@ public class PkiRealm extends Realm implements CachingRealm {
                     realmConfig.getConcreteSetting(PkiRealmSettings.TRUST_STORE_TYPE), realmConfig.settings(),
                     truststorePath);
             try {
-                return CertParsingUtils.trustManager(truststorePath, trustStoreType, password.getChars(), trustStoreAlgorithm, realmConfig
-                    .env());
+                return CertParsingUtils.getTrustManagerFromTrustStore(
+                    truststorePath,
+                    trustStoreType,
+                    password.getChars(),
+                    trustStoreAlgorithm,
+                    realmConfig.env()
+                );
             } catch (Exception e) {
                 throw new IllegalArgumentException("failed to load specified truststore", e);
             }

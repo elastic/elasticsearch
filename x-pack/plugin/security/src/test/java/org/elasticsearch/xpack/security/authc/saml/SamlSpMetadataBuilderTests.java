@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.hamcrest.Matchers;
@@ -43,7 +44,7 @@ public class SamlSpMetadataBuilderTests extends SamlTestCase {
         final Path certPath = getDataPath("saml.crt");
         this.certificate = CertParsingUtils.readX509Certificate(certPath);
         final Path threeCertsPath = getDataPath("saml-three-certs.crt");
-        final List<Certificate> threeCerts = CertParsingUtils.readCertificates(Collections.singletonList(threeCertsPath));
+        final List<Certificate> threeCerts = PemUtils.readCertificates(Collections.singletonList(threeCertsPath));
         if (threeCerts.size() != 3) {
             fail("Expected exactly 3 certificate in " + certPath);
         }

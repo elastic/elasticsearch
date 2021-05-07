@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.junit.AfterClass;
@@ -123,7 +124,7 @@ public abstract class SamlTestCase extends ESTestCase {
     protected static List<Credential> buildOpenSamlCredential(final Tuple<X509Certificate, PrivateKey> keyPair) {
         try {
             return Arrays.asList(new X509KeyManagerX509CredentialAdapter(
-                    CertParsingUtils.keyManager(new Certificate[]{keyPair.v1()}, keyPair.v2(), new char[0]), "key"));
+                    KeyStoreUtil.createKeyManager(new Certificate[]{keyPair.v1()}, keyPair.v2(), new char[0]), "key"));
 
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
@@ -134,7 +135,7 @@ public abstract class SamlTestCase extends ESTestCase {
         final List<Credential> credentials = keyPairs.stream().map((keyPair) -> {
             try {
                 return new X509KeyManagerX509CredentialAdapter(
-                        CertParsingUtils.keyManager(new Certificate[]{keyPair.v1()}, keyPair.v2(), new char[0]), "key");
+                        KeyStoreUtil.createKeyManager(new Certificate[]{keyPair.v1()}, keyPair.v2(), new char[0]), "key");
             } catch (Exception e) {
                 throw ExceptionsHelper.convertToRuntime(e);
             }

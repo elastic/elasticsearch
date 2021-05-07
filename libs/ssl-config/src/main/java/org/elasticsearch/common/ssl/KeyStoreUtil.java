@@ -62,7 +62,7 @@ public final class KeyStoreUtil {
      * @throws SslConfigException       If there is a problem reading from the provided path
      * @throws GeneralSecurityException If there is a problem with the keystore contents
      */
-    static KeyStore readKeyStore(Path path, String ksType, char[] password) throws GeneralSecurityException, IOException {
+    public static KeyStore readKeyStore(Path path, String ksType, char[] password) throws GeneralSecurityException, IOException {
         KeyStore keyStore = KeyStore.getInstance(ksType);
         if (path != null) {
             try (InputStream in = Files.newInputStream(path)) {
@@ -92,7 +92,7 @@ public final class KeyStoreUtil {
      *
      * @param certificates The root certificates to trust
      */
-    static KeyStore buildTrustStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
+    public static KeyStore buildTrustStore(Iterable<Certificate> certificates) throws GeneralSecurityException {
         assert certificates != null : "Cannot create keystore with null certificates";
         KeyStore store = buildNewKeyStore();
         int counter = 0;
@@ -115,9 +115,19 @@ public final class KeyStoreUtil {
     }
 
     /**
+     * Returns a {@link X509ExtendedKeyManager} that is built from the provided private key and certificate chain
+     */
+    public static X509ExtendedKeyManager createKeyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
+        throws GeneralSecurityException, IOException {
+        KeyStore keyStore = buildKeyStore(List.of(certificateChain), privateKey, password);
+        return createKeyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
+    }
+
+    /**
      * Creates a {@link X509ExtendedKeyManager} based on the key material in the provided {@link KeyStore}
      */
-    static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password, String algorithm) throws GeneralSecurityException {
+    public static X509ExtendedKeyManager createKeyManager(KeyStore keyStore, char[] password,
+                                                          String algorithm) throws GeneralSecurityException {
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
@@ -133,7 +143,7 @@ public final class KeyStoreUtil {
     /**
      * Creates a {@link X509ExtendedTrustManager} based on the trust material in the provided {@link KeyStore}
      */
-    static X509ExtendedTrustManager createTrustManager(@Nullable KeyStore trustStore, String algorithm)
+    public static X509ExtendedTrustManager createTrustManager(@Nullable KeyStore trustStore, String algorithm)
         throws NoSuchAlgorithmException, KeyStoreException {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
         tmf.init(trustStore);

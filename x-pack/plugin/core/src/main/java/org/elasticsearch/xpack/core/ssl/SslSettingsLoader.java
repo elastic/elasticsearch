@@ -35,11 +35,12 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     private final Map<String, Setting<SecureString>> secureSettings;
     private final Map<String, Setting<?>> standardSettings;
 
-    public SslSettingsLoader(Settings settings, String settingPrefix) {
+    public SslSettingsLoader(Settings settings, String settingPrefix, boolean acceptNonSecurePasswords) {
         super(settingPrefix);
         this.settings = settings;
-        final SSLConfigurationSettings sslConfigurationSettings = settingPrefix == null ?
-            SSLConfigurationSettings.withoutPrefix() : SSLConfigurationSettings.withPrefix(settingPrefix);
+        final SSLConfigurationSettings sslConfigurationSettings = settingPrefix == null
+            ? SSLConfigurationSettings.withoutPrefix(acceptNonSecurePasswords)
+            : SSLConfigurationSettings.withPrefix(settingPrefix, acceptNonSecurePasswords);
         this.secureSettings = sslConfigurationSettings.getSecureSettings()
             .stream()
             .collect(Collectors.toMap(Setting::getKey, Function.identity()));
@@ -107,7 +108,7 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     }
 
     public static SslConfiguration load(Settings settings, String prefix, Environment env) {
-        return new SslSettingsLoader(settings, prefix).load(env);
+        return new SslSettingsLoader(settings, prefix, true).load(env);
     }
 
 }

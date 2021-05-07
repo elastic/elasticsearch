@@ -29,6 +29,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.ssl.X509KeyPairSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
@@ -330,8 +330,11 @@ public final class SamlRealm extends Realm implements Releasable {
 
     private static List<X509Credential> buildCredential(RealmConfig config, String prefix, Setting.AffixSetting<String> aliasSetting,
                                                         boolean allowMultiple) {
-        final X509KeyPairSettings keyPairSettings = X509KeyPairSettings.withPrefix(prefix, false);
-        final X509KeyManager keyManager = CertParsingUtils.getKeyManager(keyPairSettings, config.settings(), config.env());
+        final SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(config.settings(), prefix, config.env(), false);
+        if (keyConfig.hasKeyMaterial() == false) {
+            return null;
+        }
+        final X509KeyManager keyManager = keyConfig.createKeyManager();
         if (keyManager == null) {
             return null;
         }

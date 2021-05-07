@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.cli;
 
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -36,7 +35,7 @@ public class PemToKeystore {
         Path keyPath = Paths.get(args[3]).toAbsolutePath();
         char[] password = args[4].toCharArray();
 
-        final List<Certificate> certificates = CertParsingUtils.readCertificates(List.of(certPath));
+        final List<Certificate> certificates = PemUtils.readCertificates(List.of(certPath));
         if (certificates.isEmpty()) {
             throw new IllegalArgumentException("No certificates found in " + certPath);
         }

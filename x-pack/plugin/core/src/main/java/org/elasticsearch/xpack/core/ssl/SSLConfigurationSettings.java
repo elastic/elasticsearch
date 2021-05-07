@@ -217,13 +217,14 @@ public class SSLConfigurationSettings {
     /**
      * @param prefix The prefix under which each setting should be defined. Must be either the empty string (<code>""</code>) or a string
      *               ending in <code>"."</code>
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords should be accepted
      * @see #withoutPrefix
      * @see #withPrefix
      */
-    private SSLConfigurationSettings(String prefix) {
+    private SSLConfigurationSettings(String prefix, boolean acceptNonSecurePasswords) {
         assert prefix != null : "Prefix cannot be null (but can be blank)";
 
-        x509KeyPair = X509KeyPairSettings.withPrefix(prefix, true);
+        x509KeyPair = X509KeyPairSettings.withPrefix(prefix, acceptNonSecurePasswords);
         ciphers = CIPHERS_SETTING_TEMPLATE.apply(prefix + "cipher_suites");
         supportedProtocols = SUPPORTED_PROTOCOLS_TEMPLATE.apply(prefix + "supported_protocols");
         truststorePath = TRUST_STORE_PATH_TEMPLATE.apply(prefix + "truststore.path");
@@ -238,7 +239,10 @@ public class SSLConfigurationSettings {
 
         final List<Setting<? extends Object>> settings = CollectionUtils.arrayAsArrayList(ciphers, supportedProtocols,
                 truststorePath, truststorePassword, truststoreAlgorithm, truststoreType, trustRestrictionsPath,
-                caPaths, clientAuth, verificationMode, legacyTruststorePassword);
+                caPaths, clientAuth, verificationMode);
+        if (acceptNonSecurePasswords) {
+            settings.add(legacyTruststorePassword);
+        }
         settings.addAll(x509KeyPair.getAllSettings());
         this.allSettings = Collections.unmodifiableList(settings);
     }
@@ -263,9 +267,10 @@ public class SSLConfigurationSettings {
     /**
      * Construct settings that are un-prefixed. That is, they can be used to read from a {@link Settings} object where the configuration
      * keys are the root names of the <code>Settings</code>.
+     * @param acceptNonSecurePasswords
      */
-    public static SSLConfigurationSettings withoutPrefix() {
-        return new SSLConfigurationSettings("");
+    public static SSLConfigurationSettings withoutPrefix(boolean acceptNonSecurePasswords) {
+        return new SSLConfigurationSettings("", acceptNonSecurePasswords);
     }
 
     /**
@@ -273,10 +278,11 @@ public class SSLConfigurationSettings {
      * keys are prefixed-children of the <code>Settings</code>.
      *
      * @param prefix A string that must end in <code>"ssl."</code>
+     * @param acceptNonSecurePasswords
      */
-    public static SSLConfigurationSettings withPrefix(String prefix) {
+    public static SSLConfigurationSettings withPrefix(String prefix, boolean acceptNonSecurePasswords) {
         assert prefix.endsWith("ssl.") : "The ssl config prefix (" + prefix + ") should end in 'ssl.'";
-        return new SSLConfigurationSettings(prefix);
+        return new SSLConfigurationSettings(prefix, acceptNonSecurePasswords);
     }
 
     public static Collection<Setting<?>> getProfileSettings() {

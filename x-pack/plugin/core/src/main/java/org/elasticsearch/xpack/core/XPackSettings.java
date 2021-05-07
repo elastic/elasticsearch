@@ -203,11 +203,11 @@ public class XPackSettings {
 
     // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
-    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX);
+    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
 
     // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
-    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX);
+    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {

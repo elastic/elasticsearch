@@ -43,7 +43,7 @@ public final class StoreTrustConfig implements SslTrustConfig {
      * @param requireTrustAnchors If true, the truststore will be checked to ensure that it contains at least one valid trust anchor.
      * @param configBasePath The base path for the configuration directory
      */
-    StoreTrustConfig(String path, char[] password, String type, String algorithm, boolean requireTrustAnchors, Path configBasePath) {
+    public StoreTrustConfig(String path, char[] password, String type, String algorithm, boolean requireTrustAnchors, Path configBasePath) {
         this.truststorePath = Objects.requireNonNull(path, "Truststore path cannot be null");
         this.type = Objects.requireNonNull(type, "Truststore type cannot be null");
         this.algorithm = Objects.requireNonNull(algorithm, "Truststore algorithm cannot be null");

@@ -51,7 +51,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
 
     @Before
     public void setupTest() {
-        configurationSettings = SSLConfigurationSettings.withoutPrefix();
+        configurationSettings = SSLConfigurationSettings.withoutPrefix(true);
         environment = newEnvironment();
     }
 

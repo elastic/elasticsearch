@@ -51,7 +51,7 @@ public final class PkiRealmSettings {
 
     static {
         final String prefix = "xpack.security.authc.realms." + TYPE + ".";
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
+        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix(true);
         TRUST_STORE_PATH = Setting.affixKeySetting(prefix, ssl.truststorePath.getKey(),
                 SSLConfigurationSettings.TRUST_STORE_PATH_TEMPLATE);
         TRUST_STORE_TYPE = Setting.affixKeySetting(prefix, ssl.truststoreType.getKey(),

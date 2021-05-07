@@ -332,7 +332,7 @@ public abstract class SslConfigurationLoader {
         }
     }
 
-    private SslKeyConfig buildKeyConfig(Path basePath) {
+    public SslKeyConfig buildKeyConfig(Path basePath) {
         final String certificatePath = stringSetting(CERTIFICATE);
         final String keyPath = stringSetting(KEY);
         final String keyStorePath = stringSetting(KEYSTORE_PATH);

@@ -14,6 +14,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.MemoryUsage;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 import java.security.AccessController;
@@ -110,8 +112,12 @@ public class HotThreads {
         return this;
     }
 
-    public HotThreads type(ReportType type) {
-        this.type = type;
+    public HotThreads type(String type) {
+        if ("cpu".equals(type) || "wait".equals(type) || "block".equals(type) || "mem".equals(type)) {
+            this.type = type;
+        } else {
+            throw new IllegalArgumentException("type not supported [" + type + "]");
+        }
         return this;
     }
 
@@ -145,10 +151,12 @@ public class HotThreads {
         return false;
     }
 
-    Map<Long, ThreadTimeAccumulator> getAllValidThreadInfos(ThreadMXBean threadBean, long currentThreadId) {
-        long[] threadIds = threadBean.getAllThreadIds();
-        ThreadInfo[] threadInfos = threadBean.getThreadInfo(threadIds);
-        Map<Long, ThreadTimeAccumulator> result = new HashMap<>(threadIds.length);
+    private String innerDetect() throws Exception {
+        ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
+        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+        if (threadBean.isThreadCpuTimeSupported() == false) {
+            throw new ElasticsearchException("thread CPU time is not supported on this JDK");
+        }
 
         for (int i = 0; i < threadIds.length; i++) {
             if (threadInfos[i] == null || threadIds[i] == currentThreadId) {
@@ -158,7 +166,58 @@ public class HotThreads {
             if (cpuTime == INVALID_TIMING) {
                 continue;
             }
-            result.put(threadIds[i], new ThreadTimeAccumulator(threadInfos[i], cpuTime));
+            long threadAllocatedBytes = SunThreadInfo.getThreadAllocatedBytes(threadId);
+            if (threadAllocatedBytes == -1) {
+                continue;
+            }
+            ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
+            if (info == null) {
+                continue;
+            }
+            threadInfos.put(threadId, new MyThreadInfo(cpu, threadAllocatedBytes, info));
+        }
+        Thread.sleep(interval.millis());
+        for (long threadId : threadBean.getAllThreadIds()) {
+            // ignore our own thread...
+            if (Thread.currentThread().getId() == threadId) {
+                continue;
+            }
+            long cpu = threadBean.getThreadCpuTime(threadId);
+            if (cpu == -1) {
+                threadInfos.remove(threadId);
+                continue;
+            }
+            ThreadInfo info = threadBean.getThreadInfo(threadId, 0);
+            if (info == null) {
+                threadInfos.remove(threadId);
+                continue;
+            }
+            long threadAllocatedBytes = SunThreadInfo.getThreadAllocatedBytes(threadId);
+            if (threadAllocatedBytes == -1) {
+                continue;
+            }
+            MyThreadInfo data = threadInfos.get(threadId);
+            if (data != null) {
+                data.setDelta(cpu, threadAllocatedBytes, info);
+            } else {
+                threadInfos.remove(threadId);
+            }
+        }
+        // sort by delta CPU time on thread.
+        List<MyThreadInfo> hotties = new ArrayList<>(threadInfos.values());
+        final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
+        // skip that for now
+        final ToLongFunction<MyThreadInfo> getter;
+        if ("cpu".equals(type)) {
+            getter = o -> o.cpuTime;
+        } else if ("wait".equals(type)) {
+            getter = o -> o.waitedTime;
+        } else if ("block".equals(type)) {
+            getter = o -> o.blockedTime;
+        } else if ("mem".equals(type)) {
+            getter = o -> o.threadAllocatedBytes;
+        } else {
+            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
         }
 
         return result;
@@ -173,72 +232,50 @@ public class HotThreads {
             result[j] = threadBean.getThreadInfo(threadIds, Integer.MAX_VALUE);
             Thread.sleep(threadElementsSnapshotDelay.millis());
         }
-
-        return result;
-    }
-
-    private void setThreadWaitBlockTimeMonitoringEnabled(ThreadMXBean threadBean, boolean enabled) {
-        if (threadBean.isThreadContentionMonitoringSupported()) {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                threadBean.setThreadContentionMonitoringEnabled(enabled);
-                return null;
-            });
-        }
-    }
-
-    String innerDetect(ThreadMXBean threadBean, long currentThreadId) throws Exception {
-        if (threadBean.isThreadCpuTimeSupported() == false) {
-            throw new ElasticsearchException("thread CPU time is not supported on this JDK");
-        }
-
-        StringBuilder sb = new StringBuilder()
-            .append("Hot threads at ")
-            .append(DATE_TIME_FORMATTER.format(LocalDateTime.now(Clock.systemUTC())))
-            .append(", interval=")
-            .append(interval)
-            .append(", busiestThreads=")
-            .append(busiestThreads)
-            .append(", ignoreIdleThreads=")
-            .append(ignoreIdleThreads)
-            .append(":\n");
-
-        // Enabling thread contention monitoring is required for capturing JVM thread wait/blocked times
-        setThreadWaitBlockTimeMonitoringEnabled(threadBean, true);
-
-        try {
-            // Capture before and after thread state with timings
-            Map<Long, ThreadTimeAccumulator> previousThreadInfos = getAllValidThreadInfos(threadBean, currentThreadId);
-            Thread.sleep(interval.millis());
-            Map<Long, ThreadTimeAccumulator> latestThreadInfos = getAllValidThreadInfos(threadBean, currentThreadId);
-
-            latestThreadInfos.forEach((threadId, accumulator) -> accumulator.subtractPrevious(previousThreadInfos.get(threadId)));
-
-            // Sort by delta CPU time on thread.
-            List<ThreadTimeAccumulator> topThreads = new ArrayList<>(latestThreadInfos.values());
-            final ToLongFunction<ThreadTimeAccumulator> getter = ThreadTimeAccumulator.valueGetterForReportType(type);
-
-            CollectionUtil.introSort(topThreads, Comparator.comparingLong(getter).reversed());
-            topThreads = topThreads.subList(0, Math.min(busiestThreads, topThreads.size()));
-            long[] topThreadIds = topThreads.stream().mapToLong(t -> t.threadId).toArray();
-
-            // analyse N stack traces for the top threads
-            ThreadInfo[][] allInfos = captureThreadStacks(threadBean, topThreadIds);
-
-            for (int t = 0; t < topThreads.size(); t++) {
-                long time = getter.applyAsLong(topThreads.get(t));
-                String threadName = null;
-                for (ThreadInfo[] info : allInfos) {
-                    if (info != null && info[t] != null) {
-                        if (ignoreIdleThreads && isIdleThread(info[t])) {
-                            info[t] = null;
-                            continue;
-                        }
-                        threadName = info[t].getThreadName();
-                        break;
+        for (int t = 0; t < busiestThreads; t++) {
+            long timeOrBytes = getter.applyAsLong(hotties.get(t));
+            String threadName = null;
+            for (ThreadInfo[] info : allInfos) {
+                if (info != null && info[t] != null) {
+                    if (ignoreIdleThreads && isIdleThread(info[t])) {
+                        info[t] = null;
+                        continue;
                     }
                 }
-                if (threadName == null) {
-                    continue; // thread is not alive yet or died before the first snapshot - ignore it!
+            }
+            if (threadName == null) {
+                continue; // thread is not alive yet or died before the first snapshot - ignore it!
+            }
+
+            if ("mem".equals(type)) {
+                double percent = 0;
+                MemoryUsage memUsage = memoryMXBean.getHeapMemoryUsage();
+                long heapMax = memUsage.getMax() < 0 ? 0 : memUsage.getMax();
+                if (heapMax > 0){
+                    percent = (((double) timeOrBytes) / heapMax) * 100;
+                }
+                sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
+                    percent, timeOrBytes, heapMax, type, threadName));
+            }else {
+                double percent = (((double) timeOrBytes) / interval.nanos()) * 100;
+                sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
+                    percent, TimeValue.timeValueNanos(timeOrBytes), interval, type, threadName));
+            }
+            // for each snapshot (2nd array index) find later snapshot for same thread with max number of
+            // identical StackTraceElements (starting from end of each)
+            boolean[] done = new boolean[threadElementsSnapshotCount];
+            for (int i = 0; i < threadElementsSnapshotCount; i++) {
+                if (done[i]) continue;
+                int maxSim = 1;
+                boolean[] similars = new boolean[threadElementsSnapshotCount];
+                for (int j = i + 1; j < threadElementsSnapshotCount; j++) {
+                    if (done[j]) continue;
+                    int similarity = similarity(allInfos[i][t], allInfos[j][t]);
+                    if (similarity > maxSim) {
+                        maxSim = similarity;
+                        similars = new boolean[threadElementsSnapshotCount];
+                    }
+                    if (similarity == maxSim) similars[j] = true;
                 }
                 double percent = (((double) time) / interval.nanos()) * 100;
                 sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n",
@@ -312,54 +349,36 @@ public class HotThreads {
         private long blockedTime;
         private long waitedTime;
 
-        ThreadTimeAccumulator(ThreadInfo info, long cpuTime) {
-            this.blockedTime = info.getBlockedTime();
-            this.waitedTime = info.getWaitedTime();
+    class MyThreadInfo {
+        long cpuTime;
+        long blockedCount;
+        long blockedTime;
+        long waitedCount;
+        long waitedTime;
+        boolean deltaDone;
+        long threadAllocatedBytes;
+        ThreadInfo info;
+
+        MyThreadInfo(long cpuTime, long threadAllocatedBytes, ThreadInfo info) {
+            blockedCount = info.getBlockedCount();
+            blockedTime = info.getBlockedTime();
+            waitedCount = info.getWaitedCount();
+            waitedTime = info.getWaitedTime();
             this.cpuTime = cpuTime;
-            this.threadId = info.getThreadId();
+            this.info = info;
+            this.threadAllocatedBytes= threadAllocatedBytes;
         }
 
-        void subtractPrevious(ThreadTimeAccumulator previous) {
-            // Previous can be null for threads that had started while we were sleeping.
-            // In that case the absolute thread timings are the delta.
-            if (previous != null) {
-                if (previous.getThreadId() != getThreadId()) {
-                    throw new IllegalStateException("Thread timing accumulation must be done on the same thread");
-                }
-                this.blockedTime -= previous.blockedTime;
-                this.waitedTime -= previous.waitedTime;
-                this.cpuTime -= previous.cpuTime;
-            }
-        }
-
-        // A thread can migrate a CPU while executing, in which case, on certain processors, the
-        // reported timings will be bogus (and likely negative). We cap the reported timings to >= 0 values only.
-        public long getCpuTime() {
-            return Math.max(cpuTime, 0);
-        }
-
-        public long getBlockedTime() {
-            return Math.max(blockedTime, 0);
-        }
-
-        public long getWaitedTime() {
-            return Math.max(waitedTime, 0);
-        }
-
-        public long getThreadId() {
-            return threadId;
-        }
-
-        static ToLongFunction<ThreadTimeAccumulator> valueGetterForReportType(ReportType type) {
-            switch (type) {
-                case CPU:
-                    return ThreadTimeAccumulator::getCpuTime;
-                case WAIT:
-                    return ThreadTimeAccumulator::getWaitedTime;
-                case BLOCK:
-                    return ThreadTimeAccumulator::getBlockedTime;
-            }
-            throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
+        void setDelta(long cpuTime, long threadAllocatedBytes, ThreadInfo info) {
+            if (deltaDone) throw new IllegalStateException("setDelta already called once");
+            blockedCount = info.getBlockedCount() - blockedCount;
+            blockedTime = info.getBlockedTime() - blockedTime;
+            waitedCount = info.getWaitedCount() - waitedCount;
+            waitedTime = info.getWaitedTime() - waitedTime;
+            this.cpuTime = cpuTime - this.cpuTime;
+            this.threadAllocatedBytes = threadAllocatedBytes - this.threadAllocatedBytes;
+            deltaDone = true;
+            this.info = info;
         }
     }
 }

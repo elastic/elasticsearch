@@ -7,8 +7,9 @@
     node: master
     scm:
       - git:
-          refspec: "+refs/pull/${{ghprbPullId}}/*:refs/remotes/origin/pr/${{ghprbPullId}}/*"
-          branch: "${ghprbActualCommit}"
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches: 
+            - "${ghprbActualCommit}"
     triggers:
       - github-pull-request:
           org-list:

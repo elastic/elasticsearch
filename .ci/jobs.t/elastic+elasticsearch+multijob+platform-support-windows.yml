@@ -33,6 +33,7 @@
           properties-content: |
             JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$USERPROFILE\\.java\\$ES_RUNTIME_JAVA
+            JAVA8_HOME=$USERPROFILE\\.java\\java8
       - batch: |
           del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
           mkdir %USERPROFILE%\.gradle\init.d

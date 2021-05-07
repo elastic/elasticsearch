@@ -224,3 +224,20 @@ value for `node.roles`.
 Discontinue use of the removed settings. Specifying these settings in
 `elasticsearch.yml` will result in an error on startup.
 ====
+
+[[system-call-filter-setting]]
+.System call filter setting deprecated
+[%collapsible]
+====
+*Details* +
+Elasticsearch uses system call filters to remove its ability to fork another
+process. This is useful to mitigate remote code exploits. These system call
+filters are enabled by default, and controlled via the setting
+`bootstrap.system_call_filter`. Starting in Elasticsearch 8.0, system call
+filters will be required. As such, the setting `bootstrap.system_call_filter` is
+deprecated and will be removed in Elasticsearch 8.0.
+
+*Impact* +
+Discontinue use of the removed setting. Specifying this setting in Elasticsearch
+configuration will result in an error on startup.
+====

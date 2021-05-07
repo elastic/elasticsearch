@@ -226,7 +226,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
 
-            if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0)) { // TODO Adjust to 7.13.0
+            if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_13_0)) {
                 final Request request = new Request("GET",
                     "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference");
                 request.setOptions(expectWarnings("this request accesses system indices: [.snapshot-blob-cache], but in a future major " +

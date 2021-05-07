@@ -770,6 +770,50 @@ public class HttpClientTests extends ESTestCase {
         assertCreateUri("https://example.org", "");
     }
 
+    public void testConnectionReuse() throws Exception {
+        final HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
+                .method(HttpMethod.POST)
+                .path("/" + randomAlphaOfLength(5))
+                .build();
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+
+        httpClient.execute(request);
+        httpClient.execute(request);
+
+        assertThat(webServer.requests(), hasSize(2));
+        // by default we re-use connections forever
+        assertThat(webServer.requests().get(0).getRemoteAddress(), equalTo(webServer.requests().get(1).getRemoteAddress()));
+        webServer.clearRequests();
+
+        try (HttpClient unpooledHttpClient = new HttpClient(
+                Settings.builder().put(HttpSettings.CONNECTION_POOL_TTL.getKey(), "99ms").build(),
+                new SSLService(environment),
+                null,
+                mockClusterService())) {
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody("whatever"));
+
+            unpooledHttpClient.execute(request);
+
+            // Connection pool expiry is based on System.currentTimeMillis so wait for this clock to advance far enough for the connection
+            // we just used to expire
+            final long waitStartTime = System.currentTimeMillis();
+            while (System.currentTimeMillis() <= waitStartTime + 100) {
+                //noinspection BusyWait
+                Thread.sleep(100);
+            }
+
+            unpooledHttpClient.execute(request);
+
+            assertThat(webServer.requests(), hasSize(2));
+            // the connection expired before re-use so we made a new one
+            assertThat(webServer.requests().get(0).getRemoteAddress(), not(equalTo(webServer.requests().get(1).getRemoteAddress())));
+        }
+    }
+
     private void assertCreateUri(String uri, String expectedPath) {
         final HttpRequest request = HttpRequest.builder().fromUrl(uri).build();
         final Tuple<HttpHost, URI> tuple = HttpClient.createURI(request);

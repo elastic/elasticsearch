@@ -9,9 +9,9 @@
 package org.elasticsearch.gradle.internal.test.rest;
 
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -33,10 +33,9 @@ public class JavaRestTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
-        project.getPluginManager().apply(TestClustersPlugin.class);
+        project.getPluginManager().apply(InternalTestClustersPlugin.class);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

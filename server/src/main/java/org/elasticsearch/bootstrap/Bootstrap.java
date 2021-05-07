@@ -90,12 +90,12 @@ final class Bootstrap {
     }
 
     /**
-     * Initialize native resources
+     * Initialize native resources.
      *
-     * @param tmpFile the temp directory
-     * @param mlockAll whether or not to lock memory
+     * @param tmpFile          the temp directory
+     * @param mlockAll         whether or not to lock memory
      * @param systemCallFilter whether or not to install system call filters
-     * @param ctrlHandler whether or not to install the ctrl-c handler (applies to Windows only)
+     * @param ctrlHandler      whether or not to install the ctrl-c handler (applies to Windows only)
      */
     static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Bootstrap.class);

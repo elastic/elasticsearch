@@ -68,6 +68,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
     }
 
+    // visible for testing
+    SystemIndexMetadataUpdateTask getTask() {
+        return new SystemIndexMetadataUpdateTask();
+    }
+
     public class SystemIndexMetadataUpdateTask extends ClusterStateUpdateTask {
 
         @Override
@@ -82,11 +87,10 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                         updatedMetadata.add(IndexMetadata.builder(cursor.value).system(cursor.value.isSystem() == false).build());
                     }
 
-                    // TODO: do we have test coverage for this?
                     if (isSystem) {
                         if (cursor.value.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
-                            throw new IllegalStateException("Index " + cursor.value.getIndex().getName() + "is a system " +
-                                "index, but has the [index.hidden] setting set to true.");
+                            throw new IllegalStateException("Cannot define index [" + cursor.value.getIndex().getName() +
+                                "] as a system index because it has the [index.hidden] setting set to true.");
                         }
                     }
                 }

@@ -27,7 +27,6 @@
             - 'checkPart1'
             - 'checkPart2'
             - 'bwcTestSnapshots'
-            - 'checkRestCompat'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

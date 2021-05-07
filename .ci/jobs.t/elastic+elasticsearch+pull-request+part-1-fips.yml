@@ -6,7 +6,7 @@
     workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+pull-request+part-1-fips"
     scm:
       - git:
-          refspec: "+refs/pull/${{ghprbPullId}}/*:refs/remotes/origin/pr/${{ghprbPullId}}/*"
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
           branch: "${ghprbActualCommit}"
     triggers:
       - github-pull-request:

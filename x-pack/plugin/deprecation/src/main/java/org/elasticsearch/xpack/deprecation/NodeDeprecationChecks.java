@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -17,14 +16,6 @@ import java.util.Locale;
 import java.util.function.BiFunction;
 
 public class NodeDeprecationChecks {
-
-    static DeprecationIssue checkBootstrapSystemCallFilterSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
-        return checkRemovedSetting(
-            settings,
-            BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-system-call-filter-setting"
-        );
-    }
 
     private static DeprecationIssue checkDeprecatedSetting(
         final Settings settings,

@@ -197,8 +197,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             localRepositoryPasswordSalt,
             localRepositoryPasswordHash
         );
-        // do not wrap in Map.of; we have to be able to modify the map (remove the added entries) when finalizing the snapshot
-        return snapshotUserMetadata;
+        return Map.copyOf(snapshotUserMetadata);
     }
 
     @Override

@@ -5,9 +5,12 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.gradle.testclusters;
+package org.elasticsearch.gradle.internal.test.rest;
 
 import org.elasticsearch.gradle.FileSystemOperationsAware;
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
+import org.elasticsearch.gradle.testclusters.TestClustersAware;
+import org.elasticsearch.gradle.testclusters.TestClustersThrottle;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;

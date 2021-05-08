@@ -1285,7 +1285,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } else {
                 String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
-                BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+                BlobContainer testContainer = testBlobContainer(seed);
                 testContainer.writeBlobAtomic("master.dat", new BytesArray(testBytes), true);
                 return seed;
             }
@@ -1298,8 +1298,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void endVerification(String seed) {
         if (isReadOnly() == false) {
             try {
-                final String testPrefix = testBlobPrefix(seed);
-                blobStore().blobContainer(basePath().add(testPrefix)).delete();
+                testBlobContainer(seed).delete();
             } catch (Exception exp) {
                 throw new RepositoryVerificationException(metadata.name(), "cannot delete test data at " + basePath(), exp);
             }
@@ -1313,6 +1312,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     // Best effort cache of the latest known repository data and its generation, cached serialized as compressed json
     private final AtomicReference<CachedRepositoryData> latestKnownRepositoryData =
             new AtomicReference<>(new CachedRepositoryData(RepositoryData.EMPTY_REPO_GEN, null));
+
+    protected BlobContainer testBlobContainer(String seed) {
+        return blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+    }
 
     /**
      * Cached serialized repository data or placeholder to keep track of the fact that data for a generation was too large to be cached.
@@ -1713,7 +1716,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private static String testBlobPrefix(String seed) {
+    protected static String testBlobPrefix(String seed) {
         return TESTS_FILE + seed;
     }
 
@@ -2571,7 +2574,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     " is not accessible on node " + localNode, e);
             }
         } else {
-            BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+            BlobContainer testBlobContainer = testBlobContainer(seed);
             try {
                 testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", new BytesArray(seed), true);
             } catch (Exception exp) {

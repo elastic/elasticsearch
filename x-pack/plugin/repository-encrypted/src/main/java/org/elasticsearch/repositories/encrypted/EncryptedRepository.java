@@ -183,6 +183,13 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
+    public BlobContainer testBlobContainer(String seed) {
+        // bypass encryption for test blobs because password generation lifecycle is more complex when
+        // accounting for verify as well
+        return delegatedRepository.blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+    }
+
+    @Override
     public void snapshotShard(SnapshotShardContext context) {
         if (false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
             context.onFailure(LicenseUtils.newComplianceException("encrypted snapshots"));

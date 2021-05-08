@@ -440,7 +440,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         final boolean putRepoEarly = randomBoolean();
         logger.info("--> start 2 nodes");
         internalCluster().setBootstrapMasterNodeIndex(0);
-        final String masterNode = internalCluster().startNode(Settings.builder().setSecureSettings(secureSettingsMaster).build());
+        internalCluster().startNode(Settings.builder().setSecureSettings(secureSettingsMaster).build());
         ensureStableCluster(1);
         if (putRepoEarly) {
             createRepository(repoName, repoSettings, true);
@@ -494,7 +494,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             incompleteSnapshotResponse.getSnapshotInfo()
                 .shardFailures()
                 .stream()
-                .allMatch(shardFailure -> shardFailure.reason().contains("Repository password mismatch"))
+                .allMatch(shardFailure -> shardFailure.reason().contains("The repository password is incorrect"))
         );
         final Set<String> nodesWithFailures = incompleteSnapshotResponse.getSnapshotInfo()
             .shardFailures()

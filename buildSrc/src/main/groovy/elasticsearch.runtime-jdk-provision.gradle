@@ -24,7 +24,7 @@ jdks {
     }
 }
 
-configure(allprojects - project(':build-tools')) {
+configure(allprojects) {
     project.tasks.withType(Test).configureEach { Test test ->
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
             test.executable = "${BuildParams.runtimeJavaHome}/bin/java"

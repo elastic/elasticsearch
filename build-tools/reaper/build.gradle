@@ -1,3 +1,11 @@
+plugins {
+  id 'java'
+}
+
+
+targetCompatibility = '11'
+sourceCompatibility = '11'
+
 tasks.named("jar").configure {
   archiveFileName = "${project.name}.jar"
   manifest {

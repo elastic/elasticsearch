@@ -19,7 +19,7 @@ import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
-import org.elasticsearch.gradle.internal.util.FileUtils;
+import org.elasticsearch.gradle.util.FileUtils;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;

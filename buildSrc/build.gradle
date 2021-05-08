@@ -238,6 +238,8 @@ dependencies {
   api localGroovy()
   api gradleApi()
 
+  api 'org.elasticsearch:build-tools:1.0'
+
   api 'commons-codec:commons-codec:1.12'
   api 'org.apache.commons:commons-compress:1.19'
   api 'org.apache.ant:ant:1.10.8'

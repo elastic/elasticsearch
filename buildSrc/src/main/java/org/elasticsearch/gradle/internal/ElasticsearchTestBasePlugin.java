@@ -29,7 +29,7 @@ import org.gradle.api.tasks.testing.Test;
 import java.io.File;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.internal.util.FileUtils.mkdirs;
+import static org.elasticsearch.gradle.util.FileUtils.mkdirs;
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 
 /**

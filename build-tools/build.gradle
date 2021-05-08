@@ -1,0 +1,70 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+plugins {
+    id 'java-gradle-plugin'
+    id 'groovy'
+}
+
+group = "org.elasticsearch"
+
+// TODO fix this static version
+version = "1.0"
+
+// TODO fix these settings to be global for the es build
+targetCompatibility = '11'
+sourceCompatibility = '11'
+
+gradlePlugin {
+    // We already configure publication and we don't need or want the one that comes
+    // with the java-gradle-plugin
+    automatedPublishing = false
+    plugins {
+        distributionDownload {
+            id = 'elasticsearch.distribution-download'
+            implementationClass = 'org.elasticsearch.gradle.DistributionDownloadPlugin'
+        }
+        esPlugin {
+            id = 'elasticsearch.esplugin'
+            implementationClass = 'org.elasticsearch.gradle.plugin.PluginBuildPlugin'
+        }
+        testclusters {
+            id = 'elasticsearch.testclusters'
+            implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    gradlePluginPortal()
+}
+
+dependencies {
+    api localGroovy()
+    api gradleApi()
+    api 'org.apache.commons:commons-compress:1.19'
+    api 'org.apache.ant:ant:1.10.8'
+    api 'commons-io:commons-io:2.2'
+    api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+    runtimeOnly project(":reaper")
+// for our ide tweaking
+//    api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
+
+//     When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
+//    api 'de.thetaphi:forbiddenapis:3.1'
+//    api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
+//    api 'org.apache.maven:maven-model:3.6.2'
+//    api 'com.networknt:json-schema-validator:1.0.36'
+//    api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${props.getProperty('jackson')}"
+//    api 'org.ow2.asm:asm:9.0'
+//    api 'org.ow2.asm:asm-tree:9.0'
+//    api "org.apache.httpcomponents:httpclient:${props.getProperty('httpclient')}"
+//    api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
+}
+

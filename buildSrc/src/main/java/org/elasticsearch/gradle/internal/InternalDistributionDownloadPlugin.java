@@ -154,8 +154,8 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         if (distribution.getType() == ElasticsearchDistributionTypes.ARCHIVE) {
             if (Version.fromString(distribution.getVersion()).onOrAfter("7.0.0")) {
                 return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
-                        ? "-zip"
-                        : "-tar");
+                    ? "-zip"
+                    : "-tar");
             } else {
                 return "zip";
             }

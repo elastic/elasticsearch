@@ -162,6 +162,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72857")
     public void testPersistentCacheCleanUpAfterRelocation() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().ensureAtLeastNumDataNodes(3);

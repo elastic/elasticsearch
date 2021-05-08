@@ -66,6 +66,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
@@ -208,7 +209,11 @@ public class EncryptedRepository extends BlobStoreRepository {
             if (repositoryData.equals(RepositoryData.EMPTY)) {
                 threadPool().generic().execute(ActionRunnable.wrap(createUpdateTaskListener, (l) -> {
                     // TODO this is not safe for master fail-over
-                    ((EncryptedBlobStore) blobStore()).createPasswordGeneration(repositoryPassword, 0);
+                    // TODO this needs the publish, write, publish pattern to ensure it doesn't get lost
+                    EncryptedBlobStore encryptedBlobStore = (EncryptedBlobStore) blobStore();
+                    if (encryptedBlobStore.inferLatestPasswordGeneration().isEmpty()) {
+                        encryptedBlobStore.createPasswordGeneration(repositoryPassword, 0);
+                    }
                     createUpdateTask.accept(repositoryData, createUpdateTaskListener);
                 }));
             } else {
@@ -292,7 +297,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final Supplier<SecureString> repositoryPasswordSupplier;
         private final Cache<String, SecretKey> dekCache;
         private final CheckedSupplier<SingleUseKey, IOException> singleUseDEKSupplier;
-        private final Cache<Set<String>, String> inferLatestPasswordGenerationCache;
+        private final Cache<Set<String>, Optional<String>> inferLatestPasswordGenerationCache;
         private final Cache<Tuple<SecureString, String>, Boolean> verifyPasswordForGenerationCache;
         private final Cache<SecureString, String> loadGenerationForPasswordCache;
 
@@ -317,7 +322,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 storeDEK(newDEK.v1().utf8ToString(), newDEK.v2());
                 return newDEK;
             });
-            this.inferLatestPasswordGenerationCache = CacheBuilder.<Set<String>, String>builder().setMaximumWeight(1).build();
+            this.inferLatestPasswordGenerationCache = CacheBuilder.<Set<String>, Optional<String>>builder().setMaximumWeight(1).build();
             this.verifyPasswordForGenerationCache = CacheBuilder.<Tuple<SecureString, String>, Boolean>builder()
                 .setMaximumWeight(1)
                 .build();
@@ -342,7 +347,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         // protected for tests
-        String inferLatestPasswordGeneration() throws IOException {
+        Optional<String> inferLatestPasswordGeneration() throws IOException {
             final BlobContainer deksBlobContainer = getDeksBlobContainer();
             final Set<String> doneMarkersSet = deksBlobContainer.listBlobsByPrefix(DEKS_GEN_MARKER_BLOB).keySet();
             try {
@@ -365,9 +370,9 @@ public class EncryptedRepository extends BlobStoreRepository {
                         }
                     }
                     if (latestDoneMarker == null) {
-                        throw new IllegalStateException("Repository is not initialized");
+                        return Optional.empty();
                     }
-                    return latestDoneMarker.substring(DEKS_GEN_MARKER_BLOB.length());
+                    return Optional.of(latestDoneMarker.substring(DEKS_GEN_MARKER_BLOB.length()));
                 });
             } catch (ExecutionException e) {
                 // in order for the encrypted repo to act "transparently" do not wrap IOExceptions, and pass them through
@@ -462,9 +467,12 @@ public class EncryptedRepository extends BlobStoreRepository {
             final String passwordGeneration;
             try {
                 passwordGeneration = this.loadGenerationForPasswordCache.computeIfAbsent(repositoryPassword, ignored -> {
-                    final String inferredPasswordGeneration = inferLatestPasswordGeneration();
-                    verifyPasswordForGeneration(repositoryPassword, inferredPasswordGeneration);
-                    return inferredPasswordGeneration;
+                    final Optional<String> inferredPasswordGeneration = inferLatestPasswordGeneration();
+                    if (inferredPasswordGeneration.isEmpty()) {
+                        throw new IllegalStateException("The repository is not initialized");
+                    }
+                    verifyPasswordForGeneration(repositoryPassword, inferredPasswordGeneration.get());
+                    return inferredPasswordGeneration.get();
                 });
             } catch (ExecutionException e) {
                 // some exception types are to be expected
@@ -530,9 +538,12 @@ public class EncryptedRepository extends BlobStoreRepository {
             // and be used alternatively (but not concurrently) for snapshots. In this case, if one of the cluster changes the password,
             // the other one has to subsequently detect it, and refuse to use the old password.
             // DEK stores are relatively rare ops, so a LIST on every store is not a big overhead
-            final String passwordGeneration = inferLatestPasswordGeneration();
-            verifyPasswordForGeneration(repositoryPassword, passwordGeneration);
-            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(DEKS_GEN_CONTAINER).add(passwordGeneration);
+            final Optional<String> passwordGeneration = inferLatestPasswordGeneration();
+            if (passwordGeneration.isEmpty()) {
+                throw new IllegalStateException("The repository is not initialized");
+            }
+            verifyPasswordForGeneration(repositoryPassword, passwordGeneration.get());
+            final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(DEKS_GEN_CONTAINER).add(passwordGeneration.get());
             logger.debug("Repository [{}] storing wrapped DEK [{}] under blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
             final SecretKey kek = getKEKForDek(repositoryPassword, dekId);

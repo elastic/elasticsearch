@@ -130,11 +130,11 @@ public class EncryptedRepositoryTests extends ESTestCase {
 
         BlobPath encryptedDekPath = delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER)
             .add(EncryptedRepository.DEKS_GEN_CONTAINER)
-            .add(encryptedBlobStore.inferLatestPasswordGeneration())
+            .add(encryptedBlobStore.inferLatestPasswordGeneration().get())
             .add(DEKId);
         BlobPath doneMarkerPath = delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER)
             .add(EncryptedRepository.DEKS_GEN_CONTAINER)
-            .add(DEKS_GEN_MARKER_BLOB + encryptedBlobStore.inferLatestPasswordGeneration());
+            .add(DEKS_GEN_MARKER_BLOB + encryptedBlobStore.inferLatestPasswordGeneration().get());
         assertThat(blobsMap.keySet(), containsInAnyOrder(encryptedDekPath, doneMarkerPath));
         byte[] wrappedKey = blobsMap.get(encryptedDekPath);
         SecretKey KEK = encryptedBlobStore.getKEKForDek(repoPassword, DEKId);
@@ -151,7 +151,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
         blobsMap.put(
             delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER)
                 .add(EncryptedRepository.DEKS_GEN_CONTAINER)
-                .add(encryptedBlobStore.inferLatestPasswordGeneration())
+                .add(encryptedBlobStore.inferLatestPasswordGeneration().get())
                 .add(DEKId),
             wrappedDEK
         );
@@ -171,7 +171,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
         blobsMap.put(
             delegatedPath.add(EncryptedRepository.DEK_ROOT_CONTAINER)
                 .add(EncryptedRepository.DEKS_GEN_CONTAINER)
-                .add(encryptedBlobStore.inferLatestPasswordGeneration())
+                .add(encryptedBlobStore.inferLatestPasswordGeneration().get())
                 .add(DEKId),
             wrappedDEK
         );

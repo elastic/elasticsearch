@@ -494,7 +494,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             incompleteSnapshotResponse.getSnapshotInfo()
                 .shardFailures()
                 .stream()
-                .allMatch(shardFailure -> shardFailure.reason().contains("The repository password is incorrect"))
+                .allMatch(shardFailure -> shardFailure.reason().contains("repository password is incorrect"))
         );
         final Set<String> nodesWithFailures = incompleteSnapshotResponse.getSnapshotInfo()
             .shardFailures()
@@ -565,19 +565,19 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
         assertThat(
-            getSnapshotResponse.getFailedResponses().get(repositoryName).getCause().getMessage(),
+            getSnapshotResponse.getFailedResponses().get(repositoryName).getMessage(),
             containsString("repository password is incorrect")
         );
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName).setWaitForCompletion(true).get()
         );
-        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).get()
         );
-        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
+        assertThat(e.getMessage(), containsString("repository password is incorrect"));
         // restart master node and fill in the good password
         secureSettingsWithPassword.setString(
             EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),

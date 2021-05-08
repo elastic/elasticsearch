@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.List;
 
 /**
  * Read-only URL-based blob store
@@ -112,14 +113,14 @@ public class URLBlobStore implements BlobStore {
      * @return Base URL + path
      */
     private URL buildPath(BlobPath path) throws MalformedURLException {
-        String[] paths = path.toArray();
-        if (paths.length == 0) {
+        List<String> paths = path.parts();
+        if (paths.isEmpty()) {
             return path();
         }
-        URL blobPath = new URL(this.path, paths[0] + "/");
-        if (paths.length > 1) {
-            for (int i = 1; i < paths.length; i++) {
-                blobPath = new URL(blobPath, paths[i] + "/");
+        URL blobPath = new URL(this.path, paths.get(0) + "/");
+        if (paths.size() > 1) {
+            for (int i = 1; i < paths.size(); i++) {
+                blobPath = new URL(blobPath, paths.get(i) + "/");
             }
         }
         return blobPath;

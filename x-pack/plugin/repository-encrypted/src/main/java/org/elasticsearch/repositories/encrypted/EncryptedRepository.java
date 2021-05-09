@@ -243,8 +243,8 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
-    protected void executeConsistentStateUpdate(
-        BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTask,
+    public void executeConsistentStateUpdate(
+        BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTaskAsync,
         String source,
         Consumer<Exception> onFailure
     ) {
@@ -254,10 +254,10 @@ public class EncryptedRepository extends BlobStoreRepository {
                     // TODO this is not safe for master fail-over
                     // TODO this needs the publish, write, publish pattern to ensure it doesn't get lost
                     ((EncryptedBlobStore) blobStore()).maybeInitializePasswordGeneration();
-                    createUpdateTask.accept(repositoryData, createUpdateTaskListener);
+                    createUpdateTaskAsync.accept(repositoryData, createUpdateTaskListener);
                 }));
             } else {
-                createUpdateTask.accept(repositoryData, createUpdateTaskListener);
+                createUpdateTaskAsync.accept(repositoryData, createUpdateTaskListener);
             }
         }, source, onFailure);
     }

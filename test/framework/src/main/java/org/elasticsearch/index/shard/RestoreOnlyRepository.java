@@ -30,6 +30,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -147,7 +148,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+    public void executeConsistentStateUpdate(BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTask,
+                                             String source,
                                              Consumer<Exception> onFailure) {
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }

@@ -48,6 +48,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -269,7 +270,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+        public void executeConsistentStateUpdate(BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTask,
+                                                 String source,
                                                  Consumer<Exception> onFailure) {
         }
 

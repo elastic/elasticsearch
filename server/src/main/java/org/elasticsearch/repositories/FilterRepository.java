@@ -26,6 +26,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -131,7 +132,8 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
+    public void executeConsistentStateUpdate(BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTask,
+                                             String source,
                                              Consumer<Exception> onFailure) {
         in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
     }

@@ -262,7 +262,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
-        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
+        repository.executeConsistentStateUpdate((repositoryData, createUpdateTaskListener) ->
+                createUpdateTaskListener.onResponse(new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private SnapshotsInProgress.Entry newEntry;
 
@@ -355,7 +356,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
             }
-        }, "create_snapshot [" + snapshotName + ']', listener::onFailure);
+        }), "create_snapshot [" + snapshotName + ']', listener::onFailure);
     }
 
     private static void ensureSnapshotNameNotRunning(List<SnapshotsInProgress.Entry> runningSnapshots, String repositoryName,
@@ -394,7 +395,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID());
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         initializingClones.add(snapshot);
-        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
+        repository.executeConsistentStateUpdate((repositoryData, createUpdateTaskListener) ->
+                createUpdateTaskListener.onResponse(new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private SnapshotsInProgress.Entry newEntry;
 
@@ -454,7 +456,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 addListener(snapshot, ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure));
                 startCloning(repository, newEntry);
             }
-        }, "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
+        }), "clone_snapshot [" + request.source() + "][" + snapshotName + ']', listener::onFailure);
     }
 
     private static void ensureNoCleanupInProgress(ClusterState currentState, String repositoryName, String snapshotName) {
@@ -520,7 +522,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }, onFailure);
 
         // 3. step, we have all the shard counts, now update the cluster state to have clone jobs in the snap entry
-        allShardCountsListener.whenComplete(counts -> repository.executeConsistentStateUpdate(repoData -> new ClusterStateUpdateTask() {
+        allShardCountsListener.whenComplete(counts -> repository.executeConsistentStateUpdate((repoData, createUpdateTaskListener) ->
+                createUpdateTaskListener.onResponse(new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry updatedEntry;
 
@@ -603,7 +606,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     logger.warn("Did not find expected entry [{}] in the cluster state", cloneEntry);
                 }
             }
-        }, "start snapshot clone", onFailure), onFailure);
+        }), "start snapshot clone", onFailure), onFailure);
     }
 
     private final Set<RepositoryShardId> currentlyCloning = Collections.synchronizedSet(new HashSet<>());
@@ -1618,7 +1621,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 Strings.arrayToCommaDelimitedString(snapshotNames), repoName));
 
         final Repository repository = repositoriesService.repository(repoName);
-        repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask(request.masterNodeTimeout()) {
+        repository.executeConsistentStateUpdate((repositoryData, createUpdateTaskListener) ->
+                createUpdateTaskListener.onResponse(new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private SnapshotDeletionsInProgress.Entry newDelete = null;
 
@@ -1766,7 +1770,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
             }
-        }, "delete snapshot", listener::onFailure);
+        }), "delete snapshot", listener::onFailure);
     }
 
     private static List<SnapshotId> matchingSnapshotIds(List<SnapshotId> inProgress, RepositoryData repositoryData,

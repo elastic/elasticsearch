@@ -371,12 +371,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    protected void executeConsistentStateUpdate(BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTask,
-                                                String source,
-                                                Consumer<Exception> onFailure) {
+    @Override
+    public void executeConsistentStateUpdate(BiConsumer<RepositoryData, ActionListener<ClusterStateUpdateTask>> createUpdateTaskAsync,
+                                             String source,
+                                             Consumer<Exception> onFailure) {
         final RepositoryMetadata repositoryMetadataStart = metadata;
         getRepositoryData(ActionListener.wrap(repositoryData -> {
-            createUpdateTask.accept(repositoryData, ActionListener.wrap(updateTask -> clusterService.submitStateUpdateTask(source,
+            createUpdateTaskAsync.accept(repositoryData, ActionListener.wrap(updateTask -> clusterService.submitStateUpdateTask(source,
                     new ClusterStateUpdateTask(updateTask.priority(), updateTask.timeout()) {
 
                         private boolean executedTask = false;
@@ -410,18 +411,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             if (executedTask) {
                                 updateTask.clusterStateProcessed(source, oldState, newState);
                             } else {
-                                executeConsistentStateUpdate(createUpdateTask, source, onFailure);
+                                executeConsistentStateUpdate(createUpdateTaskAsync, source, onFailure);
                             }
                         }
                     }), onFailure));
         }, onFailure));
-    }
-
-    @Override
-    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
-                                             Consumer<Exception> onFailure) {
-        executeConsistentStateUpdate((repositoryData, createUpdateTaskListener) ->
-                createUpdateTaskListener.onResponse(createUpdateTask.apply(repositoryData)), source, onFailure);
     }
 
     @Override

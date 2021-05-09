@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
@@ -48,6 +49,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryStats;
+import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -184,9 +186,49 @@ public class EncryptedRepository extends BlobStoreRepository {
     }
 
     @Override
+    public String startVerification() {
+        // verification bypasses the encrypted blobstore because it works easier without a password generation
+        String seed = this.delegatedRepository.startVerification();
+        assert seed.indexOf('.') == -1;
+        String uuid = UUIDs.randomBase64UUID();
+        assert uuid.indexOf('.') == -1;
+        try {
+            String computedHash = AESKeyUtils.computeId(AESKeyUtils.generatePasswordBasedKey(repositoryPassword, uuid));
+            assert computedHash.indexOf('.') == -1;
+            return seed + "." + uuid + "." + computedHash;
+        } catch (Exception e) {
+            throw new RepositoryVerificationException(metadata.name(), "Exception computing password hash for repository verification", e);
+        }
+    }
+
+    @Override
+    public void endVerification(String packedSeed) {
+        // verification bypasses the encrypted blobstore because it works easier without a password generation
+        String seed = packedSeed.substring(0, packedSeed.indexOf('.'));
+        this.delegatedRepository.endVerification(seed);
+    }
+
+    @Override
+    public void verify(String packedSeed, DiscoveryNode localNode) {
+        // verification bypasses the encrypted blobstore because it works easier without a password generation
+        String seed = packedSeed.substring(0, packedSeed.indexOf('.'));
+        String uuid = packedSeed.substring(seed.length() + 1, packedSeed.lastIndexOf('.'));
+        String hash = packedSeed.substring(packedSeed.lastIndexOf('.') + 1);
+        try {
+            String computedHash = AESKeyUtils.computeId(AESKeyUtils.generatePasswordBasedKey(repositoryPassword, uuid));
+            if (false == hash.equals(computedHash)) {
+                throw new ElasticsearchException("Password mismatch on node {}", localNode);
+            }
+        } catch (Exception e) {
+            throw new RepositoryVerificationException(metadata.name(), "Error verifying password hash", e);
+        }
+        this.delegatedRepository.verify(seed, localNode);
+    }
+
+    @Override
     public BlobContainer testBlobContainer(String seed) {
-        // bypass encryption for test blobs because password generation lifecycle is more complex when
-        // accounting for verify as well
+        // bypass encryption for test blobs because the lifecycle of password generation is a bit complex
+        // when accounting for optional repository verification and it is not very useful
         return delegatedRepository.blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
     }
 

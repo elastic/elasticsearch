@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -35,7 +36,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -203,7 +203,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName).iterator());
+            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
             writeToPath(inputStream, file, blobSize);
         }
         IOUtils.fsync(path, true);
@@ -218,7 +218,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName).iterator());
+            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
             writeToPath(bytes, file);
         }
         IOUtils.fsync(path, true);
@@ -233,7 +233,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob).iterator());
+                deleteBlobsIgnoringIfNotExists(Iterators.single(tempBlob));
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }
@@ -269,7 +269,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
             } else {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(targetBlobName).iterator());
+                deleteBlobsIgnoringIfNotExists(Iterators.single(targetBlobName));
             }
         }
         Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);

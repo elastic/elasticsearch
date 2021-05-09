@@ -23,6 +23,7 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -432,7 +433,7 @@ public class MockRepository extends FsRepository {
                 long deleteByteCount = 0L;
                 for (String blob : blobs.values().stream().map(BlobMetadata::name).collect(Collectors.toList())) {
                     maybeIOExceptionOrBlock(blob);
-                    deleteBlobsIgnoringIfNotExists(Stream.of(blob).iterator());
+                    deleteBlobsIgnoringIfNotExists(Iterators.single(blob));
                     deleteByteCount += blobs.get(blob).length();
                 }
                 blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(

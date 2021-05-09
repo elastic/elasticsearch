@@ -193,6 +193,9 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     private void doDeleteBlobs(Iterator<String> blobNames, boolean relative) throws IOException {
+        if (blobNames.hasNext() == false) {
+            return;
+        }
         final Iterator<String> outstanding;
         if (relative) {
             outstanding = new Iterator<>() {

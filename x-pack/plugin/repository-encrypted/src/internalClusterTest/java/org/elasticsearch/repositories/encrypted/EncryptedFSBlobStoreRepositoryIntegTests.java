@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -20,6 +22,8 @@ import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESFsBasedRepositoryIntegTestCase;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -30,6 +34,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -38,9 +43,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 
 public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRepositoryIntegTestCase {
-    private static int NUMBER_OF_TEST_REPOSITORIES = 32;
+    private static final int NUMBER_OF_TEST_REPOSITORIES = 32;
+    private static final List<String> repositoryNames = new ArrayList<>(NUMBER_OF_TEST_REPOSITORIES);
 
-    private static List<String> repositoryNames = new ArrayList<>();
+    private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @BeforeClass
     public static void preGenerateRepositoryNames() {
@@ -48,6 +54,12 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
         for (int i = 0; i < NUMBER_OF_TEST_REPOSITORIES; i++) {
             repositoryNames.add("test-repo-" + i);
         }
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     @Override
@@ -102,6 +114,17 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
     @Override
     protected String repositoryType() {
         return EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME;
+    }
+
+    @Override
+    protected BlobStore newBlobStore(BlobStoreRepository blobStoreRepository) {
+        EncryptedRepository.EncryptedBlobStore blobStore = (EncryptedRepository.EncryptedBlobStore) super.newBlobStore(blobStoreRepository);
+        if (false == blobStoreRepository.isReadOnly()) {
+            PlainActionFuture.get(
+                l -> threadPool.generic().execute(ActionRunnable.run(l, () -> blobStore.maybeInitializePasswordGeneration()))
+            );
+        }
+        return blobStore;
     }
 
     public void testTamperedEncryptionMetadata() throws Exception {

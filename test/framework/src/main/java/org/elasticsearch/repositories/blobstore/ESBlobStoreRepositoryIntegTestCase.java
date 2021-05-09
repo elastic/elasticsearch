@@ -268,8 +268,12 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     protected BlobStore newBlobStore(String repository) {
         final BlobStoreRepository blobStoreRepository =
             (BlobStoreRepository) internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(repository);
+        return newBlobStore(blobStoreRepository);
+    }
+
+    protected BlobStore newBlobStore(BlobStoreRepository blobStoreRepository) {
         return PlainActionFuture.get(
-            f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.supply(f, blobStoreRepository::blobStore)));
+                f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.supply(f, blobStoreRepository::blobStore)));
     }
 
     public void testSnapshotAndRestore() throws Exception {

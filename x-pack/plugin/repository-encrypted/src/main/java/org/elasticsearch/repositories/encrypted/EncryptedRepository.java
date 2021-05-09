@@ -249,14 +249,11 @@ public class EncryptedRepository extends BlobStoreRepository {
         Consumer<Exception> onFailure
     ) {
         super.executeConsistentStateUpdate((repositoryData, createUpdateTaskListener) -> {
-            if (repositoryData.equals(RepositoryData.EMPTY)) {
+            if (repositoryData.equals(RepositoryData.EMPTY) && false == isReadOnly()) {
                 threadPool().generic().execute(ActionRunnable.wrap(createUpdateTaskListener, (l) -> {
                     // TODO this is not safe for master fail-over
                     // TODO this needs the publish, write, publish pattern to ensure it doesn't get lost
-                    EncryptedBlobStore encryptedBlobStore = (EncryptedBlobStore) blobStore();
-                    if (encryptedBlobStore.inferLatestPasswordGeneration().isEmpty()) {
-                        encryptedBlobStore.createPasswordGeneration(repositoryPassword, 0);
-                    }
+                    ((EncryptedBlobStore) blobStore()).maybeInitializePasswordGeneration();
                     createUpdateTask.accept(repositoryData, createUpdateTaskListener);
                 }));
             } else {
@@ -370,6 +367,13 @@ public class EncryptedRepository extends BlobStoreRepository {
                 .setMaximumWeight(1)
                 .build();
             this.loadGenerationForPasswordCache = CacheBuilder.<SecureString, String>builder().setMaximumWeight(1).build();
+        }
+
+        // protected for tests
+        protected void maybeInitializePasswordGeneration() throws IOException, GeneralSecurityException {
+            if (inferLatestPasswordGeneration().isEmpty()) {
+                createPasswordGeneration(repositoryPasswordSupplier.get(), 0);
+            }
         }
 
         // protected for tests
@@ -563,11 +567,14 @@ public class EncryptedRepository extends BlobStoreRepository {
                 logger.debug("Repository [{}] successfully loaded DEK [{}] from path {}", repositoryName, dekId, dekBlobPath);
                 return dek;
             } catch (GeneralSecurityException e) {
-                // unwrap should not fail because the password has been verified, and all the DEKs in a generation are
-                // encrypted using the same password
+                // unless the encryption metadata got corrupted, unwrap should not fail because the password has been verified,
+                // and all the DEKs in a generation are encrypted using the same password
                 throw new RepositoryException(
                     repositoryName,
-                    "Unexpected exception retrieving DEK [" + dekId + "]. " + "Failure to AES unwrap the DEK",
+                    "Unexpected exception retrieving DEK ["
+                        + dekId
+                        + "]. Failure to AES unwrap the DEK, "
+                        + "most likely the encryption metadata in the repository has been corrupted.",
                     e
                 );
             }

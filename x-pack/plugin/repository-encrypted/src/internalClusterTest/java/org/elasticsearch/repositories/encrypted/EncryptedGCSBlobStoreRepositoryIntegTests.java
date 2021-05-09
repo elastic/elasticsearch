@@ -6,21 +6,27 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageBlobStoreRepositoryTests;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.encrypted.EncryptedRepository.DEK_ROOT_CONTAINER;
@@ -28,17 +34,23 @@ import static org.elasticsearch.repositories.encrypted.EncryptedRepository.getEn
 import static org.hamcrest.Matchers.hasSize;
 
 public final class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloudStorageBlobStoreRepositoryTests {
+    private static final int NUMBER_OF_TEST_REPOSITORIES = 32;
+    private static final List<String> repositoryNames = new ArrayList<>(NUMBER_OF_TEST_REPOSITORIES);
 
-    private static List<String> repositoryNames;
+    private final TestThreadPool threadPool = new TestThreadPool(getClass().getName());
 
     @BeforeClass
     public static void preGenerateRepositoryNames() {
         assumeFalse("Should only run when encrypted repo is enabled", EncryptedRepositoryPlugin.isDisabled());
-        List<String> names = new ArrayList<>();
-        for (int i = 0; i < 32; i++) {
-            names.add("test-repo-" + i);
+        for (int i = 0; i < NUMBER_OF_TEST_REPOSITORIES; i++) {
+            repositoryNames.add("test-repo-" + i);
         }
-        repositoryNames = Collections.synchronizedList(names);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     @Override
@@ -75,6 +87,17 @@ public final class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloud
     @Override
     protected String repositoryType() {
         return EncryptedRepositoryPlugin.REPOSITORY_TYPE_NAME;
+    }
+
+    @Override
+    protected BlobStore newBlobStore(BlobStoreRepository blobStoreRepository) {
+        EncryptedRepository.EncryptedBlobStore blobStore = (EncryptedRepository.EncryptedBlobStore) super.newBlobStore(blobStoreRepository);
+        if (false == blobStoreRepository.isReadOnly()) {
+            PlainActionFuture.get(
+                l -> threadPool.generic().execute(ActionRunnable.run(l, () -> blobStore.maybeInitializePasswordGeneration()))
+            );
+        }
+        return blobStore;
     }
 
     @Override

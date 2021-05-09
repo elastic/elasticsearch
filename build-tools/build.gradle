@@ -9,6 +9,7 @@
 plugins {
     id 'java-gradle-plugin'
     id 'groovy'
+    id 'java-test-fixtures'
 }
 
 group = "org.elasticsearch"
@@ -37,7 +38,43 @@ gradlePlugin {
             id = 'elasticsearch.testclusters'
             implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'
         }
+        reaper {
+            id = 'elasticsearch.reaper'
+            implementationClass = 'org.elasticsearch.gradle.ReaperPlugin'
+        }
     }
+}
+
+// we update the version property to reflect if we are building a snapshot or a release build
+// we write this back out below to load it in the Build.java which will be shown in rest main action
+// to indicate this being a snapshot build or a release build.
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../buildSrc/version.properties'))
+version = props.getProperty("elasticsearch")
+
+def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
+    outputFile = "${buildDir}/version.properties"
+    comment = 'Generated version properties'
+    properties(props)
+}
+
+tasks.named("processResources").configure {
+    from(generateVersionProperties)
+        exclude 'buildSrc.marker'
+        into('META-INF') {
+            from configurations.reaper
+        }
+}
+
+sourceSets {
+    integTest {
+        compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
+        runtimeClasspath += output + compileClasspath
+    }
+}
+
+configurations {
+    integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
+    register("reaper")
 }
 
 repositories {
@@ -45,7 +82,10 @@ repositories {
     gradlePluginPortal()
 }
 
+
 dependencies {
+    reaper project('reaper')
+
     api localGroovy()
     api gradleApi()
     api 'org.apache.commons:commons-compress:1.19'
@@ -53,6 +93,32 @@ dependencies {
     api 'commons-io:commons-io:2.2'
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     runtimeOnly project(":reaper")
+
+    testFixturesApi "junit:junit:4.12"
+    testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.7.7"
+    testFixturesApi gradleApi()
+    testFixturesApi gradleTestKit()
+
+    testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+
+    integTestImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+    integTestImplementation("org.spockframework:spock-core") {
+        exclude module: "groovy"
+    }
+    // required as we rely on junit4 rules
+    integTestImplementation "org.spockframework:spock-junit4"
+
+    integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
+    integTestImplementation("org.junit.jupiter:junit-jupiter") {
+        because 'allows to write and run Jupiter tests'
+    }
+    integTestRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
+        because 'allows JUnit 3 and JUnit 4 tests to run'
+    }
+
+    integTestRuntimeOnly("org.junit.platform:junit-platform-launcher") {
+        because 'allows tests to run from IDEs that bundle older version of launcher'
+    }
 // for our ide tweaking
 //    api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
 
@@ -68,3 +134,59 @@ dependencies {
 //    api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
 }
 
+tasks.register("integTest", Test) {
+    inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
+    systemProperty 'test.version_under_test', version
+    testClassesDirs = sourceSets.integTest.output.classesDirs
+    classpath = sourceSets.integTest.runtimeClasspath
+    useJUnitPlatform()
+}
+tasks.named("check").configure { dependsOn("integTest") }
+
+// Define this here because we need it early.
+class VersionPropertiesLoader {
+    static Properties loadBuildSrcVersion(File input) throws IOException {
+        Properties props = new Properties();
+        InputStream is = new FileInputStream(input)
+        try {
+            props.load(is)
+        } finally {
+            is.close()
+        }
+        loadBuildSrcVersion(props, System.getProperties())
+        return props
+    }
+
+    protected static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
+        String elasticsearch = loadedProps.getProperty("elasticsearch")
+        if (elasticsearch == null) {
+            throw new IllegalStateException("Elasticsearch version is missing from properties.")
+        }
+        if (elasticsearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
+            throw new IllegalStateException(
+                    "Expected elasticsearch version to be numbers only of the form  X.Y.Z but it was: " +
+                            elasticsearch
+            )
+        }
+        String qualifier = systemProperties.getProperty("build.version_qualifier", "")
+        if (qualifier.isEmpty() == false) {
+            if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
+                throw new IllegalStateException("Invalid qualifier: " + qualifier)
+            }
+            elasticsearch += "-" + qualifier
+        }
+        final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
+        switch (buildSnapshotSystemProperty) {
+            case "true":
+                elasticsearch += "-SNAPSHOT"
+                break;
+            case "false":
+                // do nothing
+                break;
+            default:
+                throw new IllegalArgumentException(
+                        "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
+        }
+        loadedProps.put("elasticsearch", elasticsearch)
+    }
+}

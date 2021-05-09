@@ -137,7 +137,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
             .add(DEKS_GEN_MARKER_BLOB + encryptedBlobStore.inferLatestPasswordGeneration().get());
         assertThat(blobsMap.keySet(), containsInAnyOrder(encryptedDekPath, doneMarkerPath));
         byte[] wrappedKey = blobsMap.get(encryptedDekPath);
-        SecretKey KEK = encryptedBlobStore.getKEKForDek(repoPassword, DEKId);
+        SecretKey KEK = encryptedBlobStore.getKEKForDEK(repoPassword, DEKId);
         SecretKey unwrappedKey = AESKeyUtils.unwrap(KEK, wrappedKey);
         assertThat(unwrappedKey.getEncoded(), equalTo(DEK.getEncoded()));
     }
@@ -145,7 +145,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void testGetDEKSuccess() throws Exception {
         String DEKId = randomAlphaOfLengthBetween(16, 32); // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec(randomByteArrayOfLength(32), "AES");
-        SecretKey KEK = encryptedBlobStore.getKEKForDek(repoPassword, DEKId);
+        SecretKey KEK = encryptedBlobStore.getKEKForDEK(repoPassword, DEKId);
 
         byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
         blobsMap.put(
@@ -163,7 +163,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void testGetTamperedDEKFails() throws Exception {
         String DEKId = randomAlphaOfLengthBetween(16, 32);  // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec("01234567890123456789012345678901".getBytes(StandardCharsets.UTF_8), "AES");
-        SecretKey KEK = encryptedBlobStore.getKEKForDek(repoPassword, DEKId);
+        SecretKey KEK = encryptedBlobStore.getKEKForDEK(repoPassword, DEKId);
 
         byte[] wrappedDEK = AESKeyUtils.wrap(KEK, DEK);
         int tamperPos = randomIntBetween(0, wrappedDEK.length - 1);
@@ -212,9 +212,9 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void testGenerateKEK() {
         String id1 = "fixed identifier 1";
         String id2 = "fixed identifier 2";
-        SecretKey KEK1 = encryptedBlobStore.getKEKForDek(repoPassword, id1);
-        SecretKey KEK2 = encryptedBlobStore.getKEKForDek(repoPassword, id2);
-        SecretKey sameKEK1 = encryptedBlobStore.getKEKForDek(repoPassword, id1);
+        SecretKey KEK1 = encryptedBlobStore.getKEKForDEK(repoPassword, id1);
+        SecretKey KEK2 = encryptedBlobStore.getKEKForDEK(repoPassword, id2);
+        SecretKey sameKEK1 = encryptedBlobStore.getKEKForDEK(repoPassword, id1);
         assertThat(KEK1.getEncoded(), equalTo(sameKEK1.getEncoded()));
         assertThat(KEK1.getEncoded(), not(equalTo(KEK2.getEncoded())));
     }

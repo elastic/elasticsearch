@@ -377,7 +377,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         // protected for tests
-        SecretKey getKEKForDek(SecureString repositoryPassword, String dekId) {
+        SecretKey getKEKForDEK(SecureString repositoryPassword, String dekId) {
             try {
                 // we rely on the DEK Id being generated randomly so it can be used as a salt
                 final SecretKey kek = AESKeyUtils.generatePasswordBasedKey(repositoryPassword, dekId);
@@ -388,14 +388,14 @@ public class EncryptedRepository extends BlobStoreRepository {
             }
         }
 
-        private BlobContainer getDeksBlobContainer() {
+        private BlobContainer getDEKSBlobContainer() {
             final BlobPath deksBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(DEKS_GEN_CONTAINER);
             return delegatedBlobStore.blobContainer(deksBlobPath);
         }
 
         // protected for tests
         Optional<String> inferLatestPasswordGeneration() throws IOException {
-            final BlobContainer deksBlobContainer = getDeksBlobContainer();
+            final BlobContainer deksBlobContainer = getDEKSBlobContainer();
             final Set<String> doneMarkersSet = deksBlobContainer.listBlobsByPrefix(DEKS_GEN_MARKER_BLOB).keySet();
             try {
                 return this.inferLatestPasswordGenerationCache.computeIfAbsent(doneMarkersSet, ignored -> {
@@ -437,7 +437,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 equalHashes = this.verifyPasswordForGenerationCache.computeIfAbsent(
                     new Tuple<>(repositoryPassword, passwordGeneration),
                     ignored -> {
-                        final BlobContainer deksBlobContainer = getDeksBlobContainer();
+                        final BlobContainer deksBlobContainer = getDEKSBlobContainer();
                         final String passwordHash;
                         try (
                             XContentParser parser = JsonXContent.jsonXContent.createParser(
@@ -534,7 +534,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(DEKS_GEN_CONTAINER).add(passwordGeneration);
             logger.debug("Repository [{}] loading wrapped DEK [{}] from blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
-            final SecretKey kek = getKEKForDek(repositoryPassword, dekId);
+            final SecretKey kek = getKEKForDEK(repositoryPassword, dekId);
             logger.trace("Repository [{}] using KEK to unwrap DEK [{}]", repositoryName, dekId);
             final byte[] encryptedDEKBytes = new byte[AESKeyUtils.WRAPPED_KEY_LENGTH_IN_BYTES];
             try (InputStream encryptedDEKInputStream = dekBlobContainer.readBlob(dekId)) {
@@ -596,7 +596,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             final BlobPath dekBlobPath = delegatedBasePath.add(DEK_ROOT_CONTAINER).add(DEKS_GEN_CONTAINER).add(passwordGeneration.get());
             logger.debug("Repository [{}] storing wrapped DEK [{}] under blob path {}", repositoryName, dekId, dekBlobPath);
             final BlobContainer dekBlobContainer = delegatedBlobStore.blobContainer(dekBlobPath);
-            final SecretKey kek = getKEKForDek(repositoryPassword, dekId);
+            final SecretKey kek = getKEKForDEK(repositoryPassword, dekId);
             logger.trace("Repository [{}] using KEK to wrap DEK [{}]", repositoryName, dekId);
             final byte[] encryptedDEKBytes;
             try {

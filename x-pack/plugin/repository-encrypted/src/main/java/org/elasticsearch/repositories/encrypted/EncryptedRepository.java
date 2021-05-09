@@ -188,7 +188,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     @Override
     public String startVerification() {
         // verification bypasses the encrypted blobstore because it works easier without a password generation
-        String seed = this.delegatedRepository.startVerification();
+        String seed = super.startVerification();
         assert seed.indexOf('.') == -1;
         String uuid = UUIDs.randomBase64UUID();
         assert uuid.indexOf('.') == -1;
@@ -205,7 +205,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     public void endVerification(String packedSeed) {
         // verification bypasses the encrypted blobstore because it works easier without a password generation
         String seed = packedSeed.substring(0, packedSeed.indexOf('.'));
-        this.delegatedRepository.endVerification(seed);
+        super.endVerification(seed);
     }
 
     @Override
@@ -222,14 +222,15 @@ public class EncryptedRepository extends BlobStoreRepository {
         } catch (Exception e) {
             throw new RepositoryVerificationException(metadata.name(), "Error verifying password hash", e);
         }
-        this.delegatedRepository.verify(seed, localNode);
+        super.verify(seed, localNode);
     }
 
     @Override
     public BlobContainer testBlobContainer(String seed) {
         // bypass encryption for test blobs because the lifecycle of password generation is a bit complex
         // when accounting for optional repository verification and it is not very useful
-        return delegatedRepository.blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
+        EncryptedBlobStore encryptedBlobStore = (EncryptedBlobStore) blobStore();
+        return encryptedBlobStore.delegatedBlobStore.blobContainer(basePath().add(testBlobPrefix(seed)));
     }
 
     @Override

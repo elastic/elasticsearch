@@ -6,7 +6,11 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
@@ -32,6 +36,7 @@ public final class AESKeyUtils {
     private static final byte[] KEY_ID_PLAINTEXT = "AES wrapping a known text of 64 byte length forms a sort of hash".getBytes(
         StandardCharsets.UTF_8
     );
+    private static final String BLOCKING_OP_REASON = "Expensive hash computation";
 
     public static byte[] wrap(SecretKey wrappingKey, SecretKey keyToWrap) throws GeneralSecurityException {
         assert "AES".equals(wrappingKey.getAlgorithm());
@@ -70,6 +75,10 @@ public final class AESKeyUtils {
     }
 
     public static SecretKey generatePasswordBasedKey(SecureString password, byte[] salt) throws GeneralSecurityException {
+        Transports.assertNotTransportThread(BLOCKING_OP_REASON);
+        ThreadPool.assertNotScheduleThread(BLOCKING_OP_REASON);
+        ClusterApplierService.assertNotClusterStateUpdateThread(BLOCKING_OP_REASON);
+        MasterService.assertNotMasterUpdateThread(BLOCKING_OP_REASON);
         PBEKeySpec keySpec = new PBEKeySpec(password.getChars(), salt, KDF_ITER, KEY_LENGTH_IN_BYTES * Byte.SIZE);
         SecretKeyFactory keyFactory = SecretKeyFactory.getInstance(KDF_ALGO);
         SecretKey secretKey = keyFactory.generateSecret(keySpec);

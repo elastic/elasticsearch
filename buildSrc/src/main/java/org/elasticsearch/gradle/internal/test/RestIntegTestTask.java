@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.test.rest.StandaloneRestIntegTestTask;
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.gradle.api.tasks.CacheableTask;
 
 /**

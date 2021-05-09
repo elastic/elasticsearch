@@ -33,6 +33,19 @@ public final class AESKeyUtils {
     // Key wrapping encryption is deterministic (same plaintext generates the same ciphertext)
     // and the probability that two different keys map the same plaintext to the same ciphertext is very small
     // (2^-256, much lower than the UUID collision of 2^-128), assuming AES is indistinguishable from a pseudorandom permutation.
+    // According to https://datatracker.ietf.org/doc/html/rfc3394#section-1 it is acceptable to use AES-Wrap with non-key-data
+    // > Throughout this document, any data being wrapped will be referred to
+    //   as the key data.  It makes no difference to the algorithm whether the
+    //   data being wrapped is a key; in fact there is often good reason to
+    //   include other data with the key, to wrap multiple keys together, or
+    //   to wrap data that isn't strictly a key.
+    // Also, according to https://datatracker.ietf.org/doc/html/rfc8018#section-3 on pbkdf functions with salt:
+    // > Another application is password checking, where the output of the key
+    //   derivation function is stored (along with the salt and iteration
+    //   count) for the purposes of subsequent verification of a password.
+    // it would've been enough to use the raw pbkdf2 output to verify the password.
+    // But the verification goes a step further to make sure that the end-to-end cryptographic operations,
+    // including decryption, that are used to get and "parse" the DEK work using the given password.
     private static final byte[] KEY_ID_PLAINTEXT = "AES wrapping a known text of 64 byte length forms a sort of hash".getBytes(
         StandardCharsets.UTF_8
     );

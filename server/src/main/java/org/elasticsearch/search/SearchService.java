@@ -967,7 +967,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.bitsetFilterCache(),
                 context.indexShard().shardId().hashCode(),
                 context::getRelativeTimeInMillis,
-                context::isCancelled
+                context::isCancelled,
+                context::buildFilteredQuery
             );
             context.addReleasable(aggContext);
             try {
@@ -1150,6 +1151,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public int getActiveContexts() {
         return this.activeReaders.size();
+    }
+
+    /**
+     * Returns the number of scroll contexts opened on the node
+     */
+    public int getOpenScrollContexts() {
+        return openScrollContexts.get();
     }
 
     public ResponseCollectorService getResponseCollectorService() {

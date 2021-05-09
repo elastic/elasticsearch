@@ -53,7 +53,8 @@ public class ShrinkStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
         if (lifecycleState.getLifecycleDate() == null) {
             throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() +

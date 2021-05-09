@@ -36,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -80,10 +81,10 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-                new NumberFieldMapper.Builder("int", BYTE, null, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("int", SHORT, null, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("int", INTEGER, null, false, true).build(contentPath).fieldType(),
-                new NumberFieldMapper.Builder("long", LONG, null, false, true).build(contentPath).fieldType()
+                new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true).build(contentPath).fieldType(),
+                new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true).build(contentPath).fieldType()
                 )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, "test", () -> {
@@ -92,7 +93,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberType.FLOAT, null, false, true)
+        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
                 .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, "test", () -> {
@@ -101,7 +102,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         assertTrue(fd instanceof SortedNumericIndexFieldData);
 
         final MappedFieldType doubleMapper
-            = new NumberFieldMapper.Builder("double", DOUBLE, null, false, true)
+            = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, false, true)
                 .build(contentPath).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> {
@@ -321,6 +322,6 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
 
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
-        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, Collections.emptyMap()));
+        doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, null, Collections.emptyMap()));
     }
 }

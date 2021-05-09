@@ -24,6 +24,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -42,6 +43,7 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
 
     private static final String DISALLOWED_ACTION = PutJobAction.NAME;
     private static final String ALLOWED_ACTION = SetUpgradeModeAction.NAME;
+    private static final String DISALLOWED_ACTION_WITH_RESET_MODE_EXEMPTION = CloseJobAction.NAME;
 
     private ClusterService clusterService;
     private Task task;
@@ -65,35 +67,49 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
     }
 
     public void testApply_ActionDisallowedInUpgradeMode() {
+        String action = randomFrom(DISALLOWED_ACTION, DISALLOWED_ACTION_WITH_RESET_MODE_EXEMPTION);
         MlUpgradeModeActionFilter filter = new MlUpgradeModeActionFilter(clusterService);
-        filter.apply(task, DISALLOWED_ACTION, request, listener, chain);
+        filter.apply(task, action, request, listener, chain);
 
-        filter.setIsUpgradeMode(createClusterChangedEvent(createClusterState(true)));
+        filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(true, false)));
         ElasticsearchStatusException e =
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> filter.apply(task, DISALLOWED_ACTION, request, listener, chain));
+                () -> filter.apply(task, action, request, listener, chain));
 
-        filter.setIsUpgradeMode(createClusterChangedEvent(createClusterState(false)));
-        filter.apply(task, DISALLOWED_ACTION, request, listener, chain);
+        filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(false, false)));
+        filter.apply(task, action, request, listener, chain);
 
-        assertThat(e.getMessage(), is(equalTo("Cannot perform " + DISALLOWED_ACTION + " action while upgrade mode is enabled")));
+        assertThat(e.getMessage(), is(equalTo("Cannot perform " + action + " action while upgrade mode is enabled")));
         assertThat(e.status(), is(equalTo(RestStatus.TOO_MANY_REQUESTS)));
 
-        verify(chain, times(2)).proceed(task, DISALLOWED_ACTION, request, listener);
+        verify(chain, times(2)).proceed(task, action, request, listener);
     }
 
     public void testApply_ActionAllowedInUpgradeMode() {
         MlUpgradeModeActionFilter filter = new MlUpgradeModeActionFilter(clusterService);
         filter.apply(task, ALLOWED_ACTION, request, listener, chain);
 
-        filter.setIsUpgradeMode(createClusterChangedEvent(createClusterState(true)));
+        filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(true, false)));
         filter.apply(task, ALLOWED_ACTION, request, listener, chain);
 
-        filter.setIsUpgradeMode(createClusterChangedEvent(createClusterState(false)));
+        filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(false, false)));
         filter.apply(task, ALLOWED_ACTION, request, listener, chain);
 
         verify(chain, times(3)).proceed(task, ALLOWED_ACTION, request, listener);
+    }
+
+    public void testApply_ActionDisallowedInUpgradeModeWithResetModeExemption() {
+        MlUpgradeModeActionFilter filter = new MlUpgradeModeActionFilter(clusterService);
+        filter.apply(task, DISALLOWED_ACTION_WITH_RESET_MODE_EXEMPTION, request, listener, chain);
+
+        filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(true, true)));
+        filter.apply(task, DISALLOWED_ACTION_WITH_RESET_MODE_EXEMPTION, request, listener, chain);
+
+        filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(false, true)));
+        filter.apply(task, DISALLOWED_ACTION_WITH_RESET_MODE_EXEMPTION, request, listener, chain);
+
+        verify(chain, times(3)).proceed(task, DISALLOWED_ACTION_WITH_RESET_MODE_EXEMPTION, request, listener);
     }
 
     public void testOrder_UpgradeFilterIsExecutedAfterSecurityFilter() {
@@ -108,9 +124,10 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
         return new ClusterChangedEvent("created-from-test", clusterState, clusterState);
     }
 
-    private static ClusterState createClusterState(boolean isUpgradeMode) {
+    private static ClusterState createClusterState(boolean isUpgradeMode, boolean isResetMode) {
         return ClusterState.builder(new ClusterName("MlUpgradeModeActionFilterTests"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).build()))
+            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE,
+                new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).isResetMode(isResetMode).build()))
             .build();
     }
 }

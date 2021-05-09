@@ -210,22 +210,18 @@ public final class TestUtils {
                     if (name.startsWith(prefix) == false) {
                         throw new FileNotFoundException("Blob not found: " + name);
                     }
-                    assert position + length <= partSize : "cannot read ["
-                        + position
-                        + "-"
-                        + (position + length)
-                        + "] from array part of length ["
-                        + partSize
-                        + "]";
+                    assert position + length <= partSize
+                        : "cannot read [" + position + "-" + (position + length) + "] from array part of length [" + partSize + "]";
                     final int partNumber = Integer.parseInt(name.substring(prefix.length()));
                     final int positionInBlob = toIntBytes(position) + partSize * partNumber;
-                    assert positionInBlob + length <= blobContent.length : "cannot read ["
-                        + positionInBlob
-                        + "-"
-                        + (positionInBlob + length)
-                        + "] from array of length ["
-                        + blobContent.length
-                        + "]";
+                    assert positionInBlob + length <= blobContent.length
+                        : "cannot read ["
+                            + positionInBlob
+                            + "-"
+                            + (positionInBlob + length)
+                            + "] from array of length ["
+                            + blobContent.length
+                            + "]";
                     return Streams.limitStream(
                         new ByteArrayInputStream(blobContent, positionInBlob, blobContent.length - positionInBlob),
                         length

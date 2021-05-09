@@ -156,13 +156,14 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             // sent over during peer recoveries as after restore a new segments file is generated
             // (see StoreRecovery#bootstrap).
             FileDetail fileDetail = fileDetails.computeIfAbsent(name, n -> new FileDetail(name, length, reused));
-            assert fileDetail == null || fileDetail.name().equals(name) && fileDetail.length() == length : "The file "
-                + name
-                + " was reported multiple times with different lengths: ["
-                + fileDetail.length()
-                + "] and ["
-                + length
-                + "]";
+            assert fileDetail == null || fileDetail.name().equals(name) && fileDetail.length() == length
+                : "The file "
+                    + name
+                    + " was reported multiple times with different lengths: ["
+                    + fileDetail.length()
+                    + "] and ["
+                    + length
+                    + "]";
         }
 
         void markFileAsReused(String name) {

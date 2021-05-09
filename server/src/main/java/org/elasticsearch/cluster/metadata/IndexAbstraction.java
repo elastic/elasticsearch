@@ -317,8 +317,7 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isSystem() {
-            // No such thing as system data streams (yet)
-            return false;
+            return dataStream.isSystem();
         }
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {

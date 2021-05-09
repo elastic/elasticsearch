@@ -33,6 +33,7 @@ public final class Protocol {
     public static final String BINARY_FORMAT_NAME = "binary_format";
     public static final String FIELD_MULTI_VALUE_LENIENCY_NAME = "field_multi_value_leniency";
     public static final String INDEX_INCLUDE_FROZEN_NAME = "index_include_frozen";
+    public static final String RUNTIME_MAPPINGS_NAME = "runtime_mappings";
     // params
     public static final String PARAMS_NAME = "params";
     public static final String PARAMS_TYPE_NAME = "type";

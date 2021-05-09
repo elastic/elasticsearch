@@ -14,13 +14,21 @@ import org.apache.lucene.analysis.Token;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
 public class IntervalBuilderTests extends ESTestCase {
 
-    private static final IntervalBuilder BUILDER = new IntervalBuilder("field1", new StandardAnalyzer());
+    private static final IntervalBuilder BUILDER = new IntervalBuilder("field1", new StandardAnalyzer()) {
+
+        @Override
+        protected IntervalsSource termIntervals(BytesRef term) {
+            return Intervals.term(term);
+        }
+
+    };
 
     public void testSimpleTerm() throws IOException {
 

@@ -115,7 +115,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             blobStore.ensureMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
 
-        request.timeout(TimeValue.timeValueSeconds(5));
+        request.timeout(TimeValue.timeValueSeconds(20));
 
         final RepositoryAnalyzeAction.Response response = client().execute(RepositoryAnalyzeAction.INSTANCE, request)
             .actionGet(30L, TimeUnit.SECONDS);

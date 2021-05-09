@@ -71,9 +71,9 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
             ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
         CleanupShrinkIndexStep cleanupShrinkIndexStep = createRandomInstance();
-        cleanupShrinkIndexStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+        cleanupShrinkIndexStep.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 assertThat(complete, is(true));
             }
 
@@ -102,9 +102,9 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (NoOpClient client = getDeleteIndexRequestAssertingClient(shrinkIndexName)) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(boolean complete) {
+                public void onResponse(Boolean complete) {
                 }
 
                 @Override
@@ -135,9 +135,9 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (NoOpClient client = getFailingIfCalledClient()) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(shrunkIndexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+            step.performAction(shrunkIndexMetadata, clusterState, null, new ActionListener<>() {
                 @Override
-                public void onResponse(boolean complete) {
+                public void onResponse(Boolean complete) {
                     assertThat(complete, is(true));
                 }
 

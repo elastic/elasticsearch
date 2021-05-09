@@ -53,6 +53,11 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         });
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaultConfiguration() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper(FIELD_NAME);
@@ -231,6 +236,16 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         } else {
             return Strings.toString(mapper);
         }
+    }
+
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [shape] mappers has no effect and will be forbidden in future");
     }
 
     public String toXContentString(ShapeFieldMapper mapper)  {

@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.transform;
 import org.apache.commons.io.IOUtils;
 import org.apache.tools.zip.ZipEntry;
 import org.apache.tools.zip.ZipFile;
+import org.gradle.api.artifacts.transform.TransformOutputs;
 import org.gradle.api.logging.Logging;
 
 import java.io.File;
@@ -24,7 +25,7 @@ import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class UnzipTransform implements UnpackTransform {
 
-    public void unpack(File zipFile, File targetDir) throws IOException {
+    public void unpack(File zipFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException {
         Logging.getLogger(UnzipTransform.class)
             .info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
         Function<String, Path> pathModifier = pathResolver();
@@ -47,6 +48,9 @@ public abstract class UnzipTransform implements UnpackTransform {
                     IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
                 }
                 chmod(outputPath, zipEntry.getUnixMode());
+                if (asFiletreeOutput) {
+                    outputs.file(outputPath.toFile());
+                }
             }
         } finally {
             zip.close();

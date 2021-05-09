@@ -745,7 +745,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    private static class FromFilters<B extends InternalRange.Bucket> extends AdaptingAggregator {
+    static class FromFilters<B extends InternalRange.Bucket> extends AdaptingAggregator {
         private final DocValueFormat format;
         private final Range[] ranges;
         private final boolean keyed;

@@ -23,10 +23,30 @@ class DistributionDownloadFixture {
                 gradleRunner, buildRunClosure)
     }
 
+    static BuildResult withChangedClasspathMockedDistributionDownload(GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
+        return doRunWithMockedDistributionDownload(VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
+                gradleRunner, buildRunClosure, true, false)
+    }
+    static BuildResult withChangedConfigMockedDistributionDownload(GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
+        return doRunWithMockedDistributionDownload(VersionProperties.getElasticsearch(), ElasticsearchDistribution.CURRENT_PLATFORM,
+                gradleRunner, buildRunClosure, false, true)
+    }
+
     static BuildResult withMockedDistributionDownload(String version, ElasticsearchDistribution.Platform platform,
                                                       GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
+        return doRunWithMockedDistributionDownload(version, platform, gradleRunner, buildRunClosure, false, false)
+    }
+
+    static BuildResult withChangedClasspathMockedDistributionDownload(String version, ElasticsearchDistribution.Platform platform,
+                                                      GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure) {
+        return doRunWithMockedDistributionDownload(version, platform, gradleRunner, buildRunClosure, true, false)
+    }
+
+    private static BuildResult doRunWithMockedDistributionDownload(String version, ElasticsearchDistribution.Platform platform,
+                                                                   GradleRunner gradleRunner, Closure<BuildResult> buildRunClosure,
+                                                                   boolean withAddedJar, boolean withAddedConfig) {
         String urlPath = urlPath(version, platform);
-        return WiremockFixture.withWireMock(urlPath, filebytes(urlPath)) { server ->
+        return WiremockFixture.withWireMock(urlPath, filebytes(urlPath, withAddedJar, withAddedConfig)) { server ->
             File initFile = new File(gradleRunner.getProjectDir(), INIT_SCRIPT)
             initFile.text = """allprojects { p ->
                 p.repositories.all { repo ->
@@ -47,8 +67,9 @@ class DistributionDownloadFixture {
         "/downloads/elasticsearch/elasticsearch-${version}-${platform}-${Architecture.current().classifier}.$fileType"
     }
 
-    private static byte[] filebytes(String urlPath) throws IOException {
-        String suffix = urlPath.endsWith("zip") ? "zip" : "tar.gz";
-        return DistributionDownloadFixture.getResourceAsStream("/org/elasticsearch/gradle/fake_elasticsearch." + suffix).getBytes()
+    private static byte[] filebytes(String urlPath, boolean withAddedJar, boolean withAddedConfig) throws IOException {
+        String distro = (withAddedJar ? "-with-added-jar" : "") + (withAddedConfig ? "-with-added-config" : "")
+        String suffix = urlPath.endsWith("zip") ? ".zip" : ".tar.gz";
+        return DistributionDownloadFixture.getResourceAsStream("/org/elasticsearch/gradle/fake_elasticsearch${distro}" + suffix).getBytes()
     }
 }

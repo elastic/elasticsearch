@@ -18,14 +18,11 @@ Starts one or more {transforms}.
 [[start-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
+Requires the following privileges:
 
-* `manage_transform`
-* source index: `view_index_metadata`  
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
-
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`.
 
 [[start-transform-desc]]
 == {api-description-title}

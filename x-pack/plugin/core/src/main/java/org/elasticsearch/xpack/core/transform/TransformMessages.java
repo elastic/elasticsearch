@@ -29,6 +29,9 @@ public class TransformMessages {
     public static final String TRANSFORM_FAILED_TO_PERSIST_STATS = "Failed to persist transform statistics for transform [{0}]";
     public static final String UNKNOWN_TRANSFORM_STATS = "Statistics for transform [{0}] could not be found";
 
+    public static final String FAILED_TO_UNSET_RESET_MODE =
+        "Failed to set [reset_mode] to [false] after {0}. To allow transforms to run, please call the feature reset API again";
+
     public static final String REST_DEPRECATED_ENDPOINT = "[_data_frame/transforms/] is deprecated, use [_transform/] in the future.";
     public static final String REST_WARN_NO_TRANSFORM_NODES =
         "Transform requires the transform node role for at least 1 node, found no transform nodes";

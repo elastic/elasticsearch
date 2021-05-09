@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.precommit.ThirdPartyAuditPrecommitPlugin
-import org.elasticsearch.gradle.precommit.ThirdPartyAuditTask
+import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditPrecommitPlugin
+import org.elasticsearch.gradle.internal.precommit.ThirdPartyAuditTask
 
 
 plugins {

@@ -27,9 +27,9 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,9 +48,13 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"roles\": [],\n"
         + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
         + "  \"email\": null,\n"
+        + "  \"token\": {\n"
+        + "    \"name\": \"%s\"\n"
+        + "  },\n"
         + "  \"metadata\": {\n"
         + "    \"_elastic_service_account\": true\n"
-        + "  },\n" + "  \"enabled\": true,\n"
+        + "  },\n"
+        + "  \"enabled\": true,\n"
         + "  \"authentication_realm\": {\n"
         + "    \"name\": \"service_account\",\n"
         + "    \"type\": \"service_account\"\n"
@@ -62,7 +66,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"authentication_type\": \"token\"\n"
         + "}\n";
 
-    private static final String ELASTIC_FLEET_ROLE_DESCRIPTOR = ""
+    private static final String ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR = ""
         + "{\n"
         + "      \"cluster\": [\n"
         + "        \"monitor\",\n"
@@ -73,10 +77,25 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "          \"names\": [\n"
         + "            \"logs-*\",\n"
         + "            \"metrics-*\",\n"
-        + "            \"traces-*\"\n"
+        + "            \"traces-*\",\n"
+        + "            \"synthetics-*\",\n"
+        + "            \".logs-endpoint.diagnostic.collection-*\"\n"
         + "          ],\n"
         + "          \"privileges\": [\n"
         + "            \"write\",\n"
+        + "            \"create_index\",\n"
+        + "            \"auto_configure\"\n"
+        + "          ],\n"
+        + "          \"allow_restricted_indices\": false\n"
+        + "        },\n"
+        + "        {\n"
+        + "          \"names\": [\n"
+        + "            \".fleet-*\"\n"
+        + "          ],\n"
+        + "          \"privileges\": [\n"
+        + "            \"read\",\n"
+        + "            \"write\",\n"
+        + "            \"monitor\",\n"
         + "            \"create_index\",\n"
         + "            \"auto_configure\"\n"
         + "          ],\n"
@@ -108,8 +127,16 @@ public class ServiceAccountIT extends ESRestTestCase {
     }
 
     @Override
+    protected Settings restAdminSettings() {
+        final String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token)
+            .put(CERTIFICATE_AUTHORITIES, caPath)
+            .build();
+    }
+
+    @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+        final String token = basicAuthHeaderValue("service_account_manager", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token)
             .put(CERTIFICATE_AUTHORITIES, caPath)
             .build();
@@ -120,19 +147,19 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response getServiceAccountResponse1 = client().performRequest(getServiceAccountRequest1);
         assertOK(getServiceAccountResponse1);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse1,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequest2 = new Request("GET", "_security/service/elastic");
         final Response getServiceAccountResponse2 = client().performRequest(getServiceAccountRequest2);
         assertOK(getServiceAccountResponse2);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse2,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final Request getServiceAccountRequest3 = new Request("GET", "_security/service/elastic/fleet-server");
         final Response getServiceAccountResponse3 = client().performRequest(getServiceAccountRequest3);
         assertOK(getServiceAccountResponse3);
         assertServiceAccountRoleDescriptor(getServiceAccountResponse3,
-            "elastic/fleet-server", ELASTIC_FLEET_ROLE_DESCRIPTOR);
+            "elastic/fleet-server", ELASTIC_FLEET_SERVER_ROLE_DESCRIPTOR);
 
         final String requestPath = "_security/service/" + randomFrom("foo", "elastic/foo", "foo/bar");
         final Request getServiceAccountRequest4 = new Request("GET", requestPath);
@@ -147,7 +174,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
-            equalTo(XContentHelper.convertToMap(new BytesArray(AUTHENTICATE_RESPONSE), false, XContentType.JSON).v2()));
+            equalTo(XContentHelper.convertToMap(
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1")),
+                false, XContentType.JSON).v2()));
     }
 
     public void testAuthenticateShouldNotFallThroughInCaseOfFailure() throws IOException {
@@ -155,7 +184,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         if (securityIndexExists) {
             final Request createRoleRequest = new Request("POST", "_security/role/dummy_role");
             createRoleRequest.setJsonEntity("{\"cluster\":[]}");
-            assertOK(client().performRequest(createRoleRequest));
+            assertOK(adminClient().performRequest(createRoleRequest));
         }
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + INVALID_SERVICE_TOKEN));
@@ -172,14 +201,14 @@ public class ServiceAccountIT extends ESRestTestCase {
     public void testAuthenticateShouldWorkWithOAuthBearerToken() throws IOException {
         final Request oauthTokenRequest = new Request("POST", "_security/oauth2/token");
         oauthTokenRequest.setJsonEntity("{\"grant_type\":\"password\",\"username\":\"test_admin\",\"password\":\"x-pack-test-password\"}");
-        final Response oauthTokenResponse = client().performRequest(oauthTokenRequest);
+        final Response oauthTokenResponse = adminClient().performRequest(oauthTokenRequest);
         assertOK(oauthTokenResponse);
         final Map<String, Object> oauthTokenResponseMap = responseAsMap(oauthTokenResponse);
         final String accessToken = (String) oauthTokenResponseMap.get("access_token");
 
         final Request request = new Request("GET", "_security/_authenticate");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessToken));
-        final Response response = client().performRequest(request);
+        final Response response = adminClient().performRequest(request);
         assertOK(response);
         final Map<String, Object> responseMap = responseAsMap(response);
         assertThat(responseMap.get("username"), equalTo("test_admin"));
@@ -188,7 +217,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         final String refreshToken = (String) oauthTokenResponseMap.get("refresh_token");
         final Request refreshTokenRequest = new Request("POST", "_security/oauth2/token");
         refreshTokenRequest.setJsonEntity("{\"grant_type\":\"refresh_token\",\"refresh_token\":\"" + refreshToken + "\"}");
-        final Response refreshTokenResponse = client().performRequest(refreshTokenRequest);
+        final Response refreshTokenResponse = adminClient().performRequest(refreshTokenRequest);
         assertOK(refreshTokenResponse);
     }
 
@@ -223,7 +252,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(responseAsMap(response),
-            equalTo(XContentHelper.convertToMap(new BytesArray(AUTHENTICATE_RESPONSE), false, XContentType.JSON).v2()));
+            equalTo(XContentHelper.convertToMap(
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1")),
+                false, XContentType.JSON).v2()));
     }
 
     public void testFileTokenAndApiTokenCanShareTheSameNameAndBothWorks() throws IOException {
@@ -258,7 +289,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(e.getMessage(), containsString("document already exists"));
     }
 
-    public void testGetServiceAccountTokens() throws IOException {
+    public void testGetServiceAccountCredentials() throws IOException {
         final Request getTokensRequest = new Request("GET", "_security/service/elastic/fleet-server/credential");
         final Response getTokensResponse1 = client().performRequest(getTokensRequest);
         assertOK(getTokensResponse1);
@@ -286,6 +317,37 @@ public class ServiceAccountIT extends ESRestTestCase {
             "api-token-1", Map.of(),
             "api-token-2", Map.of()
         )));
+
+        final Request deleteTokenRequest1 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/api-token-2");
+        final Response deleteTokenResponse1 = client().performRequest(deleteTokenRequest1);
+        assertOK(deleteTokenResponse1);
+        assertThat(responseAsMap(deleteTokenResponse1).get("found"), is(true));
+
+        final Response getTokensResponse3 = client().performRequest(getTokensRequest);
+        assertOK(getTokensResponse3);
+        final Map<String, Object> getTokensResponseMap3 = responseAsMap(getTokensResponse3);
+        assertThat(getTokensResponseMap3.get("service_account"), equalTo("elastic/fleet-server"));
+        assertThat(getTokensResponseMap3.get("count"), equalTo(2));
+        assertThat(getTokensResponseMap3.get("file_tokens"), equalTo(Map.of("token1", Map.of())));
+        assertThat(getTokensResponseMap3.get("tokens"), equalTo(Map.of(
+            "api-token-1", Map.of()
+        )));
+
+        final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");
+        final Response deleteTokenResponse2 = client().performRequest(deleteTokenRequest2);
+        assertOK(deleteTokenResponse2);
+        assertThat(responseAsMap(deleteTokenResponse2).get("found"), is(false));
+    }
+
+    public void testClearCache() throws IOException {
+        final Request clearCacheRequest = new Request("POST", "_security/service/elastic/fleet-server/credential/token/"
+            + randomFrom("", "*", "api-token-1", "api-token-1,api-token2") + "/_clear_cache");
+        final Response clearCacheResponse = adminClient().performRequest(clearCacheRequest);
+        assertOK(clearCacheResponse);
+        final Map<String, Object> clearCacheResponseMap = responseAsMap(clearCacheResponse);
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> nodesMap = (Map<String, Object>) clearCacheResponseMap.get("_nodes");
+        assertThat(nodesMap.get("failed"), equalTo(0));
     }
 
     public void testManageOwnApiKey() throws IOException {

@@ -32,7 +32,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
 
     @Override
     protected GeoGridTiler getUnboundedGridTiler(int precision) {
-        return new UnBoundedGeoTileGridTiler(precision);
+        return new UnboundedGeoTileGridTiler(precision);
     }
 
     @Override
@@ -58,7 +58,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
     @Override
     protected void assertSetValuesBruteAndRecursive(Geometry geometry) throws Exception {
         int precision = randomIntBetween(1, 4);
-        UnBoundedGeoTileGridTiler tiler = new UnBoundedGeoTileGridTiler(precision);
+        UnboundedGeoTileGridTiler tiler = new UnboundedGeoTileGridTiler(precision);
         GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         geometry = indexer.prepareForIndexing(geometry);
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
@@ -197,7 +197,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
         double x = randomDouble();
         double y = randomDouble();
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        assertThat(new UnBoundedGeoTileGridTiler(precision).encode(x, y), equalTo(GeoTileUtils.longEncode(x, y, precision)));
+        assertThat(new UnboundedGeoTileGridTiler(precision).encode(x, y), equalTo(GeoTileUtils.longEncode(x, y, precision)));
 
         // create rectangle within tile and check bound counts
         Rectangle tile = GeoTileUtils.toBoundingBox(1309, 3166, 13);
@@ -206,17 +206,17 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
         GeoShapeValues.GeoShapeValue value = geoShapeValue(shapeRectangle);
         // test shape within tile bounds
         {
-            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnBoundedGeoTileGridTiler(13), NOOP_BREAKER);
+            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoTileGridTiler(13), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             assertThat(values.docValueCount(), equalTo(1));
         }
         {
-            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnBoundedGeoTileGridTiler(14), NOOP_BREAKER);
+            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoTileGridTiler(14), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             assertThat(values.docValueCount(), equalTo(4));
         }
         {
-            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnBoundedGeoTileGridTiler(15), NOOP_BREAKER);
+            GeoShapeCellValues values = new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoTileGridTiler(15), NOOP_BREAKER);
             assertTrue(values.advanceExact(0));
             assertThat(values.docValueCount(), equalTo(16));
         }
@@ -280,7 +280,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             }
             GeoShapeValues.GeoShapeValue value = geoShapeValue(point);
             GeoShapeCellValues unboundedCellValues =
-                new GeoShapeCellValues(makeGeoShapeValues(value), new UnBoundedGeoTileGridTiler(precision), NOOP_BREAKER);
+                new GeoShapeCellValues(makeGeoShapeValues(value), new UnboundedGeoTileGridTiler(precision), NOOP_BREAKER);
             assertTrue(unboundedCellValues.advanceExact(0));
             int numTiles = unboundedCellValues.docValueCount();
             assertThat(numTiles, equalTo(1));

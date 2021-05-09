@@ -11,10 +11,10 @@ package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 /**
  * Unbounded geotile aggregation. It accepts any tile.
  */
-public class UnBoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
+public class UnboundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     private final long maxTiles;
 
-    public UnBoundedGeoTileGridTiler(int precision) {
+    public UnboundedGeoTileGridTiler(int precision) {
         super(precision);
         maxTiles = tiles * tiles;
     }

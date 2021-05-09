@@ -36,6 +36,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -64,6 +65,9 @@ import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -77,8 +81,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin.PASSWORD_NAME_SETTING;
+
 public class EncryptedRepository extends BlobStoreRepository {
-    static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
+    private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
+    private static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
     // the following constants are fixed by definition
     static final int GCM_TAG_LENGTH_IN_BYTES = 16;
     static final int GCM_IV_LENGTH_IN_BYTES = 12;
@@ -109,6 +116,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     protected Supplier<XPackLicenseState> licenseStateSupplier;
     private final SecureString repositoryPassword;
     private final Cache<String, SecretKey> dekCache;
+    private final Supplier<Map<String, String>> troubleshootGenerationInfoSupplier;
 
     /**
      * Returns the byte length (i.e. the storage size) of an encrypted blob, given the length of the blob's plaintext contents.
@@ -155,6 +163,22 @@ public class EncryptedRepository extends BlobStoreRepository {
         if (false == isReadOnly()) {
             createDEKGenerator();
         }
+        troubleshootGenerationInfoSupplier = () -> Map.of(
+            "node.id",
+            clusterService.localNode().getId(),
+            "node.name",
+            clusterService.localNode().getName(),
+            "cluster.name",
+            clusterService.getClusterName().value(),
+            "cluster.uuid",
+            clusterService.state().metadata().clusterUUID(),
+            "repository.name",
+            metadata.name(),
+            "repository.password_name",
+            PASSWORD_NAME_SETTING.get(metadata.settings()),
+            "timestamp",
+            STRICT_DATE_TIME_FORMATTER.format(ZonedDateTime.ofInstant(Instant.now(), ZoneOffset.UTC))
+        );
     }
 
     @Override
@@ -287,7 +311,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             bigArrays,
             () -> repositoryPassword, // password is constant for now, but the blob store is built to assume that it can change
             blobStoreDEKGenerator,
-            dekCache
+            dekCache,
+            troubleshootGenerationInfoSupplier
         );
     }
 
@@ -347,6 +372,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         private final Cache<Set<String>, Optional<String>> inferLatestPasswordGenerationCache;
         private final Cache<Tuple<SecureString, String>, Boolean> verifyPasswordForGenerationCache;
         private final Cache<SecureString, String> loadGenerationForPasswordCache;
+        private final Supplier<Map<String, String>> troubleshootGenerationInfoSupplier;
 
         EncryptedBlobStore(
             BlobStore delegatedBlobStore,
@@ -355,7 +381,8 @@ public class EncryptedRepository extends BlobStoreRepository {
             BigArrays bigArrays,
             Supplier<SecureString> repositoryPasswordSupplier,
             Supplier<Tuple<BytesReference, SecretKey>> dekGenerator,
-            Cache<String, SecretKey> dekCache
+            Cache<String, SecretKey> dekCache,
+            Supplier<Map<String, String>> troubleshootGenerationInfoSupplier
         ) {
             this.delegatedBlobStore = delegatedBlobStore;
             this.delegatedBasePath = delegatedBasePath;
@@ -374,10 +401,13 @@ public class EncryptedRepository extends BlobStoreRepository {
                 .setMaximumWeight(1)
                 .build();
             this.loadGenerationForPasswordCache = CacheBuilder.<SecureString, String>builder().setMaximumWeight(1).build();
+            this.troubleshootGenerationInfoSupplier = troubleshootGenerationInfoSupplier;
         }
 
         // protected for tests
         protected void maybeInitializePasswordGeneration() throws IOException, GeneralSecurityException {
+            // check then write is generally not safe, but in this case there's cluster-wide coordination
+            // to ensure that no password generation is stored concurrently
             if (inferLatestPasswordGeneration().isEmpty()) {
                 createPasswordGeneration(repositoryPasswordSupplier.get(), 0);
             }
@@ -493,8 +523,11 @@ public class EncryptedRepository extends BlobStoreRepository {
             String doneBlobName = String.format(Locale.ROOT, DEKS_GEN_MARKER_BLOB + "%d.%s", generation, doneUUID);
             // do the pbkdf2 on the calling thread
             String passwordHash = AESKeyUtils.computeId(AESKeyUtils.generatePasswordBasedKey(password, doneUUID));
-            // TODO add other troubleshooting details, eg: node id, cluster uuid, local timestamp, new password name, previous password gen
-            XContentBuilder doneBlobContents = XContentFactory.jsonBuilder().map(Map.of("password_hash", passwordHash));
+            XContentBuilder doneBlobContents = XContentFactory.jsonBuilder()
+                .startObject()
+                .field("password_hash", passwordHash)
+                .mapContents(troubleshootGenerationInfoSupplier.get())
+                .endObject();
             deksBlobContainer.writeBlobAtomic(doneBlobName, BytesReference.bytes(doneBlobContents), true);
         }
 

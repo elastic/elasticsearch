@@ -7,7 +7,11 @@
 
 package org.elasticsearch.repositories.encrypted;
 
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -78,6 +82,18 @@ public class EncryptedRepositoryTests extends ESTestCase {
         when(clusterApplierService.threadPool()).thenReturn(mock(ThreadPool.class));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
+        DiscoveryNode mockNode = mock(DiscoveryNode.class);
+        when(mockNode.getId()).thenReturn("node.getId()");
+        when(mockNode.getName()).thenReturn("node.getName()");
+        ClusterName mockClusterName = mock(ClusterName.class);
+        when(mockClusterName.value()).thenReturn("clusterName.value()");
+        when(clusterService.getClusterName()).thenReturn(mockClusterName);
+        Metadata mockMetadata = mock(Metadata.class);
+        when(mockMetadata.clusterUUID()).thenReturn("clusterUuid");
+        ClusterState mockClusterState = mock(ClusterState.class);
+        when(mockClusterState.metadata()).thenReturn(mockMetadata);
+        when(clusterService.state()).thenReturn(mockClusterState);
+        when(clusterService.localNode()).thenReturn(mockNode);
         this.encryptedRepository = new EncryptedRepository(
             repositoryMetadata,
             mock(NamedXContentRegistry.class),

@@ -19,7 +19,6 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -51,7 +50,7 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
                 BlobStoreRepository delegatedRepository,
                 Supplier<XPackLicenseState> licenseStateSupplier,
                 SecureString repoPassword
-            ) throws GeneralSecurityException {
+            ) {
                 return new TestEncryptedRepository(
                     metadata,
                     registry,
@@ -81,7 +80,7 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
             BlobStoreRepository delegatedRepository,
             Supplier<XPackLicenseState> licenseStateSupplier,
             SecureString repoPassword
-        ) throws GeneralSecurityException {
+        ) {
             super(metadata, registry, clusterService, bigArrays, recoverySettings, delegatedRepository, licenseStateSupplier, repoPassword);
         }
 

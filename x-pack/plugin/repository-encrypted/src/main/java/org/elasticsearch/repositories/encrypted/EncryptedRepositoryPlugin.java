@@ -29,7 +29,6 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
-import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -190,7 +189,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         BlobStoreRepository delegatedRepository,
         Supplier<XPackLicenseState> licenseStateSupplier,
         SecureString repoPassword
-    ) throws GeneralSecurityException {
+    ) {
         return new EncryptedRepository(
             metadata,
             registry,

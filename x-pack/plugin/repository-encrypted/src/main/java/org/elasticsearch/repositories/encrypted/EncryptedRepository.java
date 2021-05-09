@@ -62,6 +62,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -104,8 +105,6 @@ public class EncryptedRepository extends BlobStoreRepository {
     // this is the repository instance to which all blob reads and writes are forwarded to (it stores both the encrypted blobs, as well
     // as the associated encrypted DEKs)
     private final BlobStoreRepository delegatedRepository;
-    // every data blob is encrypted with its randomly generated AES key (DEK)
-    private final Supplier<Tuple<BytesReference, SecretKey>> dekGenerator;
     // license is checked before every snapshot operations; protected non-final for tests
     protected Supplier<XPackLicenseState> licenseStateSupplier;
     private final SecureString repositoryPassword;
@@ -130,7 +129,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         BlobStoreRepository delegatedRepository,
         Supplier<XPackLicenseState> licenseStateSupplier,
         SecureString repositoryPassword
-    ) throws GeneralSecurityException {
+    ) {
         super(
             metadata,
             namedXContentRegistry,
@@ -141,7 +140,6 @@ public class EncryptedRepository extends BlobStoreRepository {
                                  base blob path but the base path setting is honored for the delegated repository */
         );
         this.delegatedRepository = delegatedRepository;
-        this.dekGenerator = createDEKGenerator();
         this.licenseStateSupplier = licenseStateSupplier;
         this.repositoryPassword = repositoryPassword;
         // stores decrypted DEKs; DEKs are reused to encrypt/decrypt multiple independent blobs
@@ -152,6 +150,10 @@ public class EncryptedRepository extends BlobStoreRepository {
                 "Unexpected fatal internal error",
                 new IllegalStateException("The encrypted repository must be read-only iff the delegate repository is read-only")
             );
+        }
+        // run this to detect unavailable crypto algorithms early
+        if (false == isReadOnly()) {
+            createDEKGenerator();
         }
     }
 
@@ -275,7 +277,8 @@ public class EncryptedRepository extends BlobStoreRepository {
                 );
             };
         } else {
-            blobStoreDEKGenerator = this.dekGenerator;
+            // every data blob is encrypted with its randomly generated AES key (DEK)
+            blobStoreDEKGenerator = createDEKGenerator();
         }
         return new EncryptedBlobStore(
             delegatedRepository.blobStore(),
@@ -306,13 +309,18 @@ public class EncryptedRepository extends BlobStoreRepository {
         this.delegatedRepository.close();
     }
 
-    private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() throws GeneralSecurityException {
+    private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() {
         // DEK and DEK Ids MUST be generated randomly (with independent random instances)
         // the rand algo is not pinned so that it goes well with various providers (eg FIPS)
-        // TODO maybe we can make this configurable for rigorous users
+        // but maybe there should be a way to configure these
         final SecureRandom dekSecureRandom = new SecureRandom();
         final SecureRandom dekIdSecureRandom = new SecureRandom();
-        final KeyGenerator dekGenerator = KeyGenerator.getInstance(DATA_ENCRYPTION_SCHEME.split("/")[0]);
+        final KeyGenerator dekGenerator;
+        try {
+            dekGenerator = KeyGenerator.getInstance(DATA_ENCRYPTION_SCHEME.split("/")[0]);
+        } catch (NoSuchAlgorithmException e) {
+            throw new ElasticsearchException("Unavailable required crypto algorithms", e);
+        }
         dekGenerator.init(AESKeyUtils.KEY_LENGTH_IN_BYTES * Byte.SIZE, dekSecureRandom);
         return () -> {
             final BytesReference dekId = new BytesArray(UUIDs.randomBase64UUID(dekIdSecureRandom));
@@ -324,7 +332,6 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     @Override
     public boolean hasAtomicOverwrites() {
-        // TODO verify this
         return delegatedRepository.hasAtomicOverwrites();
     }
 

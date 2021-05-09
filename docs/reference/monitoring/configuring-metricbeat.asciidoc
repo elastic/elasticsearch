@@ -46,12 +46,14 @@ For more information, see <<monitoring-settings>> and <<cluster-update-settings>
 {metricbeat}]. Ideally install a single {metricbeat} instance configured with
 `scope: cluster` and configure `hosts` to point to an endpoint (e.g. a
 load-balancing proxy) which directs requests to the master-ineligible nodes in
-the cluster. If this is not possible, and the cluster does not use dedicated
-master-eligible nodes, then install one {metricbeat} instance for each {es}
-node in the production cluster and use the default `scope: node`. When
-{metricbeat} is monitoring {es} with `scope: node` then you must install a
+the cluster. If this is not possible then install one {metricbeat} instance for
+each {es} node in the production cluster and use the default `scope: node`.
+When {metricbeat} is monitoring {es} with `scope: node` then you must install a
 {metricbeat} instance for each {es} node. If you don't, some metrics will not
-be collected.
+be collected. {metricbeat} with `scope: node` collects most of the metrics from
+the elected master of the cluster, so you must scale up all your
+master-eligible nodes to account for this extra load and you should not use
+this mode if you have dedicated master nodes.
 
 . Enable the {es} module in {metricbeat} on each {es} node.
 +

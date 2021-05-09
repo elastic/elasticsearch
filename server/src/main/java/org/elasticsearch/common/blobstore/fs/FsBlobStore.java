@@ -76,10 +76,8 @@ public class FsBlobStore implements BlobStore {
             return path();
         }
         Path blobPath = this.path.resolve(paths.get(0));
-        if (paths.size() > 1) {
-            for (int i = 1; i < paths.size(); i++) {
-                blobPath = blobPath.resolve(paths.get(i));
-            }
+        for (int i = 1; i < paths.size(); i++) {
+            blobPath = blobPath.resolve(paths.get(i));
         }
         return blobPath;
     }

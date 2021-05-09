@@ -99,7 +99,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
 
     @Override
     public BlobPath basePath() {
-        return BlobPath.cleanPath();
+        return BlobPath.EMPTY;
     }
 
     /**

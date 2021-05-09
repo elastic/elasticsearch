@@ -176,7 +176,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
 
     public void testWriteReadLarge() throws IOException {
         try (BlobStore store = newBlobStore()) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             byte[] data = randomBytes(GoogleCloudStorageBlobStore.LARGE_BLOB_THRESHOLD_BYTE_SIZE + 1);
             writeBlob(container, "foobar", new BytesArray(data), randomBoolean());
             if (randomBoolean()) {

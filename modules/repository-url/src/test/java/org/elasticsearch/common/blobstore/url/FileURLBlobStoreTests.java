@@ -54,7 +54,7 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     @Override
     BlobContainer getBlobContainer() {
-        return blobStore.blobContainer(new BlobPath());
+        return blobStore.blobContainer(BlobPath.EMPTY);
     }
 
     @Override

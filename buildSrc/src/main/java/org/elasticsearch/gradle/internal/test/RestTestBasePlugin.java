@@ -11,7 +11,7 @@ package org.elasticsearch.gradle.internal.test;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.FixtureStop;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
-import org.elasticsearch.gradle.internal.test.rest.StandaloneRestIntegTestTask;
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;

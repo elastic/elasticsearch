@@ -108,7 +108,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         return PathUtils.get(dirValue, "", "");
     }
 
-    protected void findAndProcessShardPath(OptionSet options, Environment environment, Path[] dataPaths, ClusterState clusterState,
+    protected void findAndProcessShardPath(OptionSet options, Environment environment, Path dataPath, ClusterState clusterState,
                                            CheckedConsumer<ShardPath, IOException> consumer)
     throws IOException {
         final Settings settings = environment.settings();
@@ -154,18 +154,15 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         final Index index = indexMetadata.getIndex();
         final ShardId shId = new ShardId(index, shardId);
 
-        for (Path dataPath : dataPaths) {
-            final Path shardPathLocation = dataPath
-                .resolve(NodeEnvironment.INDICES_FOLDER)
-                .resolve(index.getUUID())
-                .resolve(Integer.toString(shId.id()));
-            if (Files.exists(shardPathLocation)) {
-                final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
-                    new Path[]{shardPathLocation}, dataPath);
-                if (shardPath != null) {
-                    consumer.accept(shardPath);
-                    return;
-                }
+        final Path shardPathLocation = dataPath
+            .resolve(NodeEnvironment.INDICES_FOLDER)
+            .resolve(index.getUUID())
+            .resolve(Integer.toString(shId.id()));
+        if (Files.exists(shardPathLocation)) {
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, shId, indexSettings.customDataPath(),
+                shardPathLocation, dataPath);
+            if (shardPath != null) {
+                consumer.accept(shardPath);
             }
         }
     }
@@ -228,13 +225,13 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
 
     // Visible for testing
     @Override
-    public void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment environment) throws IOException {
+    public void processNodePaths(Terminal terminal, Path dataPath, OptionSet options, Environment environment) throws IOException {
         warnAboutIndexBackup(terminal);
 
         final ClusterState clusterState =
-            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPaths), environment).v2();
+            loadTermAndClusterState(createPersistedClusterStateService(environment.settings(), dataPath), environment).v2();
 
-        findAndProcessShardPath(options, environment, dataPaths, clusterState, shardPath -> {
+        findAndProcessShardPath(options, environment, dataPath, clusterState, shardPath -> {
             final Path indexPath = shardPath.resolveIndex();
             final Path translogPath = shardPath.resolveTranslog();
             if (Files.exists(translogPath) == false || Files.isDirectory(translogPath) == false) {

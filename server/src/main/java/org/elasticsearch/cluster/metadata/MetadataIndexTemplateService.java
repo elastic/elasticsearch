@@ -1233,8 +1233,7 @@ public class MetadataIndexTemplateService {
                     }
 
                     if (template.getDataStreamTemplate() != null) {
-                        String tsFieldName = template.getDataStreamTemplate().getTimestampField();
-                        validateTimestampFieldMapping(tsFieldName, mapperService);
+                        validateTimestampFieldMapping(mapperService.mappingLookup());
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

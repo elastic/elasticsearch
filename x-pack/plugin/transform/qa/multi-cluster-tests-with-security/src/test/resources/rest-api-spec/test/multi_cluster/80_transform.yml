@@ -26,17 +26,22 @@ setup:
   - do:
       security.put_role:
         name: "x_cluster_role"
+        # gh#72715: the my_remote_cluster privileges should not be needed
         body:  >
           {
             "cluster": [],
             "indices": [
               {
-                "names": ["test_index", "my_remote_cluster:test_i*", "my_remote_cluster:aliased_test_index"],
-                "privileges": ["all", "view_index_metadata"]
+                "names": ["test_index"],
+                "privileges": ["read", "view_index_metadata"]
               },
               {
                 "names": ["simple-remote-transform*", "simple-local-remote-transform"],
-                "privileges": ["all"]
+                "privileges": ["create_index", "index", "read"]
+              },
+              {
+                "names": ["my_remote_cluster:remote_test_i*", "my_remote_cluster:aliased_test_index"],
+                "privileges": ["read", "view_index_metadata"]
               }
             ]
           }
@@ -50,7 +55,7 @@ setup:
             "indices": [
               {
                 "names": ["simple-remote-transform*", "simple-local-remote-transform"],
-                "privileges": ["all"]
+                "privileges": ["create_index", "index", "read"]
               }
             ]
           }
@@ -73,7 +78,7 @@ teardown:
         transform_id: "simple-remote-transform"
         body: >
           {
-            "source": { "index": "my_remote_cluster:test_index" },
+            "source": { "index": "my_remote_cluster:remote_test_index" },
             "dest": { "index": "simple-remote-transform" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
@@ -132,7 +137,7 @@ teardown:
         transform_id: "simple-remote-transform"
         body: >
           {
-            "source": { "index": ["my_remote_cluster:test_index", "my_remote_cluster:test_index_2"] }
+            "source": { "index": ["my_remote_cluster:remote_test_index", "my_remote_cluster:remote_test_index_2"] }
           }
   - do:
       headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
@@ -152,7 +157,7 @@ teardown:
         body:  >
           {
             "source": {
-              "index": "my_remote_cluster:test_index",
+              "index": "my_remote_cluster:remote_test_index",
               "runtime_mappings" : {
                 "user-upper": {
                   "type": "keyword",
@@ -232,7 +237,7 @@ teardown:
         transform_id: "simple-local-remote-transform"
         body: >
           {
-            "source": { "index": ["test_index", "my_remote_cluster:test_index"] },
+            "source": { "index": ["test_index", "my_remote_cluster:remote_test_index"] },
             "dest": { "index": "simple-local-remote-transform" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
@@ -294,13 +299,13 @@ teardown:
 ---
 "Batch transform from remote cluster when the user is not authorized":
   - do:
-      catch: /Cannot create transform \[simple-remote-transform\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:test_index, simple-remote-transform\]/
+      catch: /Cannot create transform \[simple-remote-transform\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index, simple-remote-transform\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.put_transform:
         transform_id: "simple-remote-transform"
         body: >
           {
-            "source": { "index": "my_remote_cluster:test_index" },
+            "source": { "index": "my_remote_cluster:remote_test_index" },
             "dest": { "index": "simple-remote-transform" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
@@ -316,7 +321,7 @@ teardown:
         transform_id: "simple-remote-transform-2"
         body: >
           {
-            "source": { "index": "my_remote_cluster:test_index" },
+            "source": { "index": "my_remote_cluster:remote_test_index" },
             "dest": { "index": "simple-remote-transform-2" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
@@ -325,13 +330,13 @@ teardown:
           }
   - match: { acknowledged: true }
   - do:
-      catch: /Cannot update transform \[simple-remote-transform-2\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:test_index, simple-remote-transform-2\]/
+      catch: /Cannot update transform \[simple-remote-transform-2\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index, simple-remote-transform-2\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.update_transform:
         transform_id: "simple-remote-transform-2"
         body: >
           {
-            "source": { "index": "my_remote_cluster:test_index" },
+            "source": { "index": "my_remote_cluster:remote_test_index" },
             "dest": { "index": "simple-remote-transform-2" }
           }
 
@@ -343,7 +348,7 @@ teardown:
       transform.preview_transform:
         body: >
           {
-            "source": { "index": "my_remote_cluster:test_index" },
+            "source": { "index": "my_remote_cluster:remote_test_index" },
             "dest": { "index": "simple-remote-transform-2" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},

@@ -151,7 +151,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
 
         final BlobPath blobPath = BlobPath.EMPTY;
         if (randomBoolean()) {
-            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> BlobPath.EMPTY.add("path_" + value));
         }
 
         final long blobSize = ByteSizeUnit.GB.toBytes(randomIntBetween(1, 128));
@@ -312,7 +312,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         doNothing().when(client).abortMultipartUpload(argumentCaptor.capture());
 
         final IOException e = expectThrows(IOException.class, () -> {
-            final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+            final S3BlobContainer blobContainer = new S3BlobContainer(BlobPath.EMPTY, blobStore);
             blobContainer.executeMultipartUpload(blobStore, blobName, new ByteArrayInputStream(new byte[0]), blobSize);
         });
 

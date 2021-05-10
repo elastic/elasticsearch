@@ -183,6 +183,7 @@ public class DissectParserTests extends ESTestCase {
         assertMatch("%{a} %%{b},%{c}", "foo %bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
         assertMatch("%{a} %{b},%%{c}", "foo bar,%baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
         assertMatch("%%{a} %{b},%{c}", "%foo bar,baz", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "bar", "baz"));
+        assertMatch("%foo %{bar}", "%foo test", Arrays.asList("bar"),  Arrays.asList("test"));
     }
 
     public void testAppendAndAssociate() {

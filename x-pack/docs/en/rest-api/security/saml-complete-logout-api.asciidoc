@@ -67,8 +67,7 @@ POST /_security/saml/complete_logout
 {
   "realm": "saml1",
   "ids": [ "_1c368075e0b3..." ],
-  "queryString": "SAMLResponse=fZHLasMwEEVbfb1bf...&SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09
-%2Fxmldsig%23rsa-sha1&Signature=CuCmFn%2BLqnaZGZJqK..."
+  "queryString": "SAMLResponse=fZHLasMwEEVbfb1bf...&SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1&Signature=CuCmFn%2BLqnaZGZJqK..."
 }
 --------------------------------------------------
 // TEST[skip:can't test this without a valid SAML Logout Response]

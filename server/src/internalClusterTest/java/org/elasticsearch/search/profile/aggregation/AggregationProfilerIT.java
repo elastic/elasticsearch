@@ -224,12 +224,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         assertThat(termsAggResult.getDebugInfo(), hasEntry(COLLECTION_STRAT, "remap using many bucket ords"));
         assertThat(termsAggResult.getDebugInfo(), hasEntry(RESULT_STRAT, "terms"));
         assertThat(termsAggResult.getDebugInfo(), hasEntry(HAS_FILTER, false));
-        // TODO we only index single valued docs but the ordinals ends up with multi valued sometimes
-        assertThat(
-            termsAggResult.getDebugInfo().toString(),
-            (int) termsAggResult.getDebugInfo().get(SEGMENTS_WITH_SINGLE) + (int) termsAggResult.getDebugInfo().get(SEGMENTS_WITH_MULTI),
-            greaterThan(0)
-        );
+        assertThat(termsAggResult.getDebugInfo().toString(), (int) termsAggResult.getDebugInfo().get(SEGMENTS_WITH_SINGLE), greaterThan(0));
     }
 
     public void testMultiLevelProfileBreadthFirst() {

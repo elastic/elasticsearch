@@ -53,10 +53,14 @@ public class BlobPath {
      */
     @Nullable
     public BlobPath parent() {
-        if (paths.isEmpty()) {
-            return null;
-        } else {
-            return new BlobPath(List.copyOf(paths.subList(0, paths.size() - 1)));
+        int size = paths.size();
+        switch (size) {
+            case 0:
+                return null;
+            case 1:
+                return EMPTY;
+            default:
+                return new BlobPath(List.copyOf(paths.subList(0, size - 1)));
         }
     }
 

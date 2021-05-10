@@ -130,7 +130,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             bigArrays,
             recoverySettings,
             BlobPath.EMPTY /* the encrypted repository uses a hardcoded empty
-                              base blob path but the base path setting is honored for the delegated repository */
+                            base blob path but the base path setting is honored for the delegated repository */
         );
         this.delegatedRepository = delegatedRepository;
         this.dekGenerator = createDEKGenerator();
@@ -481,10 +481,9 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            final Iterator<String> pathIterator = path.parts().iterator();
             BlobPath delegatedBlobContainerPath = delegatedBasePath;
-            while (pathIterator.hasNext()) {
-                delegatedBlobContainerPath = delegatedBlobContainerPath.add(pathIterator.next());
+            for (String s : path.parts()) {
+                delegatedBlobContainerPath = delegatedBlobContainerPath.add(s);
             }
             final BlobContainer delegatedBlobContainer = delegatedBlobStore.blobContainer(delegatedBlobContainerPath);
             return new EncryptedBlobContainer(path, repositoryName, delegatedBlobContainer, singleUseDEKSupplier, this::getDEKById);
@@ -680,7 +679,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             final Map<String, BlobContainer> childEncryptedBlobContainers = delegatedBlobContainer.children();
             final Map<String, BlobContainer> resultBuilder = new HashMap<>(childEncryptedBlobContainers.size());
             for (Map.Entry<String, BlobContainer> childBlobContainer : childEncryptedBlobContainers.entrySet()) {
-                if (childBlobContainer.getKey().equals(DEK_ROOT_CONTAINER) && false == path().parts().isEmpty() == false) {
+                if (childBlobContainer.getKey().equals(DEK_ROOT_CONTAINER) && path().parts().isEmpty()) {
                     // do not descend into the DEK blob container
                     continue;
                 }

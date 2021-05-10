@@ -118,10 +118,8 @@ public class URLBlobStore implements BlobStore {
             return path();
         }
         URL blobPath = new URL(this.path, paths.get(0) + "/");
-        if (paths.size() > 1) {
-            for (int i = 1; i < paths.size(); i++) {
-                blobPath = new URL(blobPath, paths.get(i) + "/");
-            }
+        for (int i = 1; i < paths.size(); i++) {
+            blobPath = new URL(blobPath, paths.get(i) + "/");
         }
         return blobPath;
     }

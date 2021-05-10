@@ -56,7 +56,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class MockRepository extends FsRepository {
     private static final Logger logger = LogManager.getLogger(MockRepository.class);
@@ -437,7 +436,7 @@ public class MockRepository extends FsRepository {
                     deleteByteCount += blobs.get(blob).length();
                 }
                 blobStore().blobContainer(path().parent()).deleteBlobsIgnoringIfNotExists(
-                    Stream.of(path().parts().get(path().parts().size() - 1)).iterator());
+                    List.of(path().parts().get(path().parts().size() - 1)).iterator());
                 return deleteResult.add(deleteBlobCount, deleteByteCount);
             }
 

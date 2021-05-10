@@ -250,6 +250,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     public void testExecuteMultipartUploadAborted() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
+        final BlobPath blobPath = BlobPath.EMPTY;
 
         final long blobSize = ByteSizeUnit.MB.toBytes(765);
         final long bufferSize =  ByteSizeUnit.MB.toBytes(150);

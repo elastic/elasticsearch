@@ -37,6 +37,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.repositories.encrypted.EncryptedRepository.DEKS_GEN_MARKER_BLOB;
@@ -126,9 +127,9 @@ public class EncryptedRepositoryTests extends ESTestCase {
                 String prefix = ((String) invocationOnMockBlobContainer.getArguments()[0]);
                 Map<String, BlobMetadata> ans = new HashMap<>();
                 for (BlobPath itemPath : blobsMap.keySet()) {
-                    String[] itemPathArray = itemPath.toArray();
-                    if (itemPathArray[itemPathArray.length - 1].startsWith(prefix)) {
-                        ans.put(itemPathArray[itemPathArray.length - 1], mock(BlobMetadata.class));
+                    List<String> itemPathList = itemPath.parts();
+                    if (itemPathList.get(itemPathList.size() - 1).startsWith(prefix)) {
+                        ans.put(itemPathList.get(itemPathList.size() - 1), mock(BlobMetadata.class));
                     }
                 }
                 return ans;
@@ -212,9 +213,9 @@ public class EncryptedRepositoryTests extends ESTestCase {
                 String prefix = ((String) invocationOnMockBlobContainer.getArguments()[0]);
                 Map<String, BlobMetadata> ans = new HashMap<>();
                 for (BlobPath itemPath : blobsMap.keySet()) {
-                    String[] itemPathArray = itemPath.toArray();
-                    if (itemPathArray[itemPathArray.length - 1].startsWith(prefix)) {
-                        ans.put(itemPathArray[itemPathArray.length - 1], mock(BlobMetadata.class));
+                    List<String> itemPathList = itemPath.parts();
+                    if (itemPathList.get(itemPathList.size() - 1).startsWith(prefix)) {
+                        ans.put(itemPathList.get(itemPathList.size() - 1), mock(BlobMetadata.class));
                     }
                 }
                 return ans;

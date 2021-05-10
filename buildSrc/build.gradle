@@ -308,7 +308,8 @@ tasks.register("integTest", Test) {
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
 }
-tasks.named("check").configure { dependsOn("integTest") }
+// @TODO: Ignore for now for default builds as this would trigger integTest during each build startup
+// tasks.named("check").configure { dependsOn("integTest") }
 
 
 /*****************************************************************************

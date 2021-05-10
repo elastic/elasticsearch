@@ -445,6 +445,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             @Override
                             public void error(StorageException exception) {
                                 if (exception.getCode() != HTTP_NOT_FOUND) {
+                                    // track up to 10 failed blob deletions for the exception message below
                                     if (failedBlobs.size() < 10) {
                                         failedBlobs.add(blob);
                                     }
@@ -463,7 +464,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 }
             });
         } catch (final Exception e) {
-            throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
+            throw new IOException("Exception when deleting blobs " + failedBlobs, e);
         }
         assert failedBlobs.isEmpty();
     }

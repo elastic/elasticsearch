@@ -19,6 +19,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class RestDeleteByQueryActionTests extends RestActionTestCase {
 
@@ -30,8 +31,10 @@ public class RestDeleteByQueryActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((actionType, request) -> null);
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> null);
     }
+
     public void testTypeInPath() throws IOException {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_delete_by_query")
             .build();

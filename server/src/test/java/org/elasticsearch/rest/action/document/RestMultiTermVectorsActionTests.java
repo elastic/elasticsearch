@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,6 +18,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,14 +31,19 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestMultiTermVectorsAction());
+        //TODO clarify why we need to set these? any workaround?
+        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiTermVectorsResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiTermVectorsResponse.class));
     }
 
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/some_type/_mtermvectors")
             .build();
 
+        //when the execution fails, we don't get anything back?
         dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
@@ -68,12 +75,13 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_mtermvectors")
             .withContent(BytesReference.bytes(content), null)
             .build();
 
         dispatchRequest(request);
         // TODO change - now the deprecation warning is from MultiTermVectors..
-        assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+        assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

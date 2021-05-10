@@ -48,6 +48,9 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if(request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")){
+            request.param("type");
+        }
         MultiTermVectorsRequest multiTermVectorsRequest = new MultiTermVectorsRequest();
         TermVectorsRequest template = new TermVectorsRequest()
             .index(request.param("index"));

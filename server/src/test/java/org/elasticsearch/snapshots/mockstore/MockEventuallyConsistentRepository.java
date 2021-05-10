@@ -67,8 +67,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final RecoverySettings recoverySettings,
         final Context context,
         final Random random) {
-        super(metadata, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
-                BlobPath.cleanPath());
+        super(metadata, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings, BlobPath.EMPTY);
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;

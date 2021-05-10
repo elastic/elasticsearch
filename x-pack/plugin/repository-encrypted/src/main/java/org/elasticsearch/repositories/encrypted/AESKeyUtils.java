@@ -29,7 +29,7 @@ public final class AESKeyUtils {
     private static final int KDF_ITER = 61616;
     // the KDF algorithm that generate the symmetric key given the password
     private static final String KDF_ALGO = "PBKDF2WithHmacSHA512";
-    // The Id of any AES SecretKey is the AES-Wrap-ciphertext of this fixed 64 byte wide array.
+    // The Id of any AES SecretKey is the AES-Wrap-ciphertext of this fixed 32 byte wide array.
     // Key wrapping encryption is deterministic (same plaintext generates the same ciphertext)
     // and the probability that two different keys map the same plaintext to the same ciphertext is very small
     // (2^-256, much lower than the UUID collision of 2^-128), assuming AES is indistinguishable from a pseudorandom permutation.
@@ -48,9 +48,7 @@ public final class AESKeyUtils {
     //
     // But the verification goes a step further to make sure that the end-to-end cryptographic operations,
     // including decryption, that are used to get and "parse" the DEK work using the given password.
-    private static final byte[] KEY_ID_PLAINTEXT = "AES wrapping a known text of 64 byte length forms a sort of hash".getBytes(
-        StandardCharsets.UTF_8
-    );
+    private static final byte[] KEY_ID_PLAINTEXT = "wrapping known text forms key id".getBytes(StandardCharsets.UTF_8);
     private static final String BLOCKING_OP_REASON = "Expensive hash computation";
 
     public static byte[] wrap(SecretKey wrappingKey, SecretKey keyToWrap) throws GeneralSecurityException {

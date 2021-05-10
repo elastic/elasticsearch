@@ -78,9 +78,9 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
 
         try (BlobStore store = new GoogleCloudStorageBlobStore("bucket", "test", "repo", storageService,
             randomIntBetween(1, 8) * 1024)) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
 
-            IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs));
+            IOException e = expectThrows(IOException.class, () -> container.deleteBlobsIgnoringIfNotExists(blobs.iterator()));
             assertThat(e.getCause(), instanceOf(StorageException.class));
         }
     }

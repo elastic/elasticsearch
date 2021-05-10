@@ -172,7 +172,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
                 .build());
 
-        return new AzureBlobContainer(BlobPath.cleanPath(), new AzureBlobStore(repositoryMetadata, service));
+        return new AzureBlobContainer(BlobPath.EMPTY, new AzureBlobStore(repositoryMetadata, service));
     }
 
     public void testReadNonexistentBlobThrowsNoSuchFileException() {

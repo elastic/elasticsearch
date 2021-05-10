@@ -81,6 +81,10 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         return requestId;
     }
 
+    public double[][] getInferenceResult() {
+        return inference;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

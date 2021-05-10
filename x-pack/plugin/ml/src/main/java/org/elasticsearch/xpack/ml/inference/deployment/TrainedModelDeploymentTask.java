@@ -15,7 +15,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
-import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.util.Map;
 
@@ -60,7 +60,7 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         stop(reason);
     }
 
-    public void infer(String inputs, ActionListener<PyTorchResult> listener) {
+    public void infer(String inputs, ActionListener<InferenceResults> listener) {
         manager.infer(this, inputs, listener);
     }
 }

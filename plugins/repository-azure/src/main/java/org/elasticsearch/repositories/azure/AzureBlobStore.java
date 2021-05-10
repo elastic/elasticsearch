@@ -365,7 +365,7 @@ public class AzureBlobStore implements BlobStore {
                         // Remove trailing slash
                         directoryName = directoryName.substring(0, directoryName.length() - 1);
                         childrenBuilder.put(directoryName,
-                            new AzureBlobContainer(BlobPath.cleanPath().add(blobItem.getName()), this));
+                            new AzureBlobContainer(BlobPath.EMPTY.add(blobItem.getName()), this));
                     }
                 }
             });

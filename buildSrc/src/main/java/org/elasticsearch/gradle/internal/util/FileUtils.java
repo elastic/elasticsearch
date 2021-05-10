@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.util;
+package org.elasticsearch.gradle.internal.util;
 
 import org.gradle.api.UncheckedIOException;
 

@@ -24,6 +24,9 @@ where security is enabled. The enroll node API response contains all the necessa
 for the joining node to bootstrap discovery and security related settings so that it
 can successfully join the cluster.
 
+NOTE: The response contains key and certificate material that allows the
+caller to generate valid signed certificates for the HTTP layer of all nodes in the cluster.
+
 [[security-api-node-enrollment-api-examples]]
 ==== {api-examples-title}
 

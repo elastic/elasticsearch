@@ -9,6 +9,14 @@
 
 Allows a new node to join an existing cluster with security features enabled.
 
+The purpose of the enroll node API is to allow a new node to join an existing cluster
+where security is enabled. The enroll node API response contains all the necessary information
+for the joining node to bootstrap discovery and security related settings so that it
+can successfully join the cluster.
+
+NOTE: The response contains key and certificate material that allows the
+caller to generate valid signed certificates for the HTTP layer of all nodes in the cluster.
+
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]

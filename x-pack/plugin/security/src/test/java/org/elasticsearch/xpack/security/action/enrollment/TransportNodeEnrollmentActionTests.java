@@ -8,18 +8,27 @@
 package org.elasticsearch.xpack.security.action.enrollment;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentResponse;
@@ -34,21 +43,27 @@ import java.nio.file.Path;
 import java.security.Key;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportNodeEnrollmentActionTests extends ESTestCase {
 
+    @SuppressWarnings("unchecked")
     public void testDoExecute() throws Exception {
         final Environment env = mock(Environment.class);
         Path tempDir = createTempDir();
@@ -73,17 +88,49 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final String clusterName = randomAlphaOfLengthBetween(6, 10);
         when(clusterService.getClusterName()).thenReturn(new ClusterName(clusterName));
-        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        final int nodeSize = randomIntBetween(1, 10);
-        for (int i = 0; i < nodeSize; i++) {
-            builder.add(newNode("node" + i));
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        final Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        final List<NodeInfo> nodeInfos = new ArrayList<>();
+        final int numberOfNodes = randomIntBetween(1, 6);
+        final List<NodesInfoRequest> nodesInfoRequests = new ArrayList<>();
+        for (int i = 0; i < numberOfNodes; i++) {
+            DiscoveryNode n = node(i);
+            nodeInfos.add(new NodeInfo(Version.CURRENT,
+                null,
+                n,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new TransportInfo(new BoundTransportAddress(new TransportAddress[] { n.getAddress() }, n.getAddress()), null, false),
+                null,
+                null,
+                null,
+                null,
+                null));
         }
-        ClusterState clusterState = mock(ClusterState.class);
-        when(clusterService.state()).thenReturn(clusterState);
-        when(clusterState.getNodes()).thenReturn(builder.build());
+        doAnswer(invocation -> {
+            NodesInfoRequest nodesInfoRequest = (NodesInfoRequest) invocation.getArguments()[1];
+            nodesInfoRequests.add(nodesInfoRequest);
+            ActionListener<NodesInfoResponse> listener = (ActionListener) invocation.getArguments()[2];
+            listener.onResponse(new NodesInfoResponse(new ClusterName("cluster"), nodeInfos, List.of()));
+            return null;
+        }).when(client).execute(same(NodesInfoAction.INSTANCE), any(), any());
+
+        final TransportService transportService = new TransportService(Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet());
 
         final TransportNodeEnrollmentAction action =
-            new TransportNodeEnrollmentAction(mock(TransportService.class), clusterService, sslService, mock(ActionFilters.class), env);
+            new TransportNodeEnrollmentAction(transportService, clusterService, sslService, client, mock(ActionFilters.class), env);
         final NodeEnrollmentRequest request = new NodeEnrollmentRequest();
         final PlainActionFuture<NodeEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
@@ -91,7 +138,8 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         assertThat(response.getClusterName(), equalTo(clusterName));
         assertSameCertificate(response.getHttpCaCert(), httpCaPath, "password".toCharArray(), true);
         assertSameCertificate(response.getTransportCert(), transportPath, "password".toCharArray(), false);
-        assertThat(response.getNodesAddresses().size(), equalTo(nodeSize));
+        assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
+        assertThat(nodesInfoRequests.size(), equalTo(1));
     }
 
     private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception{
@@ -107,11 +155,7 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         }
     }
 
-    private DiscoveryNode newNode(String nodeId) {
-        return new DiscoveryNode(nodeId,
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.copyOf(randomSubsetOf(DiscoveryNodeRole.roles())),
-            Version.CURRENT);
+    private DiscoveryNode node(final int id) {
+        return new DiscoveryNode("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
     }
 }

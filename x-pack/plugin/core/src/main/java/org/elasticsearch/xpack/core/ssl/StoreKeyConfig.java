@@ -171,7 +171,7 @@ public class StoreKeyConfig extends KeyConfig {
             }
             return entries;
         } catch (Exception e) {
-            throw new ElasticsearchException("failed to list keys and certificates");
+            throw new ElasticsearchException("failed to list keys and certificates", e);
         }
     }
 

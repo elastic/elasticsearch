@@ -78,6 +78,10 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         return nodeId;
     }
 
+    public ShardId getShardId() {
+        return shardId;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(nodeId);

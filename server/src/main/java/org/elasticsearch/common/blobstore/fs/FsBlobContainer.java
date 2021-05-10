@@ -176,7 +176,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
         if (ioe != null) {
             if (suppressedExceptions > 0) {
-                throw new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures");
+                ioe.addSuppressed(new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures"));
             }
             throw ioe;
         }

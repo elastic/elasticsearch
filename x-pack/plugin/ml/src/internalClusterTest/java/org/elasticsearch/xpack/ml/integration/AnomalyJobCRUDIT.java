@@ -29,14 +29,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -184,12 +180,4 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         return new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
     }
 
-    @Override
-    public NamedXContentRegistry xContentRegistry() {
-        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
-        return new NamedXContentRegistry(namedXContent);
-    }
 }

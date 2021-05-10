@@ -92,6 +92,10 @@ dependencies {
     api 'org.apache.ant:ant:1.10.8'
     api 'commons-io:commons-io:2.2'
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+
+    //  for our ide tweaking
+    //  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
+
     runtimeOnly project(":reaper")
 
     testFixturesApi "junit:junit:4.12"
@@ -120,19 +124,6 @@ dependencies {
     integTestRuntimeOnly("org.junit.platform:junit-platform-launcher") {
         because 'allows tests to run from IDEs that bundle older version of launcher'
     }
-// for our ide tweaking
-//    api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
-
-//     When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
-//    api 'de.thetaphi:forbiddenapis:3.1'
-//    api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
-//    api 'org.apache.maven:maven-model:3.6.2'
-//    api 'com.networknt:json-schema-validator:1.0.36'
-//    api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${props.getProperty('jackson')}"
-//    api 'org.ow2.asm:asm:9.0'
-//    api 'org.ow2.asm:asm-tree:9.0'
-//    api "org.apache.httpcomponents:httpclient:${props.getProperty('httpclient')}"
-//    api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
 }
 
 tasks.register("integTest", Test) {

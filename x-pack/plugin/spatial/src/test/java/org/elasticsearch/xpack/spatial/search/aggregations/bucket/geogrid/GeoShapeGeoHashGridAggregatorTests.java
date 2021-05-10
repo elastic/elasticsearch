@@ -21,7 +21,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 
-public class https://github.com/elastic/elasticsearch/issues/72872 extends GeoShapeGeoGridTestCase<InternalGeoHashGridBucket> {
+public class GeoShapeGeoHashGridAggregatorTests extends GeoShapeGeoGridTestCase<InternalGeoHashGridBucket> {
 
     @Override
     protected int randomPrecision() {

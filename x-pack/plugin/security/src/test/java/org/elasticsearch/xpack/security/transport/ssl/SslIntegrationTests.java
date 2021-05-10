@@ -174,6 +174,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72877")
     public void testServerLogsDeprecationWarningWhenTransportClientConnectsWithTLS1() throws Exception {
         assumeFalse("Can't run in a FIPS JVM with verification mode 'none'", inFipsJvm());
         Logger logger =
@@ -204,6 +205,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72877")
     public void testDeprecationWarningWhenHttpClientConnectsWithTLS1() throws Exception {
         Logger logger =
             LogManager.getLogger("org.elasticsearch.deprecation.xpack.security.Security");

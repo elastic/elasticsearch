@@ -272,6 +272,7 @@ public class LdapSessionFactoryTests extends LdapTestCase {
         session.close();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72877")
     public void testDeprecationWarningIfTls1IsUsed() throws Exception {
         InMemoryDirectoryServer ldapServer = randomFrom(ldapServers);
         String ldapUrl = new LDAPURL("ldaps", "localhost", ldapServer.getListenPort("ldaps-tls1"), null, null, null, null).toString();

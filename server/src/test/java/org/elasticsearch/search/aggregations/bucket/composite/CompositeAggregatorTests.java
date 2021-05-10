@@ -2657,7 +2657,8 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     private static Sort buildIndexSort(List<CompositeValuesSourceBuilder<?>> sources, Map<String, MappedFieldType> fieldTypes) {
         List<SortField> sortFields = new ArrayList<>();
         Map<String, MappedFieldType> remainingFieldTypes = new HashMap<>(fieldTypes);
-        for (CompositeValuesSourceBuilder<?> source : sources) {
+        List<CompositeValuesSourceBuilder<?>> sourcesToCreateSorts = randomBoolean() ? sources : sources.subList(0, 1);
+        for (CompositeValuesSourceBuilder<?> source : sourcesToCreateSorts) {
             MappedFieldType type = fieldTypes.remove(source.field());
             remainingFieldTypes.remove(source.field());
             SortField sortField = sortFieldFrom(type);

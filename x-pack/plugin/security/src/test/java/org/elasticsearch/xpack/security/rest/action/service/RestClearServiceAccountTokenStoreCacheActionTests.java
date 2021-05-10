@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.rest.action.service;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -50,7 +51,9 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(ClearSecurityCacheRequest.class));
             requestHolder.set((ClearSecurityCacheRequest) actionRequest);
-            return mock(ClearSecurityCacheResponse.class);
+            final ClearSecurityCacheResponse response = mock(ClearSecurityCacheResponse.class);
+            when(response.getClusterName()).thenReturn(new ClusterName(""));
+            return response;
         }));
     }
 

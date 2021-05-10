@@ -115,7 +115,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             blobStore.ensureMaxTotalBlobSize(request.getMaxTotalDataSize().getBytes());
         }
 
-        request.timeout(TimeValue.timeValueSeconds(5));
+        request.timeout(TimeValue.timeValueSeconds(20));
 
         final RepositoryAnalyzeAction.Response response = client().execute(RepositoryAnalyzeAction.INSTANCE, request)
             .actionGet(30L, TimeUnit.SECONDS);
@@ -153,9 +153,9 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
     private static BlobPath buildBlobPath(Settings settings) {
         final String basePath = settings.get(BASE_PATH_SETTING_KEY);
         if (basePath == null) {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         } else {
-            return BlobPath.cleanPath().add(basePath);
+            return BlobPath.EMPTY.add(basePath);
         }
     }
 

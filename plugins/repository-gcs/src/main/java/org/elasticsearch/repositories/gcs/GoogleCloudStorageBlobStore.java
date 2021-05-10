@@ -29,7 +29,9 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -42,6 +44,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -217,12 +220,33 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     /**
      * Writes a blob in the specific bucket
-     *  @param inputStream content of the blob to be written
+     * @param bytes       content of the blob to be written
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     */
+    void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        if (bytes.length() > getLargeBlobThresholdInBytes()) {
+            // Compute md5 here so #writeBlobResumable forces the integrity check on the resumable upload.
+            // This is needed since we rely on atomic write behavior when writing BytesReferences in BlobStoreRepository which is not
+            // guaranteed for resumable uploads.
+            final String md5 = Base64.getEncoder().encodeToString(MessageDigests.digest(bytes, MessageDigests.md5()));
+            writeBlobResumable(BlobInfo.newBuilder(bucketName, blobName).setMd5(md5).build(), bytes.streamInput(), bytes.length(),
+                failIfAlreadyExists);
+        } else {
+            writeBlob(bytes.streamInput(), bytes.length(), failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
+        }
+    }
+
+    /**
+     * Writes a blob in the specific bucket
+     * @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
+        writeBlob(inputStream, blobSize, failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
+    }
+
+    private void writeBlob(InputStream inputStream, long blobSize, boolean failIfAlreadyExists, BlobInfo blobInfo) throws IOException {
         if (blobSize > getLargeBlobThresholdInBytes()) {
             writeBlobResumable(blobInfo, inputStream, blobSize, failIfAlreadyExists);
         } else {
@@ -234,6 +258,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     long getLargeBlobThresholdInBytes() {
         return LARGE_BLOB_THRESHOLD_BYTE_SIZE;
     }
+
+    // possible options for #writeBlobResumable uploads
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_NO_MD5 = {Storage.BlobWriteOption.doesNotExist()};
+    private static final Storage.BlobWriteOption[] OVERWRITE_NO_MD5 = new Storage.BlobWriteOption[0];
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_CHECK_MD5 =
+            {Storage.BlobWriteOption.doesNotExist(), Storage.BlobWriteOption.md5Match()};
+    private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_MD5 = {Storage.BlobWriteOption.md5Match()};
 
     /**
      * Uploads a blob using the "resumable upload" method (multiple requests, which
@@ -252,8 +283,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         inputStream.mark(Integer.MAX_VALUE);
         final byte[] buffer = new byte[size < bufferSize ? Math.toIntExact(size) : bufferSize];
         StorageException storageException = null;
-        final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
-            new Storage.BlobWriteOption[]{Storage.BlobWriteOption.doesNotExist()} : new Storage.BlobWriteOption[0];
+        final Storage.BlobWriteOption[] writeOptions;
+        if (blobInfo.getMd5() == null) {
+            // no md5, use options without checksum validation
+            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_MD5 : OVERWRITE_NO_MD5;
+        } else {
+            // md5 value is set so we use it by enabling checksum validation
+            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_CHECK_MD5 : OVERWRITE_CHECK_MD5;
+        }
         for (int retry = 0; retry < 3; ++retry) {
             try {
                 final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));

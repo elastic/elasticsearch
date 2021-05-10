@@ -65,9 +65,23 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            request.param(INCLUDE_TYPE_NAME_PARAMETER);
-            deprecationLogger.compatibleApiWarning("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+                deprecationLogger.compatibleApiWarning("get_field_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MESSAGE);
+            }
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
+            if (includeTypeName == false && types.length > 0) {
+                throw new IllegalArgumentException("Types cannot be specified unless include_type_name" + " is set to true.");
+            }
+
+            if (request.hasParam("local")) {
+                request.param("local");
+                deprecationLogger.compatibleApiWarning(
+                    "get_field_mapping_local",
+                    "Use [local] in get field mapping requests is deprecated. " + "The parameter will be removed in the next major version"
+                );
+            }
         }
 
 

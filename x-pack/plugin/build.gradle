@@ -1,6 +1,6 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
@@ -213,6 +213,6 @@ tasks.named("precommit").configure {
 }
 
 tasks.named("transformV7RestTests").configure({ task ->
-  task.replaceMatch("_type", "_doc")
+  task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
 })

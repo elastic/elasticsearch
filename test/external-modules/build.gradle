@@ -1,8 +1,8 @@
 
-import org.elasticsearch.gradle.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 
 subprojects {
-  apply plugin: 'elasticsearch.esplugin'
+  apply plugin: 'elasticsearch.internal-es-plugin'
   apply plugin: 'elasticsearch.yaml-rest-test'
 
   esplugin {

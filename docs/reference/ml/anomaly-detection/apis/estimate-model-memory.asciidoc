@@ -6,8 +6,8 @@
 <titleabbrev>Estimate model memory</titleabbrev>
 ++++
 
-Makes an estimation of the memory usage for an {anomaly-job} model. It 
-is based on analysis configuration details for the job and cardinality estimates for the 
+Makes an estimation of the memory usage for an {anomaly-job} model. It is based 
+on analysis configuration details for the job and cardinality estimates for the 
 fields it references.
 
 
@@ -19,13 +19,8 @@ fields it references.
 [[ml-estimate-model-memory-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following privileges:
-
-* `manage_ml` or cluster: `manage`
-
-For more information, see <<security-privileges>> and
-{ml-docs-setup-privileges}.
-
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-estimate-model-memory-request-body]]
 == {api-request-body-title}

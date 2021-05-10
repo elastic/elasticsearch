@@ -270,7 +270,6 @@ public class FollowingEngineTests extends ESTestCase {
                 globalCheckpoint::longValue,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
-                EngineTestCase.tombstoneDocSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
     }
 

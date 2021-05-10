@@ -8,8 +8,8 @@
 
 experimental::[]
 
-Clears indices and data streams from the <<shared-cache,shared searchable
-snapshot cache>>.
+Clears indices and data streams from the shared cache for
+<<partially-mounted,partially mounted indices>>.
 
 [[searchable-snapshots-api-clear-cache-request]]
 ==== {api-request-title}

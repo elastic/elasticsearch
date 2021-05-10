@@ -15,6 +15,7 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,8 +29,8 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestUpdateByQueryAction());
-        verifyingClient.setExecuteVerifier((actionType, request) -> null);
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> null);
+        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
     }
 
     public void testTypeInPath() throws IOException {

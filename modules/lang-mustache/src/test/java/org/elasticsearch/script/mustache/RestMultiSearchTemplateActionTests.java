@@ -16,6 +16,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -28,9 +29,9 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestMultiSearchTemplateAction(Settings.EMPTY));
-        //todo why NPE in logs??
-        verifyingClient.setExecuteVerifier((actionType, request) -> null);
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> null);
+        //todo how to workaround this? we get AssertionError without this
+        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiSearchTemplateResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiSearchTemplateResponse.class));
     }
 
     public void testTypeInPath() {

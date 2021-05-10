@@ -83,7 +83,6 @@ public class RestSearchAction extends BaseRestHandler {
             new Route(POST, "/_search"),
             new Route(GET, "/{index}/_search"),
             new Route(POST, "/{index}/_search"),
-            // Deprecated typed endpoints.
             Route.builder(GET, "/{index}/{type}/_search").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
             Route.builder(POST, "/{index}/{type}/_search").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build());
     }
@@ -130,12 +129,11 @@ public class RestSearchAction extends BaseRestHandler {
                                           XContentParser requestContentParser,
                                           NamedWriteableRegistry namedWriteableRegistry,
                                           IntConsumer setSize) throws IOException {
-        if(request.getRestApiVersion() == RestApiVersion.V_7) {
-            if(request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) || request.hasParam("type")){
-                request.param(INCLUDE_TYPE_NAME_PARAMETER);
-                request.param("type");
-                deprecationLogger.compatibleApiWarning("search_with_types", TYPES_DEPRECATION_MESSAGE);
-            }
+        if (request.getRestApiVersion() == RestApiVersion.V_7 &&
+            (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) || request.hasParam("type"))) {
+            request.param(INCLUDE_TYPE_NAME_PARAMETER);
+            request.param("type");
+            deprecationLogger.compatibleApiWarning("search_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (searchRequest.source() == null) {

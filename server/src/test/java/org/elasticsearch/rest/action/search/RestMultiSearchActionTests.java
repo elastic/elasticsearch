@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
@@ -16,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -32,8 +34,8 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
     public void setUpAction() {
         action = new RestMultiSearchAction(Settings.EMPTY);
         controller().registerHandler(action);
-        verifyingClient.setExecuteVerifier((actionType, request) -> null);
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> null);
+        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiSearchResponse.class));
     }
 
     public void testTypeInPath() {

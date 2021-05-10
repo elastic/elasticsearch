@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,6 +18,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,9 +31,9 @@ public class RestTermVectorsActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestTermVectorsAction());
-        //todo why NPE in logs??
-        verifyingClient.setExecuteVerifier((actionType, request) -> null);
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> null);
+        //todo how to workaround this? we get AssertionError without this
+        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(TermVectorsResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(TermVectorsResponse.class));
     }
 
     public void testTypeInPath() {

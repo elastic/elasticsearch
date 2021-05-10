@@ -67,7 +67,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
             new Route(POST, "/{index}/_msearch"),
-             // Deprecated typed endpoints.
             Route.builder(GET, "/{index}/{type}/_msearch")
                 .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
                 .build(),
@@ -97,7 +96,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(RestRequest restRequest,
                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                   boolean allowExplicitIndex) throws IOException {
-
         if(restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
             restRequest.param("type");
         }

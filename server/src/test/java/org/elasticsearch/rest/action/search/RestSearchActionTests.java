@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,8 +29,8 @@ public class RestSearchActionTests extends RestActionTestCase {
     public void setUpAction() {
         action = new RestSearchAction();
         controller().registerHandler(action);
-        verifyingClient.setExecuteVerifier((actionType, request) -> null);
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> null);
+        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(SearchResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(SearchResponse.class));
     }
 
     public void testTypeInPath() {

@@ -53,7 +53,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             new Route(POST, "/_msearch/template"),
             new Route(GET, "/{index}/_msearch/template"),
             new Route(POST, "/{index}/_msearch/template"),
-            // Deprecated typed endpoints.
             Route.builder(GET, "/{index}/{type}/_msearch/template")
                 .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
                 .build(),

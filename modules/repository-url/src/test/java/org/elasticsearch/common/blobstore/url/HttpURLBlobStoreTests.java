@@ -115,7 +115,7 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     @Override
     BlobContainer getBlobContainer() {
-        return urlBlobStore.blobContainer(new BlobPath().add("indices"));
+        return urlBlobStore.blobContainer(BlobPath.EMPTY.add("indices"));
     }
 
     @Override

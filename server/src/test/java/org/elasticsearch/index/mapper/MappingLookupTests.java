@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -95,6 +96,16 @@ public class MappingLookupTests extends ESTestCase {
             () -> mappingLookup.indexAnalyzer("field3", f -> {
                 throw new IllegalArgumentException();
             }).tokenStream("field3", "blah"));
+    }
+
+    public void testEmptyMappingLookup() {
+        MappingLookup mappingLookup = MappingLookup.EMPTY;
+        assertEquals("{\"_doc\":{}}", Strings.toString(mappingLookup.getMapping()));
+        assertFalse(mappingLookup.hasMappings());
+        assertNull(mappingLookup.getMapping().getMeta());
+        assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
+        assertFalse(mappingLookup.fieldMappers().iterator().hasNext());
+        assertEquals(0, mappingLookup.fieldTypes().size());
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

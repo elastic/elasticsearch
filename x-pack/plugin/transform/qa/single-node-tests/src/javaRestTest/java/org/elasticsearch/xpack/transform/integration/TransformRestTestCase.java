@@ -41,7 +41,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class TransformRestTestCase extends ESRestTestCase {
@@ -248,8 +247,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
     protected void createContinuousPivotReviewsTransform(String transformId, String transformIndex, String authHeader) throws IOException {
 
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
-
         String config = "{ \"dest\": {\"index\":\"" + transformIndex + "\"}," + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
         // Set frequency high for testing
             + " \"sync\": {\"time\":{\"field\": \"timestamp\", \"delay\": \"15m\"}},"
@@ -267,10 +264,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + " } } } }"
             + "}";
 
-        createTransformRequest.setJsonEntity(config);
-
-        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
-        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        createReviewsTransform(transformId, authHeader, config);
     }
 
     protected void createPivotReviewsTransform(
@@ -281,8 +275,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         String authHeader,
         String sourceIndex
     ) throws IOException {
-        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
-
         String config = "{";
 
         if (pipeline != null) {
@@ -311,11 +303,33 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             + "     \"affiliate_missing\": {"
             + "       \"missing\": {"
             + "         \"field\": \"affiliate_id\""
-
+            + " } },"
+            + "     \"stats\": {"
+            + "       \"stats\": {"
+            + "         \"field\": \"stars\""
             + " } } } },"
             + "\"frequency\":\"1s\""
             + "}";
 
+        createReviewsTransform(transformId, authHeader, config);
+    }
+
+    protected void createLatestReviewsTransform(String transformId, String transformIndex) throws IOException {
+        String config = "{"
+            + " \"dest\": {\"index\":\"" + transformIndex + "\"},"
+            + " \"source\": {\"index\":\"" + REVIEWS_INDEX_NAME + "\"},"
+            + " \"latest\": {"
+            + "   \"unique_key\": [ \"user_id\" ],"
+            + "   \"sort\": \"@timestamp\""
+            + " },"
+            + "\"frequency\":\"1s\""
+            + "}";
+
+        createReviewsTransform(transformId, null, config);
+    }
+
+    private void createReviewsTransform(String transformId, String authHeader, String config) throws IOException {
+        final Request createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, authHeader);
         createTransformRequest.setJsonEntity(config);
 
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
@@ -454,8 +468,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         ensureNoInitializingShards();
         logAudits();
         if (preserveClusterUponCompletion() == false) {
-            wipeTransforms();
-            waitForPendingTransformTasks();
+            adminClient().performRequest(new Request("POST", "/_features/_reset"));
         }
     }
 
@@ -464,58 +477,6 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         // we might have disabled wiping indices, but now its time to get rid of them
         // note: can not use super.cleanUpCluster() as this method must be static
         wipeAllIndices();
-    }
-
-    public void wipeTransforms() throws IOException {
-        List<Map<String, Object>> transformConfigs = getTransforms();
-        for (Map<String, Object> transformConfig : transformConfigs) {
-            String transformId = (String) transformConfig.get("id");
-            Request request = new Request("POST", getTransformEndpoint() + transformId + "/_stop");
-            request.addParameter("wait_for_completion", "true");
-            request.addParameter("timeout", "10s");
-            request.addParameter("ignore", "404");
-            adminClient().performRequest(request);
-        }
-
-        for (Map<String, Object> transformConfig : transformConfigs) {
-            String transformId = (String) transformConfig.get("id");
-            String state = getTransformState(transformId);
-            assertEquals("Transform [" + transformId + "] is not in the stopped state", "stopped", state);
-        }
-
-        for (Map<String, Object> transformConfig : transformConfigs) {
-            String transformId = (String) transformConfig.get("id");
-            deleteTransform(transformId);
-        }
-
-        // transforms should be all gone
-        transformConfigs = getTransforms();
-        assertTrue(transformConfigs.isEmpty());
-
-        // the configuration index should be empty
-        Request request = new Request("GET", TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_search");
-        request.setOptions(
-            expectWarnings(
-                "this request accesses system indices: ["
-                    + TransformInternalIndexConstants.LATEST_INDEX_NAME
-                    + "], but in a future major version, direct access to system indices will be prevented by default"
-            )
-        );
-        try {
-            Response searchResponse = adminClient().performRequest(request);
-            Map<String, Object> searchResult = entityAsMap(searchResponse);
-
-            assertEquals(0, XContentMapValues.extractValue("hits.total.value", searchResult));
-        } catch (ResponseException e) {
-            // 404 here just means we had no transforms, true for some tests
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw e;
-            }
-        }
-    }
-
-    protected static void waitForPendingTransformTasks() throws Exception {
-        waitForPendingTasks(adminClient(), taskName -> taskName.startsWith(TransformField.TASK_NAME) == false);
     }
 
     static int getTransformCheckpoint(String transformId) throws IOException {

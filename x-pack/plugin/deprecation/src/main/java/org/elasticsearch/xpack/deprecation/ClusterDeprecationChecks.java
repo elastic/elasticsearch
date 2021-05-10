@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
@@ -166,5 +168,25 @@ public class ClusterDeprecationChecks {
                     "currently set to [" + pollIntervalString + "], but must be 1s or greater");
         }
         return null;
+    }
+
+    static DeprecationIssue checkTemplatesWithMultipleTypes(ClusterState state) {
+        Set<String> templatesWithMultipleTypes = new HashSet<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            ImmutableOpenMap<String, CompressedXContent> mappings = templateCursor.value.mappings();
+            if (mappings != null && mappings.size() > 1) {
+                templatesWithMultipleTypes.add(templateName);
+            }
+        });
+        if (templatesWithMultipleTypes.isEmpty()) {
+            return null;
+        }
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "Some index templates contain multiple mapping types",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html",
+            "Index templates " + templatesWithMultipleTypes
+            + " define multiple types and so will cause errors when used in index creation"
+            );
     }
 }

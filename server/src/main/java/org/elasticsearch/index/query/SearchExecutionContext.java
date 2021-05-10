@@ -244,8 +244,18 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.nestedScope = new NestedScope();
     }
 
+    /**
+     * The similarity to use in searches, which takes into account per-field configuration.
+     */
     public Similarity getSearchSimilarity() {
         return similarityService != null ? similarityService.similarity(this::fieldType) : null;
+    }
+
+    /**
+     * The default similarity configured in the index settings.
+     */
+    public Similarity getDefaultSimilarity() {
+        return similarityService != null ? similarityService.getDefaultSimilarity() : null;
     }
 
     public List<String> defaultFields() {
@@ -292,7 +302,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Parse a document with current mapping.
      */
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-        return mappingLookup.parseDocument(source);
+        return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
     public boolean hasNested() {

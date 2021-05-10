@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 
 public class FilePermissionsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
 
+    public static final String FILEPERMISSIONS_TASK_NAME = "filepermissions";
     private ProviderFactory providerFactory;
 
     @Inject
@@ -32,7 +33,7 @@ public class FilePermissionsPrecommitPlugin extends PrecommitPlugin implements I
     public TaskProvider<? extends Task> createTask(Project project) {
         return project.getTasks()
             .register(
-                "filepermissions",
+                FILEPERMISSIONS_TASK_NAME,
                 FilePermissionsTask.class,
                 filePermissionsTask -> filePermissionsTask.getSources()
                     .addAll(

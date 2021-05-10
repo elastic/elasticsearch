@@ -680,10 +680,43 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(containsString(
             "[" + action + "] is unauthorized" +
                 " for user [test user]" +
-                " with roles [non-existent-role]" +
-                " on indices [")));
+                " with roles [non-existent-role],")));
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testServiceAccountDenial() {
+        Tuple<String, TransportRequest> tuple = randomFrom(asList(
+            new Tuple<>(SearchAction.NAME, new SearchRequest()),
+            new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())));
+        String action = tuple.v1();
+        TransportRequest request = tuple.v2();
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        mockEmptyMetadata();
+
+        final User serviceUser = new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
+        final Authentication authentication = new Authentication(serviceUser,
+            new RealmRef("service_account", "service_account", randomAlphaOfLengthBetween(3, 8)),
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.TOKEN,
+            org.elasticsearch.common.collect.Map.of());
+        Mockito.reset(rolesStore);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
+            listener.onResponse(Role.EMPTY);
+            return null;
+        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), any(ActionListener.class));
+
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+            () -> authorize(authentication, action, request));
+        assertThat(securityException, throwableWithMessage(containsString(
+            "[" + action + "] is unauthorized" +
+                " for user [" + serviceUser.principal() + "],")));
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
@@ -722,8 +755,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(containsString(
             "[" + action + "] is unauthorized" +
                 " for user [test user]" +
-                " with roles [no_indices]" +
-                " on indices [")));
+                " with roles [no_indices],")));
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request),

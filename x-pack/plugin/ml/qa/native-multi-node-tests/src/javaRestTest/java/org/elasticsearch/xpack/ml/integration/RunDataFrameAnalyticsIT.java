@@ -131,8 +131,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-few-docs-results]",
@@ -224,8 +224,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
@@ -308,8 +308,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
@@ -370,8 +370,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-stop-outlier-detection-with-enough-docs-to-scroll-results]",
@@ -435,8 +435,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-multiple-source-indices-results]",
@@ -500,8 +500,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Using existing destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
@@ -599,8 +599,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         waitUntilAnalyticsIsStopped(id);
 
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "No node found to start analytics. Reasons [persistent task is awaiting node assignment.]",
             "Started analytics",
             "Stopped analytics");
@@ -748,8 +748,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-custom-params-results]",
@@ -844,8 +844,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + sourceIndex + "-results]",
@@ -950,8 +950,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + sourceIndex + "-results]",

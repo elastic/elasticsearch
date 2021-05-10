@@ -102,7 +102,7 @@ public final class TransformIndex {
 
         Map<String, Object> transformMetadata = new HashMap<>();
         transformMetadata.put(TransformField.CREATION_DATE_MILLIS, clock.millis());
-        transformMetadata.put(TransformField.VERSION.getPreferredName(), singletonMap(TransformField.CREATED, Version.CURRENT));
+        transformMetadata.put(TransformField.VERSION.getPreferredName(), singletonMap(TransformField.CREATED, Version.CURRENT.toString()));
         transformMetadata.put(TransformField.TRANSFORM, id);
 
         metadata.put(TransformField.META_FIELDNAME, transformMetadata);

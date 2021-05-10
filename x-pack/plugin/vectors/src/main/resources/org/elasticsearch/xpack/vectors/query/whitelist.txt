@@ -7,6 +7,8 @@
 class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues {
 }
 class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues$DenseVectorScriptDocValues {
+    float[] getVectorValue()
+    float getMagnitude()
 }
 class org.elasticsearch.xpack.vectors.query.VectorScriptDocValues$SparseVectorScriptDocValues {
 }

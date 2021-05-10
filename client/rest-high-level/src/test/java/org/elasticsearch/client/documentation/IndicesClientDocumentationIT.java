@@ -58,21 +58,21 @@ import org.elasticsearch.client.indices.DeleteAliasRequest;
 import org.elasticsearch.client.indices.DeleteComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.DetailAnalyzeResponse;
 import org.elasticsearch.client.indices.FreezeIndexRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetFieldMappingsRequest;
 import org.elasticsearch.client.indices.GetFieldMappingsResponse;
 import org.elasticsearch.client.indices.GetIndexRequest;
 import org.elasticsearch.client.indices.GetIndexResponse;
-import org.elasticsearch.client.indices.GetComposableIndexTemplateRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
 import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.indices.GetComposableIndexTemplatesResponse;
 import org.elasticsearch.client.indices.GetMappingsRequest;
 import org.elasticsearch.client.indices.GetMappingsResponse;
 import org.elasticsearch.client.indices.IndexTemplateMetadata;
 import org.elasticsearch.client.indices.IndexTemplatesExistRequest;
 import org.elasticsearch.client.indices.PutComponentTemplateRequest;
-import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutComposableIndexTemplateRequest;
+import org.elasticsearch.client.indices.PutIndexTemplateRequest;
 import org.elasticsearch.client.indices.PutMappingRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersRequest;
 import org.elasticsearch.client.indices.ReloadAnalyzersResponse;
@@ -110,6 +110,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.client.IndicesClientIT.LEGACY_TEMPLATE_OPTIONS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -2183,7 +2184,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                     "}",
                 XContentType.JSON);
             // end::put-template-request-mappings-json
-            assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            assertTrue(client.indices().putTemplate(request, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
         {
             //tag::put-template-request-mappings-map
@@ -2199,7 +2200,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             }
             request.mapping(jsonMap); // <1>
             //end::put-template-request-mappings-map
-            assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            assertTrue(client.indices().putTemplate(request, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
         {
             //tag::put-template-request-mappings-xcontent
@@ -2219,7 +2220,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             builder.endObject();
             request.mapping(builder); // <1>
             //end::put-template-request-mappings-xcontent
-            assertTrue(client.indices().putTemplate(request, RequestOptions.DEFAULT).isAcknowledged());
+            assertTrue(client.indices().putTemplate(request, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
 
         // tag::put-template-request-aliases
@@ -2271,7 +2272,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         request.create(false); // make test happy
 
         // tag::put-template-execute
-        AcknowledgedResponse putTemplateResponse = client.indices().putTemplate(request, RequestOptions.DEFAULT);
+        AcknowledgedResponse putTemplateResponse = client.indices().putTemplate(request, LEGACY_TEMPLATE_OPTIONS);
         // end::put-template-execute
 
         // tag::put-template-response
@@ -2299,7 +2300,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         listener = new LatchedActionListener<>(listener, latch);
 
         // tag::put-template-execute-async
-        client.indices().putTemplateAsync(request, RequestOptions.DEFAULT, listener); // <1>
+        client.indices().putTemplateAsync(request, LEGACY_TEMPLATE_OPTIONS, listener); // <1>
         // end::put-template-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
@@ -2314,7 +2315,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             putRequest.mapping("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
                 XContentType.JSON
             );
-            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+            assertTrue(client.indices().putTemplate(putRequest, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
 
         // tag::get-templates-request
@@ -2705,9 +2706,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testTemplatesExist() throws Exception {
         final RestHighLevelClient client = highLevelClient();
         {
-            final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
-            putRequest.patterns(Collections.singletonList("foo"));
-            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+            final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template")
+                .patterns(org.elasticsearch.common.collect.List.of("foo"));
+            assertTrue(client.indices().putTemplate(putRequest, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
 
         {
@@ -3118,7 +3119,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
             putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
-            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+            assertTrue(client.indices().putTemplate(putRequest, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
 
         // tag::delete-template-request
@@ -3144,7 +3145,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template");
             putRequest.patterns(Arrays.asList("pattern-1", "log-*"));
             putRequest.settings(Settings.builder().put("index.number_of_shards", 3));
-            assertTrue(client.indices().putTemplate(putRequest, RequestOptions.DEFAULT).isAcknowledged());
+            assertTrue(client.indices().putTemplate(putRequest, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
         // tag::delete-template-execute-listener
         ActionListener<AcknowledgedResponse> listener =

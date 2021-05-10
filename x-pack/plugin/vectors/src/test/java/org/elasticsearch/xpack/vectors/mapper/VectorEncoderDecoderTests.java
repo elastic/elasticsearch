@@ -44,7 +44,7 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         BytesRef encodedSparseVector = VectorEncoderDecoder.encodeSparseVector(indexVersion, expectedDims, expectedValues, dimCount);
         int[] decodedDims = VectorEncoderDecoder.decodeSparseVectorDims(indexVersion, encodedSparseVector);
         float[] decodedValues = VectorEncoderDecoder.decodeSparseVector(indexVersion, encodedSparseVector);
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, encodedSparseVector);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, encodedSparseVector);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.0f);
         assertArrayEquals(
             "Decoded sparse vector dims are not equal to their original!",

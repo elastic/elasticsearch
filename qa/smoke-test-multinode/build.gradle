@@ -18,12 +18,16 @@ restResources {
 }
 
 File repo = file("$buildDir/testclusters/repo")
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   numberOfNodes = 2
   setting 'path.repo', repo.absolutePath
 }
 
-integTest {
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
+
+tasks.named("integTest").configure {
   doFirst {
     project.delete(repo)
     repo.mkdirs()

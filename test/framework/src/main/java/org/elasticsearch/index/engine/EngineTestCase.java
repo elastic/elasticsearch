@@ -83,6 +83,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -345,7 +346,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final String nestedMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("nested_field").field("type", "nested").endObject().endObject()
             .endObject().endObject());
-        final DocumentMapper nestedMapper = mapperService.parse("type", new CompressedXContent(nestedMapping), false);
+        final DocumentMapper nestedMapper = mapperService.merge("type", new CompressedXContent(nestedMapping),
+            MapperService.MergeReason.MAPPING_UPDATE);
         return (docId, nestedFieldValues) -> {
             final XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value");
             if (nestedFieldValues > 0) {
@@ -367,36 +369,12 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig.TombstoneDocSupplier() {
             @Override
             public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
-                final ParseContext.Document doc = new ParseContext.Document();
-                Field uidField = new Field(IdFieldMapper.NAME, Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
-                doc.add(uidField);
-                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
-                doc.add(versionField);
-                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-                doc.add(seqID.seqNo);
-                doc.add(seqID.seqNoDocValue);
-                doc.add(seqID.primaryTerm);
-                seqID.tombstoneField.setLongValue(1);
-                doc.add(seqID.tombstoneField);
-                return new ParsedDocument(versionField, seqID, id, type, null,
-                    Collections.singletonList(doc), new BytesArray("{}"), XContentType.JSON, null);
+                return ParsedDocument.deleteTombstone(type, id);
             }
 
             @Override
             public ParsedDocument newNoopTombstoneDoc(String reason) {
-                final ParseContext.Document doc = new ParseContext.Document();
-                SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
-                doc.add(seqID.seqNo);
-                doc.add(seqID.seqNoDocValue);
-                doc.add(seqID.primaryTerm);
-                seqID.tombstoneField.setLongValue(1);
-                doc.add(seqID.tombstoneField);
-                Field versionField = new NumericDocValuesField(VersionFieldMapper.NAME, 0);
-                doc.add(versionField);
-                BytesRef byteRef = new BytesRef(reason);
-                doc.add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
-                return new ParsedDocument(versionField, seqID, null, null, null,
-                    Collections.singletonList(doc), null, XContentType.JSON, null);
+                return ParsedDocument.noopTombstone(reason);
             }
         };
     }
@@ -1079,8 +1057,9 @@ public abstract class EngineTestCase extends ESTestCase {
     /**
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
-    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper == null || mapper.documentMapper() == null || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
+    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapperService) throws IOException {
+        if (mapperService == null || mapperService.mappingLookup().hasMappings() == false
+            || engine.config().getIndexSettings().isSoftDeleteEnabled() == false
             || (engine instanceof InternalEngine) == false) {
             return;
         }
@@ -1091,7 +1070,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 translogOps.add(op);
             }
         }
-        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper).stream()
+        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapperService).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
         for (Translog.Operation op : translogOps) {
@@ -1187,9 +1166,9 @@ public abstract class EngineTestCase extends ESTestCase {
         return mapperService;
     }
 
-    public static DocumentMapper docMapper(String type) {
+    public static MappingLookup mappingLookup(String type) {
         try {
-            return createMapperService(type).documentMapper();
+            return createMapperService(type).mappingLookup();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

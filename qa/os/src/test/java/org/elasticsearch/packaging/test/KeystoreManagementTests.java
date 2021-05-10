@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +99,10 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution());
+        installation = Docker.runContainer(
+            distribution(),
+            builder().envVars(Collections.singletonMap("ingest.geoip.downloader.enabled", "false"))
+        );
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));
@@ -300,7 +304,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = singletonMap(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = singletonMap("KEYSTORE_PASSWORD", password);
+        Map<String, String> envVars = new HashMap<>();
+        envVars.put("KEYSTORE_PASSWORD", password);
+        envVars.put("ingest.geoip.downloader.enabled", "false");
         runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
@@ -333,6 +339,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             Map<String, String> envVars = new HashMap<>();
             envVars.put("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+            envVars.put("ingest.geoip.downloader.enabled", "false");
 
             runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 

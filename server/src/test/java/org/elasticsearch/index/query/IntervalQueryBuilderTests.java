@@ -535,28 +535,28 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
         IntervalQueryBuilder builder = (IntervalQueryBuilder) parseQuery(json);
 
         Query expected = new IntervalQuery(TEXT_FIELD_NAME,
-            buildFuzzySource("term", "Term", FuzzyQueryBuilder.DEFAULT_PREFIX_LENGTH, true, Fuzziness.AUTO.asDistance("term")));
+            buildFuzzySource("term", "term", FuzzyQueryBuilder.DEFAULT_PREFIX_LENGTH, true, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String json_with_prefix = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " +
             "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2 } } } }";
         builder = (IntervalQueryBuilder) parseQuery(json_with_prefix);
         expected = new IntervalQuery(TEXT_FIELD_NAME,
-            buildFuzzySource("term", "Term", 2, true, Fuzziness.AUTO.asDistance("term")));
+            buildFuzzySource("term", "term", 2, true, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String json_with_fuzziness = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " +
             "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"fuzziness\" : \"1\" } } } }";
         builder = (IntervalQueryBuilder) parseQuery(json_with_fuzziness);
         expected = new IntervalQuery(TEXT_FIELD_NAME,
-            buildFuzzySource("term", "Term", 2, true, Fuzziness.ONE.asDistance("term")));
+            buildFuzzySource("term", "term", 2, true, Fuzziness.ONE.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String json_no_transpositions = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " +
             "\"fuzzy\" : { \"term\" : \"Term\", \"prefix_length\" : 2, \"transpositions\" : false } } } }";
         builder = (IntervalQueryBuilder) parseQuery(json_no_transpositions);
         expected = new IntervalQuery(TEXT_FIELD_NAME,
-            buildFuzzySource("term", "Term", 2, false, Fuzziness.AUTO.asDistance("term")));
+            buildFuzzySource("term", "term", 2, false, Fuzziness.AUTO.asDistance("term")));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
         String json_with_analyzer = "{ \"intervals\" : { \"" + TEXT_FIELD_NAME + "\": { " +
@@ -571,7 +571,7 @@ public class IntervalQueryBuilderTests extends AbstractQueryTestCase<IntervalQue
             "\"use_field\" : \"" + MASKED_FIELD + "\" } } } }";
         builder = (IntervalQueryBuilder) parseQuery(json_with_fixfield);
         expected = new IntervalQuery(TEXT_FIELD_NAME, Intervals.fixField(MASKED_FIELD,
-            buildFuzzySource("term", "Term", 2, true, Fuzziness.ONE.asDistance("term"))));
+            buildFuzzySource("term", "term", 2, true, Fuzziness.ONE.asDistance("term"))));
         assertEquals(expected, builder.toQuery(createSearchExecutionContext()));
 
     }

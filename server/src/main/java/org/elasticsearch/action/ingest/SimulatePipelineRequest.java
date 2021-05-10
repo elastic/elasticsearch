@@ -28,6 +28,7 @@ import org.elasticsearch.ingest.Pipeline;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -217,6 +218,15 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
                 } else {
                     throw new IllegalArgumentException("[_if_primary_term] cannot be null");
+                }
+            }
+            if (dataMap.containsKey(Metadata.DYNAMIC_TEMPLATES.getFieldName())) {
+                Map<String, String> dynamicTemplates = ConfigurationUtils.readMap(
+                    null, null, dataMap, Metadata.DYNAMIC_TEMPLATES.getFieldName());
+                if (dynamicTemplates != null) {
+                    ingestDocument.setFieldValue(Metadata.DYNAMIC_TEMPLATES.getFieldName(), new HashMap<>(dynamicTemplates));
+                } else {
+                    throw new IllegalArgumentException("[_dynamic_templates] cannot be null");
                 }
             }
             ingestDocumentList.add(ingestDocument);

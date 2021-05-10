@@ -229,7 +229,7 @@ public class CompositeRolesStore {
             return;
         }
 
-        if (ServiceAccountService.isServiceAccount(authentication)) {
+        if (authentication.isServiceAccount()) {
             getRolesForServiceAccount(authentication, roleActionListener);
         } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
             getRolesForApiKey(authentication, roleActionListener);
@@ -345,8 +345,8 @@ public class CompositeRolesStore {
 
     private void buildAndCacheRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
         final Tuple<String, BytesReference> apiKeyIdAndBytes = apiKeyService.getApiKeyIdAndRoleBytes(authentication, limitedBy);
-        final String roleDescriptorsHash = MessageDigests.toHexString(
-            MessageDigests.sha256().digest(BytesReference.toBytes(apiKeyIdAndBytes.v2())));
+        final String roleDescriptorsHash =
+                MessageDigests.toHexString(MessageDigests.digest(apiKeyIdAndBytes.v2(), MessageDigests.sha256()));
         final RoleKey roleKey = new RoleKey(org.elasticsearch.common.collect.Set.of("apikey:" + roleDescriptorsHash),
             limitedBy ? "apikey_limited_role" : "apikey_role");
         final Role existing = roleCache.get(roleKey);

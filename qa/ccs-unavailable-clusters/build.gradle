@@ -10,6 +10,11 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
+testClusters.matching { it.name == "integTest" }.configureEach {
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
+
 dependencies {
   testImplementation project(":client:rest-high-level")
 }

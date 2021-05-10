@@ -117,7 +117,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
                 assertEquals(0, numberOfAnnotationsAliases());
             });
         } finally {
-            client().execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled()).actionGet();
+            client().execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true)).actionGet();
         }
     }
 

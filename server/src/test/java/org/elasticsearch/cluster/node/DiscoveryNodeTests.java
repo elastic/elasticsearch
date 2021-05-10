@@ -137,6 +137,22 @@ public class DiscoveryNodeTests extends ESTestCase {
                 equalTo("data"));
         }
 
+        {
+            // a pre 7.3.0 node will only understand legacy roles so let's test a custom data containing node role is mapped onto the
+            // `DATA` role
+            DiscoveryNode nodeToWrite = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
+                org.elasticsearch.common.collect.Set.of(customRole, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+
+            BytesStreamOutput streamOutput = new BytesStreamOutput();
+            streamOutput.setVersion(Version.V_7_2_0);
+            nodeToWrite.writeTo(streamOutput);
+
+            StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
+            in.setVersion(Version.V_7_2_0);
+            DiscoveryNode serialized = new DiscoveryNode(in);
+            assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).sorted().collect(Collectors.joining(",")),
+                equalTo("data,master"));
+        }
     }
 
     public void testDiscoveryNodeIsRemoteClusterClientDefault() {

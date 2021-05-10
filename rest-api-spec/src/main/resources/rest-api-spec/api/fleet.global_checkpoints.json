@@ -1,0 +1,52 @@
+{
+  "fleet.global_checkpoints":{
+    "documentation":{
+      "url": null,
+      "description": "Returns the current global checkpoints for an index. This API is design for internal use by the fleet server project."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_fleet/global_checkpoints",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The name of the index."
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_advance":{
+        "type":"boolean",
+        "description":"Whether to wait for the global checkpoint to advance past the specified current checkpoints",
+        "default":"false"
+      },
+      "wait_for_index":{
+        "type":"boolean",
+        "description":"Whether to wait for the target index to exist and all primary shards be active",
+        "default":"false"
+      },
+      "checkpoints":{
+        "type":"list",
+        "description":"Comma separated list of checkpoints",
+        "default":""
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Timeout to wait for global checkpoint to advance",
+        "default":"30s"
+      }
+    }
+  }
+}

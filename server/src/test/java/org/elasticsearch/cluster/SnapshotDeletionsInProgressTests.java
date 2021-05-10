@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class SnapshotDeletionsInProgressTests extends ESTestCase {
     public void testXContent() throws IOException {
         SnapshotDeletionsInProgress sdip =
-            SnapshotDeletionsInProgress.newInstance(new SnapshotDeletionsInProgress.Entry(Collections.emptyList(),
-                "repo", 736694267638L, 0, SnapshotDeletionsInProgress.State.STARTED));
+            SnapshotDeletionsInProgress.of(Collections.singletonList(new SnapshotDeletionsInProgress.Entry(Collections.emptyList(),
+                    "repo", 736694267638L, 0, SnapshotDeletionsInProgress.State.STARTED)));
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.humanReadable(true);

@@ -88,13 +88,13 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
         if (Strings.hasLength(basePath)) {
             // Remove starting / if any
-            BlobPath path = new BlobPath();
+            BlobPath path = BlobPath.EMPTY;
             for(final String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
             this.basePath = path;
         } else {
-            this.basePath = BlobPath.cleanPath();
+            this.basePath = BlobPath.EMPTY;
         }
 
         // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.

@@ -42,6 +42,11 @@ public class SearchableSnapshotsConstants {
             && (boolean) indexSettings.get(SNAPSHOT_PARTIAL_SETTING);
     }
 
+    public static boolean isPartialSearchableSnapshotIndex(Settings indexSettings) {
+        return SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexSettings))
+            && SNAPSHOT_PARTIAL_SETTING.get(indexSettings);
+    }
+
     public static final String CACHE_FETCH_ASYNC_THREAD_POOL_NAME = "searchable_snapshots_cache_fetch_async";
     public static final String CACHE_FETCH_ASYNC_THREAD_POOL_SETTING = "xpack.searchable_snapshots.cache_fetch_async_thread_pool";
 

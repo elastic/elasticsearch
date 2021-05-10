@@ -24,7 +24,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -103,6 +102,19 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean isRemoteClusterClient(final Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    private static boolean isDedicatedFrozenRoles(Set<DiscoveryNodeRole> roles) {
+        return roles.contains(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) &&
+            roles.stream().filter(DiscoveryNodeRole::canContainData)
+                .anyMatch(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE) == false;
+    }
+
+    /**
+     * Check if the settings are for a dedicated frozen node, i.e. has frozen role and no other data roles.
+     */
+    public static boolean isDedicatedFrozenNode(final Settings settings) {
+        return isDedicatedFrozenRoles(getRolesFromSettings(settings));
     }
 
     private final String nodeName;
@@ -339,8 +351,11 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             }
         } else {
             // an old node will only understand legacy roles since pluggable roles is a new concept
-            final List<DiscoveryNodeRole> rolesToWrite =
-                    roles.stream().filter(DiscoveryNodeRole.LEGACY_ROLES::contains).collect(Collectors.toList());
+            final Set<DiscoveryNodeRole> rolesToWrite = roles.stream()
+                .map(role -> role.getCompatibilityRole(out.getVersion()))
+                .filter(DiscoveryNodeRole.LEGACY_ROLES::contains)
+                .collect(Collectors.toSet());
+
             out.writeVInt(rolesToWrite.size());
             for (final DiscoveryNodeRole role : rolesToWrite) {
                 if (role == DiscoveryNodeRole.MASTER_ROLE) {
@@ -422,6 +437,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isRemoteClusterClient() {
         return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    /**
+     * Returns whether or not the node is a frozen only node, i.e., has data frozen role and no other data roles.
+     * @return
+     */
+    public boolean isDedicatedFrozenNode() {
+        return isDedicatedFrozenRoles(getRoles());
     }
 
     /**

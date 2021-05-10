@@ -185,7 +185,7 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
         section.setExpectedWarningHeadersRegex(singletonList(Pattern.compile("test")));
         DoSection finalSection4 = section;
         error = expectThrows(AssertionError.class, () ->
-            finalSection4.checkWarningHeaders(Arrays.asList(testHeader, realisticTestHeader), Version.CURRENT));
+            finalSection4.checkWarningHeaders(org.elasticsearch.common.collect.List.of(testHeader, realisticTestHeader), Version.CURRENT));
         assertTrue(error.getMessage().contains("got unexpected warning header") && error.getMessage().contains("precedence during"));
 
         //the non-regex version does not need to worry about escaping since it is an exact match, and the code ensures that both
@@ -627,6 +627,29 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             assertEquals("expected [version] metadata to be set but got [host=http://dummy]",
                     e.getMessage());
         }
+    }
+
+    public void testNodeSelectorCurrentVersion() throws IOException {
+        parser = createParser(YamlXContent.yamlXContent,
+                "node_selector:\n" +
+                "    version: current\n" +
+                "indices.get_field_mapping:\n" +
+                "    index: test_index"
+        );
+
+        DoSection doSection = DoSection.parse(parser);
+        assertNotSame(NodeSelector.ANY, doSection.getApiCallSection().getNodeSelector());
+        Node v170 = nodeWithVersion("1.7.0");
+        Node v521 = nodeWithVersion("5.2.1");
+        Node v550 = nodeWithVersion("5.5.0");
+        Node current = nodeWithVersion(Version.CURRENT.toString());
+        List<Node> nodes = new ArrayList<>();
+        nodes.add(v170);
+        nodes.add(v521);
+        nodes.add(v550);
+        nodes.add(current);
+        doSection.getApiCallSection().getNodeSelector().select(nodes);
+        assertEquals(org.elasticsearch.common.collect.List.of(current), nodes);
     }
 
     private static Node nodeWithVersion(String version) {

@@ -82,6 +82,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class FiltersAggregatorTests extends AggregatorTestCase {
@@ -114,6 +115,35 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
         directory.close();
+    }
+
+    public void testBuildEmpty() throws IOException {
+        int numFilters = randomIntBetween(1, 10);
+        QueryBuilder[] filters = new QueryBuilder[numFilters];
+        for (int i = 0; i < filters.length; i++) {
+            filters[i] = QueryBuilders.termQuery("field", randomAlphaOfLength(5));
+        }
+        FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
+        boolean askForOtherBucket = true;
+        if (askForOtherBucket) {
+            builder.otherBucket(true).otherBucketKey("other");
+        }
+        withAggregator(
+            builder,
+            new MatchAllDocsQuery(),
+            iw -> {},
+            (searcher, aggregator) -> {
+                InternalFilters result = (InternalFilters) aggregator.buildEmptyAggregation();
+                for (int i = 0; i < filters.length; i++) {
+                    assertThat(result.getBucketByKey(String.valueOf(i)).getDocCount(), equalTo(0L));
+                }
+                if (askForOtherBucket) {
+                    assertThat(result.getBucketByKey("other").getDocCount(), equalTo(0L));
+                } else {
+                    assertThat(result.getBucketByKey("other"), nullValue());
+                }
+            }
+        );
     }
 
     public void testNoFilters() throws IOException {
@@ -338,6 +368,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
+            null,
             null,
             Collections.emptyMap()
         );
@@ -584,6 +615,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
+            null,
             Collections.emptyMap()
         );
         MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
@@ -658,6 +690,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
+            null,
             Collections.emptyMap()
         );
         MappedFieldType intFt = new NumberFieldMapper.NumberFieldType("int", NumberType.INTEGER);
@@ -723,6 +756,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
+            null,
             null,
             Collections.emptyMap()
         );

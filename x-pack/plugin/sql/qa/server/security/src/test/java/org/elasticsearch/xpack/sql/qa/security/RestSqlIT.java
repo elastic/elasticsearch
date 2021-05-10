@@ -18,8 +18,6 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 /**
  * Integration test for the rest sql action. The one that speaks json directly to a
  * user rather than to the JDBC driver or CLI.

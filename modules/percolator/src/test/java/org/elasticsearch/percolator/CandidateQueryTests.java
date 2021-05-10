@@ -136,7 +136,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         indexService = createIndex(indexName, Settings.EMPTY);
         mapperService = indexService.mapperService();
 
-        String mapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String mapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties")
                 .startObject("int_field").field("type", "integer").endObject()
                 .startObject("long_field").field("type", "long").endObject()
@@ -146,14 +146,14 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 .startObject("ip_field").field("type", "ip").endObject()
                 .startObject("field").field("type", "keyword").endObject()
                 .endObject().endObject().endObject());
-        documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
+        documentMapper = mapperService.merge("_doc", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE);
 
         String queryField = "query_field";
-        String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
+        String percolatorMapper = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("_doc")
                 .startObject("properties").startObject(queryField).field("type", "percolator").endObject().endObject()
                 .endObject().endObject());
-        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
-        fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper("type").mappers().getMapper(queryField);
+        mapperService.merge("_doc", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE);
+        fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper().mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
 
         queries = new ArrayList<>();
@@ -1109,7 +1109,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
 
     private void addQuery(Query query, List<ParseContext.Document> docs) {
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(
-            documentMapper.mappers(), null, null, null);
+            documentMapper.mappers(), indexService.getIndexSettings(), indexService.getIndexAnalyzers(), null, null, null);
         fieldMapper.processQuery(query, parseContext);
         ParseContext.Document queryDocument = parseContext.doc();
         // Add to string representation of the query to make debugging easier:

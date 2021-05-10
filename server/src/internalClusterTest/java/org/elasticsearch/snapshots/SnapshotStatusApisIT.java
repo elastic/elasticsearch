@@ -39,8 +39,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -166,6 +168,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final SnapshotInfo found = snapshotInfos.get(0);
         assertThat(found.snapshotId(), is(snapshotInfo.snapshotId()));
         assertThat(found.state(), is(SnapshotState.SUCCESS));
+        assertThat(found.indexSnapshotDetails(), anEmptyMap());
     }
 
     /**
@@ -253,7 +256,15 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
 
         unblockAllDataNodes(repoName);
-        assertThat(responseSnapshotTwo.get().getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        final SnapshotInfo snapshotInfo = responseSnapshotTwo.get().getSnapshotInfo();
+        assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+
+        assertTrue(snapshotInfo.indexSnapshotDetails().toString(), snapshotInfo.indexSnapshotDetails().containsKey(indexOne));
+        final SnapshotInfo.IndexSnapshotDetails indexSnapshotDetails = snapshotInfo.indexSnapshotDetails().get(indexOne);
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getShardCount(), equalTo(1));
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getMaxSegmentsPerShard(), greaterThanOrEqualTo(1));
+        assertThat(indexSnapshotDetails.toString(), indexSnapshotDetails.getSize().getBytes(), greaterThan(0L));
+
     }
 
     public void testSnapshotStatusOnFailedSnapshot() throws Exception {

@@ -983,7 +983,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.bitsetFilterCache(),
                 context.indexShard().shardId().hashCode(),
                 context::getRelativeTimeInMillis,
-                context::isCancelled
+                context::isCancelled,
+                context::buildFilteredQuery
             );
             context.addReleasable(aggContext);
             try {

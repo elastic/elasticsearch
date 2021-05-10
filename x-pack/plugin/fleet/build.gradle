@@ -6,6 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
@@ -24,4 +25,6 @@ dependencies {
 
 testClusters.all {
   testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'x_pack_rest_user', password: 'x-pack-test-password', role: 'superuser'
 }

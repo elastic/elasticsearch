@@ -41,6 +41,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -212,22 +213,18 @@ public final class TestUtils {
                     if (name.startsWith(prefix) == false) {
                         throw new FileNotFoundException("Blob not found: " + name);
                     }
-                    assert position + length <= partSize : "cannot read ["
-                        + position
-                        + "-"
-                        + (position + length)
-                        + "] from array part of length ["
-                        + partSize
-                        + "]";
+                    assert position + length <= partSize
+                        : "cannot read [" + position + "-" + (position + length) + "] from array part of length [" + partSize + "]";
                     final int partNumber = Integer.parseInt(name.substring(prefix.length()));
                     final int positionInBlob = toIntBytes(position) + partSize * partNumber;
-                    assert positionInBlob + length <= blobContent.length : "cannot read ["
-                        + positionInBlob
-                        + "-"
-                        + (positionInBlob + length)
-                        + "] from array of length ["
-                        + blobContent.length
-                        + "]";
+                    assert positionInBlob + length <= blobContent.length
+                        : "cannot read ["
+                            + positionInBlob
+                            + "-"
+                            + (positionInBlob + length)
+                            + "] from array of length ["
+                            + blobContent.length
+                            + "]";
                     return Streams.limitStream(
                         new ByteArrayInputStream(blobContent, positionInBlob, blobContent.length - positionInBlob),
                         length
@@ -285,7 +282,7 @@ public final class TestUtils {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
             throw unsupportedException();
         }
 

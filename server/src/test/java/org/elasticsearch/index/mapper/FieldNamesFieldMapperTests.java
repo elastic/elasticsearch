@@ -24,14 +24,6 @@ import java.util.TreeSet;
 
 public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
 
-    private static SortedSet<String> extract(String path) {
-        SortedSet<String> set = new TreeSet<>();
-        for (String fieldName : FieldNamesFieldMapper.extractFieldNames(path)) {
-            set.add(fieldName);
-        }
-        return set;
-    }
-
     private static SortedSet<String> set(String... values) {
         return new TreeSet<>(Arrays.asList(values));
     }
@@ -45,16 +37,6 @@ public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
             }
         }
         assertEquals(expected, set(result.toArray(new String[0])));
-    }
-
-    public void testExtractFieldNames() {
-        assertEquals(set("abc"), extract("abc"));
-        assertEquals(set("a", "a.b"), extract("a.b"));
-        assertEquals(set("a", "a.b", "a.b.c"), extract("a.b.c"));
-        // and now corner cases
-        assertEquals(set("", ".a"), extract(".a"));
-        assertEquals(set("a", "a."), extract("a."));
-        assertEquals(set("", ".", ".."), extract(".."));
     }
 
     public void testFieldType() throws Exception {

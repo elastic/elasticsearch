@@ -253,13 +253,12 @@ public class ExtractedFieldsDetector {
         Iterator<String> fieldsIterator = fields.iterator();
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
-            if (hasCompatibleType(field) == false) {
-                addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
-                fieldsIterator.remove();
-            }
             Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
             if (matchingNestedFieldPattern.isPresent()) {
                 addExcludedNestedPattern(matchingNestedFieldPattern.get(), fieldSelection);
+                fieldsIterator.remove();
+            } else if (hasCompatibleType(field) == false) {
+                addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
                 fieldsIterator.remove();
             }
         }

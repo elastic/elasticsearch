@@ -252,7 +252,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             PersistentTask<?> task = tasks.getTask(MlTasks.jobTaskId(jobId));
 
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "512"));
             JobTaskState jobTaskState = (JobTaskState) task.getState();
             assertNotNull(jobTaskState);
             assertEquals(JobState.OPENED, jobTaskState.getState());
@@ -451,11 +451,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         assertBusy(() -> assertJobTask(jobId, JobState.OPENED, true));
     }
 
-    public void testCloseUnassignedLazyJobAndDatafeed() throws Exception {
-
-        // see: https://github.com/elastic/elasticsearch/issues/66885#issuecomment-758790179
-        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
-
+    public void testCloseUnassignedLazyJobAndDatafeed() {
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster(3);
 
@@ -520,7 +516,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
             assertNotNull(task.getExecutorNode());
             assertFalse(needsReassignment(task.getAssignment(), clusterState.nodes()));
             DiscoveryNode node = clusterState.nodes().resolveNode(task.getExecutorNode());
-            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "20"));
+            assertThat(node.getAttributes(), hasEntry(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, "512"));
 
             JobTaskState jobTaskState = (JobTaskState) task.getState();
             assertNotNull(jobTaskState);

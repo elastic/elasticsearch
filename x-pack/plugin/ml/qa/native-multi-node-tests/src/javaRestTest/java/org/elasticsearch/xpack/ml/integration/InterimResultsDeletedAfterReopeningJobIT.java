@@ -50,7 +50,6 @@ public class InterimResultsDeletedAfterReopeningJobIT extends MlNativeAutodetect
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 

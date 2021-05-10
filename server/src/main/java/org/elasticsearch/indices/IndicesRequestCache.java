@@ -252,6 +252,19 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             result = 31 * result + value.hashCode();
             return result;
         }
+
+        @Override
+        public String toString() {
+            return "Key(mappingKey=["
+                + mappingCacheKey
+                + "],readerKey=["
+                + readerCacheKey
+                + "],entityKey=["
+                + entity.getCacheIdentity()
+                + ",value=" // BytesRef's toString already has [] so we don't add it here
+                + value.toBytesRef() // BytesRef has a readable toString
+                + ")";
+        }
     }
 
     private class CleanupKey implements IndexReader.ClosedListener {

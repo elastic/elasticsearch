@@ -19,7 +19,7 @@ import java.util.function.Function;
 /**
  * Base class for {@link GeoShapeFieldMapper} and {@link LegacyGeoShapeFieldMapper}
  */
-public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
+public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
     public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer,
                                                            boolean coerceByDefault) {
@@ -56,8 +56,8 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
                                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                                Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
                                                MultiFields multiFields, CopyTo copyTo,
-                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, indexAnalyzers, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
+                                               Parser<T> parser) {
+        super(simpleName, mappedFieldType, indexAnalyzers, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
         this.coerce = coerce;
         this.orientation = orientation;
     }
@@ -66,9 +66,9 @@ public abstract class AbstractShapeGeometryFieldMapper<Parsed, Processed> extend
                                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
                                                Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
                                                MultiFields multiFields, CopyTo copyTo,
-                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
+                                               Parser<T> parser) {
         this(simpleName, mappedFieldType, Collections.emptyMap(),
-            ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo, indexer, parser);
+            ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo, parser);
     }
 
     @Override

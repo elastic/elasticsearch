@@ -342,6 +342,9 @@ public interface AuthorizationEngine {
         }
 
         public static String getFailureDescription(Collection<?> deniedIndices) {
+            if (deniedIndices.isEmpty()) {
+                return null;
+            }
             return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
         }
 

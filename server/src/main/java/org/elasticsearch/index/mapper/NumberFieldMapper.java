@@ -111,14 +111,7 @@ public class NumberFieldMapper extends FieldMapper {
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
-            this.script.setValidator(s -> {
-                if (s != null && indexed.get() == false && hasDocValues.get() == false) {
-                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
-                }
-                if (s != null && multiFieldsBuilder.hasMultiFields()) {
-                    throw new MapperParsingException("Cannot define multifields on a field with a script");
-                }
-            });
+            addScriptValidation(script, indexed, hasDocValues);
         }
 
         Builder nullValue(Number number) {
@@ -1132,9 +1125,7 @@ public class NumberFieldMapper extends FieldMapper {
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
-        if (context.externalValueSet()) {
-            value = context.externalValue();
-        } else if (parser.currentToken() == Token.VALUE_NULL) {
+        if (parser.currentToken() == Token.VALUE_NULL) {
             value = null;
         } else if (coerce.value()
                 && parser.currentToken() == Token.VALUE_STRING
@@ -1174,7 +1165,7 @@ public class NumberFieldMapper extends FieldMapper {
             indexed, hasDocValues, stored));
 
         if (hasDocValues == false && (stored || indexed)) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.ArrayList;
@@ -146,6 +148,18 @@ public class DiskThresholdMonitor {
             final String node = entry.key;
             final DiskUsage usage = entry.value;
             final RoutingNode routingNode = routingNodes.node(node);
+
+            if (isDedicatedFrozenNode(routingNode)) {
+                ByteSizeValue total = ByteSizeValue.ofBytes(usage.getTotalBytes());
+                long frozenFloodStageThreshold = diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(total).getBytes();
+                if (usage.getFreeBytes() < frozenFloodStageThreshold) {
+                    logger.warn("flood stage disk watermark [{}] exceeded on {}",
+                        diskThresholdSettings.describeFrozenFloodStageThreshold(total), usage);
+                }
+                // skip checking high/low watermarks for frozen nodes, since frozen shards have only insignificant local storage footprint
+                // and this allows us to use more of the local storage for cache.
+                continue;
+            }
 
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
                 usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
@@ -378,5 +392,13 @@ public class DiskThresholdMonitor {
                 nodesToCleanUp.remove(node);
             }
         }
+    }
+
+    private boolean isDedicatedFrozenNode(RoutingNode routingNode) {
+        if (routingNode == null) {
+            return false;
+        }
+        DiscoveryNode node = routingNode.node();
+        return node.isDedicatedFrozenNode();
     }
 }

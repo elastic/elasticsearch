@@ -57,13 +57,13 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Object getSampleValueForDocument() {
-        return "POINT (14.0 15.0)";
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     @Override
-    protected boolean allowsStore() {
-        return false;
+    protected Object getSampleValueForDocument() {
+        return "POINT (14.0 15.0)";
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -220,6 +220,16 @@ public class GeoShapeFieldMapperTests extends MapperTestCase {
         }));
         assertThat(document.docs(), hasSize(1));
         assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
+    }
+
+    public void testMultiFieldsDeprecationWarning() throws Exception {
+        createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.startObject("fields");
+            b.startObject("keyword").field("type", "keyword").endObject();
+            b.endObject();
+        }));
+        assertWarnings("Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future");
     }
 
     @Override

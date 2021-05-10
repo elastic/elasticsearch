@@ -137,7 +137,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
     public void testScriptErrorParameterRequiresScript() {
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             b.field("type", "long");
-            b.field("on_script_error", "ignore");
+            b.field("on_script_error", "continue");
         })));
         assertThat(e.getMessage(),
             equalTo("Failed to parse mapping [_doc]: Field [on_script_error] requires field [script] to be configured"));
@@ -156,7 +156,7 @@ public class IndexTimeScriptTests extends MapperServiceTestCase {
             {
                 b.field("type", "long");
                 b.field("script", "throws");
-                b.field("on_script_error", "ignore");
+                b.field("on_script_error", "continue");
             }
             b.endObject();
         }));

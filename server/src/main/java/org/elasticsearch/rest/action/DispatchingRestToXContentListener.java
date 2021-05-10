@@ -9,15 +9,13 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.concurrent.ExecutorService;
 
@@ -25,7 +23,7 @@ import java.util.concurrent.ExecutorService;
  * Response listener for REST requests which dispatches the serialization of the response off of the thread on which the response was
  * received, since that thread is often a transport thread and XContent serialization might be expensive.
  */
-public class DispatchingRestToXContentListener<Response extends ToXContentObject> extends RestActionListener<Response> {
+public class DispatchingRestToXContentListener<Response extends StatusToXContentObject> extends RestActionListener<Response> {
 
     private final ExecutorService executor;
     private final RestRequest restRequest;
@@ -36,25 +34,18 @@ public class DispatchingRestToXContentListener<Response extends ToXContentObject
         this.restRequest = restRequest;
     }
 
-    private void ensureOpen() {
-        if (restRequest.getHttpChannel().isOpen() == false) {
-            throw new TaskCancelledException("response channel [" + restRequest.getHttpChannel() + "] closed");
-        }
-    }
-
     protected ToXContent.Params getParams() {
         return restRequest;
     }
 
     @Override
     protected void processResponse(Response response) {
-        ensureOpen();
         executor.execute(ActionRunnable.wrap(this, l -> new RestBuilderListener<Response>(channel) {
             @Override
             public RestResponse buildResponse(final Response response, final XContentBuilder builder) throws Exception {
                 ensureOpen();
                 response.toXContent(builder, getParams());
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new BytesRestResponse(response.status(), builder);
             }
         }.onResponse(response)));
     }

@@ -35,7 +35,7 @@ public abstract class AbstractFieldScript {
 
     static <F> ScriptContext<F> newContext(String name, Class<F> factoryClass) {
         return new ScriptContext<>(
-            name + "_script_field",
+            name,
             factoryClass,
             /*
              * We rely on the script cache in two ways:
@@ -54,7 +54,12 @@ public abstract class AbstractFieldScript {
              * source of runaway script compilations. We think folks will
              * mostly reuse scripts though.
              */
-            ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple()
+            ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(),
+            /*
+             * Disable runtime fields scripts from being allowed
+             * to be stored as part of the script meta data.
+             */
+            false
         );
     }
 

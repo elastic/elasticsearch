@@ -71,7 +71,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         @Override
         public SparseVectorFieldMapper build(ContentPath contentPath) {
             return new SparseVectorFieldMapper(
-                    name, new SparseVectorFieldType(buildFullName(contentPath), meta.getValue()),
+                    name, new SparseVectorFieldType(buildFullName(contentPath), indexCreatedVersion, meta.getValue()),
                     multiFieldsBuilder.build(this, contentPath), copyTo.build(), indexCreatedVersion);
         }
     }
@@ -79,12 +79,14 @@ public class SparseVectorFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
         deprecationLogger.deprecate(DeprecationCategory.API, "sparse_vector", DEPRECATION_MESSAGE);
         return new Builder(n, c.indexVersionCreated());
-    });
+    }, notInMultiFields(CONTENT_TYPE));
 
     public static final class SparseVectorFieldType extends MappedFieldType {
 
-        public SparseVectorFieldType(String name, Map<String, String> meta) {
+        private final Version indexVersionCreated;
+        public SparseVectorFieldType(String name, Version indexVersionCreated, Map<String, String> meta) {
             super(name, false, false, true, TextSearchInfo.NONE, meta);
+            this.indexVersionCreated = indexVersionCreated;
         }
 
         @Override
@@ -94,7 +96,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-            throw new UnsupportedOperationException(
+            throw new IllegalArgumentException(
                 "Field [" + name() + "] of type [" + typeName() + "] doesn't support docvalue_fields or aggregations");
         }
 
@@ -118,7 +120,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new VectorIndexFieldData.Builder(name(), false, CoreValuesSourceType.KEYWORD);
+            return new VectorIndexFieldData.Builder(name(), false, CoreValuesSourceType.KEYWORD, indexVersionCreated, -1);
         }
 
         @Override
@@ -148,9 +150,6 @@ public class SparseVectorFieldMapper extends FieldMapper {
 
     @Override
     public void parse(ParseContext context) throws IOException {
-        if (context.externalValueSet()) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] can't be used in multi-fields");
-        }
         ensureExpectedToken(Token.START_OBJECT, context.parser().currentToken(), context.parser());
         int[] dims = new int[0];
         float[] values = new float[0];

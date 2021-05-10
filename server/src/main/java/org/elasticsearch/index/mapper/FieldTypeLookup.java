@@ -16,6 +16,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -23,6 +24,7 @@ import java.util.Set;
  */
 final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
+    private final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -33,7 +35,8 @@ final class FieldTypeLookup {
      */
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
     private final String type;
-    private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
+
+    private final int maxParentPathDots;
 
     FieldTypeLookup(
         String type,
@@ -42,16 +45,13 @@ final class FieldTypeLookup {
         Collection<RuntimeField> runtimeFields
     ) {
         this.type = type;
-        Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
-
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
             fullNameToFieldType.put(fieldType.name(), fieldType);
-            if (fieldMapper instanceof DynamicKeyFieldMapper) {
-                dynamicKeyMappers.put(fieldName, (DynamicKeyFieldMapper) fieldMapper);
+            if (fieldType instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(fieldType.name(), (DynamicFieldType) fieldType);
             }
-
             for (String targetField : fieldMapper.copyTo().copyToFields()) {
                 Set<String> sourcePath = fieldToCopiedFields.get(targetField);
                 if (sourcePath == null) {
@@ -63,12 +63,20 @@ final class FieldTypeLookup {
             }
         }
 
-        final Map<String, String> aliasToConcreteName = new HashMap<>();
+        int maxParentPathDots = 0;
+        for (String dynamicRoot : dynamicFieldTypes.keySet()) {
+            maxParentPathDots = Math.max(maxParentPathDots, dotCount(dynamicRoot));
+        }
+        this.maxParentPathDots = maxParentPathDots;
+
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
-            aliasToConcreteName.put(aliasName, path);
-            fullNameToFieldType.put(aliasName, fullNameToFieldType.get(path));
+            MappedFieldType fieldType = fullNameToFieldType.get(path);
+            fullNameToFieldType.put(aliasName, fieldType);
+            if (fieldType instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(aliasName, (DynamicFieldType) fieldType);
+            }
         }
 
         for (RuntimeField runtimeField : runtimeFields) {
@@ -76,8 +84,16 @@ final class FieldTypeLookup {
             //this will override concrete fields with runtime fields that have the same name
             fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
         }
+    }
 
-        this.dynamicKeyLookup = new DynamicKeyFieldTypeLookup(dynamicKeyMappers, aliasToConcreteName);
+    private static int dotCount(String path) {
+        int dotCount = 0;
+        for (int i = 0; i < path.length(); i++) {
+            if (path.charAt(i) == '.') {
+                dotCount++;
+            }
+        }
+        return dotCount;
     }
 
     /**
@@ -92,10 +108,42 @@ final class FieldTypeLookup {
         if (fieldType != null) {
             return fieldType;
         }
+        return getDynamicField(field);
+    }
 
-        // If the mapping contains fields that support dynamic sub-key lookup, check
-        // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
-        return dynamicKeyLookup.get(field);
+    // for testing
+    int getMaxParentPathDots() {
+        return maxParentPathDots;
+    }
+
+    // Check if the given field corresponds to a dynamic key mapper of the
+    // form 'path_to_field.path_to_key'. If so, returns a field type that
+    // can be used to perform searches on this field. Otherwise returns null.
+    private MappedFieldType getDynamicField(String field) {
+        if (dynamicFieldTypes.isEmpty()) {
+            // no parent fields defined
+            return null;
+        }
+        int dotIndex = -1;
+        int fieldDepth = -1;
+
+        while (true) {
+            if (++fieldDepth > maxParentPathDots) {
+                return null;
+            }
+
+            dotIndex = field.indexOf('.', dotIndex + 1);
+            if (dotIndex < 0) {
+                return null;
+            }
+
+            String parentField = field.substring(0, dotIndex);
+            DynamicFieldType dft = dynamicFieldTypes.get(parentField);
+            if (dft != null && Objects.equals(field, parentField) == false) {
+                String key = field.substring(dotIndex + 1);
+                return dft.getChildFieldType(key);
+            }
+        }
     }
 
     /**
@@ -138,6 +186,13 @@ final class FieldTypeLookup {
         if (fullNameToFieldType.isEmpty()) {
             return org.elasticsearch.common.collect.Set.of();
         }
+
+        // If the field is dynamically generated then return its full path
+        MappedFieldType fieldType = getDynamicField(field);
+        if (fieldType != null) {
+            return Collections.singleton(field);
+        }
+
         String resolvedField = field;
         int lastDotIndex = field.lastIndexOf('.');
         if (lastDotIndex > 0) {

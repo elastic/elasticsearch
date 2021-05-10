@@ -13,6 +13,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -301,6 +302,14 @@ class NodeDeprecationChecks {
                     .collect(Collectors.joining(","));
             },
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes"
+        );
+    }
+
+    static DeprecationIssue checkBootstrapSystemCallFilterSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkRemovedSetting(
+            settings,
+            BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-system-call-filter-setting"
         );
     }
 

@@ -56,17 +56,28 @@ public class VotingOnlyNodeCoordinatorTests extends AbstractCoordinatorTestCase 
     @Override
     protected DiscoveryNode createDiscoveryNode(int nodeIndex, boolean masterEligible) {
         final TransportAddress address = buildNewFakeTransportAddress();
-        return new DiscoveryNode("", "node" + nodeIndex,
+        return new DiscoveryNode(
+            "",
+            "node" + nodeIndex,
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
-            address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES :
-                randomBoolean() ? emptySet() : Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-                    DiscoveryNodeRole.DATA_ROLE,
-                    DiscoveryNodeRole.INGEST_ROLE,
-                    DiscoveryNodeRole.MASTER_ROLE,
-                    VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE
-                ))),
-            Version.CURRENT);
+            address.address().getHostString(),
+            address.getAddress(),
+            address,
+            Collections.emptyMap(),
+            masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES
+                : randomBoolean() ? emptySet()
+                : Collections.unmodifiableSet(
+                    new HashSet<>(
+                        Arrays.asList(
+                            DiscoveryNodeRole.DATA_ROLE,
+                            DiscoveryNodeRole.INGEST_ROLE,
+                            DiscoveryNodeRole.MASTER_ROLE,
+                            VotingOnlyNodePlugin.VOTING_ONLY_NODE_ROLE
+                        )
+                    )
+                ),
+            Version.CURRENT
+        );
     }
 
 }

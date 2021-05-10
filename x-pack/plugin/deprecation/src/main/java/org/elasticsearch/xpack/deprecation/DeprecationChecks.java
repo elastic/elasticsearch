@@ -38,9 +38,9 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
             ClusterDeprecationChecks::checkPollIntervalTooLow,
-            ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled
+            ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
+            ClusterDeprecationChecks::checkTemplatesWithMultipleTypes
         ));
-
 
     static final List<NodeDeprecationCheck<Settings, PluginsAndModules, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS;
 
@@ -86,7 +86,8 @@ public class DeprecationChecks {
                         XPackSettings.VECTORS_ENABLED),
                     NodeDeprecationChecks::checkMultipleDataPaths,
                     NodeDeprecationChecks::checkDataPathsList,
-                    NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial
+                    NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
+                    NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting
                 )
             ).collect(Collectors.toList());
         }

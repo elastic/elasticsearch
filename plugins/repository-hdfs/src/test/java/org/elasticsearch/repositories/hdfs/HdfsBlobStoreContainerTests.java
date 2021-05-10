@@ -106,12 +106,12 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         FileContext.Util util = fileContext.util();
         Path root = fileContext.makeQualified(new Path("dir"));
         assertFalse(util.exists(root));
-        BlobPath blobPath = BlobPath.cleanPath().add("path");
+        BlobPath blobPath = BlobPath.EMPTY.add("path");
 
         // blobContainer() will not create path if read only
         hdfsBlobStore.blobContainer(blobPath);
         Path hdfsPath = root;
-        for (String p : blobPath) {
+        for (String p : blobPath.parts()) {
             hdfsPath = new Path(hdfsPath, p);
         }
         assertFalse(util.exists(hdfsPath));
@@ -135,12 +135,12 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         FileContext.Util util = fileContext.util();
         Path root = fileContext.makeQualified(new Path("dir"));
         assertFalse(util.exists(root));
-        BlobPath blobPath = BlobPath.cleanPath().add("path");
+        BlobPath blobPath = BlobPath.EMPTY.add("path");
 
         // blobContainer() will not create path if read only
         hdfsBlobStore.blobContainer(blobPath);
         Path hdfsPath = root;
-        for (String p : blobPath) {
+        for (String p : blobPath.parts()) {
             hdfsPath = new Path(hdfsPath, p);
         }
         assertFalse(util.exists(hdfsPath));

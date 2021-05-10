@@ -257,6 +257,7 @@ import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -510,7 +511,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteDataStreamAction.INSTANCE,
                 DataStreamsStatsAction.INSTANCE,
                 // Text Structure
-                FindStructureAction.INSTANCE
+                FindStructureAction.INSTANCE,
+                // Terms enum API
+                TermsEnumAction.INSTANCE
         ));
 
         // rollupV2

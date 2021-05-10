@@ -38,13 +38,15 @@ final class RerunTestResultProcessor implements TestResultProcessor {
 
     @Override
     public void started(TestDescriptorInternal descriptor, TestStartEvent testStartEvent) {
+        activeDescriptorsById.put(descriptor.getId(), descriptor);
         if (rootTestDescriptorId == null) {
             rootTestDescriptorId = descriptor.getId();
-            activeDescriptorsById.put(descriptor.getId(), descriptor);
             delegate.started(descriptor, testStartEvent);
         } else if (descriptor.getId().equals(rootTestDescriptorId) == false) {
-            activeDescriptorsById.put(descriptor.getId(), descriptor);
-            delegate.started(descriptor, testStartEvent);
+            boolean active = activeDescriptorsById.containsKey(testStartEvent.getParentId());
+            if (active) {
+                delegate.started(descriptor, testStartEvent);
+            }
         }
     }
 
@@ -73,6 +75,7 @@ final class RerunTestResultProcessor implements TestResultProcessor {
     @Override
     public void failure(Object testId, Throwable throwable) {
         if (activeDescriptorsById.containsKey(testId)) {
+            activeDescriptorsById.remove(testId);
             delegate.failure(testId, throwable);
         }
     }

@@ -57,7 +57,6 @@ import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
@@ -272,7 +271,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     public BlobPath basePath() {
         // the encrypted repository uses a hardcoded empty base blob path,
         // but the base path setting is honored for the delegated repository
-        return BlobPath.cleanPath();
+        return BlobPath.EMPTY;
     }
 
     @Override
@@ -488,10 +487,9 @@ public class EncryptedRepository extends BlobStoreRepository {
 
         @Override
         public BlobContainer blobContainer(BlobPath path) {
-            final Iterator<String> pathIterator = path.iterator();
             BlobPath delegatedBlobContainerPath = delegatedBasePath;
-            while (pathIterator.hasNext()) {
-                delegatedBlobContainerPath = delegatedBlobContainerPath.add(pathIterator.next());
+            for (String s : path.parts()) {
+                delegatedBlobContainerPath = delegatedBlobContainerPath.add(s);
             }
             final BlobContainer delegatedBlobContainer = delegatedBlobStore.blobContainer(delegatedBlobContainerPath);
             return new EncryptedBlobContainer(path, repositoryName, delegatedBlobContainer, singleUseDEKSupplier, this::getDEKById);
@@ -520,7 +518,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         ) {
             super(path);
             this.repositoryName = repositoryName;
-            final String rootPathElement = path.iterator().hasNext() ? path.iterator().next() : null;
+            final String rootPathElement = path.parts().isEmpty() ? null : path.parts().get(0);
             if (DEK_ROOT_CONTAINER.equals(rootPathElement)) {
                 throw new RepositoryException(repositoryName, "Cannot descend into the DEK blob container " + path);
             }
@@ -668,7 +666,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
             delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
         }
 
@@ -687,7 +685,7 @@ public class EncryptedRepository extends BlobStoreRepository {
             final Map<String, BlobContainer> childEncryptedBlobContainers = delegatedBlobContainer.children();
             final Map<String, BlobContainer> resultBuilder = new HashMap<>(childEncryptedBlobContainers.size());
             for (Map.Entry<String, BlobContainer> childBlobContainer : childEncryptedBlobContainers.entrySet()) {
-                if (childBlobContainer.getKey().equals(DEK_ROOT_CONTAINER) && false == path().iterator().hasNext()) {
+                if (childBlobContainer.getKey().equals(DEK_ROOT_CONTAINER) && path().parts().isEmpty()) {
                     // do not descend into the DEK blob container
                     continue;
                 }

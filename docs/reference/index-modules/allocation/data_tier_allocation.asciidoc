@@ -16,8 +16,8 @@ These tier attributes are set using the data node roles:
 * <<data-frozen-node, data_frozen>>
 
 NOTE: The <<data-node, data>> role is not a valid data tier and cannot be used
-for data tier filtering. The <<data-frozen-node, data_frozen>> role can only be
-used for searchable snapshots mounted with the `shared_cache` option.
+for data tier filtering. The frozen tier stores <<partially-mounted,partially
+mounted indices>> exclusively.
 
 [discrete]
 [[data-tier-allocation-filters]]

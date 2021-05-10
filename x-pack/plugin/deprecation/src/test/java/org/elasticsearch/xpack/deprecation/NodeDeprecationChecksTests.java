@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -488,6 +489,24 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{legacyRoleSetting});
         }
+    }
+
+    public void testCheckBootstrapSystemCallFilterSetting() {
+        final boolean boostrapSystemCallFilter = randomBoolean();
+        final Settings settings =
+            Settings.builder().put(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(), boostrapSystemCallFilter).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
+        final PluginsAndModules pluginsAndModules =
+            new PluginsAndModules(org.elasticsearch.common.collect.List.of(), org.elasticsearch.common.collect.List.of());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules, licenseState));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [bootstrap.system_call_filter] is deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-system-call-filter-setting",
+            "the setting [bootstrap.system_call_filter] is currently set to [" + boostrapSystemCallFilter + "], remove this setting");
+        assertThat(issues, hasItem(expected));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{BootstrapSettings.SYSTEM_CALL_FILTER_SETTING});
     }
 
     public void testRemovedSettingNotSet() {

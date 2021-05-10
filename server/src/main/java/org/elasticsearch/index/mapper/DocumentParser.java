@@ -21,6 +21,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -38,20 +40,34 @@ import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-/** A parser for documents, given mappings from a DocumentMapper */
-final class DocumentParser {
+/**
+ * A parser for documents
+ */
+public final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
+    private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
 
     DocumentParser(NamedXContentRegistry xContentRegistry,
-                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext,
+                   IndexSettings indexSettings,
+                   IndexAnalyzers indexAnalyzers) {
         this.xContentRegistry = xContentRegistry;
         this.dateParserContext = dateParserContext;
+        this.indexSettings = indexSettings;
+        this.indexAnalyzers = indexAnalyzers;
     }
 
-    ParsedDocument parseDocument(SourceToParse source,
-                                 MappingLookup mappingLookup) throws MapperParsingException {
+    /**
+     * Parse a document
+     * @param source the document to parse
+     * @param mappingLookup the mappings information needed to parse the document
+     * @return the parsed document
+     * @throws MapperParsingException whenever there's a problem parsing the document
+     */
+    public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws MapperParsingException {
         validateType(source, mappingLookup.getType());
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
@@ -59,6 +75,8 @@ final class DocumentParser {
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
             context = new ParseContext.InternalParseContext(
                 mappingLookup,
+                indexSettings,
+                indexAnalyzers,
                 dateParserContext,
                 source,
                 parser);

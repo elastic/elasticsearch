@@ -38,19 +38,19 @@ enable <<deprecation-logging, deprecation logging>>.
 ==== Mapping changes
 
 [[geo-mappers-external-values]]
-.Geo mappers no longer accept external values from multifields
+.Geo mappers no longer accept external values from multifields.
 [%collapsible]
 ====
 *Details* +
 In earlier versions, geo fields could theoretically be used as a subfield
 if their parent field set a geometry object as an external value during
 parsing. This functionality was unused within the {es} codebase and
-blocked required changes to allow index-time scripts on geo_point fields,
+blocked required changes to allow index-time scripts on `geo_point` fields,
 so it has been removed.
 ====
 
 [[geo-point-geohash-subfields]]
-.Geopoint mappers pass geohashes to subfields one-by-one
+.Geopoint mappers pass geohashes to subfields one-by-one.
 [%collapsible]
 ====
 *Details* +
@@ -61,11 +61,28 @@ geohash strings.
 ====
 
 [discrete]
+[[breaking_713_frozen_multiple_data_paths_changes]]
+==== Frozen tier and multiple data paths changes
+
+{es} 7.12 included a technical preview of the frozen tier, being able to use
+partially mounted indices (searchable snapshots mounted with the shared cache
+option). Trying out this feature required configuring a shared cache using the
+`xpack.searchable.snapshot.shared_cache.size` setting.
+
+In {es} 7.13+, having a non-zero `xpack.searchable.snapshot.shared_cache.size`
+on nodes utilizing multiple data paths (`path.data` points to multiple
+locations) is no longer supported and will prevent the node from starting. If
+you do not utilize multiple data paths this will not affect you. Likewise, if
+you have not set `xpack.searchable.snapshot.shared_cache.size` and have not
+configured dedicated frozen nodes (nodes with the `data_frozen` role and no
+other data roles) this will not affect you.
+
+[discrete]
 [[deprecated-7.13]]
 === Deprecations
 
 The following functionality has been deprecated in {es} 7.13
-and will be removed in 8.0
+and will be removed in 8.0.
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
 after upgrading to 7.13.
@@ -74,6 +91,54 @@ NOTE: Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[breaking_713_agg_deprecations]]
+==== Aggregation deprecations
+
+[discrete]
+[[breaking_713_boolean-field-support-deprecated-date-aggs]]
+.Date aggregations on `boolean` fields are deprecated.
+[%collapsible]
+====
+*Details* +
+Support for auto-interval date histogram, date histogram, and date range
+aggregations on `boolean` fields is now deprecated. On `boolean` fields, these
+aggregations are rarely useful and often unintended.
+====
+
+[discrete]
+[[breaking_713_infra_core_deprecations]]
+==== Core deprecations
+
+[[multiple-data-path-support-deprecated]]
+.Multiple data path support is deprecated.
+[%collapsible]
+====
+*Details* +
+Support for multiple paths in the `path.data` setting is now deprecated. We
+introduced this option as a way to support multi-disk setups. It has since been
+a source of user complaints due to confusing and unintuitive behavior.
+
+*Impact* +
+Specify a single path in `path.data`. To use multiple disks, use a RAID
+hardware configuration or similar hardware solution.
+====
+
+[[action-destructive-defaults-to-true]]
+.The `action.destructive_requires_name` setting will default to `true` in 8.0.0.
+[%collapsible]
+====
+*Details* +
+In 8.0.0, the `action.destructive_requires_name` setting will default to `true`.
+Currently, the setting defaults to `false`.
+
+*Impact* +
+If you use a wildcard (`*`) or `_all` to delete indices or perform other
+destructive actions, use the {ref}/cluster-update-settings.html[update cluster
+settings API] to set `action.destructive_requires_name` to `false` to avoid
+errors in 8.0.0.
+====
 
 [discrete]
 [[breaking_713_eql_deprecations]]
@@ -93,14 +158,37 @@ Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or
 ==== Security deprecations
 
 [[implicitly-disabled-basic-realms]]
-Currently, the file and native realms have following implicit behaviours:
+.Implicit enablement of the file and native realms is deprecated.
+[%collapsible]
+====
+*Details* +
+Currently, the file and native realms have the following implicit behaviors:
 
 * If file and native realms are not configured, they are implicitly disabled
 if there are other explicitly configured realms.
-* If no realm is available due to either unconfigured, explicitly disabled
-or disallowed by the license, the file and native realms are always enabled
-even when they are explicitly disabled.
+* If no realm is available because realms are unconfigured, explicitly
+disabled, or not allowed by your license, the file and native realms are always
+enabled, even if explicitly disabled.
 
-Both of the above behaviours are deprecated. In version 8.0.0, the file and
+*Impact* +
+Both of the above behaviors are deprecated. In 8.0.0, the file and
 native realms will always be enabled unless explicitly disabled. If they are
 explicitly disabled, they remain disabled at all times.
+====
+
+[[system-call-filter-setting]]
+.System call filter setting deprecated
+[%collapsible]
+====
+*Details* +
+Elasticsearch uses system call filters to remove its ability to fork another
+process. This is useful to mitigate remote code exploits. These system call
+filters are enabled by default, and controlled via the setting
+`bootstrap.system_call_filter`. Starting in Elasticsearch 8.0, system call
+filters will be required. As such, the setting `bootstrap.system_call_filter` is
+deprecated and will be removed in Elasticsearch 8.0.
+
+*Impact* +
+Discontinue use of the removed setting. Specifying this setting in Elasticsearch
+configuration will result in an error on startup.
+====

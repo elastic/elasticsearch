@@ -90,7 +90,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
             final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(settings);
             URLBlobStore urlBlobStore =
                 new URLBlobStore(settings, new URL(getEndpointForServer()), factory.create(httpClientSettings), httpClientSettings);
-            return urlBlobStore.blobContainer(new BlobPath());
+            return urlBlobStore.blobContainer(BlobPath.EMPTY);
         } catch (MalformedURLException e) {
             throw new RuntimeException("Unable to create URLBlobStore", e);
         }

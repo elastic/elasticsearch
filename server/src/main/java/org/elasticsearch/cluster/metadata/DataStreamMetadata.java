@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -72,17 +71,13 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     public DataStreamMetadata(Map<String, DataStream> dataStreams,
                               Map<String, DataStreamAlias> dataStreamAliases) {
-        this.dataStreams = Objects.requireNonNull(dataStreams);
+        this.dataStreams = Map.copyOf(dataStreams);
         this.dataStreamAliases = Objects.requireNonNull(dataStreamAliases);
     }
 
     public DataStreamMetadata(StreamInput in) throws IOException {
-        this.dataStreams = in.readMap(StreamInput::readString, DataStream::new);
-        if (in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
-            this.dataStreamAliases = in.readMap(StreamInput::readString, DataStreamAlias::new);
-        } else {
-            this.dataStreamAliases = Map.of();
-        }
+        this(in.readMap(StreamInput::readString, DataStream::new), in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION) ?
+            in.readMap(StreamInput::readString, DataStreamAlias::new) : Map.of());
     }
 
     public Map<String, DataStream> dataStreams() {
@@ -144,10 +139,6 @@ public class DataStreamMetadata implements Metadata.Custom {
         return builder;
     }
 
-    public static Builder builder() {
-        return new Builder();
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(this.dataStreams, dataStreamAliases);
@@ -169,36 +160,6 @@ public class DataStreamMetadata implements Metadata.Custom {
     @Override
     public String toString() {
         return Strings.toString(this);
-    }
-
-    public static class Builder {
-
-        private final Map<String, DataStream> dataStreams;
-        private final Map<String, DataStreamAlias> dataStreamAliases;
-
-        public Builder(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
-            this.dataStreams = dataStreams;
-            this.dataStreamAliases = dataStreamAliases;
-        }
-
-        public Builder() {
-            this.dataStreams = new HashMap<>();
-            this.dataStreamAliases = new HashMap<>();
-        }
-
-        public Builder putDataStream(DataStream dataStream) {
-            dataStreams.put(dataStream.getName(), dataStream);
-            return this;
-        }
-
-        public Builder putDataStreamAlias(String name, List<String> dataStreams) {
-            dataStreamAliases.put(name, new DataStreamAlias(name, dataStreams));
-            return this;
-        }
-
-        public DataStreamMetadata build() {
-            return new DataStreamMetadata(dataStreams, dataStreamAliases);
-        }
     }
 
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {

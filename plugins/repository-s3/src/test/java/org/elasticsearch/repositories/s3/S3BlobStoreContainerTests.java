@@ -76,7 +76,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
 
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
         if (randomBoolean()) {
             IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
         }
@@ -149,7 +149,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
 
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
         if (randomBoolean()) {
             IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
         }
@@ -250,7 +250,7 @@ public class S3BlobStoreContainerTests extends ESTestCase {
     public void testExecuteMultipartUploadAborted() {
         final String bucketName = randomAlphaOfLengthBetween(1, 10);
         final String blobName = randomAlphaOfLengthBetween(1, 10);
-        final BlobPath blobPath = new BlobPath();
+        final BlobPath blobPath = BlobPath.EMPTY;
 
         final long blobSize = ByteSizeUnit.MB.toBytes(765);
         final long bufferSize =  ByteSizeUnit.MB.toBytes(150);

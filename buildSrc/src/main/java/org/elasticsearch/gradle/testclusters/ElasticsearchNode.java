@@ -14,13 +14,13 @@ import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
-import org.elasticsearch.gradle.internal.LoggedExec;
+import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
+import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.transform.UnzipTransform;
 import org.elasticsearch.gradle.util.Pair;
 import org.gradle.api.Action;
@@ -152,6 +152,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path esLogFile;
     private final Path esStdinFile;
     private final Path tmpDir;
+    private final Provider<File> runtimeJava;
 
     private int currentDistro = 0;
     private TestDistribution testDistribution;
@@ -176,7 +177,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
-        File workingDirBase
+        File workingDirBase,
+        Provider<File> runtimeJava
     ) {
         this.clusterName = clusterName;
         this.path = path;
@@ -186,6 +188,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
+        this.runtimeJava = runtimeJava;
         workingDir = workingDirBase.toPath().resolve(safeName(name)).toAbsolutePath();
         confPathRepo = workingDir.resolve("repo");
         configFile = workingDir.resolve("config/elasticsearch.yml");
@@ -269,12 +272,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void setDistributionType(ElasticsearchDistribution distribution, TestDistribution testDistribution) {
         if (testDistribution == TestDistribution.INTEG_TEST) {
-            distribution.setType(ElasticsearchDistribution.Type.INTEG_TEST_ZIP);
+            distribution.setType(ElasticsearchDistributionTypes.INTEG_TEST_ZIP);
             // we change the underlying distribution when changing the test distribution of the cluster.
             distribution.setPlatform(null);
             distribution.setBundledJdk(null);
         } else {
-            distribution.setType(ElasticsearchDistribution.Type.ARCHIVE);
+            distribution.setType(ElasticsearchDistributionTypes.ARCHIVE);
         }
     }
 
@@ -762,7 +765,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Map<String, String> defaultEnv = new HashMap<>();
         // If we are testing the current version of Elasticsearch, use the configured runtime Java, otherwise use the bundled JDK
         if (getTestDistribution() == TestDistribution.INTEG_TEST || getVersion().equals(VersionProperties.getElasticsearchVersion())) {
-            defaultEnv.put("ES_JAVA_HOME", BuildParams.getRuntimeJavaHome().getAbsolutePath());
+            defaultEnv.put("ES_JAVA_HOME", runtimeJava.get().getAbsolutePath());
         }
         defaultEnv.put("ES_PATH_CONF", configFile.getParent().toString());
         String systemPropertiesString = "";

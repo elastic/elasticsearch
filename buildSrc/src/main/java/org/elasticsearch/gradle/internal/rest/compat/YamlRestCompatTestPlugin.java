@@ -10,7 +10,7 @@ package org.elasticsearch.gradle.internal.rest.compat;
 
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;

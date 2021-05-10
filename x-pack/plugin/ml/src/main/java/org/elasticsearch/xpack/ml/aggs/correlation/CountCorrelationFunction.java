@@ -86,7 +86,7 @@ public class CountCorrelationFunction implements CorrelationFunction {
     }
 
     /**
-     * This does an approximate Pearson's correlation with the stored `indicator with the passed value `y`.
+     * This does an approximate Pearson's correlation with the stored indicator with the passed value `y`.
      *
      * This approximation makes many assumptions about the data distribution:
      *

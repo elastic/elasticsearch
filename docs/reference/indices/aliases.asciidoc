@@ -529,72 +529,83 @@ that point to data streams do not support the following parameters:
 * `routing`
 * `search_routing`
 
-====== Data stream alias example usage
+For example, the following request adds two data streams to the `logs` alias.
+
+////
+[source,console]
+----
+PUT _data_stream/logs-my_app-default
+
+PUT _data_stream/logs-nginx.access-prod
+----
+////
 
 [source,console]
 ----
-PUT /_data_stream/logs-foo-bar <1>
-
-PUT /_data_stream/logs-bar-baz <1>
-
-POST /_aliases
+POST _aliases
 {
-  "actions" : [
-    { "add" : { "index" : "logs-foo-bar", "alias" : "logs" } }, <2>
-    { "add" : { "index" : "logs-bar-baz", "alias" : "logs" } }
+  "actions": [
+    { "add": { "index": "logs-my_app-default", "alias": "logs" }},
+    { "add": { "index": "logs-nginx.access-prod", "alias": "logs" }}
   ]
 }
-
-GET /logs-*/_alias <3>
 ----
+// TEST[continued]
 
-<1> Creating two data streams
-<2> Two actions that introduce an alias to refers to the two just created data streams
-<3> Invoking the get alias api to introspect whether alias has been created
+To verify the alias points to both data streams, use the
+<<indices-get-alias,get index alias API>>.
+
+[source,console]
+----
+GET logs-*/_alias
+----
+// TEST[continued]
+
+The API returns:
 
 [source,console-result]
 ----
 {
-    "logs-bar-baz": {
-        "aliases": {
-            "logs": {}
-        }
-    },
-    "logs-foo-bar": {
-        "aliases": {
-            "logs": {}
-        }
+  "logs-my_app-default": {
+    "aliases": {
+      "logs": {}
     }
+  },
+  "logs-nginx.access-prod": {
+    "aliases": {
+      "logs": {}
+    }
+  }
 }
 ----
-// TEST[continued]
 
-Update 'logs' alias to not include `logs-foo-bar` data stream:
+Use the `remove` action to remove a data stream from an alias.
 
 [source,console]
 ----
-POST /_aliases
+POST _aliases
 {
-  "actions" : [
-    { "remove" : { "index" : "logs-foo-bar", "alias" : "logs" } }
+  "actions": [
+    { "remove": { "index": "logs-my_app-default", "alias": "logs" }}
   ]
 }
 
-GET /logs-*/_alias
+GET logs-*/_alias
 ----
 // TEST[continued]
+
+The get index alias API returns:
 
 [source,console-result]
 ----
 {
-    "logs-bar-baz": {
-        "aliases": {
-            "logs": {}
-        }
-    },
-    "logs-foo-bar": {
-        "aliases": {}
+  "logs-my_app-default": {
+    "aliases": {}
+  },
+  "logs-nginx.access-prod": {
+    "aliases": {
+      "logs": {}
     }
+  }
 }
 ----
-// TEST[continued]

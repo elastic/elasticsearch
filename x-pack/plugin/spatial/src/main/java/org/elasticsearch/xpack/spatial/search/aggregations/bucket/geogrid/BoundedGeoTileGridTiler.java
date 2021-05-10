@@ -23,24 +23,30 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     public BoundedGeoTileGridTiler(int precision, GeoBoundingBox bbox) {
         super(precision);
         this.crossesDateline = bbox.right() < bbox.left();
-        // compute minX, minY
-        final int minX = GeoTileUtils.getXTile(bbox.left(), this.tiles);
-        final int minY = GeoTileUtils.getYTile(bbox.top(), this.tiles);
-        final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
-        // touching tiles are excluded, they need to share at least one interior point
-        this.minX = minTile.getMaxX() == bbox.left() ? minX + 1: minX;
-        this.minY = minTile.getMinY() == bbox.top() ? minY + 1 : minY;
-        // compute maxX, maxY
-        final int maxX = GeoTileUtils.getXTile(bbox.right(), this.tiles);
-        final int maxY = GeoTileUtils.getYTile(bbox.bottom(), this.tiles);
-        final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
-        // touching tiles are excluded, they need to share at least one interior point
-        this.maxX = maxTile.getMinX() == bbox.right() ? maxX - 1 : maxX;
-        this.maxY = maxTile.getMaxY() == bbox.bottom() ? maxY - 1 : maxY;
-        if (crossesDateline) {
-            this.maxTiles = (tiles + this.maxX - this.minX + 1) * (this.maxY - this.minY + 1);
+        if (bbox.bottom() > GeoTileUtils.NORMALIZED_LATITUDE_MASK || bbox.top() < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK) {
+            // this makes validTile() always return false
+            minX = maxX = minY = maxY = -1;
+            maxTiles = 0;
         } else {
-            this.maxTiles = (long) (this.maxX - this.minX + 1) * (this.maxY - this.minY + 1);
+            // compute minX, minY
+            final int minX = GeoTileUtils.getXTile(bbox.left(), this.tiles);
+            final int minY = GeoTileUtils.getYTile(bbox.top(), this.tiles);
+            final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
+            // touching tiles are excluded, they need to share at least one interior point
+            this.minX = minTile.getMaxX() == bbox.left() ? minX + 1 : minX;
+            this.minY = minTile.getMinY() == bbox.top() ? minY + 1 : minY;
+            // compute maxX, maxY
+            final int maxX = GeoTileUtils.getXTile(bbox.right(), this.tiles);
+            final int maxY = GeoTileUtils.getYTile(bbox.bottom(), this.tiles);
+            final Rectangle maxTile = GeoTileUtils.toBoundingBox(maxX, maxY, precision);
+            // touching tiles are excluded, they need to share at least one interior point
+            this.maxX = maxTile.getMinX() == bbox.right() ? maxX - 1 : maxX;
+            this.maxY = maxTile.getMaxY() == bbox.bottom() ? maxY - 1 : maxY;
+            if (crossesDateline) {
+                this.maxTiles = (tiles + this.maxX - this.minX + 1) * (this.maxY - this.minY + 1);
+            } else {
+                this.maxTiles = (long) (this.maxX - this.minX + 1) * (this.maxY - this.minY + 1);
+            }
         }
     }
 
@@ -61,7 +67,7 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     }
 
     @Override
-    protected long getMaxTiles() {
+    protected long getMaxCells() {
         return maxTiles;
     }
 }

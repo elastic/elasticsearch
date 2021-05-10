@@ -313,7 +313,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    new BlobPath()
+                    BlobPath.EMPTY
                 )
             );
         }

@@ -44,7 +44,7 @@ GET /_snapshot/my_repository
 ==== {api-path-parms-title}
 
 `<repository>`::
-(Required, string)
+(Optional, string)
 Comma-separated list of snapshot repository names used to limit the request.
 Wildcard (`*`) expressions are supported.
 +

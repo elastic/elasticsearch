@@ -9,16 +9,24 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.DistributionDependency;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.DistributionResolution;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
+import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
+import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
+import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.provider.Provider;
 
 import java.util.function.Function;
 
@@ -37,11 +45,15 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
     public void apply(Project project) {
         // this is needed for isInternal
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        // might be used without the general build plugin so we keep this check for now.
-        if (BuildParams.isInternal() == false) {
-            throw new GradleException(getExternalUseErrorMessage());
-        }
-        project.getPluginManager().apply(DistributionDownloadPlugin.class);
+        project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
+        DistributionDownloadPlugin distributionDownloadPlugin = project.getPlugins().apply(DistributionDownloadPlugin.class);
+        Provider<DockerSupportService> dockerSupport = GradleUtils.getBuildService(
+            project.getGradle().getSharedServices(),
+            DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
+        );
+        distributionDownloadPlugin.setDockerAvailability(
+            dockerSupport.map(dockerSupportService -> dockerSupportService.getDockerAvailability().isAvailable)
+        );
         this.bwcVersions = BuildParams.getBwcVersions();
         registerInternalDistributionResolutions(DistributionDownloadPlugin.getRegistrationsContainer(project));
     }
@@ -55,7 +67,6 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
      * BWC versions are resolved as project to projects under `:distribution:bwc`.
      */
     private void registerInternalDistributionResolutions(NamedDomainObjectContainer<DistributionResolution> resolutions) {
-
         resolutions.register("localBuild", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             if (VersionProperties.getElasticsearch().equals(distribution.getVersion())) {
                 // non-external project, so depend on local build
@@ -97,29 +108,20 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
                 : "expanded-" + distributionProjectName;
         } else {
             return distributionProjectName;
-
         }
 
     }
 
     private static String distributionProjectPath(ElasticsearchDistribution distribution) {
         String projectPath = ":distribution";
-        switch (distribution.getType()) {
-            case INTEG_TEST_ZIP:
-                projectPath += ":archives:integ-test-zip";
-                break;
-
-            case DOCKER:
-            case DOCKER_UBI:
-            case DOCKER_IRON_BANK:
-                projectPath += ":docker:";
-                projectPath += distributionProjectName(distribution);
-                break;
-
-            default:
-                projectPath += distribution.getType() == ElasticsearchDistribution.Type.ARCHIVE ? ":archives:" : ":packages:";
-                projectPath += distributionProjectName(distribution);
-                break;
+        if (distribution.getType() == ElasticsearchDistributionTypes.INTEG_TEST_ZIP) {
+            projectPath += ":archives:integ-test-zip";
+        } else if (distribution.getType().isDocker()) {
+            projectPath += ":docker:";
+            projectPath += distributionProjectName(distribution);
+        } else {
+            projectPath += distribution.getType() == ElasticsearchDistributionTypes.ARCHIVE ? ":archives:" : ":packages:";
+            projectPath += distributionProjectName(distribution);
         }
         return projectPath;
     }
@@ -149,24 +151,21 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
             projectName += "no-jdk-";
         }
 
-        switch (distribution.getType()) {
-            case ARCHIVE:
-                return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
-                    ? "-zip"
-                    : "-tar");
-
-            case DOCKER:
-                return projectName + "docker" + archString + "-export";
-
-            case DOCKER_UBI:
-                return projectName + "ubi-docker" + archString + "-export";
-
-            case DOCKER_IRON_BANK:
-                return projectName + "ironbank-docker" + archString + "-export";
-
-            default:
-                return projectName + distribution.getType();
+        if (distribution.getType() == ElasticsearchDistributionTypes.ARCHIVE) {
+            return projectName + platform.toString() + archString + (platform == ElasticsearchDistribution.Platform.WINDOWS
+                ? "-zip"
+                : "-tar");
         }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER) {
+            return projectName + "docker" + archString + "-export";
+        }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_UBI) {
+            return projectName + "ubi-docker" + archString + "-export";
+        }
+        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_IRONBANK) {
+            return projectName + "ironbank-docker" + archString + "-export";
+        }
+        return projectName + distribution.getType().getName();
     }
 
     private static class ProjectBasedDistributionDependency implements DistributionDependency {

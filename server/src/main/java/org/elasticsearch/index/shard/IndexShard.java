@@ -65,7 +65,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -987,7 +986,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mappingLookup.hasMappings() == false) {
             return GetResult.NOT_EXISTS;
         }
-        return getEngine().get(get, mappingLookup, this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
     }
 
     /**
@@ -2861,7 +2860,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 globalCheckpointSupplier,
                 replicationTracker::getRetentionLeases,
                 this::getOperationPrimaryTerm,
-                tombstoneDocSupplier(),
                 snapshotCommitSupplier);
     }
 
@@ -2991,7 +2989,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             @Override
             public void onResponse(final Releasable releasable) {
-                final RunOnce releaseOnce = new RunOnce(releasable::close);
+                final Releasable releaseOnce = Releasables.releaseOnce(releasable);
                 try {
                     assert getOperationPrimaryTerm() <= pendingPrimaryTerm;
                     termUpdated.await();
@@ -3004,14 +3002,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 } catch (final Exception e) {
                     if (combineWithAction == null) {
                         // otherwise leave it to combineWithAction to release the permit
-                        releaseOnce.run();
+                        releaseOnce.close();
                     }
                     innerFail(e);
                 } finally {
                     if (combineWithAction != null) {
                         combineWithAction.onResponse(releasable);
                     } else {
-                        releaseOnce.run();
+                        releaseOnce.close();
                     }
                 }
             }
@@ -3497,19 +3495,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
-    }
-
-    private EngineConfig.TombstoneDocSupplier tombstoneDocSupplier() {
-        return new EngineConfig.TombstoneDocSupplier() {
-            @Override
-            public ParsedDocument newDeleteTombstoneDoc(String id) {
-                return ParsedDocument.deleteTombstone(id);
-            }
-            @Override
-            public ParsedDocument newNoopTombstoneDoc(String reason) {
-                return ParsedDocument.noopTombstone(reason);
-            }
-        };
     }
 
     /**

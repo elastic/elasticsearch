@@ -49,7 +49,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     private final Environment environment;
     private final ByteSizeValue chunkSize;
-    private final BlobPath basePath = BlobPath.cleanPath();
+    private final BlobPath basePath = BlobPath.EMPTY;
     private final URI uri;
     private final String pathSetting;
 

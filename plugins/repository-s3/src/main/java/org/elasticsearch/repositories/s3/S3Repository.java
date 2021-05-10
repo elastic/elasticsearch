@@ -235,9 +235,9 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         final String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
-            this.basePath = new BlobPath().add(basePath);
+            this.basePath = BlobPath.EMPTY.add(basePath);
         } else {
-            this.basePath = BlobPath.cleanPath();
+            this.basePath = BlobPath.EMPTY;
         }
 
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());

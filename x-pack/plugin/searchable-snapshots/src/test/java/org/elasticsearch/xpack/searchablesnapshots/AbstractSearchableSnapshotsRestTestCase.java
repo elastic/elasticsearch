@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
 
     public static final String FROZEN_INDICES_WARNING = "Frozen indices are deprecated because they provide no benefit given "
-        + "improvements heap memory utilization. They will be removed in a future release.";
+        + "improvements in heap memory utilization. They will be removed in a future release.";
 
     private static final String WRITE_REPOSITORY_NAME = "repository";
     private static final String READ_REPOSITORY_NAME = "read-repository";

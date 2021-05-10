@@ -10,6 +10,7 @@ package org.elasticsearch.common.collect;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
 public class Iterators {
 
@@ -19,7 +20,7 @@ public class Iterators {
     public static <T> Iterator<T> single(T element) {
         return new Iterator<>() {
 
-            private T value = element;
+            private T value = Objects.requireNonNull(element);
 
             @Override
             public boolean hasNext() {

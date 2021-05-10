@@ -23,7 +23,7 @@ public class TransportTermsEnumActionTests extends ESSingleNodeTestCase {
      */
     public void testListenerOnlyInvokedOnceWhenIndexDoesNotExist() {
         final AtomicBoolean invoked = new AtomicBoolean();
-        final ActionListener<TermsEnumResponse> listener = new ActionListener<>() {
+        final ActionListener<TermsEnumResponse> listener = new ActionListener<TermsEnumResponse>() {
 
             @Override
             public void onResponse(final TermsEnumResponse validateQueryResponse) {

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.MemoizedSupplier;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -398,7 +399,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }
-        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, req.nodeStartedTimeMillis(), AliasFilter.EMPTY);
+        ShardSearchRequest searchRequest = new ShardSearchRequest(shardId, Strings.EMPTY_ARRAY, req.nodeStartedTimeMillis(),
+                AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
         return searchService.canMatch(searchRequest).canMatch();
     }

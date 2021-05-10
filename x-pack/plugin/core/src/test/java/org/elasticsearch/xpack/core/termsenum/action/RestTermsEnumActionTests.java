@@ -6,6 +6,16 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionType;
@@ -15,13 +25,11 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 //import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -31,21 +39,10 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
-import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class RestTermsEnumActionTests extends ESTestCase {
 
@@ -68,24 +65,22 @@ public class RestTermsEnumActionTests extends ESTestCase {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
         final TransportAction transportAction = new TransportAction(TermsEnumAction.NAME,
-            new ActionFilters(Collections.emptySet()), taskManager) {
-            @Override
-            protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
-            }
-        };
-
+                new ActionFilters(Collections.emptySet()), mock(Transport.Connection.class), taskManager) {
+                @Override
+                protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
+                }
+            };
         final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
-        client.initialize(actions, taskManager, () -> "local",
-            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));        
+        client.initialize(actions, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
         controller.registerHandler(action);
     }
     
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    @Before
+    public void ensureCleanContext() {
+        // Make sure we have a clean context for each test
+        threadPool.getThreadContext().stashContext();
     }    
 
     @AfterClass

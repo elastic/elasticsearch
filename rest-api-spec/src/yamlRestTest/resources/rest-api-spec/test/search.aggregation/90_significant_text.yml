@@ -38,6 +38,7 @@ simple:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           aggs:
             class:
@@ -47,7 +48,7 @@ simple:
                 sig_text:
                   significant_text:
                     field: text
-  - match: {hits.total.value: 7}
+  - match: {hits.total: 7}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: bad}
   - length: { aggregations.class.buckets.1.sig_text.buckets: 1 }
@@ -125,6 +126,7 @@ profile:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           size: 0
           profile: true
@@ -136,7 +138,7 @@ profile:
                 sig_text:
                   significant_text:
                     field: text
-  - match: {hits.total.value: 7}
+  - match: {hits.total: 7}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: bad}
   - length: { aggregations.class.buckets.0.sig_text.buckets: 1 }
@@ -162,6 +164,7 @@ include:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -173,7 +176,7 @@ include:
                   significant_text:
                     field: text
                     include: bad
-  - match: {hits.total.value: 7}
+  - match: {hits.total: 7}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: bad}
   - length: { aggregations.class.buckets.0.sig_text.buckets: 1 }
@@ -186,6 +189,7 @@ exclude:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -197,7 +201,7 @@ exclude:
                   significant_text:
                     field: text
                     exclude: good
-  - match: {hits.total.value: 7}
+  - match: {hits.total: 7}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: bad}
   - length: { aggregations.class.buckets.0.sig_text.buckets: 1 }
@@ -210,6 +214,7 @@ min_doc_count:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -221,7 +226,7 @@ min_doc_count:
                   significant_text:
                     field: text
                     min_doc_count: 4
-  - match: {hits.total.value: 7}
+  - match: {hits.total: 7}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: bad}
   - length: { aggregations.class.buckets.0.sig_text.buckets: 1 }
@@ -250,6 +255,7 @@ size:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -260,7 +266,7 @@ size:
                 sig_text:
                   significant_text:
                     field: text
-  - match: {hits.total.value: 12}
+  - match: {hits.total: 12}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: good}
   - length: { aggregations.class.buckets.0.sig_text.buckets: 2 }
@@ -273,6 +279,7 @@ size:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -284,7 +291,7 @@ size:
                   significant_text:
                     field: text
                     size: 1
-  - match: {hits.total.value: 12}
+  - match: {hits.total: 12}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: good}
   - length: { aggregations.class.buckets.0.sig_text.buckets: 1 }
@@ -301,6 +308,7 @@ shard_size:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           aggs:
             class:
@@ -312,7 +320,7 @@ shard_size:
                     field: text
                     size: 1
                     shard_size: 1
-  - match: {hits.total.value: 7}
+  - match: {hits.total: 7}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: bad}
   - length: { aggregations.class.buckets.1.sig_text.buckets: 1 }
@@ -354,6 +362,7 @@ significance_heuristics:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -364,7 +373,7 @@ significance_heuristics:
               significant_text:
                 field: text
                 gnd: {}
-  - match: {hits.total.value: 10}
+  - match: {hits.total: 10}
   - length: {aggregations.sig_text.buckets: 2}
   - match: {aggregations.sig_text.buckets.0.key: good}
   - match: {aggregations.sig_text.buckets.1.key: caterpillar}
@@ -374,6 +383,7 @@ significance_heuristics:
   - do:
       search:
         index: goodbad
+        rest_total_hits_as_int: true
         body:
           query:
             match:
@@ -384,7 +394,7 @@ significance_heuristics:
               significant_text:
                 field: text
                 mutual_information: {}
-  - match: {hits.total.value: 10}
+  - match: {hits.total: 10}
   - length: {aggregations.sig_text.buckets: 1}
   - match: {aggregations.sig_text.buckets.0.key: good}
 
@@ -429,6 +439,7 @@ background_filter:
   - do:
       search:
         index: goodbadugly
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -445,7 +456,7 @@ background_filter:
                     background_filter:
                       match:
                         ugly: true
-  - match: {hits.total.value: 7}
+  - match: {hits.total: 7}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: bad}
   - length: { aggregations.class.buckets.0.sig_text.buckets: 1 }
@@ -504,6 +515,7 @@ copy_to:
   - do:
       search:
         index: has_copy_to
+        rest_total_hits_as_int: true
         body:
           size: 0
           aggs:
@@ -515,7 +527,7 @@ copy_to:
                   significant_text:
                     field: text
                     source_fields: [a, b]
-  - match: {hits.total.value: 7}
+  - match: {hits.total: 7}
   - length: {aggregations.class.buckets: 2}
   - match: {aggregations.class.buckets.0.key: bad}
   - length: { aggregations.class.buckets.0.sig_text.buckets: 1 }

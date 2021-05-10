@@ -247,7 +247,18 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
     }
 
-    public static final class GeoPoints extends ScriptDocValues<GeoPoint> {
+    public abstract static class Geometry<T> extends ScriptDocValues<T> {
+        /** Centroid latitude */
+        public abstract double getCentroidLat();
+        /** Centroid longitude */
+        public abstract double getCentroidLon();
+        /** width of the geometry in degrees */
+        public abstract double width();
+        /** height of the geometry in degrees */
+        public abstract double height();
+    }
+
+    public static final class GeoPoints extends Geometry<GeoPoint> {
 
         private final MultiGeoPointValues in;
         private GeoPoint[] values = new GeoPoint[0];
@@ -363,6 +374,62 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return defaultValue;
             }
             return geohashDistance(geohash);
+        }
+
+        @Override
+        public double getCentroidLat() {
+            if (count == 1) {
+                return getLat();
+            } else {
+                double centroidLat = 0;
+                for (int i = 0; i < count; i++) {
+                    centroidLat += values[i].getLat();
+                }
+                return centroidLat / count;
+            }
+        }
+
+        @Override
+        public double getCentroidLon() {
+            if (count == 1) {
+                return getLon();
+            } else {
+                double centroidLat = 0;
+                for (int i = 0; i < count; i++) {
+                    centroidLat += values[i].getLon();
+                }
+                return centroidLat / count;
+            }
+        }
+
+        @Override
+        public double width() {
+            if (count == 1) {
+                return 0;
+            } else {
+                double maxLon = Double.NEGATIVE_INFINITY;
+                double minLon = Double.POSITIVE_INFINITY;
+                for (int i = 0; i < count; i++) {
+                    maxLon = Math.max(maxLon, values[i].getLon());
+                    minLon = Math.min(minLon, values[i].getLon());
+                }
+                return maxLon - minLon;
+            }
+        }
+
+        @Override
+        public double height() {
+            if (count == 1) {
+                return 0;
+            } else {
+                double maxLat = Double.NEGATIVE_INFINITY;
+                double minLat = Double.POSITIVE_INFINITY;
+                for (int i = 0; i < count; i++) {
+                    maxLat = Math.max(maxLat, values[i].getLat());
+                    minLat = Math.min(minLat, values[i].getLat());
+                }
+                return maxLat - minLat;
+            }
         }
     }
 

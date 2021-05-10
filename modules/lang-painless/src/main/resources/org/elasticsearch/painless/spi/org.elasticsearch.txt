@@ -148,6 +148,13 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
   double getValue()
 }
 
+class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
+        double getCentroidLat();
+        double getCentroidLon();
+        double width();
+        double height();
+}
+
 class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {
   org.elasticsearch.common.geo.GeoPoint get(int)
   org.elasticsearch.common.geo.GeoPoint getValue()

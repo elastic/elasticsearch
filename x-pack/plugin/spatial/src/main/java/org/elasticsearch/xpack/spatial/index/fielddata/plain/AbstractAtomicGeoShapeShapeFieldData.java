@@ -13,6 +13,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -24,8 +25,8 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
     }
 
     @Override
-    public final ScriptDocValues.BytesRefs getScriptValues() {
-        throw new UnsupportedOperationException("scripts are not supported by geo_shape doc values");
+    public final ScriptDocValues.Geometry<GeoShapeValues.GeoShapeValue> getScriptValues() {
+        return new GeoShapeScriptValues(getGeoShapeValues());
     }
 
     public static LeafGeoShapeFieldData empty(final int maxDoc) {
@@ -50,5 +51,50 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
                 return GeoShapeValues.EMPTY;
             }
         };
+    }
+
+    private static final class GeoShapeScriptValues extends ScriptDocValues.Geometry<GeoShapeValues.GeoShapeValue> {
+
+        private final GeoShapeValues in;
+        private GeoShapeValues.GeoShapeValue value;
+
+        private GeoShapeScriptValues(GeoShapeValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public void setNextDocId(int docId) throws IOException {
+            value = in.advanceExact(docId) ? in.value() : null;
+        }
+
+        @Override
+        public double getCentroidLat() {
+            return value.lat();
+        }
+
+        @Override
+        public double getCentroidLon() {
+            return value.lon();
+        }
+
+        @Override
+        public double width() {
+            return value.boundingBox().maxX() - value.boundingBox().minX();
+        }
+
+        @Override
+        public double height() {
+            return value.boundingBox().maxY() - value.boundingBox().minY();
+        }
+
+        @Override
+        public GeoShapeValues.GeoShapeValue get(int index) {
+            return value;
+        }
+
+        @Override
+        public int size() {
+            return 1;
+        }
     }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -37,7 +38,7 @@ import java.text.ParseException;
 public abstract class GeoShapeValues {
 
     public static GeoShapeValues EMPTY = new GeoShapeValues() {
-        private GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
+        private final GeoShapeValuesSourceType DEFAULT_VALUES_SOURCE_TYPE = GeoShapeValuesSourceType.instance();
         @Override
         public boolean advanceExact(int doc) {
             return false;
@@ -82,19 +83,26 @@ public abstract class GeoShapeValues {
      * the Geo decoder */
     public static class GeoShapeValue {
         private static final WellKnownText MISSING_GEOMETRY_PARSER = new WellKnownText(true, new GeographyValidator(true));
-
+        private static final GeoShapeIndexer MISSING_GEOSHAPE_INDEXER = new GeoShapeIndexer(true, "missing");
         private final GeometryDocValueReader reader;
         private final BoundingBox boundingBox;
         private final Tile2DVisitor tile2DVisitor;
 
-        public GeoShapeValue(GeometryDocValueReader reader)  {
-            this.reader = reader;
+        public GeoShapeValue()  {
+            this.reader = new GeometryDocValueReader();
             this.boundingBox = new BoundingBox();
-            tile2DVisitor = new Tile2DVisitor();
+            this.tile2DVisitor = new Tile2DVisitor();
+        }
+
+        /**
+         * reset the geometry.
+         */
+        public void reset(BytesRef bytesRef) {
+            this.reader.reset(bytesRef);
+            this.boundingBox.reset(reader.getExtent(), CoordinateEncoder.GEO);
         }
 
         public BoundingBox boundingBox() {
-            boundingBox.reset(reader.getExtent(), CoordinateEncoder.GEO);
             return boundingBox;
         }
 
@@ -132,13 +140,12 @@ public abstract class GeoShapeValues {
 
         public static GeoShapeValue missing(String missing) {
             try {
-                final GeoShapeIndexer indexer = new GeoShapeIndexer(true, "missing");
-                final Geometry geometry = indexer.prepareForIndexing(MISSING_GEOMETRY_PARSER.fromWKT(missing));
+                final Geometry geometry = MISSING_GEOSHAPE_INDEXER.prepareForIndexing(MISSING_GEOMETRY_PARSER.fromWKT(missing));
                 final BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField("missing");
-                field.add(indexer.indexShape(geometry), geometry);
-                final GeometryDocValueReader reader = new GeometryDocValueReader();
-                reader.reset(field.binaryValue());
-                return new GeoShapeValue(reader);
+                field.add(MISSING_GEOSHAPE_INDEXER.indexShape(geometry), geometry);
+                final GeoShapeValue value = new GeoShapeValue();
+                value.reset(field.binaryValue());
+                return value;
             } catch (IOException | ParseException e) {
                 throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
             }

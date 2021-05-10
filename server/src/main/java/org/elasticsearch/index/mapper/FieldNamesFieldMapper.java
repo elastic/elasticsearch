@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
@@ -152,6 +154,22 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     @Override
     public FieldNamesFieldType fieldType() {
         return (FieldNamesFieldType) super.fieldType();
+    }
+
+    @Override
+    public void postParse(ParseContext context) throws IOException {
+        if (enabled.value() == false) {
+            return;
+        }
+        for (String field : context.getFieldNames()) {
+            assert noDocValues(field, context) : "Field " + field + " should not have docvalues";
+            context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
+        }
+    }
+
+    private static boolean noDocValues(String field, ParseContext context) {
+        MappedFieldType ft = context.mappingLookup().getFieldType(field);
+        return ft == null || ft.hasDocValues() == false;
     }
 
     @Override

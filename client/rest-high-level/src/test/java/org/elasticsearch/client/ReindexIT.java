@@ -189,6 +189,7 @@ public class ReindexIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.getTook().getMillis() > 0);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60811#issuecomment-830040692")
     public void testDeleteByQuery() throws Exception {
         final String sourceIndex = "source1";
         {

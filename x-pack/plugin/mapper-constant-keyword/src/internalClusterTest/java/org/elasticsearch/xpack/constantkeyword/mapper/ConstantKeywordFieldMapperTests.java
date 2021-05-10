@@ -58,6 +58,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         return List.of(new ConstantKeywordMapperPlugin());
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo"));
         DocumentMapper mapper = createDocumentMapper(mapping);

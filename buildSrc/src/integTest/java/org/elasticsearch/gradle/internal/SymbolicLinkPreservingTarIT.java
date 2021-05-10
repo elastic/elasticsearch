@@ -31,6 +31,11 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
 
+    @Override
+    public String projectName() {
+        return "symbolic-link-preserving-tar";
+    }
+
     @Rule
     public final TemporaryFolder temporaryFolder = new TemporaryFolder();
 
@@ -133,17 +138,13 @@ public class SymbolicLinkPreservingTarIT extends GradleIntegrationTestCase {
     }
 
     private void runBuild(final String task, final boolean preserveFileTimestamps) {
-        final GradleRunner runner = getGradleRunner("symbolic-link-preserving-tar").withArguments(
+        final GradleRunner runner = getGradleRunner().withArguments(
             task,
             "-Dtests.symbolic_link_preserving_tar_source=" + temporaryFolder.getRoot().toString(),
             "-Dtests.symbolic_link_preserving_tar_preserve_file_timestamps=" + preserveFileTimestamps,
             "-i"
         );
         runner.build();
-    }
-
-    private File getProjectDir() {
-        return getProjectDir("symbolic-link-preserving-tar");
     }
 
     private File getOutputFile(final String extension) {

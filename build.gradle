@@ -12,7 +12,7 @@ import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.internal.BuildPlugin
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
@@ -22,23 +22,29 @@ import org.gradle.util.GradleVersion
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.internal.test.RestTestBasePlugin
+import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
+import org.elasticsearch.gradle.internal.InternalTestClustersPlugin
 
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
+  id 'elasticsearch.build-scan'
+  id 'elasticsearch.build-complete'
+  id 'elasticsearch.jdk-download'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.runtime-jdk-provision'
+  id 'elasticsearch.ide'
+  id 'elasticsearch.forbidden-dependencies'
+  id 'elasticsearch.formatting'
+  id 'elasticsearch.local-distribution'
+  id 'elasticsearch.fips'
+  id 'elasticsearch.internal-testclusters'
+  id 'elasticsearch.run'
   id "com.diffplug.spotless" version "5.12.0" apply false
 }
 
-apply from: 'gradle/build-scan.gradle'
-apply from: 'gradle/build-complete.gradle'
-apply from: 'gradle/runtime-jdk-provision.gradle'
-apply from: 'gradle/ide.gradle'
-apply from: 'gradle/forbidden-dependencies.gradle'
-apply from: 'gradle/formatting.gradle'
-apply from: 'gradle/local-distribution.gradle'
-apply from: 'gradle/fips.gradle'
-apply from: 'gradle/run.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -56,7 +62,9 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE-2.0.txt"
 
 subprojects {
-  apply plugin:'elasticsearch.internal-test-rerun'
+  // We disable this plugin for now till we shaked out the issues we see
+  // e.g. see https://github.com/elastic/elasticsearch/issues/72169
+  // apply plugin:'elasticsearch.internal-test-rerun'
 
   // Default to the SSPL+Elastic dual license
   project.ext.projectLicenses = [
@@ -105,6 +113,19 @@ subprojects {
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
 
+  plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
+    project.dependencies {
+      compileOnly project(":server")
+      testImplementation project(":test:framework")
+    }
+  }
+
+  // Ultimately the RestTestBase Plugin should apply the InternalTestClusters Plugin itself instead of TestClusters
+  // but this requires major rework on the func test infrastructure.
+  // TODO: This will be addressed once we have https://github.com/elastic/elasticsearch/issues/71593 resolved
+  project.plugins.withType(RestTestBasePlugin) {
+    project.plugins.apply(InternalTestClustersPlugin)
+  }
 }
 
 /**
@@ -125,7 +146,6 @@ ext.testArtifact = { p, String name = "test" ->
     requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-${name}-artifacts")
   };
 }
-
 
 tasks.register("updateCIBwcVersions") {
   doLast {

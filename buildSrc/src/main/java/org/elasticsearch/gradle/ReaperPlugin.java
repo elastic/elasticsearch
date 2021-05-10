@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.ProjectLayout;
@@ -32,20 +30,24 @@ public class ReaperPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        registerReaperService(project, projectLayout, false);
+    }
+
+    public static void registerReaperService(Project project, ProjectLayout projectLayout, boolean internal) {
         if (project != project.getRootProject()) {
             throw new IllegalArgumentException("ReaperPlugin can only be applied to the root project of a build");
         }
-        project.getPlugins().apply(GlobalBuildInfoPlugin.class);
         File inputDir = projectLayout.getProjectDirectory()
             .dir(".gradle")
             .dir("reaper")
             .dir("build-" + ProcessHandle.current().pid())
             .getAsFile();
+
         project.getGradle().getSharedServices().registerIfAbsent(REAPER_SERVICE_NAME, ReaperService.class, spec -> {
             // Provide some parameters
             spec.getParameters().getInputDir().set(inputDir);
             spec.getParameters().getBuildDir().set(projectLayout.getBuildDirectory());
-            spec.getParameters().setInternal(BuildParams.isInternal());
+            spec.getParameters().setInternal(internal);
         });
     }
 

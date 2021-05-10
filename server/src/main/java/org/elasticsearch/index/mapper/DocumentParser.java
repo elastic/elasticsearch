@@ -540,8 +540,8 @@ public final class DocumentParser {
                 XContentParser.Token currentToken = context.parser().currentToken();
                 if (currentToken.isValue() == false) {
                     // sanity check, we currently support copy-to only for value-type field, not objects
-                    throw new MapperParsingException("Cannot copy field [" + mapper.name() + "] to fields " + copyToFields + ". Copy-to currently "
-                        + "only works for value-type fields, not objects.");
+                    throw new MapperParsingException("Cannot copy field [" + mapper.name() + "] to fields " + copyToFields +
+                        ". Copy-to currently only works for value-type fields, not objects.");
                 }
                 parseCopyFields(context, copyToFields);
             }

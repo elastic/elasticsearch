@@ -35,6 +35,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
 public class AwarenessAllocationIT extends ESIntegTestCase {
@@ -313,9 +314,12 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
     public void testForceAwarenessSettingValidation() {
         final String prefix = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey();
 
-        expectThrows(SettingsException.class, () ->
+        final IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class, () ->
                 client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
                         Settings.builder().put(prefix + "nonsense", "foo")).get());
+        assertThat(illegalArgumentException.getMessage(), containsString("[cluster.routing.allocation.awareness.force.]"));
+        assertThat(illegalArgumentException.getCause(), instanceOf(SettingsException.class));
+        assertThat(illegalArgumentException.getCause().getMessage(), containsString("nonsense"));
 
         assertThat(expectThrows(IllegalArgumentException.class, () ->
                         client().admin().cluster().prepareUpdateSettings().setPersistentSettings(

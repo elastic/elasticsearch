@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 
 import java.util.HashMap;
 import java.util.List;
@@ -240,7 +241,14 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     }
 
     private static void validateForceAwarenessSettings(Settings forceSettings) {
-        for (Map.Entry<String, Settings> entry : forceSettings.getAsGroups().entrySet()) {
+        final Map<String, Settings> settingGroups;
+        try {
+            settingGroups = forceSettings.getAsGroups();
+        } catch (SettingsException e) {
+            throw new IllegalArgumentException(
+                    "invalid forced awareness settings with prefix [" + FORCE_GROUP_SETTING_PREFIX + "]", e);
+        }
+        for (Map.Entry<String, Settings> entry : settingGroups.entrySet()) {
             final Optional<String> notValues = entry.getValue().keySet().stream().filter(s -> s.equals("values") == false).findFirst();
             if (notValues.isPresent()) {
                 throw new IllegalArgumentException(

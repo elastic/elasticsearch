@@ -515,20 +515,19 @@ POST /_aliases
 [[aliases-data-streams]]
 ===== Data stream aliases
 
-Aliases can also point to a data streams. Instead of
-specifying the name of an index in the `index` parameter
-of the alias action, the name of the data stream can be
-specified.
+An alias can also point to one or more data streams. To add a data stream to an
+alias, specify the stream's name in the `index` parameter. Wildcards (`*`) are
+supported. If a wildcard pattern matches both data streams and indices, the
+action only uses the matching data streams.
 
-Aliases that refer to data streams don't support: `routing`,
-`index_routing`, `search_routing`,`filter` or
-`is_write_index` parameter.
+You can only specify data streams in the `add` and `remove` actions. Aliases
+that point to data streams do not support the following parameters:
 
-Data stream names can be specified in the `index` parameter
-of actions of type `add` and `remove`. A wildcard expression
-can be provided as well, but if the expression matches
-both data stream names and regular indices then the regular
-indices are ignored.
+* `filter`
+* `index_routing`
+* `is_write_index`
+* `routing`
+* `search_routing`
 
 ====== Data stream alias example usage
 

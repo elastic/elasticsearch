@@ -26,6 +26,7 @@ import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.JavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
+import org.jetbrains.annotations.NotNull;
 
 import javax.inject.Inject;
 import java.io.BufferedReader;
@@ -93,7 +94,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         BuildParams.init(params -> {
             // Initialize global build parameters
-            boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null;
+            boolean isInternal = GlobalBuildInfoPlugin.class.getResource("/buildSrc.marker") != null && explicitDisabledInternal(project) == false;
 
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
@@ -124,6 +125,14 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         // Print global build info header just before task execution
         project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+    }
+
+    @NotNull
+    private Boolean explicitDisabledInternal(Project project) {
+        return project.getProviders().systemProperty("test.external")
+                .forUseAtConfigurationTime()
+                .map(sysProp -> sysProp.equals("true"))
+                .getOrElse(false);
     }
 
     private String formatJavaVendorDetails(JvmInstallationMetadata runtimeJdkMetaData) {

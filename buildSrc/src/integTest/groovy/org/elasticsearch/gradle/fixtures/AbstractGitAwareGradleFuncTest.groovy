@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.fixtures
 
 import org.apache.commons.io.FileUtils
+import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder

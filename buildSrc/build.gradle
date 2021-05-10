@@ -41,10 +41,6 @@ gradlePlugin {
       id = 'elasticsearch.build'
       implementationClass = 'org.elasticsearch.gradle.internal.BuildPlugin'
     }
-    distributionDownload {
-      id = 'elasticsearch.distribution-download'
-      implementationClass = 'org.elasticsearch.gradle.DistributionDownloadPlugin'
-    }
     distroTest {
       id = 'elasticsearch.distro-test'
       implementationClass = 'org.elasticsearch.gradle.internal.test.DistroTestPlugin'
@@ -56,10 +52,6 @@ gradlePlugin {
     docsTest {
       id = 'elasticsearch.docs-test'
       implementationClass = 'org.elasticsearch.gradle.internal.doc.DocsTestPlugin'
-    }
-    esPlugin {
-      id = 'elasticsearch.esplugin'
-      implementationClass = 'org.elasticsearch.gradle.plugin.PluginBuildPlugin'
     }
     globalBuildInfo {
       id = 'elasticsearch.global-build-info'
@@ -164,10 +156,6 @@ gradlePlugin {
     testWithSsl {
       id = 'elasticsearch.test-with-ssl'
       implementationClass = 'org.elasticsearch.gradle.internal.test.TestWithSslPlugin'
-    }
-    testclusters {
-      id = 'elasticsearch.testclusters'
-      implementationClass = 'org.elasticsearch.gradle.testclusters.TestClustersPlugin'
     }
     validateRestSpec {
       id = 'elasticsearch.validate-rest-spec'
@@ -313,6 +301,16 @@ if (project == rootProject) {
   }
 }
 
+tasks.register("integTest", Test) {
+  inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
+  systemProperty 'test.version_under_test', version
+  testClassesDirs = sourceSets.integTest.output.classesDirs
+  classpath = sourceSets.integTest.runtimeClasspath
+  useJUnitPlatform()
+}
+tasks.named("check").configure { dependsOn("integTest") }
+
+
 /*****************************************************************************
  *                           Normal project checks                           *
  *****************************************************************************/
@@ -404,15 +402,6 @@ if (project != rootProject) {
       }
     }
   }
-
-  tasks.register("integTest", Test) {
-    inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
-    systemProperty 'test.version_under_test', version
-    testClassesDirs = sourceSets.integTest.output.classesDirs
-    classpath = sourceSets.integTest.runtimeClasspath
-    useJUnitPlatform()
-  }
-  tasks.named("check").configure { dependsOn("integTest") }
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {

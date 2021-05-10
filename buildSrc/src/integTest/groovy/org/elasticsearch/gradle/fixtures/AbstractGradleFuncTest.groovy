@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.fixtures
 
+import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
@@ -45,12 +46,12 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, String... arguments) {
-        GradleRunner.create()
+        new InternalAwareGradleRunner(GradleRunner.create()
                 .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
                 .withProjectDir(projectDir)
-                .withArguments(arguments)
                 .withPluginClasspath()
                 .forwardOutput()
+        ).withArguments(arguments)
     }
 
     def assertOutputContains(String givenOutput, String expected) {

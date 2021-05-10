@@ -73,6 +73,7 @@ sourceSets {
 }
 
 configurations {
+    integTestImplementation.extendsFrom(testFixturesApi)
     integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
     register("reaper")
 }
@@ -81,7 +82,6 @@ repositories {
     mavenCentral()
     gradlePluginPortal()
 }
-
 
 dependencies {
     reaper project('reaper')
@@ -99,12 +99,13 @@ dependencies {
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
 
-    testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
+    testFixturesApi 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
 
-    integTestImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
-    integTestImplementation("org.spockframework:spock-core") {
+    testFixturesApi platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+    testFixturesApi("org.spockframework:spock-core") {
         exclude module: "groovy"
     }
+
     // required as we rely on junit4 rules
     integTestImplementation "org.spockframework:spock-junit4"
 

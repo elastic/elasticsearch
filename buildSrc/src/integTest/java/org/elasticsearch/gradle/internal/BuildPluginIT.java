@@ -39,8 +39,8 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testCheckTask() {
-        setupJarJdkClasspath(getProjectDir());
-        BuildResult result = getGradleRunner().withArguments("check", "assemble", "-s").build();
+//        setupJarJdkClasspath(getProjectDir());
+        BuildResult result = getGradleRunner().withArguments("check", "assemble", "-s", "-Dtest.external=true").build();
         assertTaskSuccessful(result, ":check");
     }
 

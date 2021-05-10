@@ -1,0 +1,299 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: store
+        body:
+          mappings:
+            properties:
+              product:
+                type: keyword
+              cost:
+                type: integer
+              time:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: store
+        refresh: true
+        body: |
+          { "index": {} }
+          { "product": "TV", "cost": 200, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "TV", "cost": 400, "time": 1587501233000}
+          { "index": {} }
+          { "product": "TV", "cost": 600, "time": 1587501233000}
+          { "index": {} }
+          { "product": "VCR", "cost": 150, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "VCR", "cost": 350, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "VCR", "cost": 580, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "Laptop", "cost": 100, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "Laptop", "cost": 300, "time": 1587501233000 }
+          { "index": {} }
+          { "product": "Laptop", "cost": 500, "time": 1587501233000 }
+
+---
+"Test correlation bucket agg simple":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_correlation": {
+                    "bucket_correlation": {
+                      "buckets_path": "ranged_cost>_count",
+                      "function": { "count_correlation": {
+                          "indicator": {
+                             "expectations": [3, 4, 2],
+                             "doc_count": 9
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_true: aggregations.good.buckets.0.bucket_correlation.value
+  - is_true: aggregations.good.buckets.1.bucket_correlation.value
+  - is_true: aggregations.good.buckets.2.bucket_correlation.value
+
+---
+"Test correlation with missing buckets_path":
+
+  - do:
+      catch: /Required \[buckets_path\]/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_correlation": {
+                    "bucket_correlation": {
+                      "function": { "count_correlation": {
+                          "indicator": {
+                             "expectations": [3, 4, 2],
+                             "doc_count": 9
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+---
+"Test correlation with missing function":
+
+  - do:
+      catch: /Required \[function\]/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_correlation": {
+                    "bucket_correlation": {
+                      "buckets_path": "ranged_cost>_count"
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+
+---
+"Test correlation with pointing to missing agg":
+  - do:
+      catch: /No aggregation found for path \[missing>_count\]/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_correlation": {
+                    "bucket_correlation": {
+                      "buckets_path": "missing>_count",
+                      "function": { "count_correlation": {
+                          "indicator": {
+                            "expectations": [3, 4, 2],
+                            "doc_count": 9
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+---
+"Test correlation with pointing to mismatched lengths":
+  - do:
+      catch: /value lengths do not match; indicator.expectations \[4\] and number of buckets \[3\]. Unable to calculate correlation/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_correlation": {
+                    "bucket_correlation": {
+                      "buckets_path": "ranged_cost>_count",
+                      "function": { "count_correlation": {
+                          "indicator": {
+                            "expectations": [3, 4, 2, 10],
+                            "doc_count": 9
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+  - do:
+      catch: /value lengths do not match; indicator.expectations \[3\] and number of buckets \[4\]. Unable to calculate correlation/
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 300},
+                        {"from": 300, "to": 400},
+                        {"from": 400}
+                      ]
+                    }
+                  },
+                  "bucket_correlation": {
+                    "bucket_correlation": {
+                      "buckets_path": "ranged_cost>_count",
+                      "function": { "count_correlation": {
+                          "indicator": {
+                            "expectations": [3, 4, 2],
+                            "doc_count": 9
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -132,8 +133,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
         final RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->
-            repository.blobStore().blobContainer(repository.basePath()).deleteBlobsIgnoringIfNotExists(Collections.singletonList("foo"))
-        )));
+            repository.blobStore().blobContainer(repository.basePath()).deleteBlobsIgnoringIfNotExists(Iterators.single("foo")))));
     }
 
     public void testChunkSize() {

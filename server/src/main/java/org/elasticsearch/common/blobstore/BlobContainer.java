@@ -14,7 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -143,10 +143,10 @@ public interface BlobContainer {
      * Deletes the blobs with given names. This method will not throw an exception
      * when one or multiple of the given blobs don't exist and simply ignore this case.
      *
-     * @param   blobNames  The names of the blob to delete.
+     * @param   blobNames  the names of the blobs to delete
      * @throws  IOException if a subset of blob exists but could not be deleted.
      */
-    void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException;
+    void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException;
 
     /**
      * Lists all blobs in the container.

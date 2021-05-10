@@ -681,7 +681,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             ensureGreen(index);
             final int totalHits = (int) XContentMapValues.extractValue("hits.total.value",
                 entityAsMap(client().performRequest(new Request("GET", "/" + index + "/_search"))));
-            assertOK(client().performRequest(new Request("POST", index + "/_freeze")));
+            Request freezeRequest = new Request("POST", index + "/_freeze");
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given "
+                        + "improvements in heap memory utilization. They will be removed in a future release."
+                )
+            );
+            assertOK(client().performRequest(freezeRequest));
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
             final Request request = new Request("GET", "/" + index + "/_search");

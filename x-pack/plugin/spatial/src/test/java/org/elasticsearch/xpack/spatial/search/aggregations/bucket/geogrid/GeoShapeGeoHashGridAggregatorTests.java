@@ -17,8 +17,6 @@ import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregati
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGridBucket;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
-import java.io.IOException;
-
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 
 public class GeoShapeGeoHashGridAggregatorTests extends GeoShapeGeoGridTestCase<InternalGeoHashGridBucket> {
@@ -51,10 +49,5 @@ public class GeoShapeGeoHashGridAggregatorTests extends GeoShapeGeoGridTestCase<
     @Override
     protected GeoGridAggregationBuilder createBuilder(String name) {
         return new GeoHashGridAggregationBuilder(name);
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72872")
-    public void testGeoShapeBounds() throws IOException {
-        super.testGeoShapeBounds();
     }
 }

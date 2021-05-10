@@ -78,7 +78,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         if (parent == null) {
             assertChildren(path, Collections.emptyList());
         } else {
-            assertDeleted(parent, path.toArray()[path.toArray().length - 1]);
+            assertDeleted(parent, path.parts().get(path.parts().size() - 1));
         }
     }
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.precommit;
 
-import org.elasticsearch.gradle.internal.LoggedExec;
+import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;

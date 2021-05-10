@@ -20,7 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -116,28 +116,28 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private final PyTorchResult result;
+        private final InferenceResults results;
 
-        public Response(PyTorchResult result) {
+        public Response(InferenceResults result) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.result = Objects.requireNonNull(result);
+            this.results = Objects.requireNonNull(result);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            result = new PyTorchResult(in);
+            results = in.readNamedWriteable(InferenceResults.class);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            result.toXContent(builder, params);
+            results.toXContent(builder, params);
             return builder;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            result.writeTo(out);
+            out.writeNamedWriteable(results);
         }
     }
 }

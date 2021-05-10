@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -162,7 +163,7 @@ public class DeploymentManager {
         }
     }
 
-    public void infer(TrainedModelDeploymentTask task, String inputs, ActionListener<PyTorchResult> listener) {
+    public void infer(TrainedModelDeploymentTask task, String inputs, ActionListener<InferenceResults> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
 
         final String requestId = String.valueOf(requestIdCounter.getAndIncrement());
@@ -176,8 +177,14 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    processContext.infer(inputs, requestId);
-                    waitForResult(processContext, requestId, listener);
+                    NlpPipeline.Processor processor = processContext.pipeline.get().createProcessor();
+
+                    logger.info("tokenizing input [{}]",  inputs);
+                    BytesReference request = processor.getRequestBuilder().buildRequest(inputs, requestId);
+                    logger.info("Inference Request "+ request.utf8ToString());
+                    processContext.process.get().writeInferenceRequest(request);
+
+                    waitForResult(processContext, requestId, processor.getResultProcessor(), listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
@@ -186,7 +193,10 @@ public class DeploymentManager {
         });
     }
 
-    private void waitForResult(ProcessContext processContext, String requestId, ActionListener<PyTorchResult> listener) {
+    private void waitForResult(ProcessContext processContext,
+                               String requestId,
+                               NlpPipeline.ResultProcessor inferenceResultsProcessor,
+                               ActionListener<InferenceResults> listener) {
         try {
             // TODO the timeout value should come from the action
             TimeValue timeout = TimeValue.timeValueSeconds(5);
@@ -195,7 +205,7 @@ public class DeploymentManager {
                 listener.onFailure(new ElasticsearchStatusException("timeout [{}] waiting for inference result",
                     RestStatus.TOO_MANY_REQUESTS, timeout));
             } else {
-                listener.onResponse(pyTorchResult);
+                listener.onResponse(inferenceResultsProcessor.processResult(pyTorchResult));
             }
         } catch (InterruptedException e) {
             listener.onFailure(e);
@@ -221,13 +231,6 @@ public class DeploymentManager {
             this.index = Objects.requireNonNull(index);
             resultProcessor = new PyTorchResultProcessor(modelId);
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
-        }
-
-        void infer(String inputs, String requestId) throws IOException {
-            logger.info("tokenizing input [{}]",  inputs);
-            BytesReference request = pipeline.get().createRequest(inputs, requestId);
-            logger.info("I Request "+ request.utf8ToString());
-            process.get().writeInferenceRequest(request);
         }
 
         synchronized void startProcess() {

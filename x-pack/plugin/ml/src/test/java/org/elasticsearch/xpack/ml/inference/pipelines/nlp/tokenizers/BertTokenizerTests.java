@@ -28,11 +28,11 @@ public class BertTokenizerTests extends ESTestCase {
 
     public void testTokenize() {
         BertTokenizer tokenizer = BertTokenizer.builder(
-            WordPieceTokenizerTests.createVocabMap("elastic", "##search", "fun"))
+            WordPieceTokenizerTests.createVocabMap("Elastic", "##search", "fun"))
             .build();
 
         BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize("Elasticsearch fun", false);
-        assertThat(tokenization.getTokens(), contains("elastic", "##search", "fun"));
+        assertThat(tokenization.getTokens(), contains("Elastic", "##search", "fun"));
         assertArrayEquals(new int[] {0, 1, 2}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1}, tokenization.getTokenMap());
     }
@@ -43,7 +43,7 @@ public class BertTokenizerTests extends ESTestCase {
                 BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN))
             .build();
 
-        BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize("Elasticsearch fun", true);
+        BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize("elasticsearch fun", true);
         assertThat(tokenization.getTokens(), contains("[CLS]", "elastic", "##search", "fun", "[SEP]"));
         assertArrayEquals(new int[] {3, 0, 1, 2, 4}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {-1, 0, 0, 1, -1}, tokenization.getTokenMap());
@@ -70,12 +70,12 @@ public class BertTokenizerTests extends ESTestCase {
         final String specialToken = "SP001";
 
         BertTokenizer tokenizer = BertTokenizer.builder(
-            WordPieceTokenizerTests.createVocabMap("elastic", "##search", "fun", specialToken, BertTokenizer.UNKNOWN_TOKEN))
+            WordPieceTokenizerTests.createVocabMap("Elastic", "##search", "fun", specialToken, BertTokenizer.UNKNOWN_TOKEN))
             .setNeverSplit(Collections.singleton(specialToken))
             .build();
 
         BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize("Elasticsearch " + specialToken + " fun", false);
-        assertThat(tokenization.getTokens(), contains("elastic", "##search", specialToken, "fun"));
+        assertThat(tokenization.getTokens(), contains("Elastic", "##search", specialToken, "fun"));
         assertArrayEquals(new int[] {0, 1, 3, 2}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {0, 0, 1, 2}, tokenization.getTokenMap());
     }

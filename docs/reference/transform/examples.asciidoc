@@ -503,7 +503,7 @@ interval of one hour. Use a
 field to get the maximum amount of data that is sent to the server. Without 
 the `max` aggregation, the API call still returns the client IP that sent the 
 most bytes, however, the amount of bytes that it sent is not returned. In the 
-`top_metrics` property, specifiy `clientip` and `geo.src`, then sort them by the 
+`top_metrics` property, specify `clientip` and `geo.src`, then sort them by the 
 `bytes` field in descending order. The {transform} returns the client IP that 
 sent the biggest amount of data and the 2-letter ISO code of the corresponding 
 location.
@@ -551,7 +551,7 @@ POST _transform/_preview
 ----------------------------------
 // TEST[skip:setup kibana sample data]
 
-<1> The data is grouped by a date histogram of the time filed with a one hour 
+<1> The data is grouped by a date histogram of the time field with a one hour 
 interval.
 <2> Calculates the maximum value of the `bytes` field. 
 <3> Specifies the fields (`clientip` and `geo.src`) of the top document to 

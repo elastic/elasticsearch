@@ -159,6 +159,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
         IOException ioe = null;
+        long suppressedExceptions = 0;
         while (blobNames.hasNext()) {
             try {
                 IOUtils.rm(path.resolve(blobNames.next()));
@@ -168,10 +169,15 @@ public class FsBlobContainer extends AbstractBlobContainer {
                     ioe = e;
                 } else if (ioe.getSuppressed().length < 10) {
                     ioe.addSuppressed(e);
+                } else {
+                    ++suppressedExceptions;
                 }
             }
         }
         if (ioe != null) {
+            if (suppressedExceptions > 0) {
+                throw new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures");
+            }
             throw ioe;
         }
     }

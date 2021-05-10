@@ -10,9 +10,11 @@ The Painless execute API runs a script and returns a result.
 
 [[painless-execute-api-desc]]
 ==== {api-description-title}
-This API is useful for building and testing scripts with very few dependencies,
-especially if you don't have permissions to write documents on a cluster. The
-API uses several _contexts_, which control how scripts are executed, what
+Use this API to build and test scripts, such as when defining a script for a
+<<runtime,runtime field>>. This API requires very few dependencies, and is
+especially useful if you don't have permissions to write documents on a cluster.
+
+The API uses several _contexts_, which control how scripts are executed, what
 variables are available at runtime, and what the return type is.
 
 Each context requires a script, but additional parameters depend on the context
@@ -56,16 +58,19 @@ See the <<painless-execute-runtime-field-context,runtime field context>>
 examples for how to use these different contexts.
 =====
 `boolean_field`:: 
-Emits a `boolean` data type and returns a sorted list of `boolean` values.
+Emits a `boolean` data type and returns a sorted list of `boolean` values. See
+<<painless-runtime-boolean-request,boolean_field>>.
 
 `date_field`:: 
-Emits a `long` data type and returns a sorted list of `long` values.
+Emits a `long` data type and returns a sorted list of `long` values. 
 
 `double_field`::
-Emits a `long` data type and returns a sorted list of `double` values.
+Emits a `long` data type and returns a sorted list of `double` values. See
+<<painless-runtime-double-request,double_field>>.
 
 `geo_point_field`::
-Emits a `long` data type and returns a sorted list of `double` values.
+Emits a `long` data type and returns a sorted list of `double` values. See
+<<painless-runtime-geo-request,geo_point_field>>.
 
 `ip_field`::
 Emits a `string` data type and returns a sorted list of `string` values. See
@@ -168,7 +173,10 @@ PUT /my-index-000001
     }
   }
 }
+----
 
+[source,console]
+----
 POST /_scripts/painless/_execute
 {
   "script": {
@@ -186,6 +194,7 @@ POST /_scripts/painless/_execute
   }
 }
 ----
+// TEST[continued]
 
 ====== Response
 
@@ -218,8 +227,10 @@ PUT /my-index-000001
     }
   }
 }
+----
 
-
+[source,console]
+----
 POST /_scripts/painless/_execute
 {
   "script": {
@@ -237,6 +248,7 @@ POST /_scripts/painless/_execute
   }
 }
 ----
+// TEST[continued]
 
 ===== Response
 
@@ -260,34 +272,50 @@ you indicate the context for a runtime field based on the data type.
 
 [source,console]
 ----
-PUT /my-index-boolean
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
-      "b": {
-        "type": "boolean"
+      "name": {
+        "type": "keyword"
+      },
+      "author": {
+        "type": "keyword"
+      },
+      "release_date": {
+        "type": "date"
+      },
+      "page_count": {
+        "type": "double"
       }
     }
   }
 }
+----
 
+[source,console]
+----
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "emit(params['p']); emit(doc['b'].value);",
-    "params": {
-      "p": true
-    }
+    "source": """
+       int space = doc['author'].value.indexOf(' ');
+       emit(space >= 0 && space < 5);
+    """
   },
   "context": "boolean_field",
   "context_setup": {
-    "index": "my-index-boolean",
+    "index": "my-index-000001",
     "document": {
-      "b": false
+      "name": "Consider Phlebas",
+      "author": "Iain M. Banks",
+      "release_date": "1987-04-23",
+      "page_count": 471
     }
   }
 }
 ----
+// TEST[continued]
 
 [[painless-runtime-boolean-response]]
 ===== `boolean_field` response
@@ -295,15 +323,17 @@ POST /_scripts/painless/_execute
 [source,console-result]
 ----
 {
-  "result": [
-    false,
+  "result" : [
     true
   ]
 }
 ----
 
-* date_field
-+
+[[painless-runtime-datetime-request]]
+===== `date_time` request
+Several options are available for using
+<<painless-datetime,using datetime in Painless>>. 
+
 [source,console]
 ----------------------------------------------------------------
 PUT /my-index-date
@@ -331,9 +361,10 @@ POST /_scripts/painless/_execute
   }
 }
 ----------------------------------------------------------------
-+
-Response:
-+
+
+[[painless-runtime-datetime-response]]
+===== `date_time` response
+
 [source,console-result]
 --------------------------------------------------
 {
@@ -342,92 +373,159 @@ Response:
   ]
 }
 --------------------------------------------------
-+
-* double_field
-+
+
+[[painless-runtime-double-request]]
+===== `double_field` request
+Use the `double_field` runtime context for <<numeric,numeric data>> of type
+`double`. For example, let's say you have sensor data that includes a `voltage`
+field with values like 5.6. You need to multiply this value, but only for
+sensors that match a specific model number.
+
+Add the following fields to your index mapping. The `voltage` field is a 
+sub-field of the `measures` object.
+
 [source,console]
-----------------------------------------------------------------
-PUT /my-index-double
+----
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
-      "d": {
+      "@timestamp": {
+        "type": "date"
+      },
+      "model_number": {
+        "type": "keyword"
+      },
+      "measures": {
+        "properties": {
+          "voltage": {
+            "type": "double"
+          }
+        }
+      }
+    }
+  }
+}
+----
+
+The following script matches on any documents where the `model_number` equals
+`QVKC92Q`, and then multiplies the `voltage` value by `1.7`. This script is
+useful when you want to select specific documents and only operate on values
+that match the specified criteria.
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """if (doc['model_number'].value.equals('QVKC92Q'))
+        {emit(1.7 * params._source['measures']['voltage']);}
+        else{emit(params._source['measures']['voltage']);}"""
+  },
+  "context": "double_field",
+  "context_setup": {
+    "index": "my-index-000001",
+    "document": {
+      "@timestamp": 1516470094000,
+      "model_number": "QVKC92Q",
+      "measures": {
+        "voltage": 5.6
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+[[painless-runtime-double-response]]
+===== `double_field` response
+The result includes the calculated voltage, which was determined by multiplying
+the original value of `5.6` by `1.7`:
+
+[source,console-result]
+----
+{
+  "result" : [
+    9.52
+  ]
+}
+----
+
+[[painless-runtime-geo-request]]
+===== `geo_point_field` request
+<<geo-point,Geo point>> fields accept latitude-longitude pairs. You can define a
+geo-point field in several ways, and include values for latitude and longitude
+in the document for your script.
+
+If you already have a known geo-point, it's simpler to clearly state the
+positions of `lat` and `lon` in your index mappings. 
+
+[source,console]
+----
+PUT /my-index-000001/
+{
+  "mappings": {
+    "properties": {
+      "lat": {
+        "type": "double"
+      },
+     "lon": {
         "type": "double"
       }
     }
   }
 }
+----
 
-POST /_scripts/painless/_execute
-{
-  "script": {
-    "source": "emit(doc['d'][0] + doc['d'][1])"
-  },
-  "context": "double_field",
-  "context_setup": {
-    "index": "my-index-double",
-    "document": {
-      "d": [2.0, 1.0]
-    }
-  }
-}
-----------------------------------------------------------------
-+
-Response:
-+
-[source,console-result]
---------------------------------------------------
-{
-  "result": [ 3.0 ]
-}
---------------------------------------------------
-+
-* geo_point_field
-+
+You can then use the `geo_point_field` runtime field context to write a script
+that retrieves the `lat` and `long` values.
+
 [source,console]
-----------------------------------------------------------------
-PUT /my-index-geo-point
-{
-  "mappings": {
-    "properties": {
-      "g": {
-        "type": "geo_point"
-      }
-    }
-  }
-}
-
+----
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "emit(doc['g'].value.lat + 1.2, doc['g'].value.lon - 2.3)"
+    "source": """
+        emit(doc['lat'].value, doc['lon'].value);
+        """
   },
   "context": "geo_point_field",
   "context_setup": {
-    "index": "my-index-geo-point",
+    "index": "my-index-000001",
     "document": {
-      "g": "71.34,85.92"
+      "lat": 41.12,
+      "lon": -71.34
     }
   }
 }
-----------------------------------------------------------------
-+
-Response:
-+
+----
+// TEST[continued]
+
+[[painless-runtime-geo-response]]
+===== `geo_point_field` response
+Because this you're working with a geo-point field type, the response includes
+results that are formatted as `coordinates`. 
+
 [source,console-result]
---------------------------------------------------
+----
 {
-  "result": [
-    7434037857170656882
+  "result" : [
+    {
+      "coordinates" : [
+        -71.34000004269183,
+        41.1199999647215
+      ],
+      "type" : "Point"
+    }
   ]
 }
---------------------------------------------------
+----
 
 [[painless-runtime-ip-request]]
 ===== `ip_field` request
-The `ip_field` context is useful for data that includes properly formatted IP
-addresses. For example, let's say you have a `message` field from an Apache log.
-This field contains an IP address, but also other data that you don't need. 
+The `ip_field` context is useful for data that includes IP addresses of type
+<<ip,`ip`>>. For example, let's say you have a `message` field from an Apache
+log. This field contains an IP address, but also other data that you don't need. 
 
 You can add the `message` field to your index mappings as a `wildcard` to accept
 pretty much any data you want to put in that field.
@@ -491,8 +589,12 @@ The response includes only the IP address, ignoring all of the other data in the
 
 [[painless-runtime-keyword-request]]
 ===== `keyword_field` request
-The following request adds a `@timestamp` field of type `date` to the index
-mappings:
+<<keyword,Keyword fields>> are often used in sorting, aggregations, and
+term-level queries.
+
+Let's say you have a timestamp. You want to calculate the day of the week based
+on that value and return it, such as `Thursday`. The following request adds a
+`@timestamp` field of type `date` to the index mappings:
 
 [source,console]
 ----
@@ -508,8 +610,8 @@ PUT /my-index-000001
 }
 ----
 
-If you have a timestamp but want to return the equivalent day of the week, you
-can create a script in the `keyword_field` context:
+To return the equivalent day of week based on your timestamp, you can create a
+script in the `keyword_field` runtime field context:
 
 [source,console]
 ----
@@ -532,7 +634,7 @@ POST /_scripts/painless/_execute
 [[painless-runtime-keyword-response]]
 ===== `keyword_field` response
 The script operates on the value provided for the `@timestamp` field to
-calculate the day of the week:
+calculate and return the day of the week:
 
 [source,console-result]
 ----
@@ -545,8 +647,12 @@ calculate the day of the week:
 
 [[painless-runtime-long-request]]
 ===== `long_field` request
-The following request adds a `message` object to the mappings with two fields,
-both of type `long`. 
+Let's say you have sensor data that a `measures` object. This object includes
+a `start` and `end` field, and you want to calculate the difference between
+those values.
+
+The following request adds a `measures` object to the mappings with two fields,
+both of type `long`:
 
 [source,console]
 ----
@@ -571,7 +677,7 @@ PUT /my-index-000001/
 
 You can then define a script that assigns values to the `start` and `end` fields
 and operate on them. The following script extracts the value for the `end`
-field from the `measures` object and subtracts it from the `start` field.
+field from the `measures` object and subtracts it from the `start` field:
 
 [source,console]
 ----
@@ -599,7 +705,7 @@ POST /_scripts/painless/_execute
 
 [[painless-runtime-long-response]]
 ===== `long_field` response
-The response includes the calculated value from the script valuation.
+The response includes the calculated value from the script valuation:
 
 [source,console-result]
 ----

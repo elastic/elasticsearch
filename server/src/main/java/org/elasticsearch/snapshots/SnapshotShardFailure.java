@@ -151,7 +151,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("index", shardId.getIndexName());
-        builder.field("index_uuid", shardId.getIndexName());
+        builder.field("index_uuid", shardId.getIndex().getUUID());
         builder.field("shard_id", shardId.id());
         builder.field("reason", reason);
         if (nodeId != null) {

@@ -41,8 +41,8 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     private final List<String> dataStreams;
 
     public DataStreamAlias(String name, List<String> dataStreams) {
-        this.name = name;
-        this.dataStreams = dataStreams;
+        this.name = Objects.requireNonNull(name);
+        this.dataStreams = List.copyOf(dataStreams);
     }
 
     public DataStreamAlias(StreamInput in) throws IOException {

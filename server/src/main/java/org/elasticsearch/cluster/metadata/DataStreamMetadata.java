@@ -72,7 +72,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     public DataStreamMetadata(Map<String, DataStream> dataStreams,
                               Map<String, DataStreamAlias> dataStreamAliases) {
         this.dataStreams = Map.copyOf(dataStreams);
-        this.dataStreamAliases = Objects.requireNonNull(dataStreamAliases);
+        this.dataStreamAliases = Map.copyOf(dataStreamAliases);
     }
 
     public DataStreamMetadata(StreamInput in) throws IOException {

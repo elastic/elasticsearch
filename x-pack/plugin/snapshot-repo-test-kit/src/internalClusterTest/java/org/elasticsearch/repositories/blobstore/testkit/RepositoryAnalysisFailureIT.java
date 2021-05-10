@@ -48,7 +48,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -510,8 +510,8 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
-            blobs.keySet().removeAll(blobNames);
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
+            blobNames.forEachRemaining(blobs.keySet()::remove);
         }
 
         @Override

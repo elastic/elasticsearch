@@ -44,13 +44,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         ) {
         @Override
         public void execute() {
-            for (Object v : extractFromSource(field)) {
-                try {
-                    emit(NumberFieldMapper.NumberType.objectToLong(v, true));
-                } catch (Exception e) {
-                    // ignore;
-                }
-            }
+            emitFromSource();
         }
     };
 

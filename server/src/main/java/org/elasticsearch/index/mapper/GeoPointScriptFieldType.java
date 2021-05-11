@@ -19,7 +19,6 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -32,7 +31,6 @@ import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
 
 import java.time.ZoneId;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -46,34 +44,10 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
             lookup,
             ctx
         ) {
-        private final GeoPoint scratch = new GeoPoint();
 
         @Override
         public void execute() {
-            try {
-                Object value = XContentMapValues.extractValue(field, leafSearchLookup.source().source());
-                if (value instanceof List<?>) {
-                    List<?> values = (List<?>) value;
-                    if (values.size() > 0 && values.get(0) instanceof Number) {
-                        parsePoint(value);
-                    } else {
-                        for (Object point : values) {
-                            parsePoint(point);
-                        }
-                    }
-                } else {
-                    parsePoint(value);
-                }
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-
-        private void parsePoint(Object point) {
-            if (point != null) {
-                GeoUtils.parseGeoPoint(point, scratch, true);
-                emit(scratch.lat(), scratch.lon());
-            }
+            emitFromSource();
         }
     };
 

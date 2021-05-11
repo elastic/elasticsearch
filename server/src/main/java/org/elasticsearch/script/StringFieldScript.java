@@ -61,6 +61,13 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         resultsForDoc(docId).forEach(consumer);
     }
 
+    @Override
+    protected void emitFromObject(Object v) {
+        if (v != null) {
+            emit(v.toString());
+        }
+    }
+
     public final void emit(String v) {
         checkMaxSize(results.size());
         chars += v.length();

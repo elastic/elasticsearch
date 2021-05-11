@@ -52,15 +52,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         ) {
         @Override
         public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof String) {
-                    try {
-                        emit((String) v);
-                    } catch (Exception e) {
-                        // ignore parsing exceptions
-                    }
-                }
-            }
+            emitFromSource();
         }
     };
 

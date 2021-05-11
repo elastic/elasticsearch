@@ -72,6 +72,19 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         return count;
     }
 
+    @Override
+    protected void emitFromObject(Object v) {
+        if (v instanceof Number) {
+            emit(((Number) v).doubleValue());
+        } else if (v instanceof String) {
+            try {
+                emit(Double.parseDouble((String) v));
+            } catch (NumberFormatException e) {
+                // ignore
+            }
+        }
+    }
+
     public final void emit(double v) {
         checkMaxSize(count);
         if (values.length < count + 1) {

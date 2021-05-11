@@ -93,6 +93,17 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         return count;
     }
 
+    @Override
+    protected void emitFromObject(Object v) {
+        if (v instanceof String) {
+            try {
+                emit((String) v);
+            } catch (Exception e) {
+                // ignore parsing exceptions
+            }
+        }
+    }
+
     public final void emit(String v) {
         checkMaxSize(count);
         if (values.length < count + 1) {

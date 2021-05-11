@@ -43,17 +43,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         ) {
         @Override
         public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof Boolean) {
-                    emit((Boolean) v);
-                } else if (v instanceof String) {
-                    try {
-                        emit(Booleans.parseBoolean((String) v));
-                    } catch (IllegalArgumentException e) {
-                        // ignore
-                    }
-                }
-            }
+            emitFromSource();
         }
     };
 

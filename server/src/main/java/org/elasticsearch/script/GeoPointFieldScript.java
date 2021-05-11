@@ -12,8 +12,10 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -53,6 +55,34 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
             final int lon = (int) (values()[i] & 0xFFFFFFFF);
             point.reset(GeoEncodingUtils.decodeLatitude(lat), GeoEncodingUtils.decodeLongitude(lon));
             consumer.accept(point);
+        }
+    }
+
+    @Override
+    protected void emitFromObject(Object value) {
+        try {
+            if (value instanceof List<?>) {
+                List<?> values = (List<?>) value;
+                if (values.size() > 0 && values.get(0) instanceof Number) {
+                    parsePoint(value);
+                } else {
+                    for (Object point : values) {
+                        parsePoint(point);
+                    }
+                }
+            } else {
+                parsePoint(value);
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    private void parsePoint(Object point) {
+        if (point != null) {
+            final GeoPoint scratch = new GeoPoint();
+            GeoUtils.parseGeoPoint(point, scratch, true);
+            emit(scratch.lat(), scratch.lon());
         }
     }
 

@@ -51,11 +51,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         ) {
         @Override
         public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v != null) {
-                    emit(v.toString());
-                }
-            }
+            emitFromSource();
         }
     };
 

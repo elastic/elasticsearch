@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
@@ -56,13 +55,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         ) {
         @Override
         public void execute() {
-            for (Object v : extractFromSource(field)) {
-                try {
-                    emit(formatter.parseMillis(Objects.toString(v)));
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
+            emitFromSource();
         }
     };
 

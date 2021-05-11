@@ -102,8 +102,20 @@ public abstract class AbstractFieldScript {
         return leafSearchLookup.doc();
     }
 
-    protected final List<Object> extractFromSource(String path) {
+    public final List<Object> extractFromSource(String path) {
         return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
+    }
+
+    protected abstract void emitFromObject(Object v);
+
+    public final void emitFromSource() {
+        emitObjectValues(extractFromSource(fieldName));
+    }
+
+    private void emitObjectValues(List<Object> values) {
+        for (Object v : values) {
+            emitFromObject(v);
+        }
     }
 
     /**

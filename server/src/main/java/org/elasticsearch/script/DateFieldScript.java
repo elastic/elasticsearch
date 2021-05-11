@@ -13,6 +13,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class DateFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date_field", Factory.class);
@@ -39,6 +40,15 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
     ) {
         super(fieldName, params, searchLookup, ctx);
         this.formatter = formatter;
+    }
+
+    @Override
+    protected void emitFromObject(Object v) {
+        try {
+            emit(formatter.parseMillis(Objects.toString(v)));
+        } catch (Exception e) {
+            // ignore
+        }
     }
 
     public static class Emit {

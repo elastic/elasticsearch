@@ -44,17 +44,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         ) {
         @Override
         public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof Number) {
-                    emit(((Number) v).doubleValue());
-                } else if (v instanceof String) {
-                    try {
-                        emit(Double.parseDouble((String) v));
-                    } catch (NumberFormatException e) {
-                        // ignore
-                    }
-                }
-            }
+            emitFromSource();
         }
     };
 

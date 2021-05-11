@@ -146,7 +146,7 @@ node.name: node-1
 c. Add the following settings to enable internode communication and provide
 access to the node's certificate.
 +
-Because you are using the `elastic-certificates.p12` file on every node in
+Because you are using the same `elastic-certificates.p12` file on every node in
 your cluster, set the verification mode to `certificate`:
 +
 [source,yaml]
@@ -158,7 +158,7 @@ xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
 xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
 ----
 <1> If you want to use hostname verification, set the verification mode to
-`full`. You'll need to generate a different certificate for each host that
+`full`. You should generate a different certificate for each host that
 matches the DNS or IP address. See the 
 `xpack.security.transport.ssl.verification_mode` parameter in {ref}/security-settings.html#transport-tls-ssl-settings[TLS settings].
 

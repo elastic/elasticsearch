@@ -104,7 +104,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // ILM should have unfollowed the follower index, so the following_index setting should have been removed:
                     // (this controls whether the follow engine is used)
                     assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), nullValue());
-                });
+                }, 30, TimeUnit.SECONDS);
             }
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
@@ -264,7 +264,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
                     // (this controls whether the follow engine is used)
                     assertThat(getIndexSetting(client(), indexName, "index.xpack.ccr.following_index"), nullValue());
                     // The next index should have been created on the follower as well
-                    indexExists(nextIndexName);
+                    assertTrue(indexExists(nextIndexName));
                     // and the alias should be on the next index
                     assertOK(client().performRequest(new Request("HEAD", "/" + nextIndexName + "/_alias/" + alias)));
                 });

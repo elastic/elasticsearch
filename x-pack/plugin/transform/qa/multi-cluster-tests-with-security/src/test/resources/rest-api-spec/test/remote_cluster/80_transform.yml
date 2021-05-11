@@ -22,7 +22,7 @@ setup:
               "cluster": [],
               "indices": [
                 {
-                  "names": ["test_index*"],
+                  "names": ["remote_test_index*"],
                   "privileges": ["read", "view_index_metadata"]
                 }
               ]
@@ -38,7 +38,7 @@ teardown:
 "Index data on the remote cluster":
   - do:
       indices.create:
-        index: test_index
+        index: remote_test_index
         body:
           settings:
             index:
@@ -61,28 +61,28 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "a", "stars": 1, "date" : "2018-10-29T12:12:12.123456789Z"}'
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "a", "stars": 4, "date" : "2018-10-29T12:14:12.123456789Z"}'
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "a", "stars": 5, "date" : "2018-10-29T12:16:12.123456789Z"}'
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "b", "stars": 2, "date" : "2018-10-29T12:17:12.123456789Z"}'
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "b", "stars": 3, "date" : "2018-10-29T12:22:12.123456789Z"}'
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "a", "stars": 5, "date" : "2018-10-29T12:23:12.123456789Z"}'
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "b", "stars": 1, "date" : "2018-10-29T12:32:12.123456789Z"}'
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "a", "stars": 3, "date" : "2018-10-29T12:34:12.123456789Z"}'
-            - '{"index": {"_index": "test_index"}}'
+            - '{"index": {"_index": "remote_test_index"}}'
             - '{"user": "c", "stars": 4, "date" : "2018-10-29T12:35:12.123456789Z"}'
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test_index
+        index: remote_test_index
         body:
           aggs:
             user:
@@ -97,7 +97,7 @@ teardown:
 
   - do:
       indices.create:
-        index: test_index_2
+        index: remote_test_index_2
         body:
           settings:
             index:
@@ -120,7 +120,7 @@ teardown:
       bulk:
         refresh: true
         body:
-            - '{"index": {"_index": "test_index_2"}}'
+            - '{"index": {"_index": "remote_test_index_2"}}'
             - '{"user": "e", "stars": 3, "date" : "2018-10-29T12:12:12.123456789Z"}'
-            - '{"index": {"_index": "test_index_2"}}'
+            - '{"index": {"_index": "remote_test_index_2"}}'
             - '{"user": "d", "stars": 4, "date" : "2018-10-29T12:14:12.123456789Z"}'

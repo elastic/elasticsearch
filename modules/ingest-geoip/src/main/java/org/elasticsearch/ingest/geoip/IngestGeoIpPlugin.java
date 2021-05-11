@@ -113,6 +113,10 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             throw new UncheckedIOException(e);
         }
 
+        if(GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false){
+            return List.of(databaseRegistry.get());
+        }
+
         geoIpDownloaderTaskExecutor = new GeoIpDownloaderTaskExecutor(client, new HttpClient(), clusterService, threadPool);
         return List.of(databaseRegistry.get(), geoIpDownloaderTaskExecutor);
     }
@@ -126,6 +130,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService, ThreadPool threadPool,
                                                                        Client client, SettingsModule settingsModule,
                                                                        IndexNameExpressionResolver expressionResolver) {
+        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
+            return Collections.emptyList();
+        }
         return List.of(geoIpDownloaderTaskExecutor);
     }
 
@@ -158,6 +165,9 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
+            return Collections.emptyList();
+        }
         SystemIndexDescriptor geoipDatabasesIndex = SystemIndexDescriptor.builder()
             .setIndexPattern(DATABASES_INDEX)
             .setDescription("GeoIP databases")
@@ -166,7 +176,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
                 .build())
             .setOrigin("geoip")
             .setVersionMetaKey("version")

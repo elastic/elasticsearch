@@ -40,7 +40,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
 
     public void testNonEmptyToString() {
         TaskInfo info = new TaskInfo(
-            new TaskId("node1", 1), "dummy-type", "dummy-action", "dummy-description", null, 0, 1, true, new TaskId("node1", 0),
+            new TaskId("node1", 1), "dummy-type", "dummy-action", "dummy-description", null, 0, 1, true, false, new TaskId("node1", 0),
             Collections.singletonMap("foo", "bar"));
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
         assertEquals("{\n" +

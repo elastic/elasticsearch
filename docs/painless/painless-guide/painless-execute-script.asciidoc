@@ -59,30 +59,30 @@ examples for how to use these different contexts.
 =====
 `boolean_field`:: 
 Emits a `boolean` data type and returns a sorted list of `boolean` values. See
-<<painless-runtime-boolean-request,boolean_field>>.
+<<painless-runtime-boolean,boolean_field>>.
 
 `date_field`:: 
 Emits a `long` data type and returns a sorted list of `long` values. 
 
 `double_field`::
 Emits a `long` data type and returns a sorted list of `double` values. See
-<<painless-runtime-double-request,double_field>>.
+<<painless-runtime-double,double_field>>.
 
 `geo_point_field`::
 Emits a `long` data type and returns a sorted list of `double` values. See
-<<painless-runtime-geo-request,geo_point_field>>.
+<<painless-runtime-geo,geo_point_field>>.
 
 `ip_field`::
 Emits a `string` data type and returns a sorted list of `string` values. See
-<<painless-runtime-ip-request,ip_field>>.
+<<painless-runtime-ip,ip_field>>.
 
 `keyword_field`::
 Emits a `string` data type and returns a sorted list of `string` values. See
-<<painless-runtime-keyword-request,keyword_field>>.
+<<painless-runtime-keyword,keyword_field>>.
 
 `long_field`::
 Emits a `long` data type and returns a sorted list of `long` values. See
-<<painless-runtime-long-request,long_field>>.
+<<painless-runtime-long,long_field>>.
 =====
 
 ====
@@ -267,8 +267,18 @@ for a runtime field and returns results in doc-values order.
 Although runtime fields have their own context within the Painless execute API,
 you indicate the context for a runtime field based on the data type.
 
-[[painless-runtime-boolean-request]]
-====== `boolean_field` request
+[[painless-runtime-boolean]]
+====== `boolean_field`
+Use the `boolean_field` runtime field context when you want to return a `true`
+or `false` value from a script valuation. {ref}/boolean.html[Boolean fields]
+accept `true` and `false` values, but can also accept strings that are
+interpreted as either true or false. 
+
+Let's say you have data for the top 100 science fiction books of all time. You
+want to write scripts that return a boolean response such as whether books
+exceed a certain page count, or if a book was published after a specific year.
+
+Add the following fields to your mapping:
 
 [source,console]
 ----
@@ -293,32 +303,33 @@ PUT /my-index-000001
 }
 ----
 
+You can then write a script in the `boolean_field` context that indicates
+whether a book was published before the year 1972:
+
 [source,console]
 ----
 POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-       int space = doc['author'].value.indexOf(' ');
-       emit(space >= 0 && space < 5);
+       emit(doc['release_date'].value.dayOfYear < 1972);
     """
   },
   "context": "boolean_field",
   "context_setup": {
     "index": "my-index-000001",
     "document": {
-      "name": "Consider Phlebas",
-      "author": "Iain M. Banks",
-      "release_date": "1987-04-23",
-      "page_count": 471
+      "name": "Dune",
+      "author": "Frank Herbert",
+      "release_date": "1965-06-01",
+      "page_count": 604
     }
   }
 }
 ----
 // TEST[continued]
 
-[[painless-runtime-boolean-response]]
-===== `boolean_field` response
+Because _Dune_ was published in 1965, the result returns as `true`:
 
 [source,console-result]
 ----
@@ -329,8 +340,49 @@ POST /_scripts/painless/_execute
 }
 ----
 
-[[painless-runtime-datetime-request]]
-===== `date_time` request
+Similarly, you could write a script that determines whether the first name of
+an author exceeds a certain number of characters. The following script operates
+on the `author` field to determine whether the author's first name contains at
+least one character, but is less than five characters:
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": """
+       int space = doc['author'].value.indexOf(' ');
+       emit(space > 0 && space < 5);
+    """
+  },
+  "context": "boolean_field",
+  "context_setup": {
+    "index": "my-index-000001",
+    "document": {
+      "name": "Dune",
+      "author": "Frank Herbert",
+      "release_date": "1965-06-01",
+      "page_count": 604
+    }
+  }
+}
+----
+// TEST[continued]
+
+Because `Frank` is five characters, the response returns `false` for the script
+valuation:
+
+[source,console-result]
+----
+{
+  "result" : [
+    false
+  ]
+}
+----
+
+[[painless-runtime-datetime]]
+===== `date_time`
 Several options are available for using
 <<painless-datetime,using datetime in Painless>>. 
 
@@ -362,9 +414,6 @@ POST /_scripts/painless/_execute
 }
 ----------------------------------------------------------------
 
-[[painless-runtime-datetime-response]]
-===== `date_time` response
-
 [source,console-result]
 --------------------------------------------------
 {
@@ -374,8 +423,8 @@ POST /_scripts/painless/_execute
 }
 --------------------------------------------------
 
-[[painless-runtime-double-request]]
-===== `double_field` request
+[[painless-runtime-double]]
+===== `double_field`
 Use the `double_field` runtime context for {ref}/number.html[numeric data] of type
 `double`. For example, let's say you have sensor data that includes a `voltage`
 field with values like 5.6. You need to multiply this value, but only for
@@ -437,8 +486,6 @@ POST /_scripts/painless/_execute
 ----
 // TEST[continued]
 
-[[painless-runtime-double-response]]
-===== `double_field` response
 The result includes the calculated voltage, which was determined by multiplying
 the original value of `5.6` by `1.7`:
 
@@ -451,8 +498,8 @@ the original value of `5.6` by `1.7`:
 }
 ----
 
-[[painless-runtime-geo-request]]
-===== `geo_point_field` request
+[[painless-runtime-geo]]
+===== `geo_point_field`
 {ref}/geo-point.html[Geo point] fields accept latitude-longitude pairs. You can define a
 geo-point field in several ways, and include values for latitude and longitude
 in the document for your script.
@@ -501,8 +548,6 @@ POST /_scripts/painless/_execute
 ----
 // TEST[continued]
 
-[[painless-runtime-geo-response]]
-===== `geo_point_field` response
 Because this you're working with a geo-point field type, the response includes
 results that are formatted as `coordinates`. 
 
@@ -521,8 +566,8 @@ results that are formatted as `coordinates`.
 }
 ----
 
-[[painless-runtime-ip-request]]
-===== `ip_field` request
+[[painless-runtime-ip]]
+===== `ip_field`
 The `ip_field` context is useful for data that includes IP addresses of type
 {ref}/ip.html[`ip`]. For example, let's say you have a `message` field from an Apache
 log. This field contains an IP address, but also other data that you don't need. 
@@ -573,8 +618,6 @@ POST /_scripts/painless/_execute
 ----
 // TEST[continued]
 
-[[painless-runtime-ip-response]]
-===== `ip_field` response
 The response includes only the IP address, ignoring all of the other data in the
 `message` field.
 
@@ -587,8 +630,8 @@ The response includes only the IP address, ignoring all of the other data in the
 }
 ----
 
-[[painless-runtime-keyword-request]]
-===== `keyword_field` request
+[[painless-runtime-keyword]]
+===== `keyword_field`
 {ref/keyword.html}[Keyword fields] are often used in sorting, aggregations, and
 term-level queries.
 
@@ -631,8 +674,6 @@ POST /_scripts/painless/_execute
 ----
 // TEST[continued]
 
-[[painless-runtime-keyword-response]]
-===== `keyword_field` response
 The script operates on the value provided for the `@timestamp` field to
 calculate and return the day of the week:
 
@@ -645,8 +686,8 @@ calculate and return the day of the week:
 }
 ----
 
-[[painless-runtime-long-request]]
-===== `long_field` request
+[[painless-runtime-long]]
+===== `long_field`
 Let's say you have sensor data that a `measures` object. This object includes
 a `start` and `end` field, and you want to calculate the difference between
 those values.
@@ -703,8 +744,6 @@ POST /_scripts/painless/_execute
 ----
 // TEST [continued]
 
-[[painless-runtime-long-response]]
-===== `long_field` response
 The response includes the calculated value from the script valuation:
 
 [source,console-result]

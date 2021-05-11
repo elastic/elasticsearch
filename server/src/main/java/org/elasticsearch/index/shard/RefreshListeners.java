@@ -10,11 +10,13 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -36,8 +38,6 @@ import static java.util.Objects.requireNonNull;
  */
 public final class RefreshListeners implements ReferenceManager.RefreshListener, Closeable {
     private final IntSupplier getMaxRefreshListeners;
-    // Can throw engine closed exception
-    private final LongSupplier refreshedCheckpointSupplier;
     private final Runnable forceRefresh;
     private final Logger logger;
     private final ThreadContext threadContext;
@@ -72,16 +72,18 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     private volatile Translog.Location lastRefreshedLocation;
 
+    private volatile long lastRefreshedSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+
     public RefreshListeners(
         final IntSupplier getMaxRefreshListeners,
-        final LongSupplier refreshedCheckpointSupplier,
+        final LongSupplier processedSeqNoSupplier,
         final Runnable forceRefresh,
         final Logger logger,
         final ThreadContext threadContext,
         final MeanMetric refreshMetric
     ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
-        this.refreshedCheckpointSupplier = refreshedCheckpointSupplier;
+        this.processedSeqNoSupplier = processedSeqNoSupplier;
         this.forceRefresh = forceRefresh;
         this.logger = logger;
         this.threadContext = threadContext;
@@ -161,6 +163,15 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         return true;
     }
 
+    public void addOrNotify(long seqNo, ActionListener<Void> listener) {
+        assert seqNo > SequenceNumbers.NO_OPS_PERFORMED;
+        if (seqNo >= lastRefreshedSeqNo) {
+            listener.onResponse(null);
+        }
+
+
+    }
+
     @Override
     public void close() throws IOException {
         List<Tuple<Translog.Location, Consumer<Boolean>>> oldListeners;
@@ -199,15 +210,30 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
+     * Setup the engine used to find the last processed sequence number.
+     */
+    public void setCurrentProcessedSeqNoSupplier(LongSupplier processedSeqNoSupplier) {
+        this.processedSeqNoSupplier = processedSeqNoSupplier;
+    }
+
+    /**
      * Snapshot of the translog location before the current refresh if there is a refresh going on or null. Doesn't have to be volatile
      * because when it is used by the refreshing thread.
      */
     private Translog.Location currentRefreshLocation;
     private Supplier<Translog.Location> currentRefreshLocationSupplier;
 
+    /**
+     * Snapshot of the local processed seqNo before the current refresh if there is a refresh going on or null. Doesn't have to be volatile
+     * because when it is used by the refreshing thread.
+     */
+    private long currentRefreshSeqNo;
+    private LongSupplier processedSeqNoSupplier;
+
     @Override
     public void beforeRefresh() throws IOException {
         currentRefreshLocation = currentRefreshLocationSupplier.get();
+        currentRefreshSeqNo = processedSeqNoSupplier.getAsLong();
         currentRefreshStartTime = System.nanoTime();
     }
 
@@ -232,6 +258,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
          * assignment into the synchronized block below and double checking lastRefreshedLocation in addOrNotify's synchronized block but
          * that doesn't seem worth it given that we already skip this process early if there aren't any listeners to iterate. */
         lastRefreshedLocation = currentRefreshLocation;
+        lastRefreshedSeqNo = currentRefreshSeqNo;
         /* Grab the current refresh listeners and replace them with null while synchronized. Any listeners that come in after this won't be
          * in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
          * lastRefreshedLocation. */

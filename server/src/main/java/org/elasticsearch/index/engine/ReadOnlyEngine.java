@@ -348,8 +348,8 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public long getProcessedLocalCheckpoint() {
-        // TODO: Implement
-        return -1L;
+        // TODO: Implement?
+        return seqNoStats.getLocalCheckpoint();
     }
 
     @Override

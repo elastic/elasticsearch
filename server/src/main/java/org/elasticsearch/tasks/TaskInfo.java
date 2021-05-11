@@ -41,6 +41,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * snapshot information about currently running tasks.
  */
 public final class TaskInfo implements Writeable, ToXContentFragment {
+
+    static final String INCLUDE_CANCELLED_PARAM = "include_cancelled";
+
     private final TaskId taskId;
 
     private final String type;
@@ -216,7 +219,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         builder.field("running_time_in_nanos", runningTimeNanos);
         builder.field("cancellable", cancellable);
-        if (cancellable) {
+
+        if (params.paramAsBoolean(INCLUDE_CANCELLED_PARAM, true) && cancellable) {
+            // don't record this on entries in the tasks index, since we can't add this field to the mapping dynamically and it's not
+            // important for completed tasks anyway
             builder.field("cancelled", cancelled);
         }
         if (parentTaskId.isSet()) {

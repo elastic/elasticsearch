@@ -56,6 +56,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 "      \"running_time\" : \"1nanos\",\n" +
                 "      \"running_time_in_nanos\" : 1,\n" +
                 "      \"cancellable\" : true,\n" +
+                "      \"cancelled\" : false,\n" +
                 "      \"parent_task_id\" : \"node1:0\",\n" +
                 "      \"headers\" : {\n" +
                 "        \"foo\" : \"bar\"\n" +

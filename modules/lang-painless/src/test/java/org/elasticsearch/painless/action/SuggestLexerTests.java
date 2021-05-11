@@ -17,7 +17,7 @@ import org.elasticsearch.painless.antlr.SuggestLexer;
 
 import java.util.List;
 
-public class SuggestTests extends ScriptTestCase {
+public class SuggestLexerTests extends ScriptTestCase {
 
     private List<? extends Token> getSuggestTokens(String source) {
         ANTLRInputStream stream = new ANTLRInputStream(source);

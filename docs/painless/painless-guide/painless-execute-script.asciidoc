@@ -50,19 +50,21 @@ Treats scripts as if they were run inside a `script_score` function in a
 [[painless-execute-runtime-context]]
 .Runtime fields context
 [%collapsible%open]
+=====
+--
 The following contexts are specific to runtime fields.
 
 NOTE: Result ordering in the runtime field context is not guaranteed.
+--
 
-See the <<painless-execute-runtime-field-context,runtime field context>>
-examples for how to use these different contexts.
-=====
+****
 `boolean_field`:: 
 Emits a `boolean` data type and returns a sorted list of `boolean` values. See
 <<painless-runtime-boolean,boolean_field>>.
 
 `date_field`:: 
-Emits a `long` data type and returns a sorted list of `long` values. 
+Emits a `long` data type and returns a sorted list of `long` values. See
+<<painless-runtime-datetime,date_time>>.
 
 `double_field`::
 Emits a `long` data type and returns a sorted list of `double` values. See
@@ -83,8 +85,8 @@ Emits a `string` data type and returns a sorted list of `string` values. See
 `long_field`::
 Emits a `long` data type and returns a sorted list of `long` values. See
 <<painless-runtime-long,long_field>>.
+****
 =====
-
 ====
 
 `context_setup`:: (Required, object)
@@ -265,7 +267,8 @@ The <<painless-runtime-fields-context,runtime field context>> runs a script used
 for a runtime field and returns results in doc-values order.
 
 Although runtime fields have their own context within the Painless execute API,
-you indicate the context for a runtime field based on the data type.
+you indicate the context for a runtime field based on the data type you want to
+return.
 
 [[painless-runtime-boolean]]
 ====== `boolean_field`
@@ -384,44 +387,90 @@ valuation:
 [[painless-runtime-datetime]]
 ===== `date_time`
 Several options are available for using
-<<painless-datetime,using datetime in Painless>>. 
+<<painless-datetime,using datetime in Painless>>. In this example, you'll
+estimate when a particular author starting writing a book based on its release
+date and the writing speed of that author. The example makes some assumptions,
+but shows to write a script that operates on a date while incorporating
+additional information.
+
+Add the following fields to your index mapping to get started:
 
 [source,console]
-----------------------------------------------------------------
-PUT /my-index-date
+----
+PUT /my-index-000001
 {
   "mappings": {
     "properties": {
-      "d": {
+      "name": {
+        "type": "keyword"
+      },
+      "author": {
+        "type": "keyword"
+      },
+      "release_date": {
         "type": "date"
+      },
+      "page_count": {
+        "type": "long"
       }
     }
   }
 }
+----
 
+The following script adds a variable named `pageTime` to hold the number of
+seconds in a calendar year. The script then assesses the `author` and either
+divides or multiplies the `pageTime` value. If the author is
+`Robert A. Heinlein`, the script divides by two. Because `Alastair Reynolds`
+writes much slower, the script multiplies `pageTime` by two.
+
+Then, the script subtracts the release date value from the calculation of
+`pageTime` times the `page_count` to determine approximately when the author
+began writing the book.
+
+[source,console]
+----
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "emit(doc['d'].value.toInstant().toEpochMilli());"
+    "source": """
+    String author = doc['author'].value;
+    long pageTime = 31536000;
+    if (author == 'Robert A. Heinlein') {
+      pageTime /= 2;
+    } else if (author == 'Alastair Reynolds') {
+      pageTime *= 2;
+    }
+    emit(doc['release_date'].value.dayOfYear - pageTime * doc['page_count'].value);
+    """
   },
   "context": "date_field",
   "context_setup": {
-    "index": "my-index-date",
+    "index": "my-index-000001",
     "document": {
-      "d": 2075885659000
+      "name": "Revelation Space",
+      "author": "Alastair Reynolds",
+      "release_date": "2000-03-15",
+      "page_count": 585
     }
   }
 }
-----------------------------------------------------------------
+----
+//TEST[continued]
+
+In this case, the author is Alastair Reynolds. Based on a release date of
+`2000-03-15`, the script calculates that the author started writing
+`Revelation Space` on 30 October 1968. That's a long time to write a book
+(about 32 years), but sometimes good science fiction takes time!
 
 [source,console-result]
---------------------------------------------------
+----
 {
-  "result": [
-    2075885659000
+  "result" : [
+    "1968-10-30T22:48:00.075Z"
   ]
 }
---------------------------------------------------
+----
 
 [[painless-runtime-double]]
 ===== `double_field`

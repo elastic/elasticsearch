@@ -117,10 +117,6 @@ gradlePlugin {
       id = 'elasticsearch.jdk-download'
       implementationClass = 'org.elasticsearch.gradle.internal.JdkDownloadPlugin'
     }
-    publish {
-      id = 'elasticsearch.publish'
-      implementationClass = 'org.elasticsearch.gradle.internal.PublishPlugin'
-    }
     repositories {
       id = 'elasticsearch.repositories'
       implementationClass = 'org.elasticsearch.gradle.internal.RepositoriesSetupPlugin'

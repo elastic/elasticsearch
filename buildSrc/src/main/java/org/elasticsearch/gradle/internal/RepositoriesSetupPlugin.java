@@ -25,7 +25,6 @@ import java.util.regex.Pattern;
 
 public class RepositoriesSetupPlugin implements Plugin<Project> {
 
-    private static final List<String> SECURE_URL_SCHEMES = Arrays.asList("file", "https", "s3");
     private static final Pattern LUCENE_SNAPSHOT_REGEX = Pattern.compile("\\w+-snapshot-([a-z0-9]+)");
 
     @Override
@@ -66,24 +65,4 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
             });
         }
     }
-
-    private static void assertRepositoryURIIsSecure(final String repositoryName, final String projectPath, final URI uri) {
-        if (uri != null && SECURE_URL_SCHEMES.contains(uri.getScheme()) == false && uri.getHost().equals("localhost") == false) {
-            String url;
-            try {
-                url = uri.toURL().toString();
-            } catch (MalformedURLException e) {
-                throw new IllegalStateException(e);
-            }
-            final String message = String.format(
-                Locale.ROOT,
-                "repository [%s] on project with path [%s] is not using a secure protocol for artifacts on [%s]",
-                repositoryName,
-                projectPath,
-                url
-            );
-            throw new GradleException(message);
-        }
-    }
-
 }

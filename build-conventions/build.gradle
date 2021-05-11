@@ -19,6 +19,17 @@ version = '1.0'
 targetCompatibility = '11'
 sourceCompatibility = '11'
 
+gradlePlugin {
+    // We already configure publication and we don't need or want the one that comes
+    // with the java-gradle-plugin
+    automatedPublishing = false
+    plugins {
+        publish {
+            id = 'elasticsearch.publish'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.PublishPlugin'
+        }
+    }
+}
 
 repositories {
     mavenCentral()
@@ -27,4 +38,5 @@ repositories {
 
 dependencies {
     api 'org.apache.maven:maven-model:3.6.2'
+    api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
 }

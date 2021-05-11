@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.LoggedExec;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
@@ -126,7 +126,7 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
                     spec.commandLine("git", "checkout", effectiveRefSpec);
                 });
 
-                String checkoutHash = GlobalBuildInfoPlugin.gitInfo(checkoutDir).getRevision();
+                String checkoutHash = GitInfo.gitInfo(checkoutDir).getRevision();
                 logger.lifecycle("Checkout hash for {} is {}", project.getPath(), checkoutHash);
                 writeFile(new File(project.getBuildDir(), "refspec"), checkoutHash);
             });

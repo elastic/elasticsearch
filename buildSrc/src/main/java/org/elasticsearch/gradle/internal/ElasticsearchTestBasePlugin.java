@@ -15,7 +15,7 @@ import org.elasticsearch.gradle.internal.test.SystemPropertyCommandLineArgumentP
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
-import org.elasticsearch.gradle.internal.util.Util;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -45,10 +45,6 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         maybeConfigure(project.getTasks(), "test", Test.class, task -> task.include("**/*Tests.class"));
 
         // none of this stuff is applicable to the `:buildSrc` project tests
-        if (project.getPath().equals(":build-tools")) {
-            return;
-        }
-
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
 
         project.getTasks().withType(Test.class).configureEach(test -> {

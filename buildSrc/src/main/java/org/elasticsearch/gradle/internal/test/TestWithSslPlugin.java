@@ -16,7 +16,7 @@ import org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersAware;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
-import org.elasticsearch.gradle.internal.util.Util;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;

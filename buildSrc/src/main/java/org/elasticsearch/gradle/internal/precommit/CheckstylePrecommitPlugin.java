@@ -11,8 +11,9 @@ package org.elasticsearch.gradle.internal.precommit;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.util.Util;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Action;
+import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
@@ -25,6 +26,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.JarURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -86,7 +89,8 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
         DependencyHandler dependencies = project.getDependencies();
         String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
         dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
-        dependencies.add("checkstyle", project.files(Util.getBuildSrcCodeSource()));
+//        System.out.println("Util. = " + Util.);
+        dependencies.add("checkstyle", project.files(getBuildSrcCodeSource()));
 
         project.getTasks().withType(Checkstyle.class).configureEach(t -> {
             t.dependsOn(copyCheckstyleConf);
@@ -94,5 +98,13 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
         });
 
         return checkstyleTask;
+    }
+
+    private static URI getBuildSrcCodeSource() {
+        try {
+            return CheckstylePrecommitPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+        } catch (URISyntaxException e) {
+            throw new GradleException("Error determining build tools JAR location", e);
+        }
     }
 }

@@ -22,7 +22,7 @@ import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.internal.util.Util;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.internal.vagrant.VagrantExtension;
 import org.elasticsearch.gradle.internal.conventions.GUtils;

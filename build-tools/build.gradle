@@ -10,12 +10,17 @@ plugins {
     id 'java-gradle-plugin'
     id 'groovy'
     id 'java-test-fixtures'
+    id 'elasticsearch.publish'
 }
 
 group = "org.elasticsearch"
 
-// TODO fix this static version
-version = "1.0"
+// we update the version property to reflect if we are building a snapshot or a release build
+// we write this back out below to load it in the Build.java which will be shown in rest main action
+// to indicate this being a snapshot build or a release build.
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../buildSrc/version.properties'))
+version = props.getProperty("elasticsearch")
+
 
 // TODO fix these settings to be global for the es build
 targetCompatibility = '11'
@@ -45,12 +50,6 @@ gradlePlugin {
     }
 }
 
-// we update the version property to reflect if we are building a snapshot or a release build
-// we write this back out below to load it in the Build.java which will be shown in rest main action
-// to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../buildSrc/version.properties'))
-version = props.getProperty("elasticsearch")
-
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
     outputFile = "${buildDir}/version.properties"
     comment = 'Generated version properties'
@@ -70,6 +69,11 @@ sourceSets {
         compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
         runtimeClasspath += output + compileClasspath
     }
+}
+
+publishing.publications.named("elastic").configure {
+    suppressPomMetadataWarningsFor("testFixturesApiElements")
+    suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
 }
 
 configurations {

@@ -9,7 +9,7 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import groovy.lang.Closure;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.internal.util.Util;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;

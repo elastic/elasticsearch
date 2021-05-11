@@ -6,29 +6,22 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.util;
+package org.elasticsearch.gradle.internal.conventions.util;
 
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class Util {
 
@@ -43,32 +36,6 @@ public class Util {
             return false;
         } else {
             throw new GradleException("Sysprop [" + property + "] must be [true] or [false] but was [" + propertyValue + "]");
-        }
-    }
-
-    public static String getResourceContents(String resourcePath) {
-        try (
-            BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
-        ) {
-            StringBuilder b = new StringBuilder();
-            for (String line = reader.readLine(); line != null; line = reader.readLine()) {
-                if (b.length() != 0) {
-                    b.append('\n');
-                }
-                b.append(line);
-            }
-
-            return b.toString();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Error trying to read classpath resource: " + resourcePath, e);
-        }
-    }
-
-    public static URI getBuildSrcCodeSource() {
-        try {
-            return Util.class.getProtectionDomain().getCodeSource().getLocation().toURI();
-        } catch (URISyntaxException e) {
-            throw new GradleException("Error determining build tools JAR location", e);
         }
     }
 
@@ -120,7 +87,7 @@ public class Util {
     public static Optional<SourceSet> getJavaTestSourceSet(Project project) {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
             ? Optional.empty()
-            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME));
+            : Optional.ofNullable(getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME));
     }
 
     /**
@@ -130,26 +97,9 @@ public class Util {
     public static Optional<SourceSet> getJavaMainSourceSet(Project project) {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
             ? Optional.empty()
-            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME));
+            : Optional.ofNullable(getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME));
     }
 
-    static final Pattern GIT_PATTERN = Pattern.compile("git@([^:]+):([^\\.]+)\\.git");
-
-    /** Find the reponame. */
-    public static String urlFromOrigin(String origin) {
-        if (origin == null) {
-            return null; // best effort, the url doesnt really matter, it is just required by maven central
-        }
-        if (origin.startsWith("https")) {
-            return origin;
-        }
-        Matcher matcher = GIT_PATTERN.matcher(origin);
-        if (matcher.matches()) {
-            return String.format("https://%s/%s", matcher.group(1), matcher.group(2));
-        } else {
-            return origin; // best effort, the url doesnt really matter, it is just required by maven central
-        }
-    }
 
     public static Object toStringable(Supplier<String> getter) {
         return new Object() {
@@ -159,4 +109,9 @@ public class Util {
             }
         };
     }
+
+    public static SourceSetContainer getJavaSourceSets(Project project) {
+        return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
+    }
+
 }

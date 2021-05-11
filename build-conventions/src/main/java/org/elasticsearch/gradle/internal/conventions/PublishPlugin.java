@@ -6,14 +6,13 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle.internal.conventions;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.util.Node;
-import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.conventions.PomValidationPrecommitPlugin;
-import org.elasticsearch.gradle.internal.util.Util;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -21,6 +20,7 @@ import org.gradle.api.Task;
 import org.gradle.api.XmlProvider;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.BasePluginConvention;
+import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
@@ -31,8 +31,6 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 import java.util.concurrent.Callable;
-
-import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure;
 
 public class PublishPlugin implements Plugin<Project> {
 
@@ -87,7 +85,7 @@ public class PublishPlugin implements Plugin<Project> {
 
         mavenPublications.all(publication -> {
             // Add git origin info to generated POM files for internal builds
-            BuildParams.withInternalBuild(() -> publication.getPom().withXml(PublishPlugin::addScmInfo));
+            publication.getPom().withXml((xmlProvider) -> addScmInfo(xmlProvider, GitInfo.gitInfo(project.getRootDir())));
             // have to defer this until archivesBaseName is set
             project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
             generatePomTask.configure(t -> t.dependsOn(project.getTasks().withType(GenerateMavenPom.class)));
@@ -108,18 +106,18 @@ public class PublishPlugin implements Plugin<Project> {
         shadow.component(publication);
     }
 
-    private static void addScmInfo(XmlProvider xml) {
+    private static void addScmInfo(XmlProvider xml, GitInfo gitInfo) {
         Node root = xml.asNode();
-        root.appendNode("url", Util.urlFromOrigin(BuildParams.getGitOrigin()));
+        root.appendNode("url", gitInfo.urlFromOrigin());
         Node scmNode = root.appendNode("scm");
-        scmNode.appendNode("url", BuildParams.getGitOrigin());
+        scmNode.appendNode("url", gitInfo.getOrigin());
     }
 
     /**
      * Adds a javadocJar task to generate a jar containing javadocs.
      */
     private static void configureJavadocJar(Project project) {
-        project.getPlugins().withId("elasticsearch.java", p -> {
+        project.getPlugins().withType(JavaLibraryPlugin.class, p -> {
             TaskProvider<Jar> javadocJarTask = project.getTasks().register("javadocJar", Jar.class);
             javadocJarTask.configure(jar -> {
                 jar.getArchiveClassifier().set("javadoc");
@@ -127,12 +125,12 @@ public class PublishPlugin implements Plugin<Project> {
                 jar.setDescription("Assembles a jar containing javadocs.");
                 jar.from(project.getTasks().named(JavaPlugin.JAVADOC_TASK_NAME));
             });
-            maybeConfigure(project.getTasks(), BasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(javadocJarTask));
+            project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(t -> t.dependsOn(javadocJarTask));
         });
     }
 
     static void configureSourcesJar(Project project) {
-        project.getPlugins().withId("elasticsearch.java", p -> {
+        project.getPlugins().withType(JavaLibraryPlugin.class, p -> {
             TaskProvider<Jar> sourcesJarTask = project.getTasks().register("sourcesJar", Jar.class);
             sourcesJarTask.configure(jar -> {
                 jar.getArchiveClassifier().set("sources");
@@ -141,7 +139,7 @@ public class PublishPlugin implements Plugin<Project> {
                 SourceSet mainSourceSet = Util.getJavaMainSourceSet(project).get();
                 jar.from(mainSourceSet.getAllSource());
             });
-            maybeConfigure(project.getTasks(), BasePlugin.ASSEMBLE_TASK_NAME, t -> t.dependsOn(sourcesJarTask));
+            project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(t -> t.dependsOn(sourcesJarTask));
         });
     }
 }

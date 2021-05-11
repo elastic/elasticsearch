@@ -87,6 +87,22 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.nested;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Tests for the Nested aggregator.
+ *
+ * <p>
+ * Notes to people wanting to add nested aggregation tests to other test classes:
+ * <ul>
+ *     <li>Nested aggregations require a different {@link DirectoryReader} implementation than we usually use in aggregation tests.  You'll
+ *     need to override {@link AggregatorTestCase#wrapDirectoryReader} as is done in this class</li>
+ *     <li>Nested aggregations  also require object mappers to be configured.  You can mock this by overriding
+ *     {@link AggregatorTestCase#objectMappers()} as seen below</li>
+ *     <li>In a production nested field setup, we'll automatically prefix the nested path to the leaf document field names.  This helps
+ *     prevent name collisions between "levels" of nested docs.  This mechanism isn't invoked during unit tests, so preventing field name
+ *     collisions should be done by hand. For the closest approximation of how it looks in prod, leaf docs should have field names
+ *     prefixed with the nested path: nestedPath + "." + fieldName</li>
+ * </ul>
+ */
 public class NestedAggregatorTests extends AggregatorTestCase {
 
     private static final String VALUE_FIELD_NAME = "number";
@@ -161,8 +177,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
 
                     Document document = new Document();
                     document.add(new Field(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(i)), IdFieldMapper.Defaults.FIELD_TYPE));
-                    document.add(new Field(NestedPathFieldMapper.NAME, "test",
-                        NestedPathFieldMapper.Defaults.FIELD_TYPE));
+                    document.add(new Field(NestedPathFieldMapper.NAME, "test", NestedPathFieldMapper.Defaults.FIELD_TYPE));
                     document.add(sequenceIDFields.primaryTerm);
                     documents.add(document);
                     iw.addDocuments(documents);

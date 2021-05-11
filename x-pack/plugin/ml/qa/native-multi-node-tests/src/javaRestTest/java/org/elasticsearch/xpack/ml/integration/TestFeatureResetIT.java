@@ -43,11 +43,53 @@ import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.indexDocs;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
 
     private final Set<String> createdPipelines = new HashSet<>();
+    private final Set<String> jobIds = new HashSet<>();
+    private final Set<String> datafeedIds = new HashSet<>();
+
+    void cleanupDatafeed(String datafeedId) {
+        try {
+            stopDatafeed(datafeedId);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            deleteDatafeed(datafeedId);
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    void cleanupJob(String jobId) {
+        try {
+            closeJob(jobId);
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            deleteJob(jobId);
+        } catch (Exception e) {
+            // ignore
+        }
+    }
+
+    @Override
+    // The extra work of the original native clean up causes the indices to be recreated
+    // It can complicate the logging and make it difficult to determine if the reset feature API cleaned up all the indices appropriately
+    protected void cleanUpResources() {
+        super.cleanUpResources();
+        for (String jobId : jobIds) {
+            cleanupJob(jobId);
+        }
+        for (String datafeedId : datafeedIds) {
+            cleanupDatafeed(datafeedId);
+        }
+    }
 
     @After
     public void cleanup() throws Exception {
@@ -63,6 +105,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
 
     public void testMLFeatureReset() throws Exception {
         startRealtime("feature_reset_anomaly_job");
+        putAndStartJob("feature_reset_static_anomaly_job");
         startDataFrameJob("feature_reset_data_frame_analytics_job");
         putTrainedModelIngestPipeline("feature_reset_inference_pipeline");
         createdPipelines.add("feature_reset_inference_pipeline");
@@ -81,6 +124,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         ).actionGet();
         assertBusy(() -> assertThat(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices(), emptyArray()));
         assertThat(isResetMode(), is(false));
+        // If we have succeeded, clear the jobs and datafeeds so that the delete API doesn't recreate the notifications index
+        jobIds.clear();
+        datafeedIds.clear();
     }
 
     public void testMLFeatureResetFailureDueToPipelines() throws Exception {
@@ -129,6 +175,14 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         client().execute(StartDataFrameAnalyticsAction.INSTANCE, new StartDataFrameAnalyticsAction.Request(jobId));
     }
 
+    private void putAndStartJob(String jobId) throws Exception {
+        Job.Builder job = createScheduledJob(jobId);
+        jobIds.add(job.getId());
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+    }
+
     private void startRealtime(String jobId) throws Exception {
         client().admin().indices().prepareCreate("data")
             .setMapping("time", "type=date")
@@ -138,18 +192,13 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         long lastWeek = now - 604800000;
         indexDocs(logger, "data", numDocs1, lastWeek, now);
 
-        Job.Builder job = createScheduledJob(jobId);
-        registerJob(job);
-        putJob(job);
-        openJob(job.getId());
-        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
-
-        DatafeedConfig datafeedConfig = createDatafeed(job.getId() + "-datafeed", job.getId(), Collections.singletonList("data"));
-        registerDatafeed(datafeedConfig);
+        putAndStartJob(jobId);
+        DatafeedConfig datafeedConfig = createDatafeed(jobId + "-datafeed", jobId, Collections.singletonList("data"));
+        datafeedIds.add(datafeedConfig.getId());
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, null);
         assertBusy(() -> {
-            DataCounts dataCounts = getDataCounts(job.getId());
+            DataCounts dataCounts = getDataCounts(jobId);
             assertThat(dataCounts.getProcessedRecordCount(), is(equalTo(numDocs1)));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), is(equalTo(0L)));
         });
@@ -158,9 +207,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         now = System.currentTimeMillis();
         indexDocs(logger, "data", numDocs2, now + 5000, now + 6000);
         assertBusy(() -> {
-            DataCounts dataCounts = getDataCounts(job.getId());
-            assertThat(dataCounts.getProcessedRecordCount(), is(equalTo(numDocs1 + numDocs2)));
-            assertThat(dataCounts.getOutOfOrderTimeStampCount(), is(equalTo(0L)));
+            DataCounts dataCounts = getDataCounts(jobId);
+            assertThat(dataCounts.getProcessedRecordCount(), greaterThan(0L));
         }, 30, TimeUnit.SECONDS);
     }
 

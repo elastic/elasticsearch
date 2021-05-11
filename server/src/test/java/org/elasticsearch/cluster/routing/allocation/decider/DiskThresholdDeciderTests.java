@@ -1263,7 +1263,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
                            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
                            ImmutableOpenMap<String, Long> shardSizes, ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace);
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, null, reservedSpace);
         }
 
         @Override

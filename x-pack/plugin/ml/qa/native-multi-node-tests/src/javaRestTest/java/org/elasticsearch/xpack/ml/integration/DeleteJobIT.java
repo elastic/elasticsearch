@@ -97,13 +97,12 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
             .setAnalysisConfig(analysisConfig)
             .setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
 
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(datafeedId, jobId);
         datafeedConfig.setIndices(Collections.singletonList(DATA_INDEX));
         DatafeedConfig datafeedA = datafeedConfig.build();
-        registerDatafeed(datafeedA);
+
         putDatafeed(datafeedA);
 
         openJob(jobId);

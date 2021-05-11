@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
 
@@ -40,6 +41,11 @@ public class SecurityStatusChangeListener implements LicenseStateListener {
         // old state might be null (undefined) so do Object comparison
         if (Objects.equals(newState, securityEnabled) == false) {
             logger.info("Active license is now [{}]; Security is {}", licenseState.getOperationMode(), newState ? "enabled" : "disabled");
+            if (newState == false) {
+                logger.warn("Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be " +
+                    "accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                    Version.CURRENT.minor + "/security-minimal-setup.html to enable security.");
+            }
             this.securityEnabled = newState;
         }
     }

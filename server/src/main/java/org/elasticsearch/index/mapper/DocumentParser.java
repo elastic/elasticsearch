@@ -22,6 +22,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -38,36 +40,47 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-/** A parser for documents, given mappings from a DocumentMapper */
-final class DocumentParser {
+/**
+ * A parser for documents
+ */
+public final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
+    private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
 
     DocumentParser(NamedXContentRegistry xContentRegistry,
-                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext) {
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext,
+                   IndexSettings indexSettings,
+                   IndexAnalyzers indexAnalyzers) {
         this.xContentRegistry = xContentRegistry;
         this.dateParserContext = dateParserContext;
+        this.indexSettings = indexSettings;
+        this.indexAnalyzers = indexAnalyzers;
     }
 
-    ParsedDocument parseDocument(SourceToParse source,
-                                 MappingLookup mappingLookup) throws MapperParsingException {
-        return parseDocument(source, mappingLookup.getMapping().getSortedMetadataMappers(), mappingLookup);
-    }
-
-    ParsedDocument parseDocument(SourceToParse source,
-                                 MetadataFieldMapper[] metadataFieldsMappers,
-                                 MappingLookup mappingLookup) throws MapperParsingException {
+    /**
+     * Parse a document
+     * @param source the document to parse
+     * @param mappingLookup the mappings information needed to parse the document
+     * @return the parsed document
+     * @throws MapperParsingException whenever there's a problem parsing the document
+     */
+    public ParsedDocument parseDocument(SourceToParse source, MappingLookup mappingLookup) throws MapperParsingException {
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
             context = new ParseContext.InternalParseContext(
                 mappingLookup,
+                indexSettings,
+                indexAnalyzers,
                 dateParserContext,
                 source,
                 parser);
             validateStart(parser);
+            MetadataFieldMapper[] metadataFieldsMappers = mappingLookup.getMapping().getSortedMetadataMappers();
             internalParseDocument(mappingLookup.getMapping().getRoot(), metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
@@ -589,7 +602,8 @@ final class DocumentParser {
                 // TODO: shouldn't this skip, not parse?
                 parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
             } else {
-                Mapper objectMapperFromTemplate = dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, arrayFieldName);
+                Mapper objectMapperFromTemplate =
+                    dynamic.getDynamicFieldsBuilder().createObjectMapperFromTemplate(context, arrayFieldName);
                 if (objectMapperFromTemplate == null) {
                     parseNonDynamicArray(context, parentMapper, lastFieldName, arrayFieldName);
                 } else {
@@ -757,10 +771,18 @@ final class DocumentParser {
                     return new Tuple<>(pathsAdded, parent);
                 } else {
                     //objects are created under properties even with dynamic: runtime, as the runtime section only holds leaf fields
-                    mapper = (ObjectMapper) dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, paths[i]);
+                    final Mapper fieldMapper = dynamic.getDynamicFieldsBuilder().createDynamicObjectMapper(context, paths[i]);
+                    if (fieldMapper instanceof ObjectMapper == false) {
+                        assert context.sourceToParse().dynamicTemplates().containsKey(currentPath) :
+                            "dynamic templates [" + context.sourceToParse().dynamicTemplates() + "]";
+                        throw new MapperParsingException("Field [" + currentPath + "] must be an object; " +
+                            "but it's configured as [" + fieldMapper.typeName() + "] in dynamic template [" +
+                            context.sourceToParse().dynamicTemplates().get(currentPath) + "]");
+                    }
+                    mapper = (ObjectMapper) fieldMapper;
                     if (mapper.nested() != ObjectMapper.Nested.NO) {
                         throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
-                            + context.path().pathAsText(paths[i]) + "]) through `copy_to` or dots in field names");
+                            + currentPath + "]) through `copy_to` or dots in field names");
                     }
                     context.addDynamicMapper(mapper);
                 }

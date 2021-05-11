@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 
 import java.nio.ByteBuffer;
 
+
 public final class VectorEncoderDecoder {
     public static final byte INT_BYTES = 4;
 
@@ -29,9 +30,51 @@ public final class VectorEncoderDecoder {
      * NOTE: this function can only be called on vectors from an index version greater than or
      * equal to 7.5.0, since vectors created prior to that do not store the magnitude.
      */
-    public static float decodeVectorMagnitude(Version indexVersion, BytesRef vectorBR) {
+    public static float decodeMagnitude(Version indexVersion, BytesRef vectorBR) {
         assert indexVersion.onOrAfter(Version.V_7_5_0);
         ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
-        return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - 4);
+        return byteBuffer.getFloat(vectorBR.offset + vectorBR.length - INT_BYTES);
     }
+
+    /**
+     * Calculates vector magnitude
+     */
+    private static float calculateMagnitude(Version indexVersion, BytesRef vectorBR) {
+        final int length = denseVectorLength(indexVersion, vectorBR);
+        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+        double magnitude = 0.0f;
+        for (int i = 0; i < length; i++) {
+            float value = byteBuffer.getFloat();
+            magnitude += value * value;
+        }
+        magnitude = Math.sqrt(magnitude);
+        return (float) magnitude;
+    }
+
+    public static float getMagnitude(Version indexVersion, BytesRef vectorBR) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
+        }
+        if (indexVersion.onOrAfter(Version.V_7_5_0)) {
+            return decodeMagnitude(indexVersion, vectorBR);
+        } else {
+            return calculateMagnitude(indexVersion, vectorBR);
+        }
+    }
+
+    /**
+     * Decodes a BytesRef into the provided array of floats
+     * @param vectorBR - dense vector encoded in BytesRef
+     * @param vector - array of floats where the decoded vector should be stored
+     */
+    public static void decodeDenseVector(BytesRef vectorBR, float[] vector) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
+        }
+        ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+        for (int dim = 0; dim < vector.length; dim++) {
+            vector[dim] = byteBuffer.getFloat();
+        }
+    }
+
 }

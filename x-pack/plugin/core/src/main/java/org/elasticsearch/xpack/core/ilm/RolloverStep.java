@@ -40,7 +40,7 @@ public class RolloverStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, Listener listener) {
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         String indexName = indexMetadata.getIndex().getName();
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {

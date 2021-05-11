@@ -96,7 +96,7 @@ public class TransportBulkActionTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
         DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+            DiscoveryNodeRole.roles(), VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
         clusterService = createClusterService(threadPool, discoveryNode);
         CapturingTransport capturingTransport = new CapturingTransport();
         transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,

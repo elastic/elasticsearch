@@ -697,23 +697,110 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
     }
 
+    public void testScrollConsumableHitsResponseCanBeConsumedInChunks() {
+        List<ScrollableHitSource.BasicHit> hits = new ArrayList<>();
+        int numberOfHits = randomIntBetween(0, 300);
+        for (int i = 0; i < numberOfHits; i++) {
+            hits.add(new ScrollableHitSource.BasicHit("idx", "id-" + i, -1));
+        }
+        final ScrollableHitSource.Response scrollResponse =
+            new ScrollableHitSource.Response(false, emptyList(), hits.size(), hits, "scrollid");
+        final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+                @Override
+                public ScrollableHitSource.Response response() {
+                    return scrollResponse;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                }
+            });
+
+        assertThat(response.remainingHits(), equalTo(numberOfHits));
+        assertThat(response.hasRemainingHits(), equalTo(numberOfHits > 0));
+
+        int totalConsumedHits = 0;
+        while (response.hasRemainingHits()) {
+            final int numberOfHitsToConsume;
+            final List<? extends ScrollableHitSource.Hit> consumedHits;
+            if (randomBoolean()) {
+                numberOfHitsToConsume = numberOfHits - totalConsumedHits;
+                consumedHits = response.consumeRemainingHits();
+            } else {
+                numberOfHitsToConsume = randomIntBetween(1, numberOfHits - totalConsumedHits);
+                consumedHits = response.consumeHits(numberOfHitsToConsume);
+            }
+
+            assertThat(consumedHits.size(), equalTo(numberOfHitsToConsume));
+            assertThat(consumedHits, equalTo(hits.subList(totalConsumedHits, totalConsumedHits + numberOfHitsToConsume)));
+            totalConsumedHits += numberOfHitsToConsume;
+
+            assertThat(response.remainingHits(), equalTo(numberOfHits - totalConsumedHits));
+        }
+
+        assertThat(response.consumeRemainingHits().isEmpty(), equalTo(true));
+    }
+
+    public void testScrollConsumableHitsResponseErrorHandling() {
+        List<ScrollableHitSource.BasicHit> hits = new ArrayList<>();
+        int numberOfHits = randomIntBetween(2, 300);
+        for (int i = 0; i < numberOfHits; i++) {
+            hits.add(new ScrollableHitSource.BasicHit("idx", "id-" + i, -1));
+        }
+
+        final ScrollableHitSource.Response scrollResponse =
+            new ScrollableHitSource.Response(false, emptyList(), hits.size(), hits, "scrollid");
+        final AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse response =
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(new ScrollableHitSource.AsyncResponse() {
+                @Override
+                public ScrollableHitSource.Response response() {
+                    return scrollResponse;
+                }
+
+                @Override
+                public void done(TimeValue extraKeepAlive) {
+                }
+            });
+
+        assertThat(response.remainingHits(), equalTo(numberOfHits));
+        assertThat(response.hasRemainingHits(), equalTo(true));
+
+        expectThrows(IllegalArgumentException.class, () -> response.consumeHits(-1));
+        expectThrows(IllegalArgumentException.class, () -> response.consumeHits(numberOfHits + 1));
+
+        if (randomBoolean()) {
+            response.consumeHits(numberOfHits - 1);
+            // Unable to consume more than remaining hits
+            expectThrows(IllegalArgumentException.class, () -> response.consumeHits(response.remainingHits() + 1));
+            response.consumeHits(1);
+        } else {
+            response.consumeRemainingHits();
+        }
+
+        expectThrows(IllegalArgumentException.class, () -> response.consumeHits(1));
+    }
+
     /**
      * Simulate a scroll response by setting the scroll id and firing the onScrollResponse method.
      */
     private void simulateScrollResponse(DummyAsyncBulkByScrollAction action, long lastBatchTime, int lastBatchSize,
             ScrollableHitSource.Response response) {
         action.setScroll(scrollId());
-        action.onScrollResponse(lastBatchTime, lastBatchSize, new ScrollableHitSource.AsyncResponse() {
-            @Override
-            public ScrollableHitSource.Response response() {
-                return response;
-            }
+        action.onScrollResponse(lastBatchTime, lastBatchSize,
+            new AbstractAsyncBulkByScrollAction.ScrollConsumableHitsResponse(
+                new ScrollableHitSource.AsyncResponse() {
+                    @Override
+                    public ScrollableHitSource.Response response() {
+                        return response;
+                    }
 
-            @Override
-            public void done(TimeValue extraKeepAlive) {
-                fail();
-            }
-        });
+                    @Override
+                    public void done(TimeValue extraKeepAlive) {
+                        fail();
+                    }
+                })
+        );
     }
 
     private class DummyAsyncBulkByScrollAction

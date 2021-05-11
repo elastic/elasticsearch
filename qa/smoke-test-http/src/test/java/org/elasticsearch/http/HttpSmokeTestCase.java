@@ -75,5 +75,4 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     protected boolean ignoreExternalCluster() {
         return true;
     }
-
 }

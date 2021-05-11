@@ -110,7 +110,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
             final SegmentsStats stats = new SegmentsStats();
             stats.add(this.segmentsStats);
             if (includeSegmentFileSizes == false) {
-                stats.clearFileSizes();
+                stats.clearFiles();
             }
             return stats;
         } else {

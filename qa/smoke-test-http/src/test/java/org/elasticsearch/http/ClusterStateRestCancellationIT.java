@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
+
 public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
 
     @Override
@@ -69,6 +71,9 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
         final Request clusterStateRequest = new Request(HttpGet.METHOD_NAME, "/_cluster/state");
         clusterStateRequest.addParameter("wait_for_metadata_version", Long.toString(Long.MAX_VALUE));
         clusterStateRequest.addParameter("wait_for_timeout", "1h");
+        if (randomBoolean()) {
+            clusterStateRequest.addParameter("local", "true");
+        }
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         logger.info("--> sending cluster state request");
@@ -84,11 +89,7 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             }
         });
 
-        logger.info("--> waiting for task to start");
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().anyMatch(t -> t.getAction().equals(ClusterStateAction.NAME)));
-        });
+        awaitTaskWithPrefix(ClusterStateAction.NAME);
 
         logger.info("--> cancelling cluster state request");
         cancellable.cancel();

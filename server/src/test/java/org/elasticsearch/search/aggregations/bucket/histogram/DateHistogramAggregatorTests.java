@@ -21,6 +21,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -73,6 +74,22 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }, false
         );
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+    }
+
+    public void testBooleanFieldDeprecated() throws IOException {
+        final String fieldName = "bogusBoolean";
+        testCase(
+            new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
+            new MatchAllDocsQuery(),
+            iw -> {
+                Document d = new Document();
+                d.add(new SortedNumericDocValuesField(fieldName, 0));
+                iw.addDocument(d);
+            },
+            a -> {},
+            new BooleanFieldMapper.BooleanFieldType(fieldName)
+        );
+        assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
     }
 
     public void testMatchNoDocs() throws IOException {

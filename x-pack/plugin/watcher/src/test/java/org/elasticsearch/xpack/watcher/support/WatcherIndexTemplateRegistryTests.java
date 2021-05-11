@@ -87,7 +87,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
     public void createRegistryAndClient() {
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);

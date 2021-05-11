@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
+import org.elasticsearch.xpack.sql.plan.logical.Having;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
@@ -372,14 +373,14 @@ public final class Verifier {
 
     private static boolean checkGroupByHaving(LogicalPlan p, Set<Failure> localFailures,
             Set<LogicalPlan> groupingFailures, AttributeMap<Expression> attributeRefs) {
-        if (p instanceof Filter) {
-            Filter f = (Filter) p;
-            if (f.child() instanceof Aggregate) {
-                Aggregate a = (Aggregate) f.child();
+        if (p instanceof Having) {
+            Having h = (Having) p;
+            if (h.child() instanceof Aggregate) {
+                Aggregate a = (Aggregate) h.child();
 
                 Set<Expression> missing = new LinkedHashSet<>();
                 Set<Expression> unsupported = new LinkedHashSet<>();
-                Expression condition = f.condition();
+                Expression condition = h.condition();
                 // variation of checkGroupMatch customized for HAVING, which requires just aggregations
                 condition.collectFirstChildren(c -> checkGroupByHavingHasOnlyAggs(c, missing, unsupported, attributeRefs));
 
@@ -670,11 +671,10 @@ public final class Verifier {
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
-            LogicalPlan filterChild = filter.child();
-            if (filterChild instanceof Aggregate == false) {
+            if (filter.anyMatch(Aggregate.class::isInstance) == false) {
                 filter.condition().forEachDown(Expression.class, e -> {
                     if (Functions.isAggregate(attributeRefs.resolve(e, e))) {
-                        if (filterChild instanceof Project) {
+                        if (filter.child() instanceof Project) {
                             filter.condition().forEachDown(FieldAttribute.class,
                                 f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
                                         Expressions.name(f)))

@@ -709,14 +709,14 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                             ua -> resolveMetadataToMessage(ua, failedAttrs, "filter")
                         );
 
-                        return f.condition().equals(transformed) ? f : new Filter(f.source(), f.child(), transformed);
+                        return f.condition().equals(transformed) ? f : f.with(transformed);
                     }
 
-                    return new Project(f.source(), new Filter(f.source(), newChild, maybeResolved), f.child().output());
+                    return new Project(f.source(), f.with(newChild, maybeResolved), f.child().output());
                 }
 
                 if (maybeResolved.equals(f.condition()) == false) {
-                    return new Filter(f.source(), f.child(), maybeResolved);
+                    return f.with(maybeResolved);
                 }
             }
 
@@ -825,7 +825,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, p.projections());
                         if (newCondition != condition) {
-                            return new Project(p.source(), new Filter(f.source(), f.child(), newCondition), p.projections());
+                            return new Project(p.source(), f.with(newCondition), p.projections());
                         }
                     }
                 }
@@ -839,8 +839,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     if (condition.resolved() == false && f.childrenResolved()) {
                         Expression newCondition = replaceAliases(condition, a.aggregates());
                         if (newCondition != condition) {
-                            return new Aggregate(a.source(), new Filter(f.source(), f.child(), newCondition), a.groupings(),
-                                    a.aggregates());
+                            return new Aggregate(a.source(), f.with(newCondition), a.groupings(), a.aggregates());
                         }
                     }
                 }
@@ -1020,7 +1019,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
 
                 if (containsAggregate(f.condition())) {
-                    return new Filter(f.source(), new Aggregate(p.source(), p.child(), emptyList(), p.projections()), f.condition());
+                    return f.with(new Aggregate(p.source(), p.child(), emptyList(), p.projections()), f.condition());
                 }
             }
             return f;
@@ -1077,14 +1076,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 missing = findMissingAggregate(agg, condition);
 
                 if (missing.isEmpty() == false) {
-                    Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(),
-                            combine(agg.aggregates(), missing));
-                    Filter newFilter = new Filter(f.source(), newAgg, condition);
+                    Aggregate newAgg = new Aggregate(agg.source(), agg.child(), agg.groupings(), combine(agg.aggregates(), missing));
+                    Filter newFilter = f.with(newAgg, condition);
                     // preserve old output
                     return new Project(f.source(), newFilter, f.output());
                 }
 
-                return new Filter(f.source(), f.child(), condition);
+                return f.with(condition);
             }
             return f;
         }

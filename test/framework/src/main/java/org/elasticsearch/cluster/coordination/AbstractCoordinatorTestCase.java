@@ -996,12 +996,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             ClusterNode restartedNode(Function<Metadata, Metadata> adaptGlobalMetadata, Function<Long, Long> adaptCurrentTerm,
                                       Settings nodeSettings) {
+                final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.roles()
+                    .stream()
+                    .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
+                    .collect(Collectors.toUnmodifiableSet());
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
                     UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
                     address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                     localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings)
-                        ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
+                        ? allExceptVotingOnlyRole : emptySet(), Version.CURRENT);
                 return new ClusterNode(nodeIndex, newLocalNode,
                     node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm), nodeSettings,
                     nodeHealthService);
@@ -1393,7 +1397,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return new DiscoveryNode("", "node" + nodeIndex,
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
+            masterEligible ? DiscoveryNodeRole.roles() : emptySet(), Version.CURRENT);
     }
 
     /**

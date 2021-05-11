@@ -30,7 +30,7 @@
 
   - do:
       node_selector:
-        version: "8.0.0 - "
+        version: " 7.13.0 - "
       security.create_api_key:
         body:  >
           {

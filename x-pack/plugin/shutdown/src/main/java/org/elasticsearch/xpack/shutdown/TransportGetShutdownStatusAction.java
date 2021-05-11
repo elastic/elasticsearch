@@ -14,11 +14,23 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
+import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
+import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
@@ -51,8 +63,45 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         ClusterState state,
         ActionListener<GetShutdownStatusAction.Response> listener
     ) throws Exception {
-        // TODO: implement me!
-        listener.onResponse(new GetShutdownStatusAction.Response(null));
+        NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
+
+        GetShutdownStatusAction.Response response;
+        if (nodesShutdownMetadata == null) {
+            response = new GetShutdownStatusAction.Response(new ArrayList<>());
+        } else if (request.getNodeIds().length == 0) {
+            final List<SingleNodeShutdownStatus> shutdownStatuses = nodesShutdownMetadata.getAllNodeMetadataMap()
+                .values()
+                .stream()
+                .map(
+                    ns -> new SingleNodeShutdownStatus(
+                        ns,
+                        new ShutdownShardMigrationStatus(),
+                        new ShutdownPersistentTasksStatus(),
+                        new ShutdownPluginsStatus()
+                    )
+                )
+                .collect(Collectors.toList());
+            response = new GetShutdownStatusAction.Response(shutdownStatuses);
+        } else {
+            new ArrayList<>();
+            final Map<String, SingleNodeShutdownMetadata> nodeShutdownMetadataMap = nodesShutdownMetadata.getAllNodeMetadataMap();
+            final List<SingleNodeShutdownStatus> shutdownStatuses = Arrays.stream(request.getNodeIds())
+                .map(nodeShutdownMetadataMap::get)
+                .filter(Objects::nonNull)
+                .map(
+                    ns -> new SingleNodeShutdownStatus(
+                        ns,
+                        new ShutdownShardMigrationStatus(),
+                        new ShutdownPersistentTasksStatus(),
+                        new ShutdownPluginsStatus()
+                    )
+
+                )
+                .collect(Collectors.toList());
+            response = new GetShutdownStatusAction.Response(shutdownStatuses);
+        }
+
+        listener.onResponse(response);
     }
 
     @Override

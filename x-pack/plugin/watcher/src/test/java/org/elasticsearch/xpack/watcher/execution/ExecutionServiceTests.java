@@ -157,12 +157,12 @@ public class ExecutionServiceTests extends ESTestCase {
         parser = mock(WatchParser.class);
 
         DiscoveryNode discoveryNode = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
         executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, clock, parser,
-                clusterService, client, EsExecutors.newDirectExecutorService());
+                clusterService, client, EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     public void testExecute() throws Exception {

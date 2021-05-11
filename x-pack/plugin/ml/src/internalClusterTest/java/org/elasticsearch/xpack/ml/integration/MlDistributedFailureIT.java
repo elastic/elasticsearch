@@ -134,7 +134,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        String mlAndDataNode = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        String mlAndDataNode = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
         run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
@@ -170,7 +170,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting data and master node...");
         internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data
@@ -247,7 +247,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
         }
         logger.info("Starting dedicated ml node...");
-        internalCluster().startNode(onlyRole(MachineLearning.ML_ROLE));
+        internalCluster().startNode(onlyRole(DiscoveryNodeRole.ML_ROLE));
         ensureStableCluster();
 
         // index some datafeed data
@@ -354,7 +354,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data
@@ -469,9 +469,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         logger.info("Starting another ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data

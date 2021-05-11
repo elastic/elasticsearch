@@ -38,7 +38,7 @@ public final class AnalyzerRules {
             }
 
             if (condition != filter.condition()) {
-                filter = new Filter(filter.source(), filter.child(), condition);
+                filter = filter.with(condition);
             }
             return filter;
         }

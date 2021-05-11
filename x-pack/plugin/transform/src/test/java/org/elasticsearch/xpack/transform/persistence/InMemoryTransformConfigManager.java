@@ -19,12 +19,14 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 
 /**
  * Simple in-memory based TransformConfigManager
@@ -140,30 +142,34 @@ public class InMemoryTransformConfigManager implements TransformConfigManager {
         String transformIdsExpression,
         PageParams pageParams,
         boolean allowNoMatch,
-        ActionListener<Tuple<Long, List<String>>> foundIdsListener
+        ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     ) {
 
         if (Regex.isMatchAllPattern(transformIdsExpression)) {
             List<String> ids = new ArrayList<>(configs.keySet());
-            foundIdsListener.onResponse(new Tuple<>((long) ids.size(), ids));
+            foundConfigsListener.onResponse(new Tuple<>((long) ids.size(), Tuple.tuple(ids, new ArrayList<>(configs.values()))));
             return;
         }
 
         if (Regex.isSimpleMatchPattern(transformIdsExpression) == false) {
             if (configs.containsKey(transformIdsExpression)) {
-                foundIdsListener.onResponse(new Tuple<>(1L, Collections.singletonList(transformIdsExpression)));
+                foundConfigsListener.onResponse(
+                    new Tuple<>(
+                        1L, Tuple.tuple(singletonList(transformIdsExpression), singletonList(configs.get(transformIdsExpression)))));
             } else {
-                foundIdsListener.onResponse(new Tuple<>(0L, Collections.emptyList()));
+                foundConfigsListener.onResponse(new Tuple<>(0L, Tuple.tuple(emptyList(), emptyList())));
             }
             return;
         }
         Set<String> ids = new LinkedHashSet<>();
+        Set<TransformConfig> matchedConfigs = new LinkedHashSet<>();
         configs.keySet().forEach(id -> {
             if (Regex.simpleMatch(transformIdsExpression, id)) {
                 ids.add(id);
+                matchedConfigs.add(configs.get(id));
             }
         });
-        foundIdsListener.onResponse(new Tuple<>((long) ids.size(), new ArrayList<>(ids)));
+        foundConfigsListener.onResponse(new Tuple<>((long) ids.size(), Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(matchedConfigs))));
     }
 
     @Override

@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
-apply plugin: 'elasticsearch.esplugin'
+import org.elasticsearch.gradle.internal.info.BuildParams
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -16,6 +16,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(path: xpackModule('searchable-snapshots'))
 }
 
 addQaCheckDependencies()

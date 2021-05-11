@@ -61,14 +61,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 b -> {
                     minimalMapping(b);
                     b.field("script", "test");
-                    b.field("on_script_error", "reject");
+                    b.field("on_script_error", "fail");
                 },
                 b -> {
                     minimalMapping(b);
                     b.field("script", "test");
-                    b.field("on_script_error", "ignore");
+                    b.field("on_script_error", "continue");
                 },
-                m -> assertThat(((NumberFieldMapper)m).onScriptError(), equalTo("ignore")));
+                m -> assertThat((m).onScriptError, equalTo("continue")));
         }
     }
 

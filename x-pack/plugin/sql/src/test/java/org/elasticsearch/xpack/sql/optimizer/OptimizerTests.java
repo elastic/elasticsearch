@@ -36,14 +36,13 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equal
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -101,7 +100,6 @@ import org.elasticsearch.xpack.sql.expression.predicate.conditional.NullIf;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.sql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.sql.optimizer.Optimizer.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.CombineProjections;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.FoldNull;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer.ReplaceAggsWithExtendedStats;
@@ -132,9 +130,6 @@ import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
 import static org.elasticsearch.xpack.ql.TestUtils.lessThanOf;
-import static org.elasticsearch.xpack.ql.TestUtils.lessThanOrEqualOf;
-import static org.elasticsearch.xpack.ql.TestUtils.notEqualsOf;
-import static org.elasticsearch.xpack.ql.TestUtils.nullEqualsOf;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
@@ -557,6 +552,67 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(INTEGER, e.dataType());
     }
 
+    public void testPropagateIsNullOnIfNull() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new IfNull(EMPTY, fa, ONE), new IsNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(IfNull.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(ONE, a.left().children().get(0));
+    }
+
+    public void testPropagateIsNullOnCoalesce() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new Coalesce(EMPTY, asList(fa, ONE, fa, TWO)), new IsNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(Coalesce.class, a.left().getClass());
+        assertEquals(2, a.left().children().size());
+        assertEquals(ONE, a.left().children().get(0));
+        assertEquals(TWO, a.left().children().get(1));
+    }
+
+    public void testPropagateIsNotNullOnIfNull() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new IfNull(EMPTY, fa, ONE), new IsNotNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(IfNull.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(fa, a.left().children().get(0));
+    }
+
+    public void testPropagateIsNotNullOnCoalesce() {
+        FieldAttribute fa = fieldAttribute();
+        And and = new And(EMPTY, new Coalesce(EMPTY, asList(fa, ONE, fa, TWO, THREE)), new IsNotNull(EMPTY, fa));
+        Filter f = new Filter(EMPTY, FROM(), and);
+        LogicalPlan t = new Optimizer.PropagateNullable().apply(f);
+        assertEquals(Filter.class, t.getClass());
+        Expression e = ((Filter) t).condition();
+        assertEquals(And.class, e.getClass());
+        And a = (And) e;
+        assertEquals(and.right(), a.right());
+        assertEquals(Coalesce.class, a.left().getClass());
+        assertEquals(1, a.left().children().size());
+        assertEquals(fa, a.left().children().get(0));
+    }
+
     public void testConcatFoldingIsNotNull() {
         FoldNull foldNull = new FoldNull();
         assertEquals(1, foldNull.rule(new Concat(EMPTY, NULL, ONE)).fold());
@@ -734,38 +790,9 @@ public class OptimizerTests extends ESTestCase {
         assertNull(expression.fold());
     }
 
-    public void testBinaryComparisonSimplification() {
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(equalsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(nullEqualsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(nullEqualsOf(NULL, NULL)));
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(notEqualsOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(greaterThanOrEqualOf(FIVE, FIVE)));
-        assertEquals(TRUE, new BinaryComparisonSimplification().rule(lessThanOrEqualOf(FIVE, FIVE)));
-
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(greaterThanOf(FIVE, FIVE)));
-        assertEquals(FALSE, new BinaryComparisonSimplification().rule(lessThanOf(FIVE, FIVE)));
-    }
-
-    public void testNullEqualsWithNullLiteralBecomesIsNull() {
-        BooleanLiteralsOnTheRight swapLiteralsToRight = new BooleanLiteralsOnTheRight();
-        BinaryComparisonSimplification bcSimpl = new BinaryComparisonSimplification();
-        FieldAttribute fa = getFieldAttribute();
-        Source source = new Source(1, 10, "IS_NULL(a)");
-
-        Expression e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, fa, NULL, randomZone())));
-        assertEquals(IsNull.class, e.getClass());
-        IsNull isNull = (IsNull) e;
-        assertEquals(source, isNull.source());
-
-        e = bcSimpl.rule(swapLiteralsToRight.rule(new NullEquals(source, NULL, fa, randomZone())));
-        assertEquals(IsNull.class, e.getClass());
-        isNull = (IsNull) e;
-        assertEquals(source, isNull.source());
-    }
-
     public void testLiteralsOnTheRightInStDistance() {
         Alias a = new Alias(EMPTY, "a", L(10));
-        Expression result = new BooleanLiteralsOnTheRight().rule(new StDistance(EMPTY, FIVE, a));
+        Expression result = new LiteralsOnTheRight().rule(new StDistance(EMPTY, FIVE, a));
         assertTrue(result instanceof StDistance);
         StDistance sd = (StDistance) result;
         assertEquals(a, sd.left());

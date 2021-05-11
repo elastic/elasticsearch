@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -60,7 +62,7 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
 
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                                      Listener listener) {
+                                      ActionListener<Boolean> listener) {
             }
         };
 
@@ -77,25 +79,14 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
 
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                                      Listener listener) {
+                                      ActionListener<Boolean> listener) {
                 listener.onResponse(true);
             }
         };
 
         AsyncActionBranchingStep asyncActionBranchingStep = new AsyncActionBranchingStep(stepToExecute, randomStepKey(), client);
 
-        asyncActionBranchingStep.performAction(getIndexMetadata(), emptyClusterState(), null, new AsyncActionStep.Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                assertThat(complete, is(true));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("not expecting a failure as the wrapped step was successful");
-            }
-        });
+        assertTrue(PlainActionFuture.get(f -> asyncActionBranchingStep.performAction(getIndexMetadata(), emptyClusterState(), null, f)));
         assertThat(asyncActionBranchingStep.getNextStepKey(), is(stepToExecute.getNextStepKey()));
     }
 
@@ -108,7 +99,7 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
 
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                                      Listener listener) {
+                                      ActionListener<Boolean> listener) {
                 listener.onResponse(false);
             }
         };
@@ -117,18 +108,7 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
         AsyncActionBranchingStep asyncActionBranchingStep = new AsyncActionBranchingStep(stepToExecute, nextKeyOnIncompleteResponse,
             client);
 
-        asyncActionBranchingStep.performAction(getIndexMetadata(), emptyClusterState(), null, new AsyncActionStep.Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                assertThat(complete, is(false));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                fail("not expecting a failure as the wrapped step was successful");
-            }
-        });
+        assertFalse(PlainActionFuture.get(f -> asyncActionBranchingStep.performAction(getIndexMetadata(), emptyClusterState(), null, f)));
         assertThat(asyncActionBranchingStep.getNextStepKey(), is(nextKeyOnIncompleteResponse));
     }
 
@@ -142,17 +122,17 @@ public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTest
 
             @Override
             public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                                      Listener listener) {
+                                      ActionListener<Boolean> listener) {
                 listener.onFailure(failException);
             }
         };
 
         AsyncActionBranchingStep asyncActionBranchingStep = new AsyncActionBranchingStep(stepToExecute, randomStepKey(), client);
 
-        asyncActionBranchingStep.performAction(getIndexMetadata(), emptyClusterState(), null, new AsyncActionStep.Listener() {
+        asyncActionBranchingStep.performAction(getIndexMetadata(), emptyClusterState(), null, new ActionListener<>() {
 
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 fail("expecting a failure as the wrapped step failed");
             }
 

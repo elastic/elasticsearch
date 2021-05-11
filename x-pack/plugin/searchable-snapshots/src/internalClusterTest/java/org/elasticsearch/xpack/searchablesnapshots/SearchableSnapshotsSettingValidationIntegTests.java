@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class SearchableSnapshotsSettingValidationIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsSettingValidationIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     private static final String repoName = "test-repo";
     private static final String indexName = "test-index";

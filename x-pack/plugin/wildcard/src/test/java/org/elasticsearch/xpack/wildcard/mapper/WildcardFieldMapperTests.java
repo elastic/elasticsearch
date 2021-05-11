@@ -103,6 +103,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+    
+    @Override
     @Before
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
@@ -565,7 +570,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
     }
-    
+
     public void testQueryCachingEquality() throws IOException, ParseException {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
@@ -742,7 +747,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
         testExpectedAccelerationQuery(regex, combinedQuery, expectedAccelerationQuery);
     }
-    
+
     private Query unwrapAnyConstantScore(Query q) {
         if (q instanceof ConstantScoreQuery) {
             ConstantScoreQuery csq = (ConstantScoreQuery) q;
@@ -1021,5 +1026,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
         return randomAlphaOfLengthBetween(1, 100);
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

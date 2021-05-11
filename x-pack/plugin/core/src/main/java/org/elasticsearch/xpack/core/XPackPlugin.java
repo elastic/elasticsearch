@@ -82,6 +82,10 @@ import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
+import org.elasticsearch.xpack.core.termsenum.action.TransportTermsEnumAction;
+import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
@@ -240,7 +244,8 @@ public class XPackPlugin extends XPackClientPlugin
         return metadata.custom(LicensesMetadata.TYPE) != null ||
             metadata.custom(MlMetadata.TYPE) != null ||
             metadata.custom(WatcherMetadata.TYPE) != null ||
-            clusterState.custom(TokenMetadata.TYPE) != null;
+            clusterState.custom(TokenMetadata.TYPE) != null ||
+            metadata.custom(TransformMetadata.TYPE) != null;
     }
     
     @Override
@@ -289,6 +294,7 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(XPackUsageAction.INSTANCE, getUsageAction()));
         actions.addAll(licensing.getActions());
         actions.add(new ActionHandler<>(ReloadAnalyzerAction.INSTANCE, TransportReloadAnalyzersAction.class));
+        actions.add(new ActionHandler<>(TermsEnumAction.INSTANCE, TransportTermsEnumAction.class));
         actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
@@ -328,6 +334,7 @@ public class XPackPlugin extends XPackClientPlugin
         handlers.add(new RestXPackInfoAction());
         handlers.add(new RestXPackUsageAction());
         handlers.add(new RestReloadAnalyzersAction());
+        handlers.add(new RestTermsEnumAction());
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;

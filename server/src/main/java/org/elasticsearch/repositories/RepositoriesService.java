@@ -381,8 +381,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     public static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
-        return roles.contains(DiscoveryNodeRole.MASTER_ROLE) && roles.contains(DiscoveryNodeRole.DATA_ROLE) == false &&
-            roles.stream().anyMatch(role -> role.roleName().equals("voting_only"));
+        return roles.contains(DiscoveryNodeRole.MASTER_ROLE)
+                && roles.stream().noneMatch(DiscoveryNodeRole::canContainData)
+                && roles.contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     /**

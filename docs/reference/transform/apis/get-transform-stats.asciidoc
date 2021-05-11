@@ -28,14 +28,11 @@ Retrieves usage information for {transforms}.
 [[get-transform-stats-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* `monitor_transform` 
-
-The built-in `transform_user` role has this privilege. 
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+* cluster: `monitor_transform` (the `transform_user` built-in role grants this 
+  privilege)
+* destination index: `read`, `view_index_metadata`.
 
 
 [[get-transform-stats-desc]]

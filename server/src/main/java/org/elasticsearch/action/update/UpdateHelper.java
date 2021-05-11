@@ -282,7 +282,7 @@ public class UpdateHelper {
             sourceLookup.setSource(source);
             Object value = sourceLookup.filter(request.fetchSource());
             try {
-                final int initialCapacity = Math.min(1024, sourceAsBytes.length());
+                final int initialCapacity = sourceAsBytes != null ? Math.min(1024, sourceAsBytes.length()) : 1024;
                 BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
                 try (XContentBuilder builder = new XContentBuilder(sourceContentType.xContent(), streamOutput)) {
                     builder.value(value);

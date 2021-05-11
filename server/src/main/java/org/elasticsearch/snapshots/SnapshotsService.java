@@ -1306,7 +1306,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
                                 shardFailures,
                                 entry.includeGlobalState(),
-                                entry.userMetadata(),
+                                // TODO: remove this hack making the metadata mutable once
+                                //       https://github.com/elastic/elasticsearch/pull/72776 has been merged
+                                entry.userMetadata() == null ? null : new HashMap<>(entry.userMetadata()),
                                 entry.startTime(),
                                 indexSnapshotDetails);
                         repo.finalizeSnapshot(

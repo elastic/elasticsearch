@@ -9,10 +9,8 @@
 package org.elasticsearch.gradle.internal;
 
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
-import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
@@ -30,7 +28,6 @@ public class BuildPlugin implements Plugin<Project> {
     public void apply(final Project project) {
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        checkExternalInternalPluginUsages(project);
 
         if (project.getPluginManager().hasPlugin("elasticsearch.standalone-rest-test")) {
             throw new InvalidUserDataException(
@@ -44,18 +41,7 @@ public class BuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(DependenciesInfoPlugin.class);
         project.getPluginManager().apply(DependenciesGraphPlugin.class);
 
-        BuildParams.withInternalBuild(() -> InternalPrecommitTasks.create(project, true)).orElse(() -> PrecommitTasks.create(project));
-
-    }
-
-    private static void checkExternalInternalPluginUsages(Project project) {
-        if (BuildParams.isInternal().equals(false)) {
-            project.getPlugins()
-                .withType(
-                    InternalPlugin.class,
-                    internalPlugin -> { throw new GradleException(internalPlugin.getExternalUseErrorMessage()); }
-                );
-        }
+        InternalPrecommitTasks.create(project, true);
     }
 
     public static void configureLicenseAndNotice(final Project project) {

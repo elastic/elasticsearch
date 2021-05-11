@@ -249,11 +249,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     }
 
     public abstract static class Geometry<T> extends ScriptDocValues<T> {
-        /** Returns the centroid of this geometry  */
-        public abstract GeoPoint getCentroid();
+        /** Returns the dimensional type of this geometry */
+        public abstract int getDimensionalType();
         /** Returns the bounding box of this geometry  */
         public abstract GeoBoundingBox getBoundingBox();
-
+        /** Returns the centroid of this geometry  */
+        public abstract GeoPoint getCentroid();
     }
 
     public static final class GeoPoints extends Geometry<GeoPoint> {
@@ -389,6 +390,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return defaultValue;
             }
             return geohashDistance(geohash);
+        }
+
+        @Override
+        public int getDimensionalType() {
+            return 0;
         }
 
         @Override

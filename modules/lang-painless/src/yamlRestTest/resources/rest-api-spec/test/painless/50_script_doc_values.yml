@@ -172,6 +172,16 @@ setup:
     - match: { hits.hits.0.fields.bottomRight.0.lat: 41.1199999647215 }
     - match: { hits.hits.0.fields.bottomRight.0.lon: -71.34000004269183 }
 
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            script_fields:
+                    type:
+                        script:
+                            source: "doc['geo_point'].getDimensionalType()"
+    - match: { hits.hits.0.fields.type.0: 0 }
+
 ---
 "ip":
     - do:

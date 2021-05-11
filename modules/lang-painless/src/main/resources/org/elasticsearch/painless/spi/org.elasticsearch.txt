@@ -155,6 +155,7 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
+  int getDimensionalType()
   org.elasticsearch.common.geo.GeoPoint getCentroid()
   org.elasticsearch.common.geo.GeoBoundingBox getBoundingBox()
 }

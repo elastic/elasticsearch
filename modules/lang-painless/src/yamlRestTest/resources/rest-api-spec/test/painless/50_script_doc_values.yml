@@ -155,6 +155,23 @@ setup:
     - match: { hits.hits.0.fields.bbox.0.top_left.lon: -71.34000004269183 }
     - match: { hits.hits.0.fields.bbox.0.bottom_right.lat: 41.1199999647215 }
     - match: { hits.hits.0.fields.bbox.0.bottom_right.lon: -71.34000004269183 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            script_fields:
+                    topLeft:
+                        script:
+                            source: "doc['geo_point'].getBoundingBox().topLeft()"
+                    bottomRight:
+                        script:
+                            source: "doc['geo_point'].getBoundingBox().bottomRight()"
+    - match: { hits.hits.0.fields.topLeft.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.topLeft.0.lon: -71.34000004269183 }
+    - match: { hits.hits.0.fields.bottomRight.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.bottomRight.0.lon: -71.34000004269183 }
+
 ---
 "ip":
     - do:

@@ -67,13 +67,13 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         static Double scriptHeight(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoBoundingBox> bbox) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             GeoBoundingBox boundingBox = bbox.apply((ScriptDocValues.Geometry<?>) doc.get("location"));
-            return boundingBox.top() - boundingBox.bottom();
+            return boundingBox.topLeft().lat() - boundingBox.bottomRight().lat();
         }
 
         static Double scriptWidth(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoBoundingBox> bbox) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
             GeoBoundingBox boundingBox = bbox.apply((ScriptDocValues.Geometry<?>) doc.get("location"));
-            return boundingBox.right() - boundingBox.left();
+            return boundingBox.bottomRight().lon() - boundingBox.topLeft().lon();
         }
 
         static Double scriptLat(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoPoint> centroid) {

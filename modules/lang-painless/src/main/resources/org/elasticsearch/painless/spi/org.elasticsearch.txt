@@ -54,10 +54,8 @@ class org.elasticsearch.common.geo.GeoPoint {
 }
 
 class org.elasticsearch.common.geo.GeoBoundingBox {
-  double top()
-  double bottom()
-  double left()
-  double right()
+  org.elasticsearch.common.geo.GeoPoint topLeft()
+  org.elasticsearch.common.geo.GeoPoint bottomRight()
 }
 
 

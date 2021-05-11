@@ -27,6 +27,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
 
     private String field;
     private String string;
+    private String searchAfter;
     private long taskStartedTimeMillis;
     private long nodeStartedTimeMillis;
     private boolean caseInsensitive;
@@ -41,6 +42,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         super(in);
         field = in.readString();
         string = in.readString();
+        searchAfter = in.readOptionalString();
         caseInsensitive = in.readBoolean();
         size = in.readVInt();
         timeout = in.readVLong();
@@ -57,6 +59,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     public NodeTermsEnumRequest(final String nodeId, final Set<ShardId> shardIds, TermsEnumRequest request) {
         this.field = request.field();
         this.string = request.string();
+        this.searchAfter = request.searchAfter();
         this.caseInsensitive = request.caseInsensitive();
         this.size = request.size();
         this.timeout = request.timeout().getMillis();
@@ -64,8 +67,6 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         this.indexFilter = request.indexFilter();
         this.nodeId = nodeId;
         this.shardIds = shardIds;        
-        
-        // TODO serialize shard ids
     }
 
     public String field() {
@@ -74,6 +75,10 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
 
     public String string() {
         return string;
+    }
+
+    public String searchAfter() {
+        return searchAfter;
     }
 
     public long taskStartedTimeMillis() {
@@ -119,6 +124,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         super.writeTo(out);
         out.writeString(field);
         out.writeString(string);
+        out.writeOptionalString(searchAfter);
         out.writeBoolean(caseInsensitive);
         out.writeVInt(size);
         // Adjust the amount of permitted time the shard has remaining to gather terms. 

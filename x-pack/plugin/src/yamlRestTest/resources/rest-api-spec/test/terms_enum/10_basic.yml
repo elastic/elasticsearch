@@ -276,6 +276,25 @@ teardown:
         body:  {"field": "foo.Bar", "string":"B", "case_insensitive": true}
   - length: {terms: 0}
 
+---
+"Test search after":
+  - do:
+      termsenum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+  - do:
+      termsenum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"bar"}
+  - length: {terms: 0}
+
+  - do:
+      termsenum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
 
 ---
 "Test index filtering":

@@ -7,7 +7,12 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.index.FilteredTermsEnum;
+import org.apache.lucene.index.ImpactsEnum;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.TermsEnum.SeekStatus;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -300,11 +305,19 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 if (mappedFieldType != null) {
                     TermsEnum terms = mappedFieldType.getTerms(request.caseInsensitive(), request.string(), queryShardContext);
                     if (terms != null) {
+                        if (request.searchAfter() != null) {
+                            terms = new SearchAfterTermsEnum(terms, new BytesRef(request.searchAfter()));
+                        }
                         shardTermsEnums.add(terms);
                     }
                 }
             }
+            if (shardTermsEnums.size() == 0) {
+                // No term enums available
+                return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
+            }
             MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new TermsEnum[0]));
+            
 
             int shard_size = request.size();
             // All the above prep might take a while - do a timer check now before we continue further.
@@ -330,7 +343,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 if (termsList.size() >= shard_size) {
                     break;
                 }
-            }
+            };
 
         } catch (Exception e) {
             error = ExceptionsHelper.stackTrace(e);
@@ -339,6 +352,21 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         }
         return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
     }
+    
+    public final class SearchAfterTermsEnum extends FilteredTermsEnum {
+        private final BytesRef afterRef;
+        
+        public SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
+          super(tenum);
+          afterRef = termText;
+          setInitialSeekTerm(termText);
+        }
+
+        @Override
+        protected AcceptStatus accept(BytesRef term) {
+          return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
+        }        
+      }    
 
     // TODO remove this so we can shift code to server module - write a separate Interceptor class to 
     // rewrite requests according to security rules 

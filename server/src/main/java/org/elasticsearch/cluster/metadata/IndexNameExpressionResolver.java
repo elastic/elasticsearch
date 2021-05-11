@@ -141,8 +141,11 @@ public class IndexNameExpressionResolver {
             indexExpressions = new String[]{"*"};
         }
 
-        List<String> dataStreams = wildcardExpressionResolver.resolve(context, Arrays.asList(indexExpressions));
-        return ((dataStreams == null) ? org.elasticsearch.common.collect.List.<String>of() : dataStreams).stream()
+        List<String> expressions = Arrays.asList(indexExpressions);
+        for (ExpressionResolver expressionResolver : expressionResolvers) {
+            expressions = expressionResolver.resolve(context, expressions);
+        }
+        return ((expressions == null) ? org.elasticsearch.common.collect.List.<String>of() : expressions).stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
@@ -594,7 +597,7 @@ public class IndexNameExpressionResolver {
                     String concreteIndex = index.getIndex().getName();
                     AliasMetadata aliasMetadata = index.getAliases().get(indexAbstraction.getName());
                     if (norouting.contains(concreteIndex) == false) {
-                        if (aliasMetadata.searchRoutingValues().isEmpty() == false) {
+                        if (aliasMetadata != null && aliasMetadata.searchRoutingValues().isEmpty() == false) {
                             // Routing alias
                             if (routings == null) {
                                 routings = new HashMap<>();

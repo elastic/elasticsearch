@@ -403,6 +403,9 @@ Features/Java Low Level REST Client::
 Features/Monitoring::
 * Move monitoring collection timeouts to coordinator {es-pull}67084[#67084] (issues: {es-issue}60188[#60188], {es-issue}66993[#66993])
 
+Features/Ingest::
+* Fix ingest java week based year defaulting {es-pull}65717[#65717]
+
 Geo::
 * Fix indexing of degenerated rectangles {es-pull}67702[#67702] (issue: {es-issue}67695[#67695])
 
@@ -427,6 +430,3 @@ Search::
 
 Snapshot/Restore::
 * Make `RepositoryData` Parsing Stricter {es-pull}67699[#67699] (issue: {es-issue}67696[#67696])
-
-
-

@@ -28,8 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.gradle.internal.util.Util.capitalize;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
 
 public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
 
@@ -238,7 +237,7 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
     }
 
     private String calculateBuildTask(String projectName) {
-        return "build" + Arrays.stream(projectName.split("-")).map(f -> capitalize(f)).collect(Collectors.joining());
+        return "build" + Arrays.stream(projectName.split("-")).map(f -> GUtils.capitalize(f)).collect(Collectors.joining());
     }
 
 }

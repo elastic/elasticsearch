@@ -2,6 +2,7 @@ plugins {
   id "com.gradle.enterprise" version "3.5.1"
 }
 
+includeBuild "build-conventions"
 includeBuild "build-tools"
 
 rootProject.name = "elasticsearch"

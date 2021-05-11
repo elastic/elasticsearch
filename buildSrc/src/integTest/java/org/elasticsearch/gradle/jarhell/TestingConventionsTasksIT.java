@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.jarhell;
 
 import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;

@@ -6,6 +6,4 @@
  * Side Public License, v 1.
  */
 
-rootProject.name = "build-tools"
-include 'reaper'
-//includeBuild "../build-conventions"
+rootProject.name = "build-conventions"

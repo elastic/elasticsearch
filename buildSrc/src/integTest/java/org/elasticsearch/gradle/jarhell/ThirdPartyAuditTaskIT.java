@@ -6,13 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.jarhell;
 
 import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.junit.Before;
-
-import static org.elasticsearch.gradle.internal.test.TestClasspathUtils.setupJarJdkClasspath;
 
 public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 

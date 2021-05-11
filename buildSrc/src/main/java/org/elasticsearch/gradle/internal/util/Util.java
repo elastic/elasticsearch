@@ -25,7 +25,6 @@ import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
@@ -63,10 +62,6 @@ public class Util {
         } catch (IOException e) {
             throw new UncheckedIOException("Error trying to read classpath resource: " + resourcePath, e);
         }
-    }
-
-    public static String capitalize(String s) {
-        return s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1);
     }
 
     public static URI getBuildSrcCodeSource() {

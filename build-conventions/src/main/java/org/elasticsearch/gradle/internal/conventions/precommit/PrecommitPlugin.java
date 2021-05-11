@@ -6,12 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.precommit;
+package org.elasticsearch.gradle.internal.conventions.precommit;
 
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.TaskProvider;
 
 /**
@@ -27,10 +27,11 @@ public abstract class PrecommitPlugin implements Plugin<Project> {
         TaskProvider<? extends Task> task = createTask(project);
         TaskProvider<Task> precommit = project.getTasks().named(PRECOMMIT_TASK_NAME);
         precommit.configure(t -> t.dependsOn(task));
-
         project.getPluginManager().withPlugin("java", p -> {
             // We want to get any compilation error before running the pre-commit checks.
-            GradleUtils.getJavaSourceSets(project).all(sourceSet -> task.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName())));
+            project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets().all(sourceSet ->
+                    task.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()))
+            );
         });
     }
 

@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.internal.util.Util;
 import org.elasticsearch.gradle.internal.vagrant.VagrantBasePlugin;
 import org.elasticsearch.gradle.internal.vagrant.VagrantExtension;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -265,7 +266,7 @@ public class DistroTestPlugin implements Plugin<Project> {
         jdk.setPlatform(platform);
         jdk.setArchitecture(architecture);
 
-        String taskname = "copy" + Util.capitalize(platform) + Util.capitalize(purpose) + "Jdk";
+        String taskname = "copy" + GUtils.capitalize(platform) + GUtils.capitalize(purpose) + "Jdk";
         TaskProvider<Copy> copyTask = project.getTasks().register(taskname, Copy.class);
         copyTask.configure(t -> {
             t.from(jdk);

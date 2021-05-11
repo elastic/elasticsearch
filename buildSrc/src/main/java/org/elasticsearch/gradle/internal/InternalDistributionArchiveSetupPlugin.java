@@ -20,8 +20,8 @@ import org.gradle.api.tasks.bundling.Compression;
 import org.gradle.api.tasks.bundling.Zip;
 
 import java.io.File;
+import static org.elasticsearch.gradle.internal.conventions.GUtils.capitalize;
 
-import static org.elasticsearch.gradle.internal.util.Util.capitalize;
 import static org.gradle.api.internal.artifacts.ArtifactAttributes.ARTIFACT_FORMAT;
 
 /**

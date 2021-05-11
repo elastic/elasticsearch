@@ -6,10 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.precommit;
+package org.elasticsearch.gradle.internal.conventions;
 
-import org.elasticsearch.gradle.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.util.Util;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.publish.PublishingExtension;
@@ -26,7 +25,7 @@ public class PomValidationPrecommitPlugin extends PrecommitPlugin {
         TaskProvider<Task> validatePom = project.getTasks().register("validatePom");
         PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
         publishing.getPublications().all(publication -> {
-            String publicationName = Util.capitalize(publication.getName());
+            String publicationName = GUtils.capitalize(publication.getName());
             TaskProvider<PomValidationTask> validateTask = project.getTasks()
                 .register("validate" + publicationName + "Pom", PomValidationTask.class);
             validatePom.configure(t -> t.dependsOn(validateTask));

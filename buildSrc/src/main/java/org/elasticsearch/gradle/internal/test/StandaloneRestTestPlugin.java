@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.internal.RepositoriesSetupPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
-import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
@@ -87,6 +86,6 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
                 "TEST",
                 Map.of("plus", Arrays.asList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)))
             );
-        BuildParams.withInternalBuild(() -> InternalPrecommitTasks.create(project, false)).orElse(() -> PrecommitTasks.create(project));
+        BuildParams.withInternalBuild(() -> InternalPrecommitTasks.create(project, false));
     }
 }

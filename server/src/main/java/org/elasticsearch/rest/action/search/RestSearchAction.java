@@ -129,9 +129,7 @@ public class RestSearchAction extends BaseRestHandler {
                                           XContentParser requestContentParser,
                                           NamedWriteableRegistry namedWriteableRegistry,
                                           IntConsumer setSize) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 &&
-            (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) || request.hasParam("type"))) {
-            request.param(INCLUDE_TYPE_NAME_PARAMETER);
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type");
             deprecationLogger.compatibleApiWarning("search_with_types", TYPES_DEPRECATION_MESSAGE);
         }

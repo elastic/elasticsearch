@@ -64,7 +64,7 @@ public class DataStreamMetadata implements Metadata.Custom {
         }, DATA_STREAM_ALIASES);
     }
 
-    public static final Version DATA_STREAM_ALIAS_VERSION = Version.V_8_0_0;
+    public static final Version DATA_STREAM_ALIAS_VERSION = Version.V_7_14_0;
 
     private final Map<String, DataStream> dataStreams;
     private final Map<String, DataStreamAlias> dataStreamAliases;

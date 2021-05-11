@@ -454,7 +454,7 @@ final class RequestConverters {
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
             String endpoint = endpoint(searchRequest.indices(), "_search/template");
-            request = new Request(HttpGet.METHOD_NAME, endpoint);
+            request = new Request(HttpPost.METHOD_NAME, endpoint);
 
             Params params = new Params();
             addSearchRequestParams(params, searchRequest);

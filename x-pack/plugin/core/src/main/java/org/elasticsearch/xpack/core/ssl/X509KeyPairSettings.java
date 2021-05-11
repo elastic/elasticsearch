@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import javax.net.ssl.KeyManagerFactory;
 import java.security.KeyStore;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
@@ -80,7 +79,8 @@ public class X509KeyPairSettings {
     final Setting<SecureString> legacyKeystoreKeyPassword;
     final Setting<SecureString> legacyKeyPassword;
 
-    private final List<Setting<?>> allSettings;
+    private final List<Setting<?>> enabledSettings;
+    private final List<Setting<?>> disabledSettings;
 
     private interface SettingFactory {
         <T> Setting<T> apply(String keyPart, Function<String, Setting<T>> template);
@@ -101,15 +101,19 @@ public class X509KeyPairSettings {
         legacyKeystoreKeyPassword = factory.apply("keystore.key_password", LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE);
         legacyKeyPassword = factory.apply("key_passphrase", LEGACY_KEY_PASSWORD_TEMPLATE);
 
-        final List<Setting<?>> settings = CollectionUtils.arrayAsArrayList(
+        final List<Setting<?>> enabled = CollectionUtils.arrayAsArrayList(
                 keystorePath, keystorePassword, keystoreAlgorithm, keystoreType, keystoreKeyPassword,
                 keyPath, keyPassword, certificatePath);
+
+        final List<Setting<?>> legacySettings = List.of(legacyKeystorePassword,legacyKeystoreKeyPassword,legacyKeyPassword);
         if (acceptNonSecurePasswords) {
-            settings.add(legacyKeystorePassword);
-            settings.add(legacyKeystoreKeyPassword);
-            settings.add(legacyKeyPassword);
+            enabled.addAll(legacySettings);
+            disabledSettings = List.of();
+        } else {
+            disabledSettings = legacySettings;
         }
-        allSettings = Collections.unmodifiableList(settings);
+
+        enabledSettings = List.copyOf(enabled);
     }
 
     public static X509KeyPairSettings withPrefix(String prefix, boolean acceptNonSecurePasswords) {
@@ -128,10 +132,14 @@ public class X509KeyPairSettings {
                 return Setting.affixKeySetting(prefix, suffixPart + keyPart, template);
             }
         });
-        return settings.getAllSettings().stream().map(s -> (Setting.AffixSetting<?>) s).collect(Collectors.toList());
+        return settings.getEnabledSettings().stream().map(s -> (Setting.AffixSetting<?>) s).collect(Collectors.toList());
     }
 
-    public Collection<Setting<?>> getAllSettings() {
-        return allSettings;
+    public Collection<Setting<?>> getEnabledSettings() {
+        return enabledSettings;
+    }
+
+    public Collection<Setting<?>> getDisabledSettings() {
+        return disabledSettings;
     }
 }

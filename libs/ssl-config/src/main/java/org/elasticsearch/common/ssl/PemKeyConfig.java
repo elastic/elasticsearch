@@ -101,7 +101,7 @@ public final class PemKeyConfig implements SslKeyConfig {
 
     private PrivateKey getPrivateKey(Path path) {
         try {
-            final PrivateKey privateKey = PemUtils.readPrivateKey(path, () -> keyPassword);
+            final PrivateKey privateKey = PemUtils.parsePrivateKey(path, () -> keyPassword);
             if (privateKey == null) {
                 throw new SslConfigException("could not load ssl private key file [" + path + "]");
             }

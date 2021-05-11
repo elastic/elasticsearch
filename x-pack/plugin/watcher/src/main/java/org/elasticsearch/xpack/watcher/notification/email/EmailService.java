@@ -208,7 +208,7 @@ public class EmailService extends NotificationService<Account> {
     public static List<Setting<?>> getSettings() {
         List<Setting<?>> allSettings = new ArrayList<Setting<?>>(EmailService.getDynamicSettings());
         allSettings.addAll(EmailService.getSecureSettings());
-        allSettings.addAll(SSL_SETTINGS.getAllSettings());
+        allSettings.addAll(SSL_SETTINGS.getEnabledSettings());
         return allSettings;
     }
 

@@ -75,7 +75,12 @@ final class SslFileUtil {
         } else {
             message += "access to read one or more files is blocked";
         }
-        message += "; SSL resources should be placed in the [" + basePath + "] directory";
+        message += "; SSL resources should be placed in the " ;
+        if (basePath == null) {
+            message += "Elasticsearch config directory";
+        } else {
+            message += "[" + basePath + "] directory";
+        }
         return new SslConfigException(message, cause);
     }
 

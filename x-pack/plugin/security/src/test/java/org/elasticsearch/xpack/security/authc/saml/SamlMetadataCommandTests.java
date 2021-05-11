@@ -442,7 +442,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final UserException userException = expectThrows(UserException.class, () -> command.possiblySignDescriptor(terminal, options,
                 descriptor, env));
         assertThat(userException.getMessage(), containsString("Unable to create metadata document"));
-        assertThat(terminal.getErrorOutput(), containsString("Error parsing Private Key from"));
+        assertThat(terminal.getErrorOutput(), containsString("cannot load PEM private key from ["));
     }
 
     public void testSigningMetadataWithPem() throws Exception {

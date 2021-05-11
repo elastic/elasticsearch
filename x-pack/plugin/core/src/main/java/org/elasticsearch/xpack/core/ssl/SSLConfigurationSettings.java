@@ -19,12 +19,12 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
 import javax.net.ssl.TrustManagerFactory;
 import java.security.KeyStore;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -51,7 +51,8 @@ public class SSLConfigurationSettings {
     // public for PKI realm
     public final Setting<SecureString> legacyTruststorePassword;
 
-    private final List<Setting<?>> allSettings;
+    private final List<Setting<?>> enabledSettings;
+    private final List<Setting<?>> disabledSettings;
 
     /**
      * We explicitly default to "jks" here (rather than {@link KeyStore#getDefaultType()}) for backwards compatibility.
@@ -75,14 +76,14 @@ public class SSLConfigurationSettings {
     private static final SslSetting<SecureString> LEGACY_KEYSTORE_PASSWORD
         = SslSetting.setting(SslConfigurationKeys.KEYSTORE_LEGACY_PASSWORD, X509KeyPairSettings.LEGACY_KEYSTORE_PASSWORD_TEMPLATE);
 
-    private static final SecureSslSetting KEYSTORE_PASSWORD
-        = SecureSslSetting.setting(SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, X509KeyPairSettings.KEYSTORE_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> KEYSTORE_PASSWORD
+        = SslSetting.secureSetting(SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, X509KeyPairSettings.KEYSTORE_PASSWORD_TEMPLATE);
 
     private static final SslSetting<SecureString> LEGACY_KEYSTORE_KEY_PASSWORD
         = SslSetting.setting(SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD, X509KeyPairSettings.LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE);
 
-    private static final SecureSslSetting KEYSTORE_KEY_PASSWORD
-        = SecureSslSetting.setting(SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD, X509KeyPairSettings.KEYSTORE_KEY_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> KEYSTORE_KEY_PASSWORD
+        = SslSetting.secureSetting(SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD, X509KeyPairSettings.KEYSTORE_KEY_PASSWORD_TEMPLATE);
 
     public static final SslSetting<Optional<String>> TRUSTSTORE_PATH = SslSetting.setting(
         SslConfigurationKeys.TRUSTSTORE_PATH,
@@ -97,7 +98,7 @@ public class SSLConfigurationSettings {
         key -> new Setting<>(key, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope)
     );
 
-    public static final SecureSslSetting TRUSTSTORE_PASSWORD = SecureSslSetting.setting(
+    public static final SslSetting<SecureString> TRUSTSTORE_PASSWORD = SslSetting.secureSetting(
         SslConfigurationKeys.TRUSTSTORE_SECURE_PASSWORD,
         key -> SecureSetting.secureString(
             key,
@@ -125,13 +126,13 @@ public class SSLConfigurationSettings {
     private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(key, s -> null,
         Optional::ofNullable, Property.NodeScope, Property.Filtered);
     private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS
-        = SslSetting.setting("trust_restrictions", TRUST_RESTRICTIONS_TEMPLATE);
+        = SslSetting.setting("trust_restrictions.path", TRUST_RESTRICTIONS_TEMPLATE);
 
     private static final SslSetting<SecureString> LEGACY_KEY_PASSWORD
         = SslSetting.setting(SslConfigurationKeys.KEY_LEGACY_PASSPHRASE, X509KeyPairSettings.LEGACY_KEY_PASSWORD_TEMPLATE);
 
-    private static final SecureSslSetting KEY_PASSWORD
-        = SecureSslSetting.setting(SslConfigurationKeys.KEY_SECURE_PASSPHRASE, X509KeyPairSettings.KEY_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> KEY_PASSWORD
+        = SslSetting.secureSetting(SslConfigurationKeys.KEY_SECURE_PASSPHRASE, X509KeyPairSettings.KEY_PASSWORD_TEMPLATE);
 
     private static final SslSetting<Optional<String>> CERT
         = SslSetting.setting(SslConfigurationKeys.CERTIFICATE, X509KeyPairSettings.CERT_TEMPLATE);
@@ -179,14 +180,21 @@ public class SSLConfigurationSettings {
         clientAuth = CLIENT_AUTH_SETTING.withPrefix(prefix);
         verificationMode = VERIFICATION_MODE.withPrefix(prefix);
 
-        final List<Setting<? extends Object>> settings = CollectionUtils.arrayAsArrayList(ciphers, supportedProtocols,
+        final List<Setting<? extends Object>> enabled = CollectionUtils.arrayAsArrayList(ciphers, supportedProtocols,
                 truststorePath, truststorePassword, truststoreAlgorithm, truststoreType, trustRestrictionsPath,
                 caPaths, clientAuth, verificationMode);
+        final List<Setting<?>> disabled = new ArrayList<>();
         if (acceptNonSecurePasswords) {
-            settings.add(legacyTruststorePassword);
+            enabled.add(legacyTruststorePassword);
+        } else {
+            disabled.add(legacyTruststorePassword);
         }
-        settings.addAll(x509KeyPair.getAllSettings());
-        this.allSettings = Collections.unmodifiableList(settings);
+
+        enabled.addAll(x509KeyPair.getEnabledSettings());
+        disabled.addAll(x509KeyPair.getDisabledSettings());
+
+        this.enabledSettings = Collections.unmodifiableList(enabled);
+        this.disabledSettings = Collections.unmodifiableList(disabled);
     }
 
     public static String getKeyStoreType(Setting<Optional<String>> setting, Settings settings, String path) {
@@ -202,9 +210,14 @@ public class SSLConfigurationSettings {
         }
     }
 
-    public List<Setting<?>> getAllSettings() {
-        return allSettings;
+    public List<Setting<?>> getEnabledSettings() {
+        return enabledSettings;
     }
+
+    public List<Setting<?>> getDisabledSettings() {
+        return disabledSettings;
+    }
+
 
     /**
      * Construct settings that are un-prefixed. That is, they can be used to read from a {@link Settings} object where the configuration
@@ -223,11 +236,11 @@ public class SSLConfigurationSettings {
      * @param acceptNonSecurePasswords
      */
     public static SSLConfigurationSettings withPrefix(String prefix, boolean acceptNonSecurePasswords) {
-        assert prefix.endsWith("ssl.") : "The ssl config prefix (" + prefix + ") should end in 'ssl.'";
+        assert prefix.endsWith(".") : "The ssl config prefix (" + prefix + ") should end in '.'";
         return new SSLConfigurationSettings(prefix, acceptNonSecurePasswords);
     }
 
-    private static Collection<AbstractSslSetting<?>> settings() {
+    private static Collection<SslSetting<?>> settings() {
         return Arrays.asList(CIPHERS, SUPPORTED_PROTOCOLS, KEYSTORE_PATH,
             LEGACY_KEYSTORE_PASSWORD, KEYSTORE_PASSWORD, LEGACY_KEYSTORE_KEY_PASSWORD,
             KEYSTORE_KEY_PASSWORD, TRUSTSTORE_PATH, LEGACY_TRUSTSTORE_PASSWORD,
@@ -238,34 +251,39 @@ public class SSLConfigurationSettings {
     }
 
     public static Collection<Setting<?>> getProfileSettings() {
-        return settings().stream().map(AbstractSslSetting::transportProfile).collect(Collectors.toUnmodifiableList());
+        return settings().stream().map(SslSetting::transportProfile).collect(Collectors.toUnmodifiableList());
     }
 
     public static Collection<Setting.AffixSetting<?>> getRealmSettings(String realmType) {
         return settings().stream().map(s -> s.realm(realmType)).collect(Collectors.toList());
     }
 
-    public List<Setting<SecureString>> getSecureSettingsInUse(Settings settings) {
+    public List<Setting<? extends SecureString>> getSecureSettingsInUse(Settings settings) {
         return getSecureSettings()
             .stream()
             .filter(s -> s.exists(settings))
             .collect(Collectors.toList());
     }
 
-    List<Setting<SecureString>> getSecureSettings() {
-        return settings().stream()
-            .map(AbstractSslSetting::secureSetting)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableList());
+    List<Setting<? extends SecureString>> getSecureSettings() {
+        return List.of(truststorePassword, x509KeyPair.keyPassword, x509KeyPair.keystorePassword, x509KeyPair.keystoreKeyPassword);
     }
 
-    public abstract static class AbstractSslSetting<T> {
+    public  static class SslSetting<T> {
         protected final String name;
         protected final Function<String, Setting<T>> template;
 
-        public AbstractSslSetting(String name, Function<String, Setting<T>> template) {
+        public SslSetting(String name, Function<String, Setting<T>> template) {
             this.name = name;
             this.template = template;
+        }
+
+        public static SslSetting<SecureString> secureSetting(String name, Function<String, Setting<SecureString>> template) {
+            return new SslSetting<>(name, template);
+        }
+
+        public static <T> SslSetting<T> setting(String name, Function<String, Setting<T>> template) {
+            return new SslSetting<>(name, template);
         }
 
         Function<String, Setting<T>> template() {
@@ -273,20 +291,22 @@ public class SSLConfigurationSettings {
         }
 
         Setting<T> rawSetting() {
-            return template.apply(name);
+            return applyTemplate(name);
         }
-
-        abstract Setting<SecureString> secureSetting();
 
         public Setting<T> withPrefix(String prefix) {
             if (prefix.length() == 0) {
                 return rawSetting();
             }
-            if (prefix.endsWith("ssl.")) {
-                return template.apply(prefix + name);
+            if (prefix.endsWith(".")) {
+                return applyTemplate(prefix + name);
             } else {
-                throw new IllegalArgumentException("The ssl config prefix (" + prefix + ") should end in 'ssl.'");
+                throw new IllegalArgumentException("The ssl config prefix (" + prefix + ") should end in '.'");
             }
+        }
+
+        Setting<T> applyTemplate(String key) {
+            return template.apply(key);
         }
 
         public Setting.AffixSetting<T> realm(String realmType) {
@@ -310,44 +330,4 @@ public class SSLConfigurationSettings {
         }
     }
 
-    public static class SslSetting<T> extends AbstractSslSetting<T> {
-
-        private SslSetting(String name, Function<String, Setting<T>> template) {
-            super(name, template);
-        }
-
-        public static <T> SslSetting<T> setting(String name, Function<String, Setting<T>> template) {
-            return new SslSetting<T>(name, template);
-        }
-
-        @Override
-        public Setting<SecureString> secureSetting() {
-            return null;
-        }
-    }
-
-    public static class SecureSslSetting extends AbstractSslSetting<SecureString> {
-
-        private SecureSslSetting(String name, Function<String, Setting<SecureString>> template) {
-            super(name, template);
-        }
-
-        public static SecureSslSetting setting(String name, Function<String, Setting<SecureString>> template) {
-            return new SecureSslSetting(name, template);
-        }
-
-        @Override
-        public Setting<SecureString> rawSetting() {
-            final Setting<SecureString> setting = super.rawSetting();
-            assert setting instanceof SecureSetting
-                : "Secure SSL Settings must be based on " + SecureSetting.class  + " not " + setting.getClass();
-            return setting;
-        }
-
-        @Override
-        public Setting<SecureString> secureSetting() {
-            return rawSetting();
-        }
-
-    }
 }

@@ -32,8 +32,9 @@ import java.util.stream.Collectors;
 public class SslSettingsLoader extends SslConfigurationLoader {
 
     private final Settings settings;
-    private final Map<String, Setting<SecureString>> secureSettings;
+    private final Map<String, Setting<? extends SecureString>> secureSettings;
     private final Map<String, Setting<?>> standardSettings;
+    private final Map<String, Setting<?>> ignoredSettings;
 
     public SslSettingsLoader(Settings settings, String settingPrefix, boolean acceptNonSecurePasswords) {
         super(settingPrefix);
@@ -41,13 +42,14 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         final SSLConfigurationSettings sslConfigurationSettings = settingPrefix == null
             ? SSLConfigurationSettings.withoutPrefix(acceptNonSecurePasswords)
             : SSLConfigurationSettings.withPrefix(settingPrefix, acceptNonSecurePasswords);
-        this.secureSettings = sslConfigurationSettings.getSecureSettings()
-            .stream()
-            .collect(Collectors.toMap(Setting::getKey, Function.identity()));
-        this.standardSettings = sslConfigurationSettings.getAllSettings()
-            .stream()
-            .collect(Collectors.toMap(Setting::getKey, Function.identity()));
+        this.secureSettings = mapOf(sslConfigurationSettings.getSecureSettings());
+        this.standardSettings = mapOf(sslConfigurationSettings.getEnabledSettings());
+        this.ignoredSettings = mapOf(sslConfigurationSettings.getDisabledSettings());
         setDefaultClientAuth(SslClientAuthenticationMode.REQUIRED);
+    }
+
+    private <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settings) {
+        return settings.stream().collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
     }
 
     @Override
@@ -65,7 +67,8 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     @Override
     protected String getSettingAsString(String key) {
         checkSetting(key);
-        return settings.get(key);
+        final String val = settings.get(key);
+        return val == null ? "" : val;
     }
 
     @Override
@@ -79,16 +82,18 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         if (setting != null) {
             // This triggers deprecation warnings
             setting.get(settings);
-        } else {
-            throw new SslConfigException("No such setting [" + key + "]");
+        } else if (ignoredSettings.containsKey(key) == false) {
+            throw new SslConfigException("The setting [" + key + "] is not supported, valid SSL settings are: ["
+                + Strings.collectionToCommaDelimitedString(standardSettings.keySet()) + "]");
         }
     }
 
     @Override
     protected char[] getSecureSetting(String key) {
-        final Setting<SecureString> setting = secureSettings.get(key);
+        final Setting<? extends SecureString> setting = secureSettings.get(key);
         if (setting == null) {
-            throw new IllegalArgumentException("The secure setting [" + key + "] is not registered");
+            throw new SslConfigException("The secure setting [" + key + "] is not supported, valid secure SSL settings are: ["
+                + Strings.collectionToCommaDelimitedString(secureSettings.keySet()) + "]");
         }
         return setting.exists(settings) ? setting.get(settings).getChars() : null;
     }

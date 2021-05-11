@@ -24,6 +24,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyFactory;
 import java.security.KeyPairGenerator;
@@ -72,6 +73,29 @@ public final class PemUtils {
     }
 
     /**
+     * Creates a {@link PrivateKey} from the contents of a file and handles any exceptions
+     *
+     * @param path           the path for the key file
+     * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
+     * @return a private key from the contents of the file
+     */
+    public static PrivateKey readPrivateKey(Path path, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
+        try {
+            final PrivateKey privateKey = PemUtils.parsePrivateKey(path, passwordSupplier);
+            if (privateKey == null) {
+                throw new SslConfigException("could not load ssl private key file [" + path + "]");
+            }
+            return privateKey;
+        } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
+        } catch (IOException e) {
+            throw SslFileUtil.ioException("PEM private key", List.of(path), e);
+        } catch (GeneralSecurityException e) {
+            throw SslFileUtil.securityException("PEM private key", List.of(path), e);
+        }
+    }
+
+    /**
      * Creates a {@link PrivateKey} from the contents of a file. Supports PKCS#1, PKCS#8
      * encoded formats of encrypted and plaintext RSA, DSA and EC(secp256r1) keys
      *
@@ -79,7 +103,7 @@ public final class PemUtils {
      * @param passwordSupplier A password supplier for the potentially encrypted (password protected) key
      * @return a private key from the contents of the file
      */
-    public static PrivateKey readPrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
+    static PrivateKey parsePrivateKey(Path keyPath, Supplier<char[]> passwordSupplier) throws IOException, GeneralSecurityException {
         try (BufferedReader bReader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
             String line = bReader.readLine();
             while (null != line && line.startsWith(HEADER) == false) {

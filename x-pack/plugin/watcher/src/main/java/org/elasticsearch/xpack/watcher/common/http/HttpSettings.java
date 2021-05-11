@@ -56,7 +56,7 @@ public class HttpSettings {
 
     public static List<? extends Setting<?>> getSettings() {
         final ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(SSL.getAllSettings());
+        settings.addAll(SSL.getEnabledSettings());
         settings.add(READ_TIMEOUT);
         settings.add(CONNECTION_TIMEOUT);
         settings.add(TCP_KEEPALIVE);

@@ -212,8 +212,8 @@ public class XPackSettings {
     /** Returns all settings created in {@link XPackSettings}. */
     public static List<Setting<?>> getAllSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(HTTP_SSL.getAllSettings());
-        settings.addAll(TRANSPORT_SSL.getAllSettings());
+        settings.addAll(HTTP_SSL.getEnabledSettings());
+        settings.addAll(TRANSPORT_SSL.getEnabledSettings());
         settings.add(SECURITY_ENABLED);
         settings.add(GRAPH_ENABLED);
         settings.add(MACHINE_LEARNING_ENABLED);

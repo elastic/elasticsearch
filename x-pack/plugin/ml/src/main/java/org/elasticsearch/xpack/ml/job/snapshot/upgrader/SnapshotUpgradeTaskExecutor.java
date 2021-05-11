@@ -219,7 +219,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
         );
 
         // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
-        AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
+        AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, clusterState, MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
             annotationsIndexUpdateHandler);
     }
 

@@ -46,19 +46,28 @@ public class AnnotationIndex {
      * results views, so needs to exist when there might be ML results to view.  This method also waits for the index to be ready to search
      * before it returns.
      */
-    public static void createAnnotationsIndexIfNecessary(Client client, ClusterState state, TimeValue masterNodeTimeout,
-                                                         final ActionListener<Boolean> finalListener) {
+    public static void createAnnotationsIndexIfNecessaryAndWaitForYellow(Client client, ClusterState state, TimeValue masterNodeTimeout,
+                                                                         final ActionListener<Boolean> finalListener) {
 
-        final ActionListener<Boolean> waitForIndexReadyListener = ActionListener.wrap(success -> {
+        final ActionListener<Boolean> annotationsIndexCreatedListener = ActionListener.wrap(success -> {
             final ClusterHealthRequest request = Requests.clusterHealthRequest(READ_ALIAS_NAME)
                 .waitForYellowStatus()
-                .waitForNoInitializingShards(true)
                 .masterNodeTimeout(masterNodeTimeout);
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
                 ActionListener.<ClusterHealthResponse>wrap(
                     r -> finalListener.onResponse(r.isTimedOut() == false), finalListener::onFailure),
                 client.admin().cluster()::health);
         }, finalListener::onFailure);
+
+        createAnnotationsIndexIfNecessary(client, state, masterNodeTimeout, annotationsIndexCreatedListener);
+    }
+
+    /**
+     * Create the .ml-annotations-6 index with correct mappings if it does not already exist. This index is read and written by the UI
+     * results views, so needs to exist when there might be ML results to view.
+     */
+    public static void createAnnotationsIndexIfNecessary(Client client, ClusterState state, TimeValue masterNodeTimeout,
+                                                         final ActionListener<Boolean> finalListener) {
 
         final ActionListener<Boolean> checkMappingsListener = ActionListener.wrap(success ->
                 ElasticsearchMappings.addDocMappingIfMissing(
@@ -67,7 +76,7 @@ public class AnnotationIndex {
                     client,
                     state,
                     masterNodeTimeout,
-                    waitForIndexReadyListener),
+                    finalListener),
             finalListener::onFailure);
 
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
@@ -128,8 +137,8 @@ public class AnnotationIndex {
             return;
         }
 
-        // Nothing to create, but wait for the index to be ready
-        waitForIndexReadyListener.onResponse(false);
+        // Nothing to do, but respond to the listener
+        finalListener.onResponse(false);
     }
 
     private static String annotationsMapping() {

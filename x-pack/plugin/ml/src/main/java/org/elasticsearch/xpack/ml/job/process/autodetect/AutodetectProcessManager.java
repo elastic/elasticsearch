@@ -504,7 +504,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
         );
 
         // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
-        AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, masterNodeTimeout, annotationsIndexUpdateHandler);
+        AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, clusterState, masterNodeTimeout,
+            annotationsIndexUpdateHandler);
     }
 
     private void startProcess(JobTask jobTask, Job job, BiConsumer<Exception, Boolean> closeHandler) {

@@ -119,7 +119,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
 
         // 4. Ensure the annotations index mappings are up to date
         ActionListener<Boolean> configMappingUpdateListener = ActionListener.wrap(
-            r -> AnnotationIndex.createAnnotationsIndexIfNecessary(client, state, request.masterNodeTimeout(),
+            r -> AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, state, request.masterNodeTimeout(),
                 annotationsIndexUpdateListener),
             listener::onFailure
         );

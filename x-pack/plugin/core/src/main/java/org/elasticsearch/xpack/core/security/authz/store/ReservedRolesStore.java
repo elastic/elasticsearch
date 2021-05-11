@@ -38,9 +38,7 @@ import java.util.stream.Collectors;
 
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
     public static final String LEGACY_ALERTS_INDEX = ".siem-signals*";
-    public static final String LEGACY_ALERTS_INDEX_CCS = "*:.siem-signals*";
     public static final String ALERTS_INDEX = ".alerts*";
-    public static final String ALERTS_INDEX_CCS = "*:.alerts*";
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
@@ -185,15 +183,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 // Kibana user will read / write to these indices
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(ReservedRolesStore.ALERTS_INDEX)
-                                    .privileges("all").build(),
-                                // Legacy "Alerts as data" CCS
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(ReservedRolesStore.LEGACY_ALERTS_INDEX_CCS)
-                                    .privileges("all").build(),
-                                // Legacy "Alerts as data" CCS
-                                RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(ReservedRolesStore.ALERTS_INDEX_CCS)
-                                    .privileges("all").build(),
+                                    .privileges("all").build()
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

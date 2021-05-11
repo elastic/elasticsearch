@@ -130,8 +130,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         getAliasesRequest = new Request("GET", "/_aliases");
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        assertEquals(Map.of(), getAliasesResponse);
         expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/logs/_search")));
 
         // Add logs-* -> logs
@@ -155,8 +154,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         getAliasesRequest = new Request("GET", "/_aliases");
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        assertEquals(Map.of(), getAliasesResponse);
         expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/logs/_search")));
     }
 

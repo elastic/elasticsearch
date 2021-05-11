@@ -1439,7 +1439,7 @@ public class RequestConvertersTests extends ESTestCase {
         }
         endpoint.add("_search/template");
 
-        assertEquals(HttpGet.METHOD_NAME, request.getMethod());
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
         assertEquals(endpoint.toString(), request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertToXContentBody(searchTemplateRequest, request.getEntity());

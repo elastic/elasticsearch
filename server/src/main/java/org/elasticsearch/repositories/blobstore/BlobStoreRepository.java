@@ -122,6 +122,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -812,8 +813,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void asyncCleanupUnlinkedShardLevelBlobs(RepositoryData oldRepositoryData, Collection<SnapshotId> snapshotIds,
                                                      Collection<ShardSnapshotMetaDeleteResult> deleteResults,
                                                      ActionListener<Void> listener) {
-        final List<String> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
-        if (filesToDelete.isEmpty()) {
+        final Iterator<String> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
+        if (filesToDelete.hasNext() == false) {
             listener.onResponse(null);
             return;
         }
@@ -919,7 +920,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private List<String> resolveFilesToDelete(RepositoryData oldRepositoryData, Collection<SnapshotId> snapshotIds,
+    private Iterator<String> resolveFilesToDelete(RepositoryData oldRepositoryData, Collection<SnapshotId> snapshotIds,
                                               Collection<ShardSnapshotMetaDeleteResult> deleteResults) {
         final String basePath = basePath().buildAsString();
         final int basePathLen = basePath.length();
@@ -938,7 +939,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ).map(absolutePath -> {
             assert absolutePath.startsWith(basePath);
             return absolutePath.substring(basePathLen);
-        }).collect(Collectors.toList());
+        }).iterator();
     }
 
     /**
@@ -1072,7 +1073,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToLog);
                 }
             }
-            deleteFromContainer(blobContainer(), blobsToDelete);
+            deleteFromContainer(blobContainer(), blobsToDelete.iterator());
             return blobsToDelete;
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage(
@@ -1209,7 +1210,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             (indexId, gens) -> gens.forEach((shardId, oldGen) -> toDelete.add(
                 shardContainer(indexId, shardId).path().buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen)));
         try {
-            deleteFromContainer(blobContainer(), toDelete);
+            deleteFromContainer(blobContainer(), toDelete.iterator());
         } catch (Exception e) {
             logger.warn("Failed to clean up old shard generation blobs", e);
         }
@@ -1247,9 +1248,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void deleteFromContainer(BlobContainer container, List<String> blobs) throws IOException {
-        logger.trace(() -> new ParameterizedMessage("[{}] Deleting {} from [{}]", metadata.name(), blobs, container.path()));
-        container.deleteBlobsIgnoringIfNotExists(blobs);
+    private void deleteFromContainer(BlobContainer container, Iterator<String> blobs) throws IOException {
+        final Iterator<String> wrappedIterator;
+        if (logger.isTraceEnabled()) {
+            wrappedIterator = new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return blobs.hasNext();
+                }
+
+                @Override
+                public String next() {
+                    final String blobName = blobs.next();
+                    logger.trace("[{}] Deleting [{}] from [{}]", metadata.name(), blobName, container.path());
+                    return blobName;
+                }
+            };
+        } else {
+            wrappedIterator = blobs;
+        }
+        container.deleteBlobsIgnoringIfNotExists(wrappedIterator);
     }
 
     private BlobPath indicesPath() {
@@ -1935,14 +1953,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
                             // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
                             // two index-N blobs around.
-                            final List<String> oldIndexN = LongStream.range(
-                                Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
-                                .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
-                                .collect(Collectors.toList());
                             try {
-                                deleteFromContainer(blobContainer(), oldIndexN);
+                                deleteFromContainer(
+                                    blobContainer(),
+                                    LongStream.range(Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
+                                        .mapToObj(gen -> INDEX_FILE_PREFIX + gen).iterator()
+                                );
                             } catch (IOException e) {
-                                logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs {}", oldIndexN), e);
+                                logger.warn(() ->
+                                    new ParameterizedMessage("Failed to clean up old index blobs from before [{}]", newGen), e);
                             }
                             return newRepositoryData;
                         }));
@@ -2317,7 +2336,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         + INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(indexGeneration) + "]", e);
                     }
                     try {
-                        deleteFromContainer(shardContainer, blobsToDelete);
+                        deleteFromContainer(shardContainer, blobsToDelete.iterator());
                     } catch (IOException e) {
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete old index-N blobs during finalization",
                                 snapshotId, shardId), e);

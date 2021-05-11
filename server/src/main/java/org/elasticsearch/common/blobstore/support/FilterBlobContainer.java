@@ -16,7 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -72,7 +72,7 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
         delegate.deleteBlobsIgnoringIfNotExists(blobNames);
     }
 

@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.elasticsearch.xpack.spatial.action.SpatialInfoTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialStatsTransportAction;
 import org.elasticsearch.xpack.spatial.action.SpatialUsageTransportAction;
-import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnBoundedGeoTileGridTiler;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoTileGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.UnboundedGeoHashGridTiler;
 import org.elasticsearch.xpack.spatial.search.aggregations.metrics.GeoShapeCentroidAggregator;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
@@ -172,7 +172,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                 if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
-                        tiler = new UnBoundedGeoTileGridTiler(precision);
+                        tiler = new UnboundedGeoTileGridTiler(precision);
                     } else {
                         tiler = new BoundedGeoTileGridTiler(precision, geoBoundingBox);
                     }

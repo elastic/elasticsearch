@@ -99,7 +99,7 @@ public class FunctionRef {
                 isDelegateInterface = false;
                 isDelegateAugmented = false;
                 delegateInvokeType = H_INVOKESTATIC;
-                delegateMethodName = localFunction.getFunctionName();
+                delegateMethodName = localFunction.getMangledName();
                 delegateMethodType = localFunction.getMethodType();
                 delegateInjections = new Object[0];
 

@@ -18,9 +18,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
@@ -88,8 +87,18 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        blobStore.deleteBlobsIgnoringIfNotExists(blobNames.stream().map(this::buildKey).collect(Collectors.toList()));
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        blobStore.deleteBlobsIgnoringIfNotExists(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return blobNames.hasNext();
+            }
+
+            @Override
+            public String next() {
+                return buildKey(blobNames.next());
+            }
+        });
     }
 
     private String buildKey(String blobName) {

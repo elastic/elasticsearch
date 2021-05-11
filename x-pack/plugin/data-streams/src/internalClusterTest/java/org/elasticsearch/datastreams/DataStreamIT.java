@@ -14,6 +14,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -42,6 +44,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Nullable;
@@ -562,7 +565,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().admin().indices().prepareForceMerge(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareValidateQuery(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().indices().prepareGetAliases("dummy").addIndices(dataStreamName), true);
+        verifyResolvability(dataStreamName, client().admin().indices().prepareGetAliases("dummy").addIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(
             dataStreamName,
@@ -677,7 +680,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(maybeE.isPresent());
     }
 
-    public void testAliasActionsFailOnDataStreams() throws Exception {
+    public void testAliasActionsOnDataStreams() throws Exception {
         putComposableIndexTemplate("id1", List.of("metrics-foo*"));
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -688,8 +691,12 @@ public class DataStreamIT extends ESIntegTestCase {
             .aliases("foo");
         IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
         aliasesAddRequest.addAliasAction(addAction);
-        Exception e = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
-        assertThat(e.getMessage(), equalTo("no such index [" + dataStreamName + "]"));
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+        assertThat(
+            response.getDataStreamAliases(),
+            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo")))))
+        );
     }
 
     public void testAliasActionsFailOnDataStreamBackingIndices() throws Exception {

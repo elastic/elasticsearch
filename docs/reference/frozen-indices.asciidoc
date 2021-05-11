@@ -98,6 +98,7 @@ Frozen indices are ordinary indices that use search throttling and a memory effi
 GET /_cat/indices/my-index-000001?v=true&h=i,sth
 --------------------------------------------------
 // TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_freeze\n/]
+// TEST[skip:unable to ignore deprecation warning]
 
 The response looks like:
 

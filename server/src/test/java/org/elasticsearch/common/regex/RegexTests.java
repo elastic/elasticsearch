@@ -144,9 +144,6 @@ public class RegexTests extends ESTestCase {
         for (int i = 0; i < 100000; i++) {
             int idx = between(0, Integer.MAX_VALUE);
             String pattern = Integer.toString(idx, Character.MAX_RADIX);
-            if ((pattern.startsWith("foo") && pattern.endsWith("bar")) || (pattern.startsWith("baz") && pattern.endsWith("bort"))) {
-                fail();
-            }
             if (idx < patternCount
                 || (pattern.startsWith("foo") && pattern.endsWith("bar"))  // 948437811
                 || (pattern.startsWith("baz") && pattern.endsWith("bort")) // Can't match, but you get the idea

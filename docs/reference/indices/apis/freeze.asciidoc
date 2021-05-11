@@ -6,6 +6,8 @@
 <titleabbrev>Freeze index</titleabbrev>
 ++++
 
+deprecated::[8.0, Due to https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent improvements in heap memory utilization], frozen indices are no longer beneficial.]
+
 Freezes an index.
 
 [[freeze-index-api-request]]

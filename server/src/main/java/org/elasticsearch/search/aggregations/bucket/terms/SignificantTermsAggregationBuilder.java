@@ -42,7 +42,6 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         new ValuesSourceRegistry.RegistryKey<>(NAME, SignificantTermsAggregatorSupplier.class);
 
     static final ParseField BACKGROUND_FILTER = new ParseField("background_filter");
-    static final ParseField HEURISTIC = new ParseField("significance_heuristic");
 
     static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
             3, 0, 10, -1);

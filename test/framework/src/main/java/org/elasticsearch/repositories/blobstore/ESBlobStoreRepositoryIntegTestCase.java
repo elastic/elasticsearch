@@ -192,16 +192,16 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         try (BlobStore store = newBlobStore()) {
             final List<String> blobNames = Arrays.asList("foobar", "barfoo");
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
-            container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
+            container.deleteBlobsIgnoringIfNotExists(blobNames.iterator()); // does not raise when blobs don't exist
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
             for (String blobName : blobNames) {
                 writeBlob(container, blobName, bytesArray, randomBoolean());
             }
             assertEquals(container.listBlobs().size(), 2);
-            container.deleteBlobsIgnoringIfNotExists(blobNames);
+            container.deleteBlobsIgnoringIfNotExists(blobNames.iterator());
             assertTrue(container.listBlobs().isEmpty());
-            container.deleteBlobsIgnoringIfNotExists(blobNames); // does not raise when blobs don't exist
+            container.deleteBlobsIgnoringIfNotExists(blobNames.iterator()); // does not raise when blobs don't exist
         }
     }
 

@@ -393,6 +393,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return keepAlive;
     }
 
+    public long refreshedSeqNo() {
+        return -1L;
+    }
+
     /**
      * Returns the cache key for this shard search request, based on its content
      */

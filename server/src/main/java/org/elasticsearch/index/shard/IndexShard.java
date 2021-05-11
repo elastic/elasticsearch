@@ -3295,6 +3295,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private RefreshListeners buildRefreshListeners() {
         return new RefreshListeners(
             indexSettings::getMaxRefreshListeners,
+            () -> getEngine().getProcessedLocalCheckpoint(),
             () -> refresh("too_many_listeners"),
             logger, threadPool.getThreadContext(),
             externalRefreshMetric);
@@ -3463,6 +3464,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.accept(false);
         }
+    }
+
+    public void addRefreshListener(long seqNo, ActionListener<Void> listener) {
+
     }
 
     private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {

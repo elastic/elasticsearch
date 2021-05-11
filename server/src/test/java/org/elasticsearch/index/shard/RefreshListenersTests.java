@@ -93,6 +93,7 @@ public class RefreshListenersTests extends ESTestCase {
         refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
                 () -> maxListeners,
+                () -> 1L,
                 () -> engine.refresh("too-many-listeners"),
                 logger,
                 threadPool.getThreadContext(),

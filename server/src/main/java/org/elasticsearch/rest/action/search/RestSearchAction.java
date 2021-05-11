@@ -58,7 +58,7 @@ public class RestSearchAction extends BaseRestHandler {
      */
     public static final String TOTAL_HITS_AS_INT_PARAM = "rest_total_hits_as_int";
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS;
+    public static final Set<String> RESPONSE_PARAMS;
 
     static {
         final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, TOTAL_HITS_AS_INT_PARAM));

@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -35,6 +36,8 @@ import static java.util.Objects.requireNonNull;
  */
 public final class RefreshListeners implements ReferenceManager.RefreshListener, Closeable {
     private final IntSupplier getMaxRefreshListeners;
+    // Can throw engine closed exception
+    private final LongSupplier refreshedCheckpointSupplier;
     private final Runnable forceRefresh;
     private final Logger logger;
     private final ThreadContext threadContext;
@@ -71,12 +74,14 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
     public RefreshListeners(
         final IntSupplier getMaxRefreshListeners,
+        final LongSupplier refreshedCheckpointSupplier,
         final Runnable forceRefresh,
         final Logger logger,
         final ThreadContext threadContext,
         final MeanMetric refreshMetric
     ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
+        this.refreshedCheckpointSupplier = refreshedCheckpointSupplier;
         this.forceRefresh = forceRefresh;
         this.logger = logger;
         this.threadContext = threadContext;

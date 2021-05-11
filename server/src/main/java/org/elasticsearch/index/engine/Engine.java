@@ -735,6 +735,8 @@ public abstract class Engine implements Closeable {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
+    public abstract long getProcessedLocalCheckpoint();
+
     /**
      * @return the persisted local checkpoint for this Engine
      */

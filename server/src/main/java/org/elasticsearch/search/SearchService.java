@@ -128,6 +128,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
@@ -390,8 +391,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
-            // fork the execution in the search thread pool
-            runAsync(getExecutor(shard), () -> executeQueryPhase(orig, task), l);
+            final Executor executor = getExecutor(shard);
+
+            // TODO: Do here
+            shard.addRefreshListener(request.refreshedSeqNo(), new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    runAsync(executor, () -> executeQueryPhase(orig, task), l);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }));
     }
 

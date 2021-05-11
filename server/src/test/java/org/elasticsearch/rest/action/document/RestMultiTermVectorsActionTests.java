@@ -22,6 +22,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,28 +44,23 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .withPath("/some_index/some_type/_mtermvectors")
             .build();
 
-        //when the execution fails, we don't get anything back?
         dispatchRequest(request);
         assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 
-    //possibly this needs a separate issue to track the problem
-    // if we emit a compatible warning when a type parameter (?type=some_type) is present,
-    // then for APIs where a {type} is used a compatible warning would be emitted twice
-    // this is because we cannot distinguish between them and for {type} we already emit a warning when using a Route
-//    public void testTypeParameter() {
-//        Map<String, String> params = new HashMap<>();
-//        params.put("type", "some_type");
-//
-//        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-//            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-//            .withPath("/some_index/_mtermvectors")
-//            .withParams(params)
-//            .build();
-//
-//        dispatchRequest(request);
-//        assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
-//    }
+    public void testTypeParameter() {
+        Map<String, String> params = new HashMap<>();
+        params.put("type", "some_type");
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+            .withPath("/some_index/_mtermvectors")
+            .withParams(params)
+            .build();
+
+        dispatchRequest(request);
+        assertWarnings(RestMultiTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
+    }
 
     public void testTypeInBody() throws IOException {
         XContentBuilder content = XContentFactory.jsonBuilder()
@@ -85,7 +81,6 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
             .build();
 
         dispatchRequest(request);
-        // TODO change - now the deprecation warning is from MultiTermVectors..
         assertWarnings(RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

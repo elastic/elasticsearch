@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -21,7 +22,6 @@ import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,6 +32,8 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.IndexDeprecationChecksTests.addRandomFields;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class ClusterDeprecationChecksTests extends ESTestCase {
 
@@ -272,7 +274,41 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 .metadata(okMetadata)
                 .build();
             List<DeprecationIssue> noIssues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(okState));
-            assertThat(noIssues, Matchers.hasSize(0));
+            assertThat(noIssues, hasSize(0));
         }
+    }
+
+    public void testIndexTemplatesWithMultipleTypes() throws IOException {
+
+        IndexTemplateMetadata multipleTypes = IndexTemplateMetadata.builder("multiple-types")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("type1", "{\"type1\":{}}")
+            .putMapping("type2", "{\"type2\":{}}")
+            .build();
+        IndexTemplateMetadata singleType = IndexTemplateMetadata.builder("single-type")
+            .patterns(Collections.singletonList("foo"))
+            .putMapping("type1", "{\"type1\":{}}")
+            .build();
+        ImmutableOpenMap<String, IndexTemplateMetadata> templates = ImmutableOpenMap.<String, IndexTemplateMetadata>builder()
+            .fPut("multiple-types", multipleTypes)
+            .fPut("single-type", singleType)
+            .build();
+        Metadata badMetadata = Metadata.builder()
+            .templates(templates)
+            .build();
+        ClusterState badState = ClusterState.builder(new ClusterName("test")).metadata(badMetadata).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
+        assertThat(issues, hasSize(1));
+        assertThat(issues.get(0).getDetails(),
+            equalTo("Index templates [multiple-types] define multiple types and so will cause errors when used in index creation"));
+
+        Metadata goodMetadata = Metadata.builder()
+            .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().fPut("single-type", singleType).build())
+            .build();
+        ClusterState goodState = ClusterState.builder(new ClusterName("test")).metadata(goodMetadata).build();
+        assertThat(
+            DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState)),
+            hasSize(0)
+        );
     }
 }

@@ -254,7 +254,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
-        when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX);
+        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState());
         TransformPersistentTasksExecutor executor = new TransformPersistentTasksExecutor(
             client,
             transformServices,
@@ -531,7 +531,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
-        when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX);
+        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState());
 
         return new TransformPersistentTasksExecutor(
             client,

@@ -9,6 +9,8 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
+
 /**
  * Objects that can both render themselves in as json/yaml/etc and can provide a {@link RestStatus} for their response. Usually should be
  * implemented by top level responses sent back to users from REST endpoints.
@@ -19,4 +21,18 @@ public interface StatusToXContentObject extends ToXContentObject {
      * Returns the REST status to make sure it is returned correctly
      */
     RestStatus status();
+
+    static StatusToXContentObject withStatus(RestStatus status, ToXContentObject xContent) {
+        return new StatusToXContentObject() {
+            @Override
+            public RestStatus status() {
+                return status;
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return xContent.toXContent(builder, params);
+            }
+        };
+    }
 }

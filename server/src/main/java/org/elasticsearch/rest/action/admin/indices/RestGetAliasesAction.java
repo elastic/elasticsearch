@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -65,7 +67,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
                                           ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
-                                          XContentBuilder builder) throws Exception {
+                                          Map<String, List<DataStreamAlias>> dataStreamAliases, XContentBuilder builder) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
         for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
@@ -147,6 +149,20 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     builder.endObject();
                 }
             }
+            for (Map.Entry<String, List<DataStreamAlias>> entry : dataStreamAliases.entrySet()) {
+                builder.startObject(entry.getKey());
+                {
+                    builder.startObject("aliases");
+                    {
+                        for (DataStreamAlias alias : entry.getValue()) {
+                            builder.startObject(alias.getName());
+                            builder.endObject();
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
         }
         builder.endObject();
         return new BytesRestResponse(status, builder);
@@ -171,7 +187,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
         return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                return buildRestResponse(namesProvided, aliases, response.getAliases(), builder);
+                return buildRestResponse(namesProvided, aliases, response.getAliases(), response.getDataStreamAliases(), builder);
             }
         });
     }

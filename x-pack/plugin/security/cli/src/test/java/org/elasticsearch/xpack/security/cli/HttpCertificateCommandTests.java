@@ -23,6 +23,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;
@@ -116,6 +117,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGenerateSingleCertificateSigningRequest() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
+
         final Path outFile = testRoot.resolve("csr.zip").toAbsolutePath();
 
         final List<String> hostNames = randomHostNames();
@@ -216,6 +220,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGenerateSingleCertificateWithExistingCA() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final Path outFile = testRoot.resolve("certs.zip").toAbsolutePath();
 
         final List<String> hostNames = randomHostNames();
@@ -329,6 +335,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGenerateMultipleCertificateWithNewCA() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final Path outFile = testRoot.resolve("certs.zip").toAbsolutePath();
 
         final int numberCerts = randomIntBetween(3, 6);
@@ -470,6 +478,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testParsingValidityPeriod() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final HttpCertificateCommand command = new HttpCertificateCommand();
         final MockTerminal terminal = new MockTerminal();
 
@@ -523,6 +533,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testValidityPeriodToString() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         assertThat(HttpCertificateCommand.toString(Period.ofYears(2)), is("2y"));
         assertThat(HttpCertificateCommand.toString(Period.ofMonths(5)), is("5m"));
         assertThat(HttpCertificateCommand.toString(Period.ofDays(60)), is("60d"));
@@ -536,6 +548,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGuessFileType() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         MockTerminal terminal = new MockTerminal();
 
         final Path caCert = getDataPath("ca.crt");
@@ -563,6 +577,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testTextFileSubstitutions() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72359",
+                JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         CheckedBiFunction<String, Map<String, String>, String, Exception> copy = (source, subs) -> {
             try (InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
                  StringWriter out = new StringWriter();

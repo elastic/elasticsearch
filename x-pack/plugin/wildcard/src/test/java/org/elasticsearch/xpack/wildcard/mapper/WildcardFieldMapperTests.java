@@ -98,13 +98,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     static KeywordFieldMapper keywordFieldType;
 
     @Override
-    protected boolean allowsStore() {
-        return false;
+    protected Collection<? extends Plugin> getPlugins() {
+        return Collections.singleton(new Wildcard());
     }
 
     @Override
-    protected Collection<? extends Plugin> getPlugins() {
-        return Collections.singleton(new Wildcard());
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     @Override

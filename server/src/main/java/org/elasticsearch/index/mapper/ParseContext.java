@@ -302,6 +302,8 @@ public abstract class ParseContext {
 
     public static class InternalParseContext extends ParseContext {
         private final MappingLookup mappingLookup;
+        private final IndexSettings indexSettings;
+        private final IndexAnalyzers indexAnalyzers;
         private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
@@ -320,10 +322,14 @@ public abstract class ParseContext {
         private boolean docsReversed = false;
 
         public InternalParseContext(MappingLookup mappingLookup,
+                                    IndexSettings indexSettings,
+                                    IndexAnalyzers indexAnalyzers,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
                                     SourceToParse source,
                                     XContentParser parser) {
             this.mappingLookup = mappingLookup;
+            this.indexSettings = indexSettings;
+            this.indexAnalyzers = indexAnalyzers;
             this.parserContextFunction = parserContextFunction;
             this.parser = parser;
             this.document = new Document();
@@ -341,7 +347,7 @@ public abstract class ParseContext {
 
         @Override
         public IndexSettings indexSettings() {
-            return this.mappingLookup.getIndexSettings();
+            return this.indexSettings;
         }
 
         @Override
@@ -403,7 +409,7 @@ public abstract class ParseContext {
 
         @Override
         public IndexAnalyzers indexAnalyzers() {
-            return mappingLookup.getIndexAnalyzers();
+            return this.indexAnalyzers;
         }
 
         @Override

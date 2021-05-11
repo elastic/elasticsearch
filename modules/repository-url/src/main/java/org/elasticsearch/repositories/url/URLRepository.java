@@ -96,7 +96,7 @@ public class URLRepository extends BlobStoreRepository {
         this.environment = environment;
         supportedProtocols = SUPPORTED_PROTOCOLS_SETTING.get(environment.settings());
         urlWhiteList = ALLOWED_URLS_SETTING.get(environment.settings()).toArray(new URIPattern[]{});
-        basePath = BlobPath.cleanPath();
+        basePath = BlobPath.EMPTY;
         url = URL_SETTING.exists(metadata.settings())
             ? URL_SETTING.get(metadata.settings()) : REPOSITORIES_URL_SETTING.get(environment.settings());
 

@@ -75,6 +75,8 @@ buildScan {
       link 'CI Build', buildUrl
       link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
       value 'Job Number', buildNumber
+      tag System.getenv('JOB_BRANCH')
+      value 'Git Branch', System.getenv('JOB_BRANCH')
 
       System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
         value 'Jenkins Worker Label', it
@@ -84,18 +86,11 @@ buildScan {
       def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
       if (isPrBuild) {
         value 'Git Commit ID', System.getenv('ghprbActualCommit')
-        value 'Git Branch', System.getenv('ghprbTargetBranch')
-        tag System.getenv('ghprbTargetBranch')
         tag "pr/${System.getenv('ghprbPullId')}"
         tag 'pull-request'
         link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
         link 'Pull Request', System.getenv('ghprbPullLink')
       } else {
-        if (System.getenv('GIT_BRANCH')) {
-          def branch = System.getenv('GIT_BRANCH').split('/').last()
-          value 'Git Branch', branch
-          tag branch
-        }
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
       }

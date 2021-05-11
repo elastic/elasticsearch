@@ -13,7 +13,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
@@ -21,7 +21,7 @@ import java.util.Map;
 interface SignificantTermsAggregatorSupplier {
     Aggregator build(String name,
                      AggregatorFactories factories,
-                     ValuesSource valuesSource,
+                     ValuesSourceConfig valuesSourceConfig,
                      DocValueFormat format,
                      TermsAggregator.BucketCountThresholds bucketCountThresholds,
                      IncludeExclude includeExclude,

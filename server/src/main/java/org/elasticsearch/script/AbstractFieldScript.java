@@ -102,7 +102,7 @@ public abstract class AbstractFieldScript {
         return leafSearchLookup.doc();
     }
 
-    public final List<Object> extractFromSource(String path) {
+    protected final List<Object> extractFromSource(String path) {
         return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
     }
 

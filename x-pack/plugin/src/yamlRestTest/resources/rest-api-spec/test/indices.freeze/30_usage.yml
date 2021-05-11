@@ -10,7 +10,7 @@ setup:
 ---
 "Usage stats on frozen indices":
   - skip:
-      features: [ "allowed_warnings" ]
+      features: [ "warnings" ]
       version: " - 7.3.99"
       reason:  "frozen indices have usage stats starting in version 7.4"
 
@@ -39,7 +39,7 @@ setup:
 
   # freeze index
   - do:
-      allowed_warnings:
+      warnings:
         - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
       indices.freeze:
         index: test

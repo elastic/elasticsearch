@@ -11,7 +11,7 @@ The Painless execute API runs a script and returns a result.
 [[painless-execute-api-desc]]
 ==== {api-description-title}
 Use this API to build and test scripts, such as when defining a script for a
-<<runtime,runtime field>>. This API requires very few dependencies, and is
+{ref}/runtime.html[runtime field]. This API requires very few dependencies, and is
 especially useful if you don't have permissions to write documents on a cluster.
 
 The API uses several _contexts_, which control how scripts are executed, what
@@ -376,7 +376,7 @@ POST /_scripts/painless/_execute
 
 [[painless-runtime-double-request]]
 ===== `double_field` request
-Use the `double_field` runtime context for <<numeric,numeric data>> of type
+Use the `double_field` runtime context for {ref}/number.html[numeric data] of type
 `double`. For example, let's say you have sensor data that includes a `voltage`
 field with values like 5.6. You need to multiply this value, but only for
 sensors that match a specific model number.
@@ -453,7 +453,7 @@ the original value of `5.6` by `1.7`:
 
 [[painless-runtime-geo-request]]
 ===== `geo_point_field` request
-<<geo-point,Geo point>> fields accept latitude-longitude pairs. You can define a
+{ref}/geo-point.html[Geo point] fields accept latitude-longitude pairs. You can define a
 geo-point field in several ways, and include values for latitude and longitude
 in the document for your script.
 
@@ -524,7 +524,7 @@ results that are formatted as `coordinates`.
 [[painless-runtime-ip-request]]
 ===== `ip_field` request
 The `ip_field` context is useful for data that includes IP addresses of type
-<<ip,`ip`>>. For example, let's say you have a `message` field from an Apache
+{ref}/ip.html[`ip`]. For example, let's say you have a `message` field from an Apache
 log. This field contains an IP address, but also other data that you don't need. 
 
 You can add the `message` field to your index mappings as a `wildcard` to accept
@@ -589,7 +589,7 @@ The response includes only the IP address, ignoring all of the other data in the
 
 [[painless-runtime-keyword-request]]
 ===== `keyword_field` request
-<<keyword,Keyword fields>> are often used in sorting, aggregations, and
+{ref/keyword.html}[Keyword fields] are often used in sorting, aggregations, and
 term-level queries.
 
 Let's say you have a timestamp. You want to calculate the day of the week based

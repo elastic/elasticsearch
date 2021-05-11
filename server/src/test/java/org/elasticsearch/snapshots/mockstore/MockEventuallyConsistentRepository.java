@@ -34,6 +34,7 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -67,8 +68,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final RecoverySettings recoverySettings,
         final Context context,
         final Random random) {
-        super(metadata, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings,
-                BlobPath.cleanPath());
+        super(metadata, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings, BlobPath.EMPTY);
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;
@@ -230,12 +230,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+            public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
                 ensureNotClosed();
                 synchronized (context.actions) {
-                    for (String blobName : blobNames) {
-                        context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
-                    }
+                    blobNames.forEachRemaining(blobName ->
+                            context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName)));
                 }
             }
 

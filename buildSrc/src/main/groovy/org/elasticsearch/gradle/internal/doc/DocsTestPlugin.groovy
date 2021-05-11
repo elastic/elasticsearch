@@ -9,7 +9,7 @@ package org.elasticsearch.gradle.internal.doc
 
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.VersionProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.file.Directory
@@ -23,7 +23,7 @@ class DocsTestPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        project.pluginManager.apply('elasticsearch.testclusters')
+        project.pluginManager.apply('elasticsearch.internal-testclusters')
         project.pluginManager.apply('elasticsearch.standalone-rest-test')
         project.pluginManager.apply('elasticsearch.rest-test')
 

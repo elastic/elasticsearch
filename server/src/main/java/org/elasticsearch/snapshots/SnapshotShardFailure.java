@@ -31,8 +31,8 @@ import java.util.Objects;
 public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Nullable
-    private String nodeId;
-    private ShardId shardId;
+    private final String nodeId;
+    private final ShardId shardId;
 
     SnapshotShardFailure(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
@@ -76,6 +76,10 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Nullable
     public String nodeId() {
         return nodeId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
     }
 
     @Override
@@ -151,7 +155,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("index", shardId.getIndexName());
-        builder.field("index_uuid", shardId.getIndexName());
+        builder.field("index_uuid", shardId.getIndex().getUUID());
         builder.field("shard_id", shardId.id());
         builder.field("reason", reason);
         if (nodeId != null) {
@@ -167,9 +171,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotShardFailure that = (SnapshotShardFailure) o;
-        // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
-        return shardId.id() == that.shardId.id() &&
-            shardId.getIndexName().equals(shardId.getIndexName()) &&
+        return shardId.equals(that.shardId) &&
             Objects.equals(reason, that.reason) &&
             Objects.equals(nodeId, that.nodeId) &&
             status.getStatus() == that.status.getStatus();
@@ -177,7 +179,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Override
     public int hashCode() {
-        // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
-        return Objects.hash(shardId.id(), shardId.getIndexName(), reason, nodeId, status.getStatus());
+        return Objects.hash(shardId, reason, nodeId, status.getStatus());
     }
 }

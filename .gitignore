@@ -59,8 +59,10 @@ eclipse-build
 # projects using testfixtures
 testfixtures_shared/
 
-# These are generated from .ci/jobs.t
+# These are generated from .ci/jobs.t, .ci/templates.t and .ci/views.t
 .ci/jobs/
+.ci/templates/
+.ci/views/
 
 # Generated
 checkstyle_ide.xml

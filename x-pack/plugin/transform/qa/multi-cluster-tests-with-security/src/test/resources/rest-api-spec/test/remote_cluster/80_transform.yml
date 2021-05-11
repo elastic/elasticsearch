@@ -127,7 +127,7 @@ teardown:
   - do:
       search:
         rest_total_hits_as_int: true
-        index: test_index_2
+        index: remote_test_index_2
         body:
           aggs:
             user:

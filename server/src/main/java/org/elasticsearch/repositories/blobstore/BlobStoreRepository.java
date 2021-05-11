@@ -514,7 +514,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         changedSettingNames.addAll(updatedSettings.keySet());
         changedSettingNames.removeAll(ignoredSettings);
         changedSettingNames.removeIf(setting -> Objects.equals(current.get(setting), updatedSettings.get(setting)));
-        return DYNAMIC_SETTING_NAMES.containsAll(changedSettingNames);
+        changedSettingNames.removeAll(DYNAMIC_SETTING_NAMES);
+        return changedSettingNames.isEmpty();
     }
 
     // Inspects all cluster state elements that contain a hint about what the current repository generation is and updates

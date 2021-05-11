@@ -10,6 +10,7 @@ buildScan {
   String buildUrl = System.getenv('BUILD_URL')
   String jobName = System.getenv('JOB_NAME')
   String nodeName = System.getenv('NODE_NAME')
+  String jobBranch = System.getenv('JOB_BRANCH')
 
   // Automatically publish scans from Elasticsearch CI
   if (jenkinsUrl?.host?.endsWith('elastic.co')) {
@@ -52,8 +53,10 @@ buildScan {
     link 'CI Build', buildUrl
     link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
     value 'Job Number', buildNumber
-    value 'Git Branch', System.getenv('JOB_BRANCH')
-    tag System.getenv('JOB_BRANCH')
+    if (jobBranch) {
+      value 'Git Branch', jobBranch
+      tag jobBranch
+    }
 
     System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
       value 'Jenkins Worker Label', it

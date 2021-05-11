@@ -161,7 +161,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         GeoBoundingBox bbox = resolveGeoBoundingBox();
         if (bbox != null) {
-            bbox.toXContent(builder, params);
+            builder.field(GeoBoundingBox.BOUNDS_FIELD.getPreferredName(), bbox.toXContent(builder, params));
         }
         return builder;
     }

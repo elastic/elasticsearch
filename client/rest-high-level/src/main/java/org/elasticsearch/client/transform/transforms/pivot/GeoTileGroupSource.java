@@ -90,7 +90,7 @@ public class GeoTileGroupSource extends SingleGroupSource implements ToXContentO
             builder.field(PRECISION.getPreferredName(), precision);
         }
         if (geoBoundingBox != null) {
-            geoBoundingBox.toXContent(builder, params);
+            builder.field(GeoBoundingBox.BOUNDS_FIELD.getPreferredName(), geoBoundingBox.toXContent(builder, params));
         }
         builder.endObject();
         return builder;

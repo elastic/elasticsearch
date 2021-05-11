@@ -53,6 +53,14 @@ class org.elasticsearch.common.geo.GeoPoint {
   double getLon()
 }
 
+class org.elasticsearch.common.geo.GeoBoundingBox {
+  double top()
+  double bottom()
+  double left()
+  double right()
+}
+
+
 class org.elasticsearch.index.fielddata.ScriptDocValues$Strings {
   String get(int)
   String getValue()
@@ -149,10 +157,8 @@ class org.elasticsearch.index.fielddata.ScriptDocValues$Doubles {
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$Geometry {
-        double getCentroidLat();
-        double getCentroidLon();
-        double width();
-        double height();
+  org.elasticsearch.common.geo.GeoPoint getCentroid()
+  org.elasticsearch.common.geo.GeoBoundingBox getBoundingBox()
 }
 
 class org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints {

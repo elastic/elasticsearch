@@ -12,6 +12,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
@@ -248,20 +249,19 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
     }
 
     public abstract static class Geometry<T> extends ScriptDocValues<T> {
-        /** Centroid latitude */
-        public abstract double getCentroidLat();
-        /** Centroid longitude */
-        public abstract double getCentroidLon();
-        /** width of the geometry in degrees */
-        public abstract double width();
-        /** height of the geometry in degrees */
-        public abstract double height();
+        /** Returns the centroid of this geometry  */
+        public abstract GeoPoint getCentroid();
+        /** Returns the bounding box of this geometry  */
+        public abstract GeoBoundingBox getBoundingBox();
+
     }
 
     public static final class GeoPoints extends Geometry<GeoPoint> {
 
         private final MultiGeoPointValues in;
         private GeoPoint[] values = new GeoPoint[0];
+        private final GeoPoint centroid = new GeoPoint();
+        private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
         private int count;
 
         public GeoPoints(MultiGeoPointValues in) {
@@ -272,10 +272,25 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
+                double centroidLat = 0;
+                double centroidLon = 0;
+                double maxLon = Double.NEGATIVE_INFINITY;
+                double minLon = Double.POSITIVE_INFINITY;
+                double maxLat = Double.NEGATIVE_INFINITY;
+                double minLat = Double.POSITIVE_INFINITY;
                 for (int i = 0; i < count; i++) {
                     GeoPoint point = in.nextValue();
-                    values[i] = new GeoPoint(point.lat(), point.lon());
+                    values[i].reset(point.lat(), point.lon());
+                    centroidLat += point.getLat();
+                    centroidLon += point.getLon();
+                    maxLon = Math.max(maxLon, values[i].getLon());
+                    minLon = Math.min(minLon, values[i].getLon());
+                    maxLat = Math.max(maxLat, values[i].getLat());
+                    minLat = Math.min(minLat, values[i].getLat());
                 }
+                centroid.reset(centroidLat / count, centroidLon / count);
+                boundingBox.topLeft().reset(maxLat, minLon);
+                boundingBox.bottomRight().reset(minLat, maxLon);
             } else {
                 resize(0);
             }
@@ -291,7 +306,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 int oldLength = values.length;
                 values = ArrayUtil.grow(values, count);
                 for (int i = oldLength; i < values.length; ++i) {
-                values[i] = new GeoPoint();
+                    values[i] = new GeoPoint();
                 }
             }
         }
@@ -377,59 +392,13 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public double getCentroidLat() {
-            if (count == 1) {
-                return getLat();
-            } else {
-                double centroidLat = 0;
-                for (int i = 0; i < count; i++) {
-                    centroidLat += values[i].getLat();
-                }
-                return centroidLat / count;
-            }
+        public GeoPoint getCentroid() {
+            return centroid;
         }
 
         @Override
-        public double getCentroidLon() {
-            if (count == 1) {
-                return getLon();
-            } else {
-                double centroidLat = 0;
-                for (int i = 0; i < count; i++) {
-                    centroidLat += values[i].getLon();
-                }
-                return centroidLat / count;
-            }
-        }
-
-        @Override
-        public double width() {
-            if (count == 1) {
-                return 0;
-            } else {
-                double maxLon = Double.NEGATIVE_INFINITY;
-                double minLon = Double.POSITIVE_INFINITY;
-                for (int i = 0; i < count; i++) {
-                    maxLon = Math.max(maxLon, values[i].getLon());
-                    minLon = Math.min(minLon, values[i].getLon());
-                }
-                return maxLon - minLon;
-            }
-        }
-
-        @Override
-        public double height() {
-            if (count == 1) {
-                return 0;
-            } else {
-                double maxLat = Double.NEGATIVE_INFINITY;
-                double minLat = Double.POSITIVE_INFINITY;
-                for (int i = 0; i < count; i++) {
-                    maxLat = Math.max(maxLat, values[i].getLat());
-                    minLat = Math.min(minLat, values[i].getLat());
-                }
-                return maxLat - minLat;
-            }
+        public GeoBoundingBox getBoundingBox() {
+          return boundingBox;
         }
     }
 

@@ -201,7 +201,7 @@ public abstract class GeoGridAggregationBuilder extends ValuesSourceAggregationB
             builder.field(FIELD_SHARD_SIZE.getPreferredName(), shardSize);
         }
         if (geoBoundingBox.isUnbounded() == false) {
-            geoBoundingBox.toXContent(builder, params);
+            builder.field(GeoBoundingBox.BOUNDS_FIELD.getPreferredName(), geoBoundingBox.toXContent(builder, params));
         }
         return builder;
     }

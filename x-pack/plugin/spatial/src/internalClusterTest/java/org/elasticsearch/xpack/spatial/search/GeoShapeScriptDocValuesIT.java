@@ -17,6 +17,8 @@ package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -61,16 +63,33 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("lat", vars -> script(vars, ScriptDocValues.Geometry::getCentroidLat));
-            scripts.put("lon", vars -> script(vars, ScriptDocValues.Geometry::getCentroidLon));
-            scripts.put("height", vars -> script(vars, ScriptDocValues.Geometry::height));
-            scripts.put("width", vars -> script(vars, ScriptDocValues.Geometry::width));
+            scripts.put("lat", vars -> scriptLat(vars, ScriptDocValues.Geometry::getCentroid));
+            scripts.put("lon", vars -> scriptLon(vars, ScriptDocValues.Geometry::getCentroid));
+            scripts.put("height", vars -> scriptHeight(vars, ScriptDocValues.Geometry::getBoundingBox));
+            scripts.put("width", vars -> scriptWidth(vars, ScriptDocValues.Geometry::getBoundingBox));
             return scripts;
         }
 
-        static Double script(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, Double> distance) {
-            Map<?, ?> doc = (Map) vars.get("doc");
-            return distance.apply((ScriptDocValues.Geometry<?>) doc.get("location"));
+        static Double scriptHeight(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoBoundingBox> bbox) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            GeoBoundingBox boundingBox = bbox.apply((ScriptDocValues.Geometry<?>) doc.get("location"));
+            return boundingBox.top() - boundingBox.bottom();
+        }
+
+        static Double scriptWidth(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoBoundingBox> bbox) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            GeoBoundingBox boundingBox = bbox.apply((ScriptDocValues.Geometry<?>) doc.get("location"));
+            return boundingBox.right() - boundingBox.left();
+        }
+
+        static Double scriptLat(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoPoint> centroid) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            return centroid.apply((ScriptDocValues.Geometry<?>) doc.get("location")).lat();
+        }
+
+        static Double scriptLon(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoPoint> centroid) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            return centroid.apply((ScriptDocValues.Geometry<?>) doc.get("location")).lon();
         }
     }
 

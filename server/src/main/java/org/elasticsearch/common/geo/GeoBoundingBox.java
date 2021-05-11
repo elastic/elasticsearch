@@ -88,7 +88,7 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(BOUNDS_FIELD.getPreferredName());
+        builder.startObject();
         toXContentFragment(builder, true);
         builder.endObject();
         return builder;

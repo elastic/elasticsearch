@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -56,6 +58,8 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
     private static final class GeoShapeScriptValues extends ScriptDocValues.Geometry<GeoShapeValues.GeoShapeValue> {
 
         private final GeoShapeValues in;
+        private final GeoPoint centroid = new GeoPoint();
+        private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
         private GeoShapeValues.GeoShapeValue value;
 
         private GeoShapeScriptValues(GeoShapeValues in) {
@@ -64,27 +68,24 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public void setNextDocId(int docId) throws IOException {
-            value = in.advanceExact(docId) ? in.value() : null;
+            if (in.advanceExact(docId)) {
+                value = in.value();
+                centroid.reset(value.lat(), value.lon());
+                boundingBox.topLeft().reset(value.boundingBox().maxY(), value.boundingBox().minX());
+                boundingBox.bottomRight().reset(value.boundingBox().minY(), value.boundingBox().maxX());
+            } else {
+                value = null;
+            }
         }
 
         @Override
-        public double getCentroidLat() {
-            return value.lat();
+        public GeoPoint getCentroid() {
+            return centroid;
         }
 
         @Override
-        public double getCentroidLon() {
-            return value.lon();
-        }
-
-        @Override
-        public double width() {
-            return value.boundingBox().maxX() - value.boundingBox().minX();
-        }
-
-        @Override
-        public double height() {
-            return value.boundingBox().maxY() - value.boundingBox().minY();
+        public GeoBoundingBox getBoundingBox() {
+            return boundingBox;
         }
 
         @Override
@@ -94,7 +95,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public int size() {
-            return 1;
+            return value == null ? 0 : 1;
         }
     }
 }

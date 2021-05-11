@@ -18,6 +18,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -128,7 +129,7 @@ public final class DataStreamTestHelper {
     public static DataStreamAlias randomAliasInstance() {
         return new DataStreamAlias(
             randomAlphaOfLength(5),
-            List.of(generateRandomStringArray(5, 5, false))
+            Arrays.asList(generateRandomStringArray(5, 5, false))
         );
     }
 

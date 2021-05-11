@@ -19,6 +19,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -40,9 +43,9 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     private final String name;
     private final List<String> dataStreams;
 
-    public DataStreamAlias(String name, List<String> dataStreams) {
+    public DataStreamAlias(String name, Collection<String> dataStreams) {
         this.name = Objects.requireNonNull(name);
-        this.dataStreams = List.copyOf(dataStreams);
+        this.dataStreams = Collections.unmodifiableList(new ArrayList<>(dataStreams));
     }
 
     public DataStreamAlias(StreamInput in) throws IOException {

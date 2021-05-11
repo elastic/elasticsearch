@@ -1231,7 +1231,8 @@ public class MetadataTests extends ESTestCase {
                 indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
             }
         }
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(org.elasticsearch.common.collect.Map.of(dataStreamName, dataStream), Map.of());
+        DataStreamMetadata dataStreamMetadata =
+            new DataStreamMetadata(org.elasticsearch.common.collect.Map.of(dataStreamName, dataStream), Collections.emptyMap());
 
         // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
         // data stream backing indices naming pattern, indices are already in the system

@@ -625,12 +625,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (writeIndex == null) {
             throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
         }
-        AliasMetadata writeIndexAliasMetadata = writeIndex.getAliases().get(result.getName());
-        if (writeIndexAliasMetadata != null) {
-            return resolveRouting(routing, aliasOrIndex, writeIndexAliasMetadata);
-        } else {
-            return routing;
+        AliasMetadata aliasMd = writeIndex.getAliases().get(result.getName());
+        if (aliasMd.indexRouting() != null) {
+            if (aliasMd.indexRouting().indexOf(',') != -1) {
+                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value ["
+                    + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
+            }
+            if (routing != null) {
+                if (routing.equals(aliasMd.indexRouting()) == false) {
+                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it ["
+                        + aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
+                }
+            }
+            // Alias routing overrides the parent routing (if any).
+            return aliasMd.indexRouting();
         }
+        return routing;
     }
 
     /**
@@ -1308,14 +1318,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             DataStreamAlias alias = dataStreamAliases.get(name);
             if (alias == null) {
-                alias = new DataStreamAlias(name, List.of(dataStream));
+                alias = new DataStreamAlias(name, Collections.singletonList(dataStream));
             } else {
                 Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
                 boolean added = dataStreams.add(dataStream);
                 if (added == false) {
                     return false;
                 }
-                alias = new DataStreamAlias(name, List.copyOf(dataStreams));
+                alias = new DataStreamAlias(name, dataStreams);
             }
             dataStreamAliases.put(name, alias);
 
@@ -1337,14 +1347,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             Set<String> aliasesToDelete = new HashSet<>();
             List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
-            for (var alias : existingDataStreamAliases.values()) {
+            for (DataStreamAlias alias : existingDataStreamAliases.values()) {
                 Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
                 if (dataStreams.contains(name)) {
                     dataStreams.remove(name);
                     if (dataStreams.isEmpty()) {
                         aliasesToDelete.add(alias.getName());
                     } else {
-                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams)));
+                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), dataStreams));
                     }
                 }
             }
@@ -1377,7 +1387,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 dataStreamAliases.remove(aliasName);
             } else {
                 dataStreamAliases.put(aliasName,
-                    new DataStreamAlias(existing.getName(), List.copyOf(dataStreams)));
+                    new DataStreamAlias(existing.getName(), dataStreams));
             }
 
             Map<String, DataStream> existingDataStream =

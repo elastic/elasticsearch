@@ -134,7 +134,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final var entry : responseAliasMap) {
+            for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : responseAliasMap) {
                 if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
                     builder.startObject(entry.key);
                     {
@@ -149,7 +149,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     builder.endObject();
                 }
             }
-            for (var entry : dataStreamAliases.entrySet()) {
+            for (Map.Entry<String, List<DataStreamAlias>> entry : dataStreamAliases.entrySet()) {
                 builder.startObject(entry.getKey());
                 {
                     builder.startObject("aliases");

@@ -504,10 +504,10 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
     }
 
     public void testDataStreamAliases() {
-        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(
-            new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), List.of());
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(Arrays.asList(
+            new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), Collections.emptyList());
 
-        ClusterState result = service.applyAliasActions(state, List.of(
+        ClusterState result = service.applyAliasActions(state, org.elasticsearch.common.collect.List.of(
             new AliasAction.AddDataStreamAlias("foobar", "logs-foobar"),
             new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar")
         ));
@@ -515,13 +515,13 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(),
             containsInAnyOrder("logs-foobar", "metrics-foobar"));
 
-        result = service.applyAliasActions(result, List.of(
+        result = service.applyAliasActions(result, Collections.singletonList(
             new AliasAction.RemoveDataStreamAlias("foobar", "logs-foobar", null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
         assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(), containsInAnyOrder("metrics-foobar"));
 
-        result = service.applyAliasActions(result, List.of(
+        result = service.applyAliasActions(result, Collections.singletonList(
             new AliasAction.RemoveDataStreamAlias("foobar", "metrics-foobar", null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("foobar"), nullValue());

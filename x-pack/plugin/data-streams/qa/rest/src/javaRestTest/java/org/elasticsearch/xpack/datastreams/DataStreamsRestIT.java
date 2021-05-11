@@ -15,9 +15,11 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,10 +45,10 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
-        assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
-        assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.template", dataStreams));
-        assertEquals(Collections.singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
-        assertEquals(Collections.singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
+        assertEquals(singletonList("hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        assertEquals(singletonList("hidden"), XContentMapValues.extractValue("data_streams.template", dataStreams));
+        assertEquals(singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
+        assertEquals(singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
 
         Request searchRequest = new Request("GET", "/hidd*/_search");
         response = client().performRequest(searchRequest);
@@ -73,10 +75,10 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
-        assertEquals(Collections.singletonList(".hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
-        assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.template", dataStreams));
-        assertEquals(Collections.singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
-        assertEquals(Collections.singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
+        assertEquals(singletonList(".hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        assertEquals(singletonList("hidden"), XContentMapValues.extractValue("data_streams.template", dataStreams));
+        assertEquals(singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
+        assertEquals(singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
 
         Request searchRequest = new Request("GET", "/.hidd*/_search");
         response = client().performRequest(searchRequest);
@@ -115,8 +117,8 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request getAliasesRequest = new Request("GET", "/_aliases");
         Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
         assertThat(getAliasesResponse.keySet(), containsInAnyOrder("logs-myapp1", "logs-myapp2"));
-        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
-        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
 
         Request searchRequest = new Request("GET", "/logs/_search");
         Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
@@ -130,8 +132,8 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         getAliasesRequest = new Request("GET", "/_aliases");
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
         expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/logs/_search")));
 
         // Add logs-* -> logs
@@ -141,8 +143,8 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         getAliasesRequest = new Request("GET", "/_aliases");
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
-        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
-        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
 
         searchRequest = new Request("GET", "/logs/_search");
         searchResponse = entityAsMap(client().performRequest(searchRequest));
@@ -155,8 +157,8 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         getAliasesRequest = new Request("GET", "/_aliases");
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
         expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/logs/_search")));
     }
 
@@ -182,8 +184,8 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         Request getAliasesRequest = new Request("GET", "/logs-*/_alias");
         Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
-        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
-        assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
 
         Exception e = expectThrows(ResponseException.class, () -> client().performRequest(new Request("DELETE", "/_data_stream/logs")));
         assertThat(e.getMessage(), containsString("The provided expression [logs] matches an alias, " +
@@ -193,6 +195,6 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_data_stream/logs-nasa")));
 
         getAliasesRequest = new Request("GET", "/logs-*/_alias");
-        assertThat(entityAsMap(client().performRequest(getAliasesRequest)), equalTo(Map.of()));
+        assertThat(entityAsMap(client().performRequest(getAliasesRequest)), equalTo(emptyMap()));
     }
 }

@@ -41,7 +41,7 @@ public class DataStreamMetadata implements Metadata.Custom {
             Map<String, DataStream> dataStreams = (Map<String, DataStream>) args[0];
             Map<String, DataStreamAlias> dataStreamAliases = (Map<String, DataStreamAlias>) args[1];
             if (dataStreamAliases == null) {
-                dataStreamAliases = Map.of();
+                dataStreamAliases = Collections.emptyMap();
             }
             return new DataStreamMetadata(dataStreams, dataStreamAliases);
     });
@@ -65,7 +65,7 @@ public class DataStreamMetadata implements Metadata.Custom {
         }, DATA_STREAM_ALIASES);
     }
 
-    public static final Version DATA_STREAM_ALIAS_VERSION = Version.V_8_0_0;
+    public static final Version DATA_STREAM_ALIAS_VERSION = Version.V_7_14_0;
 
     private final Map<String, DataStream> dataStreams;
     private final Map<String, DataStreamAlias> dataStreamAliases;
@@ -73,12 +73,12 @@ public class DataStreamMetadata implements Metadata.Custom {
     public DataStreamMetadata(Map<String, DataStream> dataStreams,
                               Map<String, DataStreamAlias> dataStreamAliases) {
         this.dataStreams = Collections.unmodifiableMap(new HashMap<>(dataStreams));
-        this.dataStreamAliases = Map.copyOf(dataStreamAliases);
+        this.dataStreamAliases = Collections.unmodifiableMap(new HashMap<>(dataStreamAliases));
     }
 
     public DataStreamMetadata(StreamInput in) throws IOException {
         this(in.readMap(StreamInput::readString, DataStream::new), in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION) ?
-            in.readMap(StreamInput::readString, DataStreamAlias::new) : Map.of());
+            in.readMap(StreamInput::readString, DataStreamAlias::new) : Collections.emptyMap());
     }
 
     public Map<String, DataStream> dataStreams() {
@@ -190,7 +190,8 @@ public class DataStreamMetadata implements Metadata.Custom {
         public Metadata.Custom apply(Metadata.Custom part) {
             return new DataStreamMetadata(
                 dataStreamDiff.apply(((DataStreamMetadata) part).dataStreams),
-                dataStreamAliasDiff != null ? dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases) : Map.of()
+                dataStreamAliasDiff != null ? dataStreamAliasDiff.apply(((DataStreamMetadata) part).dataStreamAliases) :
+                    Collections.emptyMap()
             );
         }
 

@@ -163,7 +163,7 @@ public class DeploymentManager {
         }
     }
 
-    public void infer(TrainedModelDeploymentTask task, String inputs, ActionListener<InferenceResults> listener) {
+    public void infer(TrainedModelDeploymentTask task, String input, ActionListener<InferenceResults> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
 
         final String requestId = String.valueOf(requestIdCounter.getAndIncrement());
@@ -179,8 +179,8 @@ public class DeploymentManager {
                 try {
                     NlpPipeline.Processor processor = processContext.pipeline.get().createProcessor();
 
-                    logger.info("tokenizing input [{}]",  inputs);
-                    BytesReference request = processor.getRequestBuilder().buildRequest(inputs, requestId);
+                    logger.info("tokenizing input [{}]",  input);
+                    BytesReference request = processor.getRequestBuilder().buildRequest(requestId, input);
                     logger.info("Inference Request "+ request.utf8ToString());
                     processContext.process.get().writeInferenceRequest(request);
 

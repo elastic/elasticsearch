@@ -12,15 +12,28 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class NerResult implements InferenceResults {
 
     public String NAME = "ner_result";
 
+    private final List<EntityGroup> entityGroups;
+
+    public NerResult(List<EntityGroup> entityGroups) {
+        this.entityGroups = Objects.requireNonNull(entityGroups);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        builder.startArray();
+        for (EntityGroup entity : entityGroups) {
+            entity.toXContent(builder, params);
+        }
+        builder.endArray();
+        return builder;
     }
 
     @Override
@@ -30,7 +43,7 @@ public class NerResult implements InferenceResults {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
+        out.writeList(entityGroups);
     }
 
     @Override
@@ -43,5 +56,9 @@ public class NerResult implements InferenceResults {
     public Object predictedValue() {
         // TODO required for Ingest Pipelines
         return null;
+    }
+
+    List<EntityGroup> getEntityGroups() {
+        return entityGroups;
     }
 }

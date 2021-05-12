@@ -8,24 +8,34 @@
 package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Locale;
 
 public class NerProcessor extends NlpPipeline.Processor {
 
-    public enum Entity {
-        NONE, MISC, PERSON, ORGANISATION, LOCATION
+    public enum Entity implements Writeable {
+        NONE, MISC, PERSON, ORGANISATION, LOCATION;
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
     // Inside-Outside-Beginning (IOB) tag
-    private enum IobTag {
+    enum IobTag {
         O(Entity.NONE),                 // Outside of a named entity
         B_MISC(Entity.MISC),            // Beginning of a miscellaneous entity right after another miscellaneous entity
         I_MISC(Entity.MISC),            // Miscellaneous entity
@@ -45,6 +55,10 @@ public class NerProcessor extends NlpPipeline.Processor {
         Entity getEntity() {
             return entity;
         }
+
+        boolean isBeginning() {
+            return name().toLowerCase(Locale.ROOT).startsWith("b");
+        }
     }
 
 
@@ -55,13 +69,8 @@ public class NerProcessor extends NlpPipeline.Processor {
         this.tokenizer = tokenizer;
     }
 
-    private NerResult processResult(PyTorchResult pyTorchResult) {
-        List<IobTag> tags = toClassification(pyTorchResult);
-        return labelInputs(tags, tokenization);
-    }
-
-    private BytesReference buildRequest(String requestId, String inputs) throws IOException {
-        tokenization = tokenizer.tokenize(inputs, true);
+    private BytesReference buildRequest(String requestId, String input) throws IOException {
+        tokenization = tokenizer.tokenize(input, true);
         return jsonRequest(tokenization.getTokenIds(), requestId);
     }
 
@@ -72,41 +81,7 @@ public class NerProcessor extends NlpPipeline.Processor {
 
     @Override
     public NlpPipeline.ResultProcessor getResultProcessor() {
-        return this::processResult;
-    }
-
-    private NerResult labelInputs(List<IobTag> tags, BertTokenizer.TokenizationResult tokenization) {
-        // TODO. The subword tokenisation means that words may have been split.
-        // Split tokens need to be reassembled into the original text.
-        // Each IOB tag maps to a split token, where a single word has
-        // more than one token we need a method to resolve a single IOB
-        // token type for the word. There are numerous ways to do this:
-        // pick the first token, take the most common token or take the
-        // IOB token with the highest probability.
-        // For example Elasticsearch maybe split Elastic and ##search with
-        // the tokens I-ORG and O
-        return null;
-    }
-
-    private List<IobTag> toClassification(PyTorchResult pyTorchResult) {
-        List<IobTag> tags = new ArrayList<>(pyTorchResult.getInferenceResult().length);
-        IobTag[] enumMap = IobTag.values();
-        for (double[] arr : pyTorchResult.getInferenceResult()) {
-            int ordinalValue = argmax(arr);
-            assert ordinalValue < IobTag.values().length;
-            tags.add(enumMap[argmax(arr)]);
-        }
-        return tags;
-    }
-
-    private static int argmax(double[] arr) {
-        int greatest = 0;
-        for (int i=1; i<arr.length; i++) {
-            if (arr[i] > arr[greatest]) {
-                greatest = i;
-            }
-        }
-        return greatest;
+        return new NerResultProcessor(tokenization);
     }
 
     static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {

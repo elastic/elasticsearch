@@ -309,7 +309,7 @@ teardown:
             "dest": { "index": "simple-remote-transform" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
-              "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }
 
@@ -325,7 +325,7 @@ teardown:
             "dest": { "index": "simple-remote-transform-2" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
-              "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }
   - match: { acknowledged: true }
@@ -352,7 +352,7 @@ teardown:
             "dest": { "index": "simple-remote-transform-2" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
-              "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }
   - do:
@@ -364,6 +364,6 @@ teardown:
             "source": { "index": "my_remote_cluster:test_index" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
-              "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }

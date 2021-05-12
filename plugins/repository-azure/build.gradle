@@ -64,7 +64,7 @@ dependencies {
   // netty
   api "io.netty:netty-buffer:${versions.azureNetty}"
   api "io.netty:netty-codec:${versions.azureNetty}"
-  api "io.netty:netty-codec-dns:${versions.azureNetty}"
+  // NOTE: we omit codec-dns so it is not loaded, netty gracefully ignores...
   api "io.netty:netty-codec-http:${versions.azureNetty}"
   api "io.netty:netty-codec-http2:${versions.azureNetty}"
   api "io.netty:netty-codec-socks:${versions.azureNetty}"
@@ -72,10 +72,9 @@ dependencies {
   api "io.netty:netty-handler:${versions.azureNetty}"
   api "io.netty:netty-handler-proxy:${versions.azureNetty}"
   api "io.netty:netty-resolver:${versions.azureNetty}"
-  api "io.netty:netty-resolver-dns:${versions.azureNetty}"
-  api "io.netty:netty-resolver-dns-native-macos:${versions.azureNetty}"
+  // NOTE: we omit resolver implementations so they are not loaded, netty gracefully ignores...
   api "io.netty:netty-transport:${versions.azureNetty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.azureNetty}"
+  // NOTE: we omit transport implementations so they are not loaded, netty gracefully ignores...
 
   // reactor
   api "io.projectreactor.netty:reactor-netty:${versions.reactorNetty}"
@@ -284,7 +283,16 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.impl.StaticMDCBinder',
     'org.slf4j.impl.StaticMarkerBinder',
 
-    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver'
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
+
+    'io.netty.channel.unix.DomainSocketAddress',
+    'io.netty.channel.unix.DomainSocketChannel',
+    'io.netty.channel.unix.ServerDomainSocketChannel',
+    'io.netty.resolver.dns.DnsAddressResolverGroup',
+    'io.netty.resolver.dns.DnsNameResolverBuilder',
+    'io.netty.resolver.dns.DnsQueryLifecycleObserverFactory',
+    'io.netty.resolver.dns.LoggingDnsQueryLifeCycleObserverFactory',
+    'io.netty.resolver.dns.RoundRobinDnsAddressResolverGroup',
   )
 
   ignoreViolations(

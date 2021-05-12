@@ -1012,7 +1012,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public RefreshStats refreshStats() {
-        int listeners = refreshListeners.pendingCount();
+        int listeners = refreshListeners.pendingLocationListenerCount();
         return new RefreshStats(
             refreshMetric.count(),
             TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()),
@@ -1706,7 +1706,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void performRecoveryRestart() throws IOException {
         assert Thread.holdsLock(mutex) == false : "restart recovery under mutex";
         synchronized (engineMutex) {
-            assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
+            assert refreshListeners.pendingLocationListenerCount() == 0 : "we can't restart with pending listeners";
             IOUtils.close(currentEngineReference.getAndSet(null));
             resetRecoveryStage();
         }
@@ -3296,7 +3296,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private RefreshListeners buildRefreshListeners() {
         return new RefreshListeners(
             indexSettings::getMaxRefreshListeners,
-            () -> getEngine().getProcessedLocalCheckpoint(),
             () -> refresh("too_many_listeners"),
             logger, threadPool.getThreadContext(),
             externalRefreshMetric);
@@ -3468,7 +3467,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void addRefreshListener(long seqNo, ActionListener<Void> listener) {
-
+        final boolean readAllowed;
+        if (isReadAllowed()) {
+            readAllowed = true;
+        } else {
+            // check again under postRecoveryMutex. this is important to create a happens before relationship
+            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
+            // to a listener before a refresh actually happened that contained that operation.
+            synchronized (postRecoveryMutex) {
+                readAllowed = isReadAllowed();
+            }
+        }
+        if (readAllowed) {
+            refreshListeners.addOrNotify(seqNo, listener);
+        } else {
+            // we're not yet ready fo ready for reads, just ignore refresh cycles
+            listener.onFailure(new IllegalStateException("Read not allowed on IndexShard"));
+        }
     }
 
     private static class RefreshMetricUpdater implements ReferenceManager.RefreshListener {

@@ -8,8 +8,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.apache.commons.codec.binary.Hex;
-import org.elasticsearch.gradle.precommit.LicenseAnalyzer;
-import org.elasticsearch.gradle.precommit.LicenseAnalyzer.LicenseInfo;
+import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;

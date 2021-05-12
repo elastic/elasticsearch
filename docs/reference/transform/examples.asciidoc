@@ -11,11 +11,12 @@ from your data. All the examples use one of the
 {kibana-ref}/add-sample-data.html[{kib} sample datasets]. For a more detailed, 
 step-by-step example, see <<ecommerce-transforms>>.
 
-* <<example-best-customers>>
-* <<example-airline>>
-* <<example-clientips>>
-* <<example-last-log>>
-
+* <<example-best-customers>> 
+* <<example-airline>> 
+* <<example-clientips>> 
+* <<example-last-log>> 
+* <<example-bytes>> 
+* <<example-customer-names>>
 
 [[example-best-customers]]
 == Finding your best customers
@@ -344,18 +345,21 @@ This {transform} makes it easier to answer questions such as:
 
 This example uses the web log sample data set to find the last log from an IP 
 address. Let's use the `latest` type of {transform} in continuous mode. It 
-copies the most recent document for each unique key from the source index to the destination index
-and updates the destination index as new data comes into the source index. 
+copies the most recent document for each unique key from the source index to the 
+destination index and updates the destination index as new data comes into the 
+source index. 
 
 Pick the `clientip` field as the unique key; the data is grouped by this field. 
 Select `timestamp` as the date field that sorts the data chronologically. For 
 continuous mode, specify a date field that is used to identify new documents, 
 and an interval between checks for changes in the source index.
 
- Let's assume that we're interested in retaining documents only for IP addresses that appeared recently in the log. You can define a retention policy and specify a date field that is used to calculate 
-the age of a document. This example uses the same date field that is used to 
-sort the data. Then set the maximum age of a document; documents that are older 
-than the value you set will be removed from the destination index.
+Let's assume that we're interested in retaining documents only for IP addresses 
+that appeared recently in the log. You can define a retention policy and specify 
+a date field that is used to calculate the age of a document. This example uses 
+the same date field that is used to sort the data. Then set the maximum age of a 
+document; documents that are older than the value you set will be removed from 
+the destination index.
 
 This {transform} creates the destination index that contains the latest login 
 date for each client IP. As the {transform} runs in continuous mode, the 
@@ -483,3 +487,206 @@ The search result shows you data like this for each client IP:
 This {transform} makes it easier to answer questions such as:
 
 * What was the most recent log event associated with a specific IP address?
+
+
+[[example-bytes]]
+== Finding client IPs that sent the most bytes to the server
+
+This example uses the web log sample data set to find the client IP that sent 
+the most bytes to the server in every hour. The example uses a `pivot` 
+{transform} with a <<search-aggregations-metrics-top-metrics,`top_metrics`>> 
+aggregation.
+
+Group the data by a <<_date_histogram,date histogram>> on the time field with an 
+interval of one hour. Use a 
+<<search-aggregations-metrics-max-aggregation,max aggregation>> on the `bytes` 
+field to get the maximum amount of data that is sent to the server. Without 
+the `max` aggregation, the API call still returns the client IP that sent the 
+most bytes, however, the amount of bytes that it sent is not returned. In the 
+`top_metrics` property, specify `clientip` and `geo.src`, then sort them by the 
+`bytes` field in descending order. The {transform} returns the client IP that 
+sent the biggest amount of data and the 2-letter ISO code of the corresponding 
+location.
+
+[source,console]
+----------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_logs"
+  },
+  "pivot": {
+    "group_by": { <1>
+      "timestamp": {
+        "date_histogram": {
+          "field": "timestamp",
+          "fixed_interval": "1h"
+        }
+      }
+    },
+    "aggregations": {
+      "bytes.max": { <2>
+        "max": {
+          "field": "bytes"
+        }
+      },
+      "top": {
+        "top_metrics": { <3>
+          "metrics": [
+            {
+              "field": "clientip"
+            },
+            {
+              "field": "geo.src"
+            }
+          ],
+          "sort": {
+            "bytes": "desc"
+          }
+        }
+      }
+    }
+  }
+}
+----------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> The data is grouped by a date histogram of the time field with a one hour 
+interval.
+<2> Calculates the maximum value of the `bytes` field. 
+<3> Specifies the fields (`clientip` and `geo.src`) of the top document to 
+return and the sorting method (document with the highest `bytes` value).
+
+The API call above returns a response similar to this:
+
+[source,js]
+----------------------------------
+{
+  "preview" : [
+    {
+      "top" : {
+        "clientip" : "223.87.60.27",
+        "geo.src" : "IN"
+      },
+      "bytes" : {
+        "max" : 6219
+      },
+      "timestamp" : "2021-04-25T00:00:00.000Z"
+    },
+    {
+      "top" : {
+        "clientip" : "99.74.118.237",
+        "geo.src" : "LK"
+      },
+      "bytes" : {
+        "max" : 14113
+      },
+      "timestamp" : "2021-04-25T03:00:00.000Z"
+    },
+    {
+      "top" : {
+        "clientip" : "218.148.135.12",
+        "geo.src" : "BR"
+      },
+      "bytes" : {
+        "max" : 4531
+      },
+      "timestamp" : "2021-04-25T04:00:00.000Z"
+    },
+    ...
+  ]
+}
+----------------------------------
+// NOTCONSOLE
+
+[[example-customer-names]]
+== Getting customer name and email address by customer ID
+
+This example uses the ecommerce sample data set to create an entity-centric 
+index based on customer ID, and to get the customer name and email address by 
+using the `top_metrics` aggregation.
+
+Group the data by `customer_id`, then add a `top_metrics` aggregation where the 
+`metrics` are the `email`, the `customer_first_name.keyword`, and the 
+`customer_last_name.keyword` fields. Sort the `top_metrics` by `order_date` in 
+descending order. The API call looks like this:
+
+[source,console]
+----------------------------------
+POST _transform/_preview 
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce"
+  },
+  "pivot": {
+    "group_by": { <1>
+      "customer_id": {
+        "terms": {
+          "field": "customer_id"
+        }
+      }
+    },
+    "aggregations": {
+      "last": {
+        "top_metrics": { <2>
+          "metrics": [
+            {
+              "field": "email"
+            },
+            {
+              "field": "customer_first_name.keyword"
+            },
+            {
+              "field": "customer_last_name.keyword"
+            }
+          ],
+          "sort": {
+            "order_date": "desc"
+          }
+        }
+      }
+    }
+  }
+}
+----------------------------------
+// TEST[skip:setup kibana sample data]
+
+<1> The data is grouped by a `terms` aggregation on the `customer_id` field.
+<2> Specifies the fields to return (email and name fields) in a descending order 
+by the order date.
+
+The API returns a response that is similar to this:
+
+[source,js]
+----------------------------------
+ { 
+  "preview" : [
+    {
+      "last" : {
+        "customer_last_name.keyword" : "Long",
+        "customer_first_name.keyword" : "Recip",
+        "email" : "recip@long-family.zzz"
+      },
+      "customer_id" : "10"
+    },
+    {
+      "last" : {
+        "customer_last_name.keyword" : "Jackson",
+        "customer_first_name.keyword" : "Fitzgerald",
+        "email" : "fitzgerald@jackson-family.zzz"
+      },
+      "customer_id" : "11"
+    },
+    {
+      "last" : {
+        "customer_last_name.keyword" : "Cross",
+        "customer_first_name.keyword" : "Brigitte",
+        "email" : "brigitte@cross-family.zzz"
+      },
+      "customer_id" : "12"
+    },
+    ...
+  ]
+}
+----------------------------------
+// NOTCONSOLE

@@ -52,11 +52,6 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
     protected final String policyName = "frozen";
 
     @Override
-    protected boolean forceSingleDataPath() {
-        return true;
-    }
-
-    @Override
     protected boolean addMockInternalEngine() {
         return false;
     }

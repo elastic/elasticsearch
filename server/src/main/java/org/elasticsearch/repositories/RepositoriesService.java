@@ -173,7 +173,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    ensureRepositoryNotInUse(currentState, request.name());
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                     RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
@@ -184,8 +183,22 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 // Previous version is the same as this one no update is needed.
                                 return currentState;
                             }
+                            Repository existing = RepositoriesService.this.repositories.get(request.name());
+                            if (existing == null) {
+                                existing = RepositoriesService.this.internalRepositories.get(request.name());
+                            }
+                            assert existing != null : "repository [" + newRepositoryMetadata.name() + "] must exist";
+                            assert existing.getMetadata() == repositoryMetadata;
+                            final RepositoryMetadata updatedMetadata;
+                            if (canUpdateInPlace(newRepositoryMetadata, existing)) {
+                                // we're updating in place so the updated metadata must point at the same uuid and generations
+                                updatedMetadata = repositoryMetadata.withSettings(newRepositoryMetadata.settings());
+                            } else {
+                                ensureRepositoryNotInUse(currentState, request.name());
+                                updatedMetadata = newRepositoryMetadata;
+                            }
                             found = true;
-                            repositoriesMetadata.add(newRepositoryMetadata);
+                            repositoriesMetadata.add(updatedMetadata);
                         } else {
                             repositoriesMetadata.add(repositoryMetadata);
                         }
@@ -430,9 +443,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 Repository repository = survivors.get(repositoryMetadata.name());
                 if (repository != null) {
                     // Found previous version of this repository
-                    RepositoryMetadata previousMetadata = repository.getMetadata();
-                    if (previousMetadata.type().equals(repositoryMetadata.type()) == false
-                            || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
+                    if (canUpdateInPlace(repositoryMetadata, repository) == false) {
                         // Previous version is different from the version in settings
                         logger.debug("updating repository [{}]", repositoryMetadata.name());
                         closeRepository(repository);
@@ -467,6 +478,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             assert false : new AssertionError(ex);
             logger.warn("failure updating cluster state ", ex);
         }
+    }
+
+    private boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
+        assert updatedMetadata.name().equals(repository.getMetadata().name());
+        return repository.getMetadata().type().equals(updatedMetadata.type())
+                && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
     }
 
     /**

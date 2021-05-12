@@ -167,17 +167,11 @@ public class EsExecutors {
         }
     }
 
-    private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new DirectExecutorService();
-
     /**
-     * Returns an {@link ExecutorService} that executes submitted tasks on the current thread. This executor service does not support being
+     * {@link ExecutorService} that executes submitted tasks on the current thread. This executor service does not support being
      * shutdown.
-     *
-     * @return an {@link ExecutorService} that executes submitted tasks on the current thread
      */
-    public static ExecutorService newDirectExecutorService() {
-        return DIRECT_EXECUTOR_SERVICE;
-    }
+    public static final ExecutorService DIRECT_EXECUTOR_SERVICE = new DirectExecutorService();
 
     public static String threadName(Settings settings, String namePrefix) {
         if (Node.NODE_NAME_SETTING.exists(settings)) {

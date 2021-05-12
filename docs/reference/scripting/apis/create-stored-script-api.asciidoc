@@ -43,8 +43,8 @@ PUT _scripts/my-stored-script
 
 `<script-id>`::
 (Required, string)
-Name or identifier for the stored script or search template. Must be unique
-within the cluster.
+Identifier for the stored script or search template. Must be unique within the
+cluster.
 
 `<context>`::
 (Optional, string)

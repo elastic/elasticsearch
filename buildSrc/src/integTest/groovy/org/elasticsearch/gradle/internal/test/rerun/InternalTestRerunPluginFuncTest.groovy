@@ -95,7 +95,6 @@ Test jvm system exit trace:""") == false
         
         """
         createTest("AnotherTest")
-        createFailedTest("AnotherTest1")
         createTest("AnotherTest2")
         createTest("AnotherTest3")
         createTest("AnotherTest4")
@@ -103,7 +102,6 @@ Test jvm system exit trace:""") == false
         createSystemExitTest("AnotherTest6")
         createTest("AnotherTest7")
         createTest("AnotherTest8")
-        createFailedTest("AnotherTest9")
         createTest("AnotherTest10")
         createTest("SimpleTest")
         createTest("SimpleTest2")
@@ -124,6 +122,47 @@ Test jvm exited unexpectedly.
 Test jvm system exit trace (run: 1)
 Gradle Test Executor 1 > AnotherTest6 > someTest
 ================""")
+    }
+
+    def "rerun build fails due to any test failure"() {
+        when:
+        buildFile.text = """
+        plugins {
+          id 'java'
+          id 'elasticsearch.internal-test-rerun'
+        }
+
+        repositories {
+            mavenCentral()
+        }
+        
+        dependencies {
+            testImplementation 'junit:junit:4.13.1'
+        }
+        
+        tasks.named("test").configure {
+            maxParallelForks = 5
+            testLogging {
+                events "started", "passed", "standard_out", "failed"
+                exceptionFormat "short"
+            }
+        }
+        
+        """
+        createSystemExitTest("AnotherTest6")
+        createFailedTest("SimpleTest1")
+        createFailedTest("SimpleTest2")
+        createFailedTest("SimpleTest3")
+        createFailedTest("SimpleTest4")
+        createFailedTest("SimpleTest5")
+        createFailedTest("SimpleTest6")
+        createFailedTest("SimpleTest7")
+        createFailedTest("SimpleTest8")
+        createFailedTest("SimpleTest9")
+        then:
+        def result = gradleRunner("test").buildAndFail()
+        result.output.contains("AnotherTest6 total executions: 2")
+        result.output.contains("> There were failing tests. See the report at:")
     }
 
     def "reruns tests till max rerun count is reached"() {
@@ -156,13 +195,14 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
         createSystemExitTest("JdkKillingTest", 5)
         then:
         def result = gradleRunner("test").buildAndFail()
-        result.output.contains("JdkKillingTest total executions: 4")
+        result.output.contains("JdkKillingTest total executions: 5")
         result.output.contains("Max retries(4) hit")
         and: 'Tracing is provided'
         normalized(result.output).contains("Test jvm system exit trace (run: 1)")
         normalized(result.output).contains("Test jvm system exit trace (run: 2)")
         normalized(result.output).contains("Test jvm system exit trace (run: 3)")
         normalized(result.output).contains("Test jvm system exit trace (run: 4)")
+        normalized(result.output).contains("Test jvm system exit trace (run: 5)")
     }
 
     private String testMethodContent(boolean withSystemExit, boolean fail, int timesFailing = 1) {
@@ -179,6 +219,9 @@ Gradle Test Executor 1 > AnotherTest6 > someTest
 
             ${fail ? """
                     if(count <= ${timesFailing}) {
+                        try {
+                            Thread.sleep(2000);
+                        } catch(Exception e) {}
                         Assert.fail();
                     }
                     """ : ''

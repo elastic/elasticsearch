@@ -35,17 +35,10 @@ public final class MappingLookup {
     }
 
     /**
-     * A lookup representing an empty mapping.
+     * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
+     * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = new MappingLookup(
-        Mapping.EMPTY,
-        List.of(),
-        List.of(),
-        List.of(),
-        null,
-        null,
-        null
-    );
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), List.of());
 
     private final CacheKey cacheKey = new CacheKey();
 
@@ -57,15 +50,15 @@ public final class MappingLookup {
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
-    private final DocumentParser documentParser;
     private final Mapping mapping;
-    private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
 
-    public static MappingLookup fromMapping(Mapping mapping,
-                                            DocumentParser documentParser,
-                                            IndexSettings indexSettings,
-                                            IndexAnalyzers indexAnalyzers) {
+    /**
+     * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
+     *
+     * @param mapping the mapping source
+     * @return the newly created lookup instance
+     */
+    public static MappingLookup fromMapping(Mapping mapping) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -81,11 +74,7 @@ public final class MappingLookup {
             mapping,
             newFieldMappers,
             newObjectMappers,
-            newFieldAliasMappers,
-            documentParser,
-            indexSettings,
-            indexAnalyzers
-        );
+            newFieldAliasMappers);
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
@@ -106,17 +95,32 @@ public final class MappingLookup {
         }
     }
 
-    public MappingLookup(Mapping mapping,
+    /**
+     * Creates a new {@link MappingLookup} instance given the provided mappers and mapping.
+     * Note that the provided mappings are not re-parsed but only exposed as-is. No consistency is enforced between
+     * the provided mappings and set of mappers.
+     * This is a commodity method to be used in tests, or whenever no mappings are defined for an index.
+     * When creating a MappingLookup through this method, its exposed functionalities are limited as it does not
+     * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
+     *
+     * @param mapping the mapping
+     * @param mappers the field mappers
+     * @param objectMappers the object mappers
+     * @param aliasMappers the field alias mappers
+     * @return the newly created lookup instance
+     */
+    public static MappingLookup fromMappers(Mapping mapping,
+                                            Collection<FieldMapper> mappers,
+                                            Collection<ObjectMapper> objectMappers,
+                                            Collection<FieldAliasMapper> aliasMappers) {
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers);
+    }
+
+    private MappingLookup(Mapping mapping,
                          Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
-                         Collection<FieldAliasMapper> aliasMappers,
-                         DocumentParser documentParser,
-                         IndexSettings indexSettings,
-                         IndexAnalyzers indexAnalyzers) {
+                         Collection<FieldAliasMapper> aliasMappers) {
         this.mapping = mapping;
-        this.indexSettings = indexSettings;
-        this.indexAnalyzers = indexAnalyzers;
-        this.documentParser = documentParser;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
@@ -319,10 +323,11 @@ public final class MappingLookup {
         return fieldTypesLookup().sourcePaths(field);
     }
 
-    public ParsedDocument parseDocument(SourceToParse source) {
-        return documentParser.parseDocument(source, this);
-    }
-
+    /**
+     * Returns true if the index has mappings. An index does not have mappings only if it was created
+     * without providing mappings explicitly, and no documents have yet been indexed in it.
+     * @return true if the current index has mappings, false otherwise
+     */
     public boolean hasMappings() {
         return this != EMPTY;
     }
@@ -339,16 +344,12 @@ public final class MappingLookup {
         return cacheKey;
     }
 
-    Mapping getMapping() {
+    /**
+     * Returns the mapping source that this lookup originated from
+     * @return the mapping source
+     */
+    public Mapping getMapping() {
         return mapping;
-    }
-
-    IndexSettings getIndexSettings() {
-        return indexSettings;
-    }
-
-    IndexAnalyzers getIndexAnalyzers() {
-        return indexAnalyzers;
     }
 
     /**

@@ -18,18 +18,20 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
+import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
-import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceMatch;
+import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceValueInMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsFalse;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsTrue;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
+import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
@@ -101,30 +103,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @param subKey the key name directly under match to replace. For example "_type"
      * @param value  the value used in the replacement. For example "bar"
      */
-    public void replaceMatch(String subKey, Object value) {
-        transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
-    }
-
-    /**
-     * Replaces all the values of a is_true assertion for all project REST tests.
-     * For example "is_true": "value_to_replace" to "match": "value_replaced"
-     *
-     * @param oldValue the value that has to match and will be replaced
-     * @param newValue  the value used in the replacement
-     */
-    public void replaceIsTrue(String oldValue, Object newValue) {
-        transformations.add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
-    }
-
-    /**
-     * Replaces all the values of a is_true assertion for all project REST tests.
-     * For example "is_false": "value_to_replace" to "match": "value_replaced"
-     *
-     * @param oldValue the value that has to match and will be replaced
-     * @param newValue  the value used in the replacement
-     */
-    public void replaceIsFalse(String oldValue, Object newValue) {
-        transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    public void replaceValueInMatch(String subKey, Object value) {
+        transformations.add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class)));
     }
 
     /**
@@ -134,8 +114,62 @@ public class RestCompatTestTransformTask extends DefaultTask {
      * @param value    the value used in the replacement. For example "bar"
      * @param testName the testName to apply replacement
      */
-    public void replaceMatch(String subKey, Object value, String testName) {
-        transformations.add(new ReplaceMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+    public void replaceValueInMatch(String subKey, Object value, String testName) {
+        transformations.add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+    }
+
+    /**
+     * A transformation to replace the key in a length assertion.
+     * @see ReplaceKeyInLength
+     * @param oldKeyName   the key name directly under length to replace.
+     * @param newKeyName   the new key name directly under length.
+     */
+    public void replaceKeyInLength(String oldKeyName, String newKeyName) {
+        transformations.add(new ReplaceKeyInLength(oldKeyName, newKeyName, null));
+    }
+
+    /**
+     * A transformation to replace the key in a match assertion.
+     * @see ReplaceKeyInMatch
+     * @param oldKeyName   the key name directly under match to replace.
+     * @param newKeyName   the new key name directly under match.
+     */
+    public void replaceKeyInMatch(String oldKeyName, String newKeyName) {
+        transformations.add(new ReplaceKeyInMatch(oldKeyName, newKeyName, null));
+    }
+
+    /**
+     * Replaces all the values of a is_true assertion for all project REST tests.
+     * For example "is_true": "value_to_replace" to "is_true": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceIsTrue(String oldValue, Object newValue) {
+        transformations.add(new ReplaceIsTrue(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a is_false assertion for all project REST tests.
+     * For example "is_false": "value_to_replace" to "is_false": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+     */
+    public void replaceIsFalse(String oldValue, Object newValue) {
+        transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class)));
+    }
+
+    /**
+     * Replaces all the values of a is_false assertion for given REST test.
+     * For example "is_false": "value_to_replace" to "is_false": "value_replaced"
+     *
+     * @param oldValue the value that has to match and will be replaced
+     * @param newValue  the value used in the replacement
+      @param testName the testName to apply replacement
+     */
+    public void replaceIsFalse(String oldValue, Object newValue, String testName) {
+        transformations.add(new ReplaceIsFalse(oldValue, MAPPER.convertValue(newValue, TextNode.class), testName));
     }
 
     /**

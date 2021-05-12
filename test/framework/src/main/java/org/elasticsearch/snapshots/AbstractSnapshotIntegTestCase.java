@@ -190,6 +190,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
+    protected static String startDataNodeWithLargeSnapshotPool() {
+        return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+    }
+
     public void waitForBlock(String node, String repository) throws Exception {
         logger.info("--> waiting for [{}] to be blocked on node [{}]", repository, node);
         MockRepository mockRepository = getRepositoryOnNode(repository, node);
@@ -213,7 +217,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
+    public static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
         return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
     }
 
@@ -277,10 +281,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, node).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
+    protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
         assertAcked(clusterAdmin().preparePutRepository(repoName)
-            .setType(type).setSettings(settings));
+                .setVerify(verify)
+                .setType(type)
+                .setSettings(settings));
+    }
+
+    protected void createRepository(String repoName, String type, Settings.Builder settings) {
+        createRepository(repoName, type, settings, true);
     }
 
     protected void createRepository(String repoName, String type, Path location) {
@@ -292,11 +302,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepositoryNoVerify(String repoName, String type) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName)
-                .setVerify(false)
-                .setType(type)
-                .setSettings(randomRepositorySettings()));
+        createRepository(repoName, type, randomRepositorySettings(), false);
     }
 
     protected Settings.Builder randomRepositorySettings() {

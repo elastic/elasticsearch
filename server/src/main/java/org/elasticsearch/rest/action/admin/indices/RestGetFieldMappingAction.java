@@ -38,14 +38,21 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestGetFieldMappingAction.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
+    public static final String INCLUDE_TYPE_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in get " +
         "field mapping requests is deprecated. The parameter will be removed in the next major version.";
-
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get field mapping request is deprecated. " +
+        "Use typeless api instead";
     @Override
     public List<Route> routes() {
         return List.of(
             new Route(GET, "/_mapping/field/{fields}"),
-            new Route(GET, "/{index}/_mapping/field/{fields}"));
+            new Route(GET, "/{index}/_mapping/field/{fields}"),
+            Route.builder(GET, "/_mapping/{type}/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}/_mapping/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/_mapping/{type}/field/{fields}")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build());
     }
 
     @Override
@@ -58,9 +65,23 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            request.param(INCLUDE_TYPE_NAME_PARAMETER);
-            deprecationLogger.compatibleApiWarning("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
+                deprecationLogger.compatibleApiWarning("get_field_mapping_with_types", INCLUDE_TYPE_DEPRECATION_MESSAGE);
+            }
+            boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY);
+            final String[] types = request.paramAsStringArrayOrEmptyIfAll("type");
+            if (includeTypeName == false && types.length > 0) {
+                throw new IllegalArgumentException("Types cannot be specified unless include_type_name" + " is set to true.");
+            }
+
+            if (request.hasParam("local")) {
+                request.param("local");
+                deprecationLogger.compatibleApiWarning(
+                    "get_field_mapping_local",
+                    "Use [local] in get field mapping requests is deprecated. " + "The parameter will be removed in the next major version"
+                );
+            }
         }
 
 

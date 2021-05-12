@@ -134,7 +134,7 @@ public class CertParsingUtils {
         return readKeyPairsFromKeystore(store, keyPassword);
     }
 
-    static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
+    public static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
         throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         final Enumeration<String> enumeration = store.aliases();
         final Map<Certificate, Key> map = new HashMap<>(store.size());
@@ -167,7 +167,7 @@ public class CertParsingUtils {
         return keyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
     }
 
-    private static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
+    public static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
         throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, null);

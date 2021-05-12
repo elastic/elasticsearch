@@ -13,7 +13,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -49,7 +48,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
     }
 
     public void testClusterRestartWithLicense() throws Exception {

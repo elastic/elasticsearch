@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.security.transport;
+package org.elasticsearch.xpack.core.security.transport.netty4;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.Lifecycle;

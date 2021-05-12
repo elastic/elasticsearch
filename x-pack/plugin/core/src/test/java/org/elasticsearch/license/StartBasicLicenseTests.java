@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.io.InputStreamReader;
@@ -45,7 +44,7 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class);
     }
 
     public void testStartBasicLicense() throws Exception {

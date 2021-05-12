@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.io.InputStreamReader;
@@ -46,7 +45,7 @@ public class StartTrialLicenseTests extends AbstractLicensesIntegrationTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class);
     }
 
     public void testStartTrial() throws Exception {

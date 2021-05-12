@@ -13,10 +13,10 @@ import org.elasticsearch.http.HttpChannel;
 
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
-import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isInsufficientBufferRemainingException;
-import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isNotSslRecordException;
-import static org.elasticsearch.xpack.core.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
+import static org.elasticsearch.xpack.core.security.transport.netty4.SSLExceptionHelper.isCloseDuringHandshakeException;
+import static org.elasticsearch.xpack.core.security.transport.netty4.SSLExceptionHelper.isInsufficientBufferRemainingException;
+import static org.elasticsearch.xpack.core.security.transport.netty4.SSLExceptionHelper.isNotSslRecordException;
+import static org.elasticsearch.xpack.core.security.transport.netty4.SSLExceptionHelper.isReceivedCertificateUnknownException;
 
 public final class SecurityHttpExceptionHandler implements BiConsumer<HttpChannel, Exception> {
 

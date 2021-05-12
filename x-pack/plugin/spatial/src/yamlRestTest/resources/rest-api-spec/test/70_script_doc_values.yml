@@ -77,3 +77,17 @@ setup:
                 source: "doc['geo_shape'].getDimensionalType()"
 
   - match: { hits.hits.0.fields.type.0: 2 }
+
+---
+"geoshape value":
+  - do:
+      catch: /illegal_argument_exception/
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            type:
+              script:
+                source: "doc['geo_shape'].get(0)"
+
+  - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -81,7 +83,7 @@ public abstract class GeoShapeValues {
 
     /** thin wrapper around a {@link GeometryDocValueReader} which encodes / decodes values using
      * the Geo decoder */
-    public static class GeoShapeValue {
+    public static class GeoShapeValue implements ToXContentFragment {
         private static final WellKnownText MISSING_GEOMETRY_PARSER = new WellKnownText(true, new GeographyValidator(true));
         private static final GeoShapeIndexer MISSING_GEOSHAPE_INDEXER = new GeoShapeIndexer(true, "missing");
         private final GeometryDocValueReader reader;
@@ -149,6 +151,11 @@ public abstract class GeoShapeValues {
             } catch (IOException | ParseException e) {
                 throw new IllegalArgumentException("Can't apply missing value [" + missing + "]", e);
             }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            throw new IllegalArgumentException("cannot write xcontent for geo_shape doc value");
         }
     }
 

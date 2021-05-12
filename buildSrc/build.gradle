@@ -288,10 +288,10 @@ if (project == rootProject) {
       mavenLocal()
     }
   }
-  dependencies {
+//  dependencies {
     // add this so the runtime classpath so Gradle will properly track it as a build runtime classpath input
-    runtimeOnly project('reaper')
-  }
+//    runtimeOnly project('reaper')
+//  }
   // only run tests as build-tools
   tasks.named("test").configure {
     enabled = false

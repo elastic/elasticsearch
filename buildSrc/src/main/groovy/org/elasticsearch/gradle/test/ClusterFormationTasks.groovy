@@ -700,6 +700,7 @@ class ClusterFormationTasks {
                 esJavaOpts.add('-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000')
             }
             node.env['ES_JAVA_OPTS'] = esJavaOpts.join(" ")
+            node.env['JAVA_HOME'] = node.getJavaHome()
 
             //
             project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")

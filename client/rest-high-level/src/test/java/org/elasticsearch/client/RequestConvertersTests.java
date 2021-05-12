@@ -47,6 +47,7 @@ import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1227,7 +1228,7 @@ public class RequestConvertersTests extends ESTestCase {
         };
         MultiSearchRequest.readMultiLineFormat(new BytesArray(EntityUtils.toByteArray(request.getEntity())),
                 REQUEST_BODY_CONTENT_TYPE.xContent(), consumer, null, multiSearchRequest.indicesOptions(), null, null, null,
-                xContentRegistry(), true);
+                xContentRegistry(), true, RestApiVersion.current());
         assertEquals(requests, multiSearchRequest.requests());
     }
 

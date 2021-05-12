@@ -88,8 +88,9 @@ requires the keyword `LIKE` for SQL `LIKE` pattern.
 [[sql-index-frozen]]
 === Frozen Indices
 
-{es-sql} supports <<freeze-index-api, frozen indices>>. Due to their performance characteristics, {es-sql} only allows searches on them
-when explicitly told so by user - in other words, by default, frozen indices are not included in searches.
+{es-sql} only searches <<freeze-index-api, frozen indices>> when explicitly told
+so by user - in other words, by default, frozen indices are not included in
+searches.
 
 One can toggle the use of frozen indices through:
 

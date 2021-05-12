@@ -303,11 +303,14 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 );
                 final MappedFieldType mappedFieldType = indexShard.mapperService().fieldType(request.field());
                 if (mappedFieldType != null) {
-                    TermsEnum terms = mappedFieldType.getTerms(request.caseInsensitive(), request.string(), queryShardContext);
+                    BytesRef searchAfterRef = request.searchAfter() == null ? null : new BytesRef(request.searchAfter());
+                    TermsEnum terms = mappedFieldType.getTerms(
+                        request.caseInsensitive(),
+                        request.string(),
+                        queryShardContext,
+                        searchAfterRef                        
+                    );
                     if (terms != null) {
-                        if (request.searchAfter() != null) {
-                            terms = new SearchAfterTermsEnum(terms, new BytesRef(request.searchAfter()));
-                        }
                         shardTermsEnums.add(terms);
                     }
                 }
@@ -353,21 +356,6 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
     }
     
-    public final class SearchAfterTermsEnum extends FilteredTermsEnum {
-        private final BytesRef afterRef;
-        
-        public SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
-          super(tenum);
-          afterRef = termText;
-          setInitialSeekTerm(termText);
-        }
-
-        @Override
-        protected AcceptStatus accept(BytesRef term) {
-          return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
-        }        
-      }    
-
     // TODO remove this so we can shift code to server module - write a separate Interceptor class to 
     // rewrite requests according to security rules 
     private boolean canAccess(

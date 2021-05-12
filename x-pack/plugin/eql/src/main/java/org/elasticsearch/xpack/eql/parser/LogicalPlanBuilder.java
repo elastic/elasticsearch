@@ -56,6 +56,8 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {

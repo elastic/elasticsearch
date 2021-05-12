@@ -10,6 +10,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.IdentifierContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.QualifiedNameContext;
 
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
+
 abstract class IdentifierBuilder extends AbstractBuilder {
 
     @Override
@@ -24,7 +26,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
 
         // this is fine, because we've already checked for array indexes [...]
-        return Strings.collectionToDelimitedString(visitList(ctx.identifier(), String.class), ".");
+        return Strings.collectionToDelimitedString(visitList(this, ctx.identifier(), String.class), ".");
     }
 
     private static String unquoteIdentifier(String identifier) {

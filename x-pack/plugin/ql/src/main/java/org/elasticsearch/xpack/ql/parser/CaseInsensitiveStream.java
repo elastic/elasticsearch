@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.sql.parser;
+package org.elasticsearch.xpack.ql.parser;
 
 import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.IntStream;
@@ -17,10 +17,10 @@ import java.util.Locale;
 // This approach is the official solution from the ANTLR authors
 // in that it's both faster and easier than having a dedicated lexer
 // see https://github.com/antlr/antlr4/issues/1002
-class CaseInsensitiveStream extends ANTLRInputStream {
+public class CaseInsensitiveStream extends ANTLRInputStream {
     protected char[] uppedChars;
 
-    CaseInsensitiveStream(String input) {
+    public CaseInsensitiveStream(String input) {
         super(input);
         this.uppedChars = input.toUpperCase(Locale.ROOT).toCharArray();
     }

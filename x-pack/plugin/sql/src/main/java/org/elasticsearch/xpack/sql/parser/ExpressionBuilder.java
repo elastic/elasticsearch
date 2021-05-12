@@ -134,6 +134,9 @@ import java.util.StringJoiner;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.canConvert;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
@@ -155,7 +158,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
-        return visitList(contexts, Expression.class);
+        return visitList(this, contexts, Expression.class);
     }
 
     @Override

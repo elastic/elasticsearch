@@ -63,6 +63,8 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -74,7 +76,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitQuery(QueryContext ctx) {
         LogicalPlan body = plan(ctx.queryNoWith());
 
-        List<SubQueryAlias> namedQueries = visitList(ctx.namedQuery(), SubQueryAlias.class);
+        List<SubQueryAlias> namedQueries = visitList(this, ctx.namedQuery(), SubQueryAlias.class);
 
         // unwrap query (and validate while at it)
         Map<String, SubQueryAlias> cteRelations = new LinkedHashMap<>(namedQueries.size());
@@ -100,7 +102,7 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (ctx.orderBy().isEmpty() == false) {
             List<OrderByContext> orders = ctx.orderBy();
             OrderByContext endContext = orders.get(orders.size() - 1);
-            plan = new OrderBy(source(ctx.ORDER(), endContext), plan, visitList(ctx.orderBy(), Order.class));
+            plan = new OrderBy(source(ctx.ORDER(), endContext), plan, visitList(this, ctx.orderBy(), Order.class));
         }
 
         LimitClauseContext limitClause = ctx.limitClause();
@@ -133,8 +135,9 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
             query = new Filter(source(ctx), query, expression(ctx.where));
         }
 
-        List<NamedExpression> selectTarget = ctx.selectItems().isEmpty() ? emptyList() : visitList(ctx.selectItems().selectItem(),
-                NamedExpression.class);
+        List<NamedExpression> selectTarget = ctx.selectItems().isEmpty()
+            ? emptyList()
+            : visitList(this, ctx.selectItems().selectItem(), NamedExpression.class);
 
         // GROUP BY
         GroupByContext groupByCtx = ctx.groupBy();

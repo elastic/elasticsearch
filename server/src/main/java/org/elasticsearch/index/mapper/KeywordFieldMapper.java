@@ -259,7 +259,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, BytesRef searchAfter) throws IOException {
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, BytesRef searchAfter)
+            throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
 
             Terms terms = MultiTerms.getTerms(reader, name());

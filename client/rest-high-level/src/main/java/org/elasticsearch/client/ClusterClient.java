@@ -273,4 +273,5 @@ public final class ClusterClient {
         return restHighLevelClient.performRequestAsync(componentTemplatesRequest,
             ClusterRequestConverters::componentTemplatesExist, options, RestHighLevelClient::convertExistsResponse, listener, emptySet());
     }
+
 }

@@ -83,6 +83,14 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
         if (precision == 0) {
             return 1;
         }
+        GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
+        if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
+            String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
+            if (hashIntersectsBounds(hash, bbox) && geoValue.relate(Geohash.toBoundingBox(hash)) != GeoRelation.QUERY_DISJOINT) {
+                return 1;
+            }
+            return 0;
+        }
        return computeBuckets("", bbox, geoValue, precision);
     }
 

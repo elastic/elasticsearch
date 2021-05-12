@@ -36,23 +36,7 @@ abstract class Verifier {
             });
         });
 
-        Holder<Boolean> hasLimit = new Holder<>(Boolean.FALSE);
-        Holder<List<Order>> orderBy = new Holder<>();
-        plan.forEachUp(p -> {
-            if (hasLimit.get() == false && p instanceof LimitExec) {
-                hasLimit.set(Boolean.TRUE);
-                return;
-            }
-            if (orderBy.get() == null && p instanceof OrderExec) {
-                orderBy.set(((OrderExec) p).order());
-                return;
-            }
-            if (hasLimit.get() && orderBy.get() != null && p instanceof OrderExec) {
-                if (((OrderExec) p).order().equals(orderBy.get()) == false) {
-                    failures.add(fail(p, "Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT"));
-                }
-            }
-        });
+        checkForNonCollapsableSubselects(plan, failures);
 
         return failures;
     }
@@ -72,5 +56,25 @@ abstract class Verifier {
         });
 
         return failures;
+    }
+
+    private static void checkForNonCollapsableSubselects(PhysicalPlan plan, List<Failure> failures) {
+        Holder<Boolean> hasLimit = new Holder<>(Boolean.FALSE);
+        Holder<List<Order>> orderBy = new Holder<>();
+        plan.forEachUp(p -> {
+            if (hasLimit.get() == false && p instanceof LimitExec) {
+                hasLimit.set(Boolean.TRUE);
+                return;
+            }
+            if (orderBy.get() == null && p instanceof OrderExec) {
+                orderBy.set(((OrderExec) p).order());
+                return;
+            }
+            if (hasLimit.get() && orderBy.get() != null && p instanceof OrderExec) {
+                if (((OrderExec) p).order().equals(orderBy.get()) == false) {
+                    failures.add(fail(p, "Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT"));
+                }
+            }
+        });
     }
 }

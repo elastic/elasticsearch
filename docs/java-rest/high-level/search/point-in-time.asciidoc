@@ -44,7 +44,7 @@ which requires a point in time ID returned from the open API.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-point-in-time
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-point-in-time]
 --------------------------------------------------
 <1> Create a PointInTimeBuilder with a PIT id
 <2> (Optional) Set the keep alive of a point in time

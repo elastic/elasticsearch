@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -754,7 +755,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         }
-        return builder.dataStreams(dataStreams).build();
+        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.dataStreamAliases())).build();
     }
 
     /**
@@ -1249,7 +1250,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
                                 }
                             }
-                            metaBuilder.dataStreams(dataStreamsToCopy);
+                            Map<String, DataStreamAlias> dataStreamAliasesToCopy =
+                                filterDataStreamAliases(dataStreamsToCopy, existing.dataStreamAliases());
+                            metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
                             return metaBuilder.build();
                         }));
             } else {
@@ -2400,6 +2403,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         return indices;
+    }
+
+    static Map<String, DataStreamAlias> filterDataStreamAliases(Map<String, DataStream> dataStreams,
+                                                                Map<String, DataStreamAlias> dataStreamAliases) {
+
+        return dataStreamAliases.values().stream()
+            .filter(alias -> alias.getDataStreams().stream().anyMatch(dataStreams::containsKey))
+            .map(alias -> {
+                List<String> intersectingDataStreams = alias.getDataStreams().stream()
+                    .filter(dataStreams::containsKey)
+                    .collect(Collectors.toList());
+                return new DataStreamAlias(alias.getName(), intersectingDataStreams);
+            }).collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
     }
 
     /**

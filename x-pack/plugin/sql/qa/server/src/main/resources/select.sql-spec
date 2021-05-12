@@ -150,4 +150,4 @@ SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY langu
 selectGroupByLimitOrderByLimit
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages LIMIT 5) ORDER BY max DESC LIMIT 4;
 selectGroupByOrderByOrderByLimit
-SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC) ORDER BY max DESC LIMIT 4
+SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC) ORDER BY max DESC LIMIT 4;

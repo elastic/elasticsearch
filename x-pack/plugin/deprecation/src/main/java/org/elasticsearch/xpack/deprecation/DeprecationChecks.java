@@ -41,7 +41,6 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled
         ));
 
-
     static final List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS;
 
         static {
@@ -83,7 +82,8 @@ public class DeprecationChecks {
                         XPackSettings.TRANSFORM_ENABLED),
                     (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
                         XPackSettings.VECTORS_ENABLED),
-                    NodeDeprecationChecks::checkMultipleDataPaths
+                    NodeDeprecationChecks::checkMultipleDataPaths,
+                    NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting
                 )
             ).collect(Collectors.toList());
         }

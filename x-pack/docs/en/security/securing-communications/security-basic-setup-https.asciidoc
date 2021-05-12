@@ -562,7 +562,12 @@ Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
  hosts: ["https://<your_elasticsearch_host>:9200"]
  username: "remote_monitoring_user"
  password: "<password>"
+ ssl: <1>
+   enabled: true
+   certificate_authorities: ["/etc/metricbeat/elasticsearch-ca.pem"]
+   verification_mode: "certificate"
 ----
+<1> If monitoring a node with encrypted traffic
 
    `hosts`:: Specifies the host where your Elasticsearch cluster is running.
    Ensure that you include `https` in the URL.

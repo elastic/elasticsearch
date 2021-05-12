@@ -10,17 +10,12 @@ import org.gradle.internal.jvm.Jvm
 
 plugins {
   id 'java-gradle-plugin'
+  id 'groovy-gradle-plugin'
   id 'groovy'
   id 'java-test-fixtures'
 }
 
 group = 'org.elasticsearch.gradle'
-
-if (project == rootProject) {
-  // change the build dir used during build init, so that doing a clean
-  // won't wipe out the buildscript jar
-  buildDir = 'build-bootstrap'
-}
 
 /*****************************************************************************
  *         Propagating version.properties to the rest of the build           *
@@ -185,11 +180,8 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 
-allprojects {
-  apply plugin: 'java'
-  targetCompatibility = '11'
-  sourceCompatibility = '11'
-}
+targetCompatibility = '11'
+sourceCompatibility = '11'
 
 sourceSets {
   integTest {
@@ -279,24 +271,12 @@ dependencies {
 /*****************************************************************************
  *                         Bootstrap repositories                            *
  *****************************************************************************/
-// this will only happen when buildSrc is built on its own during build init
-if (project == rootProject) {
-  apply plugin: 'groovy-gradle-plugin'
 
-  repositories {
-    if (System.getProperty("repos.mavenLocal") != null) {
-      mavenLocal()
-    }
+// only run tests as build-tools
+tasks.named("test").configure {
+  enabled = false
   }
-//  dependencies {
-    // add this so the runtime classpath so Gradle will properly track it as a build runtime classpath input
-//    runtimeOnly project('reaper')
-//  }
-  // only run tests as build-tools
-  tasks.named("test").configure {
-    enabled = false
-  }
-}
+//}
 
 tasks.register("integTest", Test) {
   inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
@@ -313,106 +293,92 @@ tasks.register("integTest", Test) {
  *                           Normal project checks                           *
  *****************************************************************************/
 
-// this happens when included as a normal project in the build, which we do
-// to enforce precommit checks like forbidden apis, as well as setup publishing
-if (project != rootProject) {
-  apply plugin: 'elasticsearch.build'
-  apply plugin: 'elasticsearch.publish'
+//// TODO These additional conventions will be ported to gradle-conventions and
+//// applied to build-tools
+////
+//  apply plugin: 'elasticsearch.build'
+//  apply plugin: 'elasticsearch.publish'
+//
+//  // groovydoc succeeds, but has some weird internal exception...
+//  tasks.named("groovydoc").configure {
+//    enabled = false
+//  }
+//
+//  // build-tools is not ready for primetime with these...
+//  tasks.named("dependencyLicenses").configure { enabled = false }
+//  tasks.named("dependenciesInfo").configure {enabled = false }
+//  tasks.named("dependenciesGraph").configure {enabled = false }
+//  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
+//  tasks.named("jarHell").configure {
+//    enabled = false
+//  }
+//  tasks.named("thirdPartyAudit").configure {
+//    enabled = false
+//  }
+//  configurations.register("distribution")
+//
+//  dependencies {
+//    distribution project(':distribution:archives:windows-zip')
+//    distribution project(':distribution:archives:darwin-tar')
+//    distribution project(':distribution:archives:darwin-aarch64-tar')
+//    distribution project(':distribution:archives:linux-aarch64-tar')
+//    distribution project(':distribution:archives:linux-tar')
+//    integTestRuntimeOnly(project(":libs:elasticsearch-core"))
+//  }
+//
+//  eclipse {
+//    classpath {
+//      plusConfigurations += [configurations.integTestRuntimeClasspath]
+//    }
+//  }
+//
+//  tasks.withType(Test).configureEach {
+//    // Track reaper jar as a test input using runtime classpath normalization strategy
+//    inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+//    useJUnitPlatform()
+//  }
+//
+//  tasks.named("test").configure {
+//    include("**/*TestSpec.class")
+//  }
+//
+//  normalization {
+//    runtimeClasspath {
+//      // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
+//      ignore('META-INF/reaper.jar')
+//    }
+//  }
+//
+//  tasks.named("forbiddenPatterns").configure {
+//    exclude '**/*.wav'
+//    exclude '**/*.p12'
+//    exclude '**/*.jks'
+//    exclude '**/*.crt'
+//    // the file that actually defines nocommit
+//    exclude '**/ForbiddenPatternsTask.java'
+//    exclude '**/*.bcfks'
+//  }
+//
+//  tasks.named("testingConventions") {
+//    naming.clear()
+//    naming {
+//      Tests {
+//        baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
+//      }
+//      TestSpec {
+//        baseClass 'spock.lang.Specification'
+//      }
+//    }
+//  }
+//
+//  // for now we hardcode the tests for our build to use the gradle jvm.
+//  tasks.withType(Test).configureEach {
+//    onlyIf { org.elasticsearch.gradle.internal.info.BuildParams.inFipsJvm == false }
+//    it.executable = Jvm.current().getJavaExecutable()
+//    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.internal.info.BuildParams.defaultParallel.toString()) as Integer
+//  }
+//
 
-  // groovydoc succeeds, but has some weird internal exception...
-  tasks.named("groovydoc").configure {
-    enabled = false
-  }
-
-  // build-tools is not ready for primetime with these...
-  tasks.named("dependencyLicenses").configure { enabled = false }
-  tasks.named("dependenciesInfo").configure {enabled = false }
-  tasks.named("dependenciesGraph").configure {enabled = false }
-  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
-  tasks.named("jarHell").configure {
-    enabled = false
-  }
-  tasks.named("thirdPartyAudit").configure {
-    enabled = false
-  }
-  configurations.register("distribution")
-  configurations.register("reaper")
-
-  dependencies {
-    reaper project('reaper')
-    distribution project(':distribution:archives:windows-zip')
-    distribution project(':distribution:archives:darwin-tar')
-    distribution project(':distribution:archives:darwin-aarch64-tar')
-    distribution project(':distribution:archives:linux-aarch64-tar')
-    distribution project(':distribution:archives:linux-tar')
-    integTestRuntimeOnly(project(":libs:elasticsearch-core"))
-  }
-
-  eclipse {
-    classpath {
-      plusConfigurations += [configurations.integTestRuntimeClasspath]
-    }
-  }
-
-  // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
-  tasks.named("processResources").configure {
-    exclude 'buildSrc.marker'
-    into('META-INF') {
-      from configurations.reaper
-    }
-  }
-
-  tasks.withType(Test).configureEach {
-    // Track reaper jar as a test input using runtime classpath normalization strategy
-    inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
-    useJUnitPlatform()
-  }
-
-  tasks.named("test").configure {
-    include("**/*TestSpec.class")
-  }
-
-  normalization {
-    runtimeClasspath {
-      // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
-      ignore('META-INF/reaper.jar')
-    }
-  }
-
-  tasks.named("forbiddenPatterns").configure {
-    exclude '**/*.wav'
-    exclude '**/*.p12'
-    exclude '**/*.jks'
-    exclude '**/*.crt'
-    // the file that actually defines nocommit
-    exclude '**/ForbiddenPatternsTask.java'
-    exclude '**/*.bcfks'
-  }
-
-  tasks.named("testingConventions") {
-    naming.clear()
-    naming {
-      Tests {
-        baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
-      }
-      TestSpec {
-        baseClass 'spock.lang.Specification'
-      }
-    }
-  }
-
-  // for now we hardcode the tests for our build to use the gradle jvm.
-  tasks.withType(Test).configureEach {
-    onlyIf { org.elasticsearch.gradle.internal.info.BuildParams.inFipsJvm == false }
-    it.executable = Jvm.current().getJavaExecutable()
-    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.internal.info.BuildParams.defaultParallel.toString()) as Integer
-  }
-
-  publishing.publications.named("elastic").configure {
-    suppressPomMetadataWarningsFor("testFixturesApiElements")
-    suppressPomMetadataWarningsFor("testFixturesRuntimeElements")
-  }
-}
 
 // Define this here because we need it early.
 class VersionPropertiesLoader {

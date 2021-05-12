@@ -22,17 +22,16 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.mapper.DocumentMapperForType;
+import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -268,10 +267,11 @@ public class TermVectorsService  {
     }
 
     private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
-        // parse the document, at the moment we do update the mapping, just like percolate
-        ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.doc(),
-            request.xContentType(), request.routing());
-
+        SourceToParse source = new SourceToParse(indexShard.shardId().getIndexName(), "_id_for_tv_api", request.doc(),
+            request.xContentType(), request.routing(), Map.of());
+        DocumentParser documentParser = indexShard.mapperService().documentParser();
+        MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
+        ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);
         // select the right fields and generate term vectors
         ParseContext.Document doc = parsedDocument.rootDoc();
         Set<String> seenFields = new HashSet<>();
@@ -317,18 +317,6 @@ public class TermVectorsService  {
             }
         }
         return result.toArray(new String[0]);
-    }
-
-    private static ParsedDocument parseDocument(IndexShard indexShard, String index, BytesReference doc,
-                                                XContentType xContentType, String routing) {
-        MapperService mapperService = indexShard.mapperService();
-        DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate();
-        ParsedDocument parsedDocument = docMapper.getDocumentMapper().parse(
-                new SourceToParse(index, "_id_for_tv_api", doc, xContentType, routing, Map.of()));
-        if (docMapper.getMapping() != null) {
-            parsedDocument.addDynamicMappingsUpdate(docMapper.getMapping());
-        }
-        return parsedDocument;
     }
 
     private static Fields mergeFields(Fields fields1, Fields fields2) throws IOException {

@@ -1,0 +1,37 @@
+---
+- job:
+    name: "elastic+elasticsearch+%BRANCH%+pull-request/elastic+elasticsearch+%BRANCH%+pull-request+part-2-fips"
+    display-name: "elastic / elasticsearch # %BRANCH% - pull request part-2 fips"
+    description: "Testing of Elasticsearch pull requests - part-2 fips"
+    workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+pull-request+part-2-fips"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches: 
+            - "${ghprbActualCommit}"
+    triggers:
+      - github-pull-request:
+          org-list:
+            - elastic
+          allow-whitelist-orgs-as-admins: true
+          trigger-phrase: '.*run\W+elasticsearch-ci/part-2-fips.*'
+          github-hooks: true
+          status-context: elasticsearch-ci/part-2-fips
+          cancel-builds-on-update: true
+          white-list-target-branches:
+            - %BRANCH%
+          excluded-regions:
+            - ^docs/.*
+          white-list-labels:
+            - ':Security/FIPS'
+          black-list-labels:
+            - '>test-mute'
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart2

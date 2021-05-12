@@ -286,7 +286,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Parse a document with current mapping.
      */
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
-        return mappingLookup.parseDocument(source);
+        return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
     public boolean hasNested() {

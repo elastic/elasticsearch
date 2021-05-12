@@ -106,7 +106,7 @@ realm when using a custom web application other than Kibana
 * <<security-api-saml-sp-metadata,Generate SAML metadata>>
 
 [discrete]
-[[security-create-enrollment-token-apis]]
+[[security-enrollment-apis]]
 === Enrollment
 
 You can use the following API to generate a token with which a user can enroll a new node
@@ -114,6 +114,13 @@ in an existing secured elasticsearch cluster, or a client can configure itself t
 communicate with a secured elasticsearch cluster.
 
 * <<security-create-enrollment-token-apis, Create enrollment token>>
+
+You can use the following APIs to allow new nodes to join an existing cluster with
+security enabled or to allow a client to configure itself to communicate with
+a secured {es} cluster
+
+* <<security-api-node-enrollment, Enroll a new node>>
+
 
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
@@ -134,6 +141,7 @@ include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
 include::security/create-enrollment-token.asciidoc[]
+include::security/enroll-node.asciidoc[]
 include::security/get-api-keys.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
 include::security/get-builtin-privileges.asciidoc[]

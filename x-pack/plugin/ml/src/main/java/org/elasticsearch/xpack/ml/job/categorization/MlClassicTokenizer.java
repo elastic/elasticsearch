@@ -6,11 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
-import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
-import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-
 import java.io.IOException;
 
 
@@ -19,22 +14,15 @@ import java.io.IOException;
  *
  * In common with the original ML C++ code, there are no configuration options.
  */
-public class MlClassicTokenizer extends Tokenizer {
+public class MlClassicTokenizer extends AbstractMlTokenizer {
 
     public static String NAME = "ml_classic";
-
-    private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-    private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
-    private final PositionIncrementAttribute posIncrAtt = addAttribute(PositionIncrementAttribute.class);
-
-    private int nextOffset;
-    private int skippedPositions;
 
     MlClassicTokenizer() {
     }
 
     /**
-     * Basically tokenise into [a-zA-Z0-9]+ strings, but also allowing underscores, dots and dashes in the middle.
+     * Basically tokenize into [a-zA-Z0-9]+ strings, but also allowing underscores, dots and dashes in the middle.
      * Then discard tokens that are hex numbers or begin with a digit.
      */
     @Override
@@ -100,22 +88,5 @@ public class MlClassicTokenizer extends Tokenizer {
         posIncrAtt.setPositionIncrement(skippedPositions + 1);
 
         return true;
-    }
-
-    @Override
-    public final void end() throws IOException {
-        super.end();
-        // Set final offset
-        int finalOffset = nextOffset + (int) input.skip(Integer.MAX_VALUE);
-        offsetAtt.setOffset(finalOffset, finalOffset);
-        // Adjust any skipped tokens
-        posIncrAtt.setPositionIncrement(posIncrAtt.getPositionIncrement() + skippedPositions);
-    }
-
-    @Override
-    public void reset() throws IOException {
-        super.reset();
-        nextOffset = 0;
-        skippedPositions = 0;
     }
 }

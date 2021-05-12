@@ -1555,3 +1555,8 @@ See <<getting-started>>.
 === Settng JVM options
 
 See <<set-jvm-options>>.
+
+[role="exclude",id="terms-enum"]
+=== Terms enum API
+
+See <<search-terms-enum>>.

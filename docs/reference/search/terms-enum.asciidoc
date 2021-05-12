@@ -1,5 +1,8 @@
 [[search-terms-enum]]
-=== Terms enum
+=== Terms enum API
+++++
+<titleabbrev>Terms enum</titleabbrev>
+++++
 
 The terms enum API can be used to discover terms in the index that match
 a partial string. This is used for auto-complete:

@@ -99,6 +99,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         return 50.0;
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     /**
      * Test parsing field mapping and adding simple field
      */
@@ -533,5 +538,17 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("metric");
+            minimalMapping(b);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [metric] of type [aggregate_metric_double] can't be used in multifields"));
     }
 }

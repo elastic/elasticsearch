@@ -1520,3 +1520,37 @@ See <<getting-started>>.
 === Where to go from here
 
 See <<getting-started>>.
+
+[role="exclude",id="jvm-options"]
+=== Settng JVM options
+
+See <<set-jvm-options>>.
+
+[role="exclude",id="terms-enum"]
+=== Terms enum API
+
+See <<search-terms-enum>>.
+
+[role="exclude",id="frozen-indices"]
+=== Frozen indices
+
+// tag::frozen-index-redirect[]
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
+
+For API documentation, see <<freeze-index-api>> and <<unfreeze-index-api>>.
+// end::frozen-index-redirect[]
+
+[role="exclude",id="best_practices"]
+=== Best practices for frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="searching_a_frozen_index"]
+=== Searching a frozen index
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="monitoring_frozen_indices"]
+=== Monitoring frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]

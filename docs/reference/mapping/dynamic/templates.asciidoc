@@ -14,9 +14,9 @@ name
 * <<path-match-unmatch,`path_match` and `path_unmatch`>> operate on the full
 dotted path to the field
 
-* if a dynamic template does not define `match_mapping_type` nor `match` nor
-`path_match`, then it won't match any field, but it can be referred to by
-name in `dynamic_templates` as part of a <bulk, bulk request>.
+* If a dynamic template doesn't define `match_mapping_type`, `match`, or
+`path_match`, it won't match any field. You can still refer to the template by
+name in `dynamic_templates` section of a <<bulk,bulk request>>.
 
 Use the `{name}` and `{dynamic_type}` <<template-variables,template variables>>
 in the mapping specification as placeholders.

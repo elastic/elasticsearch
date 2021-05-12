@@ -9,14 +9,27 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.ImpactsEnum;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermState;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -31,7 +44,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DynamicKeyFieldMapper;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -83,7 +96,7 @@ import java.util.function.Supplier;
  * "key\0some value" and "key2.key3\0true". Note that \0 is used as a reserved separator
  *  character (see {@link FlattenedFieldParser#SEPARATOR}).
  */
-public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
+public final class FlattenedFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "flattened";
     private static final String KEYED_FIELD_SUFFIX = "._keyed";
@@ -241,6 +254,29 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
         }
+        
+        @Override
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext) throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+
+            Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
+            if (caseInsensitive) {
+                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(string));
+            } else {
+                a = Operations.concatenate(a, Automata.makeString(string));
+                a = Operations.concatenate(a, Automata.makeAnyString());                
+            }
+            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+
+            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            // Wrap result in a class that strips field names from discovered terms
+            return new TranslatingTermsEnum(automaton.getTermsEnum(terms));            
+        }        
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
@@ -269,6 +305,95 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
             }
             return SourceValueFetcher.identity(rootName + "." + key, context, format);
         }
+    }
+    
+    
+    // Wraps a raw Lucene TermsEnum to strip values of fieldnames
+    static class TranslatingTermsEnum extends TermsEnum {
+        TermsEnum delegate;
+
+        TranslatingTermsEnum(TermsEnum delegate) {
+            this.delegate = delegate;
+        }
+        
+        @Override
+        public BytesRef next() throws IOException {
+            // Strip the term of the fieldname value
+            BytesRef result = delegate.next();
+            if (result != null) {
+                result = FlattenedFieldParser.extractValue(result);
+            }
+            return result;
+        }
+
+        @Override
+        public BytesRef term() throws IOException {
+            // Strip the term of the fieldname value
+            BytesRef result = delegate.term();
+            if (result != null) {
+                result = FlattenedFieldParser.extractValue(result);
+            }
+            return result;
+        }
+        
+
+        @Override
+        public int docFreq() throws IOException {
+            return delegate.docFreq();
+        }         
+
+        //===============  All other TermsEnum methods not supported =================
+        
+        @Override
+        public AttributeSource attributes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean seekExact(BytesRef text) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SeekStatus seekCeil(BytesRef text) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void seekExact(long ord) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void seekExact(BytesRef term, TermState state) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long ord() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long totalTermFreq() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ImpactsEnum impacts(int flags) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TermState termState() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+       
     }
 
     /**
@@ -380,7 +505,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
      * A field type that represents all 'root' values. This field type is used in
      * searches on the flattened field itself, e.g. 'my_flattened: some_value'.
      */
-    public static final class RootFlattenedFieldType extends StringFieldType {
+    public static final class RootFlattenedFieldType extends StringFieldType implements DynamicFieldType {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
 
@@ -421,6 +546,11 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
+
+        @Override
+        public MappedFieldType getChildFieldType(String childPath) {
+            return new KeyedFlattenedFieldType(name(), childPath, this);
+        }
     }
 
     private final FlattenedFieldParser fieldParser;
@@ -429,7 +559,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     private FlattenedFieldMapper(String simpleName,
                                  MappedFieldType mappedFieldType,
                                  Builder builder) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, CopyTo.empty());
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
         this.builder = builder;
         this.fieldParser = new FlattenedFieldParser(mappedFieldType.name(), mappedFieldType.name() + KEYED_FIELD_SUFFIX,
             mappedFieldType, builder.depthLimit.get(), builder.ignoreAbove.get(), builder.nullValue.get());
@@ -451,11 +581,6 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
     @Override
     public RootFlattenedFieldType fieldType() {
         return (RootFlattenedFieldType) super.fieldType();
-    }
-
-    @Override
-    public KeyedFlattenedFieldType keyedFieldType(String key) {
-        return new KeyedFlattenedFieldType(name(), key, fieldType());
     }
 
     @Override

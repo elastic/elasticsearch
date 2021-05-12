@@ -142,7 +142,7 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
         final GoogleCloudStorageBlobStore blobStore = new GoogleCloudStorageBlobStore("bucket", client, "repo", service,
             randomIntBetween(1, 8) * 1024);
 
-        return new GoogleCloudStorageBlobContainer(BlobPath.cleanPath(), blobStore);
+        return new GoogleCloudStorageBlobContainer(BlobPath.EMPTY, blobStore);
     }
 
     public void testReadLargeBlobWithRetries() throws Exception {

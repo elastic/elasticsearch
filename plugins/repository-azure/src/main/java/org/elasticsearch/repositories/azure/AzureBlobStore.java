@@ -33,7 +33,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -64,14 +63,17 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
-import java.util.function.Function;
+import java.util.stream.StreamSupport;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
@@ -263,8 +265,8 @@ public class AzureBlobStore implements BlobStore {
         throw exception;
     }
 
-    void deleteBlobList(List<String> blobs) throws IOException {
-        if (blobs.isEmpty()) {
+    void deleteBlobs(Iterator<String> blobs) throws IOException {
+        if (blobs.hasNext() == false) {
             return;
         }
 
@@ -272,12 +274,11 @@ public class AzureBlobStore implements BlobStore {
         SocketAccess.doPrivilegedVoidException(() -> {
             final BlobContainerAsyncClient blobContainerClient = asyncClient.getBlobContainerAsyncClient(container);
             try {
-                Flux.fromIterable(blobs).flatMap(blob ->
-                        getDeleteTask(blob, blobContainerClient.getBlobAsyncClient(blob)), CONCURRENT_DELETES).then().block();
+                Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobs, Spliterator.ORDERED), false))
+                        .flatMap(blob -> getDeleteTask(blob, blobContainerClient.getBlobAsyncClient(blob)), CONCURRENT_DELETES)
+                        .then().block();
             } catch (Exception e) {
-                filterDeleteExceptionsAndRethrow(e,
-                        new IOException("Unable to delete blobs "
-                                + AllocationService.firstListElementsToCommaDelimitedString(blobs, Function.identity(), false)));
+                filterDeleteExceptionsAndRethrow(e, new IOException("Unable to delete blobs"));
             }
         });
     }
@@ -365,7 +366,7 @@ public class AzureBlobStore implements BlobStore {
                         // Remove trailing slash
                         directoryName = directoryName.substring(0, directoryName.length() - 1);
                         childrenBuilder.put(directoryName,
-                            new AzureBlobContainer(BlobPath.cleanPath().add(blobItem.getName()), this));
+                            new AzureBlobContainer(BlobPath.EMPTY.add(blobItem.getName()), this));
                     }
                 }
             });

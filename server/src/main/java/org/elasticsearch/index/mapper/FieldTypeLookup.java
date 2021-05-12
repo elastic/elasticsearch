@@ -14,7 +14,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -24,7 +23,6 @@ import java.util.Set;
  */
 final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
-    private final Map<String, RuntimeField> runtimeFields = new HashMap<>();
     private final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
 
     /**
@@ -68,15 +66,29 @@ final class FieldTypeLookup {
         }
         this.maxParentPathDots = maxParentPathDots;
 
+        Map<String, MappedFieldType> resolvedRuntimeMappers = new HashMap<>();
+        Map<String, DynamicFieldType> resolvedDynamicMappers = new HashMap<>();
         for (FieldAliasMapper fieldAliasMapper : fieldAliasMappers) {
             String aliasName = fieldAliasMapper.name();
             String path = fieldAliasMapper.path();
-            this.runtimeFields.put(aliasName, new AliasRuntimeField(aliasName, path));
+            RuntimeField aliasField = new AliasRuntimeField(aliasName, path);
+            MappedFieldType resolved = aliasField.asMappedFieldType(fullNameToFieldType::get);
+            resolvedRuntimeMappers.put(aliasName, resolved);
+            if (resolved instanceof DynamicFieldType) {
+                resolvedDynamicMappers.put(aliasName, (DynamicFieldType) resolved);
+            }
         }
 
         for (RuntimeField runtimeField : runtimeFields) {
-            this.runtimeFields.put(runtimeField.name(), runtimeField);
+            MappedFieldType resolved = runtimeField.asMappedFieldType(fullNameToFieldType::get);
+            resolvedRuntimeMappers.put(runtimeField.name(), resolved);
+            if (resolved instanceof DynamicFieldType) {
+                resolvedDynamicMappers.put(runtimeField.name(), (DynamicFieldType) resolved);
+            }
         }
+
+        this.fullNameToFieldType.putAll(resolvedRuntimeMappers);
+        this.dynamicFieldTypes.putAll(resolvedDynamicMappers);
     }
 
     private static int dotCount(String path) {
@@ -93,33 +105,14 @@ final class FieldTypeLookup {
      * Returns the mapped field type for the given field name.
      */
     MappedFieldType get(String field) {
-        GuardedFieldTypeLookup guardedLookup = new GuardedFieldTypeLookup();
-        return guardedLookup.get(field);
-    }
-
-    private class GuardedFieldTypeLookup {
-
-        Set<String> fieldPath = new LinkedHashSet<>();
-
-        MappedFieldType get(String field) {
-            if (fieldPath.contains(field)) {
-                throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
-            }
-            fieldPath.add(field);
-            RuntimeField runtimeFieldType = FieldTypeLookup.this.runtimeFields.get(field);
-            if (runtimeFieldType != null) {
-                return runtimeFieldType.asMappedFieldType(this::get);
-            }
-
-            MappedFieldType fieldType = fullNameToFieldType.get(field);
-            if (fieldType != null) {
-                return fieldType;
-            }
-
-            // If the mapping contains fields that support dynamic sub-key lookup, check
-            // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
-            return getDynamicField(field);
+        MappedFieldType fieldType = fullNameToFieldType.get(field);
+        if (fieldType != null) {
+            return fieldType;
         }
+
+        // If the mapping contains fields that support dynamic sub-key lookup, check
+        // if this could correspond to a keyed field of the form 'path_to_field.path_to_key'.
+        return getDynamicField(field);
     }
 
     // for testing
@@ -154,13 +147,6 @@ final class FieldTypeLookup {
                 String key = field.substring(dotIndex + 1);
                 return dft.getChildFieldType(key);
             }
-            if (runtimeFields.containsKey(parentField)) {
-                MappedFieldType ft = runtimeFields.get(parentField).asMappedFieldType(this::get);
-                if (ft instanceof DynamicFieldType) {
-                    String key = field.substring(dotIndex + 1);
-                    return ((DynamicFieldType) ft).getChildFieldType(key);
-                }
-            }
         }
     }
 
@@ -180,11 +166,6 @@ final class FieldTypeLookup {
             return Collections.singleton(pattern);
         }
         Set<String> fields = new HashSet<>();
-        for (String field : runtimeFields.keySet()) {
-            if (Regex.simpleMatch(pattern, field)) {
-                fields.add(field);
-            }
-        }
         for (String field : fullNameToFieldType.keySet()) {
             if (Regex.simpleMatch(pattern, field)) {
                 fields.add(field);

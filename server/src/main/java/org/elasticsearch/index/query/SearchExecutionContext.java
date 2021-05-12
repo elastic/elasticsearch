@@ -58,11 +58,11 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -106,7 +106,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Map<String, RuntimeField> runtimeMappings;
+    private final Map<String, MappedFieldType> runtimeMappings;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -199,7 +199,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                                    Index fullyQualifiedIndex,
                                    BooleanSupplier allowExpensiveQueries,
                                    ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, RuntimeField> runtimeMappings) {
+                                   Map<String, MappedFieldType> runtimeMappings) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -336,10 +336,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns the registered mapped field types.  Does not include runtime fields.
+     * Returns the registered mapped field types.
      */
     public Collection<MappedFieldType> getFieldTypes() {
-        return mappingLookup.fieldTypes();
+        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
+        fields.addAll(runtimeMappings.values());
+        return fields;
     }
 
     /**
@@ -350,25 +352,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private MappedFieldType fieldType(String name) {
-        GuardedFieldTypeLookup guardedLookup = new GuardedFieldTypeLookup();
-        return guardedLookup.get(name);
-    }
-
-    private class GuardedFieldTypeLookup {
-
-        Set<String> fieldPath = new LinkedHashSet<>();
-
-        MappedFieldType get(String field) {
-            if (fieldPath.contains(field)) {
-                throw new IllegalStateException("Loop in field resolution detected: " + String.join("->", fieldPath) + "->" + field);
-            }
-            fieldPath.add(field);
-            RuntimeField runtimeFieldType = SearchExecutionContext.this.runtimeMappings.get(field);
-            if (runtimeFieldType != null) {
-                return runtimeFieldType.asMappedFieldType(this::get);
-            }
-            return SearchExecutionContext.this.mappingLookup.getFieldType(field);
+        if (runtimeMappings.containsKey(name)) {
+            return runtimeMappings.get(name);
         }
+        return mappingLookup.getFieldType(name);
     }
 
     public ObjectMapper getObjectMapper(String name) {
@@ -633,11 +620,19 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, RuntimeField> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+    private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        return RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(), false);
+        Map<String, RuntimeField> runtimeFields
+            = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), mapperService.parserContext(), false);
+        MappingLookup lookup = mapperService.mappingLookup();
+        Map<String, MappedFieldType> resolvedFields = new HashMap<>();
+
+        for (RuntimeField runtimeField : runtimeFields.values()) {
+            resolvedFields.put(runtimeField.name(), runtimeField.asMappedFieldType(lookup::getFieldType));
+        }
+        return resolvedFields;
     }
 
     /**

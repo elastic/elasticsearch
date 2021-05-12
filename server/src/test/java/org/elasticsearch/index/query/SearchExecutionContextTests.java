@@ -334,15 +334,6 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertEquals("field", sec.getFieldType("alias").name());
     }
 
-    public void testDetectAliasLoops() {
-        SearchExecutionContext sec = createSearchExecutionContext(
-            new AliasRuntimeField("alias-loop-1", "alias-loop-2"),
-            new AliasRuntimeField("alias-loop-2", "alias-loop-1")
-        );
-        Exception e = expectThrows(IllegalStateException.class, () -> sec.getFieldType("alias-loop-1"));
-        assertEquals("Loop in field resolution detected: alias-loop-1->alias-loop-2->alias-loop-1", e.getMessage());
-    }
-
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
@@ -377,6 +368,20 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(context.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
         assertThat(context.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
+    }
+
+    public void testSearchRequestAliasLoops() {
+        Map<String, Object> runtimeMappings = Map.ofEntries(
+            Map.entry("alias-loop-1", Map.of("type", "alias", "path", "alias-loop-2")),
+            Map.entry("alias-loop-2", Map.of("type", "alias", "path", "alias-loop-1"))
+        );
+        Exception e = expectThrows(IllegalStateException.class, () -> createSearchExecutionContext(
+            "uuid",
+            null,
+            createMappingLookup(Collections.emptyList(), Collections.emptyList()),
+            runtimeMappings
+        ));
+        assertEquals("Cannot resolve alias [alias-loop-2]: path [alias-loop-1] does not exist", e.getMessage());
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {
@@ -428,7 +433,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         );
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        MapperService mapperService = createMapperService(indexSettings);
+        MapperService mapperService = createMapperService(indexSettings, mappingLookup);
         final long nowInMillis = randomNonNegativeLong();
         return new SearchExecutionContext(
             0,
@@ -454,7 +459,8 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static MapperService createMapperService(
-        IndexSettings indexSettings
+        IndexSettings indexSettings,
+        MappingLookup mappingLookup
     ) {
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
@@ -478,6 +484,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             indexSettings,
             () -> true
         ));
+        when(mapperService.mappingLookup()).thenReturn(mappingLookup);
         return mapperService;
     }
 

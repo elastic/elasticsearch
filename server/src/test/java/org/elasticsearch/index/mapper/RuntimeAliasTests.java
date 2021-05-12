@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
+
 import java.io.IOException;
 
 public class RuntimeAliasTests extends MapperServiceTestCase {
@@ -31,55 +33,15 @@ public class RuntimeAliasTests extends MapperServiceTestCase {
         assertEquals(KeywordFieldMapper.KeywordFieldType.class, aliased.getClass());
     }
 
-    public void testInvalidAlias() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> {
+    public void testInvalidAlias() {
+        Exception e = expectThrows(IllegalStateException.class, () -> createMapperService(topMapping(b -> {
             b.startObject("runtime");
             {
                 b.startObject("alias-to-field").field("type", "alias").field("path", "field").endObject();
             }
             b.endObject();
-        }));
-        Exception e = expectThrows(IllegalStateException.class, () -> mapperService.mappingLookup().getFieldType("alias-to-field"));
+        })));
         assertEquals("Cannot resolve alias [alias-to-field]: path [field] does not exist", e.getMessage());
-    }
-
-    public void testAliasToAlias() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> {
-            b.startObject("runtime");
-            {
-                b.startObject("alias-to-field").field("type", "alias").field("path", "field").endObject();
-                b.startObject("alias-to-alias").field("type", "alias").field("path", "alias-to-field").endObject();
-            }
-            b.endObject();
-            b.startObject("properties");
-            {
-                b.startObject("field").field("type", "keyword").endObject();
-            }
-            b.endObject();
-        }));
-
-        MappedFieldType aliased = mapperService.mappingLookup().getFieldType("alias-to-alias");
-        assertEquals("field", aliased.name());
-        assertEquals(KeywordFieldMapper.KeywordFieldType.class, aliased.getClass());
-    }
-
-    public void testAliasLoops() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> {
-            b.startObject("runtime");
-            {
-                b.startObject("alias-loop1").field("type", "alias").field("path", "alias-loop2").endObject();
-                b.startObject("alias-loop2").field("type", "alias").field("path", "alias-loop1").endObject();
-            }
-            b.endObject();
-            b.startObject("properties");
-            {
-                b.startObject("field").field("type", "keyword").endObject();
-            }
-            b.endObject();
-        }));
-
-        Exception e = expectThrows(IllegalStateException.class, () -> mapperService.mappingLookup().getFieldType("alias-loop1"));
-        assertEquals("Loop in field resolution detected: alias-loop1->alias-loop2->alias-loop1", e.getMessage());
     }
 
     public void testDynamicLookup() throws IOException {
@@ -101,6 +63,8 @@ public class RuntimeAliasTests extends MapperServiceTestCase {
         MappedFieldType aliased = mapperService.fieldType("dynamic-alias.key");
         assertNotNull(aliased);
         assertEquals("flattened._keyed", aliased.name());
+        FlattenedFieldMapper.KeyedFlattenedFieldType keyed = (FlattenedFieldMapper.KeyedFlattenedFieldType) aliased;
+        assertEquals("key", keyed.key());
     }
 
 }

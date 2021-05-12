@@ -791,7 +791,7 @@ POST /_scripts/painless/_execute
   }
 }
 ----
-// TEST [continued]
+// TEST[continued]
 
 The response includes the calculated value from the script valuation:
 

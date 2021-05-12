@@ -70,4 +70,39 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     protected long getMaxCells() {
         return maxTiles;
     }
+
+    @Override
+    protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
+        final int splits = 1 << precision - zTile;
+        final int minY = Math.max(this.minY, yTile * splits);
+        final int maxY = Math.min(this.maxY, yTile * splits + splits - 1);
+        if (crossesDateline) {
+            final int eastMinX = xTile * splits;
+            final int eastMaxX = Math.min(this.maxX, xTile * splits + splits - 1);
+            final int westMinX = Math.max(this.minX, xTile * splits);
+            final int westMaxX = xTile * splits + splits - 1;
+            for (int i = eastMinX; i <= eastMaxX; i++) {
+                for (int j = minY; j <= maxY; j++) {
+                    assert validTile(i, j, precision);
+                    values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
+                }
+            }
+            for (int i = westMinX; i <= westMaxX; i++) {
+                for (int j = minY; j <= maxY; j++) {
+                    assert validTile(i, j, precision);
+                    values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
+                }
+            }
+        } else {
+            final int minX = Math.max(this.minX, xTile * splits);
+            final int maxX = Math.min(this.maxX, xTile * splits + splits - 1);
+            for (int i = minX; i <= maxX; i++) {
+                for (int j = minY; j <= maxY; j++) {
+                    assert validTile(i, j, precision);
+                    values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
+                }
+            }
+        }
+        return valuesIndex;
+    }
 }

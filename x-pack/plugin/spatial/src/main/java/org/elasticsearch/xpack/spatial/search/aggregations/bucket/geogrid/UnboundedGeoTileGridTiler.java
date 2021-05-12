@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
+
 /**
  * Unbounded geotile aggregation. It accepts any tile.
  */
@@ -27,5 +29,21 @@ public class UnboundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     @Override
     protected long getMaxCells() {
         return maxTiles;
+    }
+
+    @Override
+    protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
+        final int splits = 1 << precision - zTile;
+        final int minX =xTile * splits;
+        final int maxX = xTile * splits + splits - 1;
+        final int minY = yTile * splits;
+        final int maxY = yTile * splits + splits - 1;
+        for (int i = minX; i <= maxX; i++) {
+            for (int j = minY; j <= maxY; j++) {
+                assert validTile(i, j, precision);
+                values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
+            }
+        }
+        return valuesIndex;
     }
 }

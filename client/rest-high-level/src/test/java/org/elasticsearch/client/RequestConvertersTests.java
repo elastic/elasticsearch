@@ -1422,7 +1422,7 @@ public class RequestConvertersTests extends ESTestCase {
         // Open point in time
         {
             Map<String, String> expectedParams = new HashMap<>();
-            String[] indices = randomIndicesNames(0, 5);
+            String[] indices = randomIndicesNames(1, 5);
             OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indices);
             String keepAlive = randomFrom("1ms", "2m", "1d");
             openRequest.keepAlive(TimeValue.parseTimeValue(keepAlive, "keep_alive"));
@@ -1441,12 +1441,7 @@ public class RequestConvertersTests extends ESTestCase {
             final Request request = RequestConverters.openPointInTime(openRequest);
             assertThat(request.getParameters(), equalTo(expectedParams));
             assertThat(request.getMethod(), equalTo(HttpPost.METHOD_NAME));
-            final String expectedEndpoint;
-            if (indices.length == 0) {
-                expectedEndpoint = "/_pit";
-            } else {
-                expectedEndpoint = "/" + String.join(",", indices) + "/_pit";
-            }
+            final String expectedEndpoint = "/" + String.join(",", indices) + "/_pit";
             assertThat(request.getEndpoint(), equalTo(expectedEndpoint));
         }
         // Search with point in time
@@ -1982,9 +1977,6 @@ public class RequestConvertersTests extends ESTestCase {
             if (ccsMinimizeRoundtrips == false) {
                 expectedParams.put("ccs_minimize_roundtrips", "false");
             }
-        }
-        if (searchRequest.isCcsMinimizeRoundtrips() == false) {
-            expectedParams.put("ccs_minimize_roundtrips", "false");
         }
         if (randomBoolean()) {
             searchRequest.setMaxConcurrentShardRequests(randomIntBetween(1, Integer.MAX_VALUE));

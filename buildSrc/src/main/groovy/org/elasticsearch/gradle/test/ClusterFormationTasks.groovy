@@ -702,7 +702,6 @@ class ClusterFormationTasks {
             node.env['ES_JAVA_OPTS'] = esJavaOpts.join(" ")
             node.env['JAVA_HOME'] = node.getJavaHome()
 
-            //
             project.logger.info("Starting node in ${node.clusterName} distribution: ${node.config.distribution}")
         }
         return start

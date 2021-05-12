@@ -35,8 +35,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -1281,6 +1285,66 @@ public class RestHighLevelClient implements Closeable {
                                               ActionListener<ClearScrollResponse> listener) {
         return performRequestAsyncAndParseEntity(clearScrollRequest, RequestConverters::clearScroll,
             options, ClearScrollResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Open a point in time before using it in search requests.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html"> Point in time API </a>
+     * @param openRequest the open request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response containing the point in time id
+     */
+    public final OpenPointInTimeResponse openPointInTime(OpenPointInTimeRequest openRequest,
+                                                         RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(openRequest, RequestConverters::openPointInTime,
+            options, OpenPointInTimeResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously open a point in time before using it in search requests
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html"> Point in time API </a>
+     * @param openRequest the open request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return a cancellable that may be used to cancel the request
+     */
+    public final Cancellable openPointInTimeAsync(OpenPointInTimeRequest openRequest,
+                                                  RequestOptions options,
+                                                  ActionListener<OpenPointInTimeResponse> listener) {
+        return performRequestAsyncAndParseEntity(openRequest, RequestConverters::openPointInTime,
+            options, OpenPointInTimeResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Close a point in time that is opened with {@link #openPointInTime(OpenPointInTimeRequest, RequestOptions)} or
+     * {@link #openPointInTimeAsync(OpenPointInTimeRequest, RequestOptions, ActionListener)}.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html#close-point-in-time-api">
+     * Close point in time API</a>
+     * @param closeRequest the close request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final ClosePointInTimeResponse closePointInTime(ClosePointInTimeRequest closeRequest,
+                                                           RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(closeRequest, RequestConverters::closePointInTime, options,
+            ClosePointInTimeResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously close a point in time that is opened with {@link #openPointInTime(OpenPointInTimeRequest, RequestOptions)} or
+     * {@link #openPointInTimeAsync(OpenPointInTimeRequest, RequestOptions, ActionListener)}.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html#close-point-in-time-api">
+     * Close point in time API</a>
+     * @param closeRequest the close request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return a cancellable that may be used to cancel the request
+     */
+    public final Cancellable closePointInTimeAsync(ClosePointInTimeRequest closeRequest,
+                                                   RequestOptions options,
+                                                   ActionListener<ClosePointInTimeResponse> listener) {
+        return performRequestAsyncAndParseEntity(closeRequest, RequestConverters::closePointInTime,
+            options, ClosePointInTimeResponse::fromXContent, listener, emptySet());
     }
 
     /**

@@ -32,6 +32,7 @@ communicate with a secured elasticsearch cluster.
 --------------------------------------------------
 POST /_security/enrollment_token
 --------------------------------------------------
+// TEST[skip:Determine behavior for keystore with multiple keys]
 
 The API returns a response such as
 

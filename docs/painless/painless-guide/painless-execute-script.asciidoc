@@ -418,15 +418,18 @@ PUT /my-index-000001
 }
 ----
 
-The following script adds a variable named `pageTime` to hold the number of
-seconds in a calendar year. The script then assesses the `author` and either
-divides or multiplies the `pageTime` value. If the author is
-`Robert A. Heinlein`, the script divides by two. Because `Alastair Reynolds`
-writes much slower, the script multiplies `pageTime` by two.
+The following script adds a variable named `pageTime`. The value for this field
+is `28800000` milliseconds, which equates to eight hours. We'll assume that this
+is an approximate time required to write a complete page for a book.
 
-Then, the script subtracts the release date value from the calculation of
-`pageTime` times the `page_count` to determine approximately when the author
-began writing the book.
+The script then assesses the `author` and either divides or multiplies the
+`pageTime` value. If the author is `Robert A. Heinlein`, the script divides by
+two. Because `Alastair Reynolds` writes much slower, the script multiplies
+`pageTime` by two if that's the matching author.
+
+Then, the script subtracts the release date value (in milliseconds) from the
+calculation of `pageTime` times the `page_count` to determine approximately when
+the author began writing the book.
 
 [source,console]
 ----
@@ -435,13 +438,13 @@ POST /_scripts/painless/_execute
   "script": {
     "source": """
     String author = doc['author'].value;
-    long pageTime = 31536000;
+    long pageTime = 28800000;
     if (author == 'Robert A. Heinlein') {
       pageTime /= 2;
     } else if (author == 'Alastair Reynolds') {
       pageTime *= 2;
     }
-    emit(doc['release_date'].value.dayOfYear - pageTime * doc['page_count'].value);
+    emit(doc['release_date'].value.toInstant().toEpochMilli() - pageTime * doc['page_count'].value);
     """
   },
   "context": "date_field",
@@ -460,14 +463,14 @@ POST /_scripts/painless/_execute
 
 In this case, the author is Alastair Reynolds. Based on a release date of
 `2000-03-15`, the script calculates that the author started writing
-`Revelation Space` on 30 October 1968. That's a long time to write a book
-(about 32 years), but sometimes good science fiction takes time!
+`Revelation Space` on 19 February 1999. Writing a 585 page book in just over one
+year is pretty impressive!
 
 [source,console-result]
 ----
 {
   "result" : [
-    "1968-10-30T22:48:00.075Z"
+    "1999-02-19T00:00:00.000Z"
   ]
 }
 ----

@@ -7,6 +7,10 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.xpack.ql.common.Failure;
+import org.elasticsearch.xpack.ql.expression.Order;
+import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.sql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.Unexecutable;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
@@ -30,6 +34,24 @@ abstract class Verifier {
                     failures.add(fail(e, "Unresolved expression"));
                 }
             });
+        });
+
+        Holder<Boolean> hasLimit = new Holder<>(Boolean.FALSE);
+        Holder<List<Order>> orderBy = new Holder<>();
+        plan.forEachUp(p -> {
+            if (hasLimit.get() == false && p instanceof LimitExec) {
+                hasLimit.set(Boolean.TRUE);
+                return;
+            }
+            if (orderBy.get() == null && p instanceof OrderExec) {
+                orderBy.set(((OrderExec) p).order());
+                return;
+            }
+            if (hasLimit.get() && orderBy.get() != null && p instanceof OrderExec) {
+                if (((OrderExec) p).order().equals(orderBy.get()) == false) {
+                    failures.add(fail(p, "Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT"));
+                }
+            }
         });
 
         return failures;

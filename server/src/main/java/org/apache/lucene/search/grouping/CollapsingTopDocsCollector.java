@@ -8,7 +8,6 @@
 package org.apache.lucene.search.grouping;
 
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
@@ -32,10 +31,7 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  */
 public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> {
     protected final String collapseField;
-
     protected final Sort sort;
-    protected Scorable scorer;
-
     private int totalHitCount;
 
     CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort, int topN) {
@@ -89,12 +85,6 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
         } else {
             return ScoreMode.COMPLETE_NO_SCORES;
         }
-    }
-
-    @Override
-    public void setScorer(Scorable scorer) throws IOException {
-        super.setScorer(scorer);
-        this.scorer = scorer;
     }
 
     @Override

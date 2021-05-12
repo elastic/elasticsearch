@@ -1112,7 +1112,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String expectedCreateServiceAccountTokenAuditEventString =
             String.format(Locale.ROOT,
-                "\"create\":{\"service_account_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"token_name\":\"%s\"}}",
+                "\"create\":{\"service_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"token_name\":\"%s\"}}",
                 namespace, serviceName, tokenName);
         assertThat(generatedCreateServiceAccountTokenAuditEventString, containsString(expectedCreateServiceAccountTokenAuditEventString));
         generatedCreateServiceAccountTokenAuditEventString =
@@ -1122,7 +1122,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit")
             .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_service_account_token")
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_service_token")
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedCreateServiceAccountTokenAuditEventString, checkedFields.immutableMap());
         // clear log
@@ -1139,7 +1139,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String expectedDeleteServiceAccountTokenAuditEventString =
             String.format(Locale.ROOT,
-                "\"delete\":{\"service_account_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"token_name\":\"%s\"}}",
+                "\"delete\":{\"service_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"token_name\":\"%s\"}}",
                 namespace, serviceName, tokenName);
         assertThat(generatedDeleteServiceAccountTokenAuditEventString, containsString(expectedDeleteServiceAccountTokenAuditEventString));
         generatedDeleteServiceAccountTokenAuditEventString =
@@ -1149,7 +1149,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
         checkedFields.put("type", "audit")
             .put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change")
-            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_service_account_token")
+            .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "delete_service_token")
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
         assertMsg(generatedDeleteServiceAccountTokenAuditEventString, checkedFields.immutableMap());
         // clear log

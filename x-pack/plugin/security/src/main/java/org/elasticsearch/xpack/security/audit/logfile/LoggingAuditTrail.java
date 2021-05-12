@@ -1174,28 +1174,28 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withRequestBody(CreateServiceAccountTokenRequest createServiceAccountTokenRequest) throws IOException {
-            logEntry.with(EVENT_ACTION_FIELD_NAME, "create_service_account_token");
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "create_service_token");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
-                .startObject("service_account_token")
+                .startObject("service_token")
                 .field("namespace", createServiceAccountTokenRequest.getNamespace())
                 .field("service", createServiceAccountTokenRequest.getServiceName())
                 .field("token_name", createServiceAccountTokenRequest.getTokenName())
-                .endObject() // service_account_token
+                .endObject() // service_token
                 .endObject();
             logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }
 
         LogEntryBuilder withRequestBody(DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) throws IOException {
-            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_service_account_token");
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_service_token");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
-                .startObject("service_account_token")
+                .startObject("service_token")
                 .field("namespace", deleteServiceAccountTokenRequest.getNamespace())
                 .field("service", deleteServiceAccountTokenRequest.getServiceName())
                 .field("token_name", deleteServiceAccountTokenRequest.getTokenName())
-                .endObject() // service_account_token
+                .endObject() // service_token
                 .endObject();
             logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;

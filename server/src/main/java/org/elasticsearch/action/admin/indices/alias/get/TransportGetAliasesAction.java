@@ -14,6 +14,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +23,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -31,8 +34,10 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -68,7 +73,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,
-            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices)));
+            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices), postProcess(request, state)));
     }
 
     /**
@@ -81,6 +86,15 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder(aliases);
         for (String index : concreteIndices) {
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
+            assert ia.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
+            if (ia.getParentDataStream() != null) {
+                // Don't include backing indices of data streams,
+                // because it is just noise. Aliases can't refer
+                // to backing indices directly.
+                continue;
+            }
+
             if (aliases.get(index) == null && noAliasesSpecified) {
                 List<AliasMetadata> previous = mapBuilder.put(index, Collections.emptyList());
                 assert previous == null;
@@ -91,6 +105,21 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             checkSystemIndexAccess(request, systemIndices, state, finalResponse, systemIndexAccessLevel, threadContext);
         }
         return finalResponse;
+    }
+
+    Map<String, List<DataStreamAlias>> postProcess(GetAliasesRequest request, ClusterState state) {
+        Map<String, List<DataStreamAlias>> result = new HashMap<>();
+        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
+        List<String> requestedDataStreams =
+            indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), request.indices());
+        for (String requestedDataStream : requestedDataStreams) {
+            List<DataStreamAlias> aliases = state.metadata().dataStreamAliases().values().stream()
+                .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
+                .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
+                .collect(Collectors.toList());
+            result.put(requestedDataStream, aliases);
+        }
+        return result;
     }
 
     private static void checkSystemIndexAccess(GetAliasesRequest request, SystemIndices systemIndices, ClusterState state,

@@ -111,7 +111,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
                 scriptCompiler, indexAnalyzers, indexSettings, idFieldDataEnabled);
-        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
+        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction, indexSettings, indexAnalyzers);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
@@ -135,7 +135,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return parserContextSupplier.get();
     }
 
-    DocumentParser documentParser() {
+    /**
+     * Exposes a {@link DocumentParser}
+     * @return a document parser to be used to parse incoming documents
+     */
+    public DocumentParser documentParser() {
         return this.documentParser;
     }
 
@@ -167,7 +171,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Update mapping by only merging the metadata that is different between received and stored entries
+     * Update local mapping by applying the incoming mapping that have already been merged with the current one on the master
      */
     public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
         assert newIndexMetadata.getIndex().equals(index()) : "index mismatch: expected " + index()
@@ -275,7 +279,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
-        DocumentMapper newMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping);
         newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
@@ -312,7 +316,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Return the document mapper, or {@code null} if no mapping has been put yet.
+     * Return the document mapper, or {@code null} if no mapping has been put yet
+     * or no documents have been indexed in the current index yet (which triggers a dynamic mapping update)
      */
     public DocumentMapper documentMapper() {
         return mapper;
@@ -344,20 +349,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns the document mapper for this MapperService.  If no mapper exists,
-     * creates one and returns that.
-     */
-    public DocumentMapperForType documentMapperWithAutoCreate() {
-        DocumentMapper mapper = documentMapper();
-        if (mapper != null) {
-            return new DocumentMapperForType(mapper, null);
-        }
-        Mapping mapping = mappingParser.parse(SINGLE_MAPPING_NAME, null);
-        mapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
-        return new DocumentMapperForType(mapper, mapper.mapping());
-    }
-
-    /**
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
@@ -365,7 +356,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * {@code volatile} read a (mostly) immutable snapshot current mapping.
+     * Exposes a snapshot of the mappings for the current index.
+     * If no mappings have been registered for the current index, an empty {@link MappingLookup} instance is returned.
+     * An index does not have mappings only if it was created without providing mappings explicitly,
+     * and no documents have yet been indexed in it.
      */
     public MappingLookup mappingLookup() {
         DocumentMapper mapper = this.mapper;

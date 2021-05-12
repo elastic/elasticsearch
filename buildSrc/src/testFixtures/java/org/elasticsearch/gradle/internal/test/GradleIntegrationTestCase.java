@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.test;
 
+import org.apache.commons.io.FileUtils;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.BuildTask;
 import org.gradle.testkit.runner.GradleRunner;
@@ -27,44 +28,54 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assert.fail;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
 
     @Rule
     public TemporaryFolder testkitTmpDir = new TemporaryFolder();
 
-    protected File getProjectDir(String name) {
-        File root = new File("src/testKit/");
-        if (root.exists() == false) {
-            throw new RuntimeException(
-                "Could not find resources dir for integration tests. "
-                    + "Note that these tests can only be ran by Gradle and are not currently supported by the IDE"
-            );
+    public File workingProjectDir = null;
+
+    public abstract String projectName();
+
+    protected File getProjectDir() {
+        if (workingProjectDir == null) {
+            File root = new File("src/testKit/");
+            if (root.exists() == false) {
+                throw new RuntimeException(
+                    "Could not find resources dir for integration tests. "
+                        + "Note that these tests can only be ran by Gradle and are not currently supported by the IDE"
+                );
+            }
+            try {
+                workingProjectDir = new File(testkitTmpDir.getRoot(), projectName());
+                File sourcFolder = new File(root, projectName());
+                FileUtils.copyDirectory(sourcFolder, workingProjectDir);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
         }
-        return new File(root, name).getAbsoluteFile();
+        return workingProjectDir;
     }
 
-    protected GradleRunner getGradleRunner(String sampleProject) {
+    protected GradleRunner getGradleRunner() {
         File testkit;
         try {
             testkit = testkitTmpDir.newFolder();
+
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
         return GradleRunner.create()
-            .withProjectDir(getProjectDir(sampleProject))
+            .withProjectDir(getProjectDir())
             .withPluginClasspath()
             .withTestKitDir(testkit)
             .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0);
     }
 
     protected File getBuildDir(String name) {
-        return new File(getProjectDir(name), "build");
+        return new File(getProjectDir(), "build");
     }
 
     protected void assertOutputContains(String output, String... lines) {

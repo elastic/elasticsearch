@@ -511,3 +511,101 @@ POST /_aliases
 }
 --------------------------------------------------
 // TEST[s/^/PUT test\nPUT test2\n/]
+
+[[aliases-data-streams]]
+===== Data stream aliases
+
+An alias can also point to one or more data streams. To add a data stream to an
+alias, specify the stream's name in the `index` parameter. Wildcards (`*`) are
+supported. If a wildcard pattern matches both data streams and indices, the
+action only uses the matching data streams.
+
+You can only specify data streams in the `add` and `remove` actions. Aliases
+that point to data streams do not support the following parameters:
+
+* `filter`
+* `index_routing`
+* `is_write_index`
+* `routing`
+* `search_routing`
+
+For example, the following request adds two data streams to the `logs` alias.
+
+////
+[source,console]
+----
+PUT _data_stream/logs-my_app-default
+
+PUT _data_stream/logs-nginx.access-prod
+----
+////
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    { "add": { "index": "logs-my_app-default", "alias": "logs" }},
+    { "add": { "index": "logs-nginx.access-prod", "alias": "logs" }}
+  ]
+}
+----
+// TEST[continued]
+
+To verify the alias points to both data streams, use the
+<<indices-get-alias,get index alias API>>.
+
+[source,console]
+----
+GET logs-*/_alias
+----
+// TEST[continued]
+
+The API returns:
+
+[source,console-result]
+----
+{
+  "logs-my_app-default": {
+    "aliases": {
+      "logs": {}
+    }
+  },
+  "logs-nginx.access-prod": {
+    "aliases": {
+      "logs": {}
+    }
+  }
+}
+----
+
+Use the `remove` action to remove a data stream from an alias.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    { "remove": { "index": "logs-my_app-default", "alias": "logs" }}
+  ]
+}
+
+GET logs-*/_alias
+----
+// TEST[continued]
+
+The get index alias API returns:
+
+[source,console-result]
+----
+{
+  "logs-my_app-default": {
+    "aliases": {}
+  },
+  "logs-nginx.access-prod": {
+    "aliases": {
+      "logs": {}
+    }
+  }
+}
+----

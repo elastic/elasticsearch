@@ -1102,6 +1102,11 @@ the forest. The maximum value is 2000. By default, this value is calculated
 during hyperparameter optimization.
 end::max-trees[]
 
+tag::max-trees-trained-models[]
+The maximum number of decision trees in the forest. The maximum value is 2000. 
+By default, this value is calculated during hyperparameter optimization.
+end::max-trees-trained-models[]
+
 tag::method[]
 The method that {oldetection} uses. Available methods are `lof`, `ldof`,
 `distance_kth_nn`, `distance_knn`, and `ensemble`. The default value is

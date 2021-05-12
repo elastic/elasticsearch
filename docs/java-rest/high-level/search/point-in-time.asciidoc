@@ -10,8 +10,8 @@ An OpenPointInTimeRequest requires an `index` and `keepAlive` arguments:
 include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time]
 --------------------------------------------------
 <1> Create an `OpenPointInTimeRequest` with the target indices
-<2> Set the `keep_alive` parameter, which tells Elasticsearch how long it
-should keep a point in time around.
+<2> Set the `keep_alive` - a required parameter, which tells
+Elasticsearch how long it should keep a point in time around.
 <3> Read the returned point in time id, which points to the search context that's
 being kept alive and will be used in the search requests.
 

@@ -7,12 +7,7 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.FilteredTermsEnum;
-import org.apache.lucene.index.ImpactsEnum;
-import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.TermsEnum.SeekStatus;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -41,7 +40,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
-@Repeat(iterations = 100)
 public class VerifierErrorMessagesTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
@@ -1116,27 +1114,25 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testTopHitsHavingWithSubqueryUnsupported() {
-        String topHitsFunction = randomTopHitsFunction();
-        int column = topHitsFunction.equals("FIRST") ? 88 : 87;
         String filter = randomFrom("WHERE", "HAVING");
+        int column = 104;
         if (filter.equals("HAVING")) {
             column++;
         }
-        assertEquals("1:" + column + ": HAVING filter is unsupported for function [" + topHitsFunction + "(int)]",
-                error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT " + topHitsFunction + "(int) AS f FROM test))) " +
-                        filter + " f > 10"));
+        assertEquals("1:" + column + ": HAVING filter is unsupported for functions [FIRST(int), LAST(int)]",
+                error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT FIRST(int) AS f, LAST(int) AS l FROM test))) " +
+                        filter + " f > 10 or l < 10"));
     }
 
     public void testTopHitsGroupByHavingWithSubqueryUnsupported() {
-        String topHitsFunction = randomTopHitsFunction();
-        int column = topHitsFunction.equals("FIRST") ? 102 : 101;
+        int column = 118;
         String filter = randomFrom("WHERE", "HAVING");
         if (filter.equals("HAVING")) {
             column++;
         }
-        assertEquals("1:" + column + ": HAVING filter is unsupported for function [" + topHitsFunction + "(int)]",
-                error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT " + topHitsFunction + "(int) AS f FROM test GROUP BY bool))) " +
-                        filter + " f > 10"));
+        assertEquals("1:" + column + ": HAVING filter is unsupported for functions [FIRST(int), LAST(int)]",
+                error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT FIRST(int) AS f, LAST(int) AS l FROM test GROUP BY bool))) " +
+                        filter + " f > 10 or l < 10"));
     }
 
     public void testMinOnInexactUnsupported() {

@@ -15,6 +15,7 @@ import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collection;
@@ -107,20 +108,25 @@ public final class StoreTrustConfig implements SslTrustConfig {
         } catch (AccessControlException e) {
             throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
         } catch (IOException e) {
-            throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e);
+            throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e, getAdditionalErrorDetails());
         } catch (GeneralSecurityException e) {
             throw keystoreException(path, e);
         }
     }
 
     private SslConfigException keystoreException(Path path, GeneralSecurityException e) {
-         final String extra;
+        final String extra = getAdditionalErrorDetails();
+        return SslFileUtil.securityException(fileTypeForException(), List.of(path), e, extra);
+    }
+
+    private String getAdditionalErrorDetails() {
+        final String extra;
         if (password.length == 0) {
              extra = "(no password was provided)";
          } else {
              extra = "(a keystore password was provided)";
          }
-        return SslFileUtil.securityException(fileTypeForException(), List.of(path), e, extra);
+        return extra;
     }
 
     private String fileTypeForException() {

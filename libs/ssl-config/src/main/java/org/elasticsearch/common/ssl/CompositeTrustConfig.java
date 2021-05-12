@@ -36,6 +36,11 @@ public class CompositeTrustConfig implements SslTrustConfig {
     }
 
     @Override
+    public boolean isSystemDefault() {
+        return configs.stream().allMatch(SslTrustConfig::isSystemDefault);
+    }
+
+    @Override
     public X509ExtendedTrustManager createTrustManager() {
         try {
             Collection<Certificate> trustedIssuers = configs.stream()

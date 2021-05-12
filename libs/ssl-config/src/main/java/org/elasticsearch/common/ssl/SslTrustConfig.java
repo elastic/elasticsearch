@@ -36,5 +36,12 @@ public interface SslTrustConfig {
      * @return A collection of {@link Certificate certificates} used by this config, excluding those shipped with the JDK
      */
     Collection<? extends StoredCertificate> getConfiguredCertificates();
+
+    /**
+     * @return {@code true} if this trust config is based on the system default truststore
+     */
+    default boolean isSystemDefault() {
+        return false;
+    }
 }
 

@@ -54,6 +54,11 @@ public final class DefaultJdkTrustConfig implements SslTrustConfig {
     }
 
     @Override
+    public boolean isSystemDefault() {
+        return true;
+    }
+
+    @Override
     public X509ExtendedTrustManager createTrustManager() {
         try {
             return KeyStoreUtil.createTrustManager(getSystemTrustStore(), TrustManagerFactory.getDefaultAlgorithm());

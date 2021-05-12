@@ -15,6 +15,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
+import java.security.UnrecoverableKeyException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,6 +32,10 @@ final class SslFileUtil {
     }
 
     static SslConfigException ioException(String fileType, List<Path> paths, IOException cause) {
+        return ioException(fileType, paths, cause, null);
+    }
+
+    static SslConfigException ioException(String fileType, List<Path> paths, IOException cause, String detail) {
         if (cause instanceof FileNotFoundException || cause instanceof NoSuchFileException) {
             return fileNotFound(fileType, paths, cause);
         }
@@ -41,8 +46,15 @@ final class SslFileUtil {
         if (paths.isEmpty() == false) {
             message += " [" + pathsToString(paths) + "]";
         }
-        if (cause != null && cause.getMessage() != null) {
+
+        if (cause.getCause() instanceof UnrecoverableKeyException) {
+            message += " - this is usually caused by an incorrect password";
+        } else if (cause != null && cause.getMessage() != null) {
             message += " - " + cause.getMessage();
+        }
+
+        if (detail != null) {
+            message = message + "; " + detail;
         }
         return new SslConfigException(message, cause);
     }

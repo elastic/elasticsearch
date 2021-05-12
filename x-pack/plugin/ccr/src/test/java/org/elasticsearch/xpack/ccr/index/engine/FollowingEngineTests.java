@@ -530,6 +530,8 @@ public class FollowingEngineTests extends ESTestCase {
                         follower.advanceMaxSeqNoOfUpdatesOrDeletes(leader.getMaxSeqNoOfUpdatesOrDeletes());
                         Translog.Operation op;
                         while ((op = snapshot.next()) != null) {
+                            assert op.seqNo() >= fromSeqNo && op.seqNo() <= toSeqNo :
+                                "seq no " + op.seqNo() + " outside of requested range [" + fromSeqNo + ", " + toSeqNo + "]";
                             EngineTestCase.applyOperation(follower,
                                 translogHandler.convertToEngineOp(op, randomFrom(Engine.Operation.Origin.values())));
                         }

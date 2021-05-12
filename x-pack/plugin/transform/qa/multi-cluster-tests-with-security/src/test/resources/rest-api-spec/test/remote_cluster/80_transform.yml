@@ -124,3 +124,18 @@ teardown:
             - '{"user": "e", "stars": 3, "date" : "2018-10-29T12:12:12.123456789Z"}'
             - '{"index": {"_index": "remote_test_index_2"}}'
             - '{"user": "d", "stars": 4, "date" : "2018-10-29T12:14:12.123456789Z"}'
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: remote_test_index_2
+        body:
+          aggs:
+            user:
+              terms:
+                field: user
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 2 }
+  - length: { aggregations.user.buckets: 2 }
+  - match: { aggregations.user.buckets.0.key: "d" }
+  - match: { aggregations.user.buckets.0.doc_count: 1 }

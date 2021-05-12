@@ -309,7 +309,7 @@ teardown:
             "dest": { "index": "simple-remote-transform" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
-              "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }
 
@@ -325,7 +325,7 @@ teardown:
             "dest": { "index": "simple-remote-transform-2" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
-              "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }
   - match: { acknowledged: true }
@@ -343,7 +343,7 @@ teardown:
 ---
 "Batch transform preview from remote cluster when the user is not authorized":
   - do:
-      catch: /Source indices have been deleted or closed./
+      catch: /Cannot preview transform \[transform-preview\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index, simple-remote-transform-2\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >
@@ -352,6 +352,18 @@ teardown:
             "dest": { "index": "simple-remote-transform-2" },
             "pivot": {
               "group_by": { "user": {"terms": {"field": "user"}}},
-              "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+  - do:
+      catch: /Cannot preview transform \[transform-preview\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:test_index\]/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:test_index" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }

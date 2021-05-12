@@ -27,12 +27,12 @@ import java.util.Objects;
  * in the snapshot, and, likewise, we want an associated index to be restored
  * when a feature snapshot is restored.
  */
-public class AssociatedIndexDescriptor {
+public class IndexDescriptor {
     /** A pattern, either with a wildcard or simple regex.*/
-    private final String indexPattern;
+    protected final String indexPattern;
 
     /** A description of the index or indices */
-    private final String description;
+    protected final String description;
 
     /** Used to determine whether an index name matches the {@link #indexPattern} */
     private final CharacterRunAutomaton indexPatternAutomaton;
@@ -43,7 +43,7 @@ public class AssociatedIndexDescriptor {
      *                     or regex-like character classes
      * @param description A short description of the purpose of this index
      */
-    public AssociatedIndexDescriptor(String indexPattern, String description) {
+    public IndexDescriptor(String indexPattern, String description) {
         Objects.requireNonNull(indexPattern, "associated index pattern must not be null");
         if (indexPattern.length() < 2) {
             throw new IllegalArgumentException(
@@ -65,7 +65,10 @@ public class AssociatedIndexDescriptor {
 
         this.indexPattern = indexPattern;
 
-        final Automaton automaton = buildAutomaton(indexPattern);
+        String output = indexPattern;
+        output = output.replaceAll("\\.", "\\.");
+        output = output.replaceAll("\\*", ".*");
+        final Automaton automaton = new RegExp(output).toAutomaton();
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
 
         this.description = description;
@@ -83,16 +86,6 @@ public class AssociatedIndexDescriptor {
      */
     public String getDescription() {
         return description;
-    }
-
-    /**
-     * Builds an automaton for matching index names against this descriptor's index pattern.
-     */
-    static Automaton buildAutomaton(String pattern) {
-        String output = pattern;
-        output = output.replaceAll("\\.", "\\.");
-        output = output.replaceAll("\\*", ".*");
-        return new RegExp(output).toAutomaton();
     }
 
     /**

@@ -18,7 +18,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.IndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -143,8 +143,8 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
-            return Collections.singletonList(new AssociatedIndexDescriptor(ASSOCIATED_INDEX_PATTERN, "Associated indices"));
+        public Collection<IndexDescriptor> getAssociatedIndexDescriptors() {
+            return Collections.singletonList(new IndexDescriptor(ASSOCIATED_INDEX_PATTERN, "Associated indices"));
         }
 
         @Override

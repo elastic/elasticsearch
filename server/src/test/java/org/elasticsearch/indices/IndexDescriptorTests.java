@@ -12,7 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class AssociatedIndexDescriptorTests extends ESTestCase {
+public class IndexDescriptorTests extends ESTestCase {
 
     /**
      * Tests the various validation rules that are applied when creating a new associated index descriptor.
@@ -20,37 +20,37 @@ public class AssociatedIndexDescriptorTests extends ESTestCase {
     public void testValidation() {
         {
             Exception ex = expectThrows(NullPointerException.class,
-                () -> new AssociatedIndexDescriptor(null, randomAlphaOfLength(5)));
+                () -> new IndexDescriptor(null, randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must not be null"));
         }
 
         {
             Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor("", randomAlphaOfLength(5)));
+                () -> new IndexDescriptor("", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
             Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor(".", randomAlphaOfLength(5)));
+                () -> new IndexDescriptor(".", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
             Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor(randomAlphaOfLength(10), randomAlphaOfLength(5)));
+                () -> new IndexDescriptor(randomAlphaOfLength(10), randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must start with the character [.]"));
         }
 
         {
             Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor(".*", randomAlphaOfLength(5)));
+                () -> new IndexDescriptor(".*", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }
         {
             Exception ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor(".*" + randomAlphaOfLength(10), randomAlphaOfLength(5))
+                () -> new IndexDescriptor(".*" + randomAlphaOfLength(10), randomAlphaOfLength(5))
             );
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }

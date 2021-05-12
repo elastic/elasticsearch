@@ -46,7 +46,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.indices.AssociatedIndexDescriptor;
+import org.elasticsearch.indices.IndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -1226,13 +1226,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     @Override
-    public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+    public Collection<IndexDescriptor> getAssociatedIndexDescriptors() {
         return List.of(
-            new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
-            new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
-            new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
-            new AssociatedIndexDescriptor(".ml-notifications*", "ML notifications indices"),
-            new AssociatedIndexDescriptor(".ml-annotations*", "Ml annotations indices")
+            new IndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
+            new IndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
+            new IndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
+            new IndexDescriptor(".ml-notifications*", "ML notifications indices"),
+            new IndexDescriptor(".ml-annotations*", "Ml annotations indices")
         );
     }
 

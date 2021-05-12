@@ -37,21 +37,18 @@ import java.util.Set;
  * indices that are managed internally to Elasticsearch, a descriptor can also include information for
  * creating the system index, upgrading its mappings, and creating an alias.
  */
-public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> {
-    /** A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices. */
-    private final String indexPattern;
-
+public class SystemIndexDescriptor extends IndexDescriptor implements Comparable<SystemIndexDescriptor> {
     /**
      * For internally-managed indices, specifies the name of the concrete index to create and update. This is required
      * since the {@link #indexPattern} can match many indices.
      */
     private final String primaryIndex;
 
-    /** A description of the index or indices */
-    private final String description;
-
-    /** Used to determine whether an index name matches the {@link #indexPattern} */
-    private final CharacterRunAutomaton indexPatternAutomaton;
+    /**
+     * Used to determine whether an index name matches the {@link #indexPattern}.
+     * Different from the parent class's automaton because it may also match aliases.
+     */
+    private final CharacterRunAutomaton systemIndexPatternAutomaton;
 
     /** For internally-managed indices, contains the index mappings JSON */
     private final String mappings;
@@ -156,24 +153,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors
     ) {
-        Objects.requireNonNull(indexPattern, "system index pattern must not be null");
-        if (indexPattern.length() < 2) {
-            throw new IllegalArgumentException(
-                "system index pattern provided as [" + indexPattern + "] but must at least 2 characters in length"
-            );
-        }
-        if (indexPattern.charAt(0) != '.') {
-            throw new IllegalArgumentException(
-                "system index pattern provided as [" + indexPattern + "] but must start with the character [.]"
-            );
-        }
-        if (indexPattern.charAt(1) == '*') {
-            throw new IllegalArgumentException(
-                "system index pattern provided as ["
-                    + indexPattern
-                    + "] but must not start with the character sequence [.*] to prevent conflicts"
-            );
-        }
+        super(indexPattern, description);
 
         if (primaryIndex != null) {
             if (primaryIndex.charAt(0) != '.') {
@@ -191,8 +171,6 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         if (indexFormat < 0) {
             throw new IllegalArgumentException("Index format cannot be negative");
         }
-
-        Strings.requireNonEmpty(indexPattern, "indexPattern must be supplied");
 
         Objects.requireNonNull(type, "type must not be null");
         if (type.isManaged()) {
@@ -247,17 +225,15 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             }
         }
 
-        this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
         this.aliasName = aliasName;
 
         final Automaton automaton = buildAutomaton(indexPattern, aliasName);
-        this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
-        if (primaryIndex != null && indexPatternAutomaton.run(primaryIndex) == false) {
+        this.systemIndexPatternAutomaton = new CharacterRunAutomaton(automaton);
+        if (primaryIndex != null && systemIndexPatternAutomaton.run(primaryIndex) == false) {
             throw new IllegalArgumentException("primary index does not match the index pattern!");
         }
 
-        this.description = description;
         this.mappings = mappings;
         this.settings = settings;
         this.indexFormat = indexFormat;
@@ -301,8 +277,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      * @param index The index name to be checked against the index pattern given at construction time.
      * @return True if the name matches the pattern, false otherwise.
      */
+    @Override
     public boolean matchesIndexPattern(String index) {
-        return indexPatternAutomaton.run(index);
+        return systemIndexPatternAutomaton.run(index);
     }
 
     /**

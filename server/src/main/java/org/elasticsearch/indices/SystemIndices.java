@@ -501,7 +501,7 @@ public class SystemIndices {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
-        private final Collection<AssociatedIndexDescriptor> associatedIndexDescriptors;
+        private final Collection<IndexDescriptor> associatedIndexDescriptors;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
 
         /**
@@ -516,7 +516,7 @@ public class SystemIndices {
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
-            Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
+            Collection<IndexDescriptor> associatedIndexDescriptors,
             TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
@@ -564,7 +564,7 @@ public class SystemIndices {
             return dataStreamDescriptors;
         }
 
-        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+        public Collection<IndexDescriptor> getAssociatedIndexDescriptors() {
             return associatedIndexDescriptors;
         }
 
@@ -583,22 +583,16 @@ public class SystemIndices {
          */
         public static void cleanUpFeature(
             Collection<SystemIndexDescriptor> indexDescriptors,
-            Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
+            Collection<IndexDescriptor> associatedIndexDescriptors,
             String name,
             ClusterService clusterService,
             Client client,
             ActionListener<ResetFeatureStateStatus> listener) {
             Metadata metadata = clusterService.state().getMetadata();
 
-            Stream<String> systemIndices = indexDescriptors.stream()
-                .map(sid -> sid.getMatchingIndices(metadata))
-                .flatMap(List::stream);
-
-            Stream<String> associatedIndices = associatedIndexDescriptors.stream()
+            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
                 .map(aid -> aid.getMatchingIndices(metadata))
-                .flatMap(List::stream);
-
-            List<String> allIndices = Stream.concat(systemIndices, associatedIndices)
+                .flatMap(List::stream)
                 .collect(Collectors.toList());
 
             if (allIndices.isEmpty()) {

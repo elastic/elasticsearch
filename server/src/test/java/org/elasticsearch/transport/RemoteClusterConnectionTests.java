@@ -1170,7 +1170,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertFalse(connectionManager.nodeConnected(seedNode));
                     assertFalse(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
-                    CountDownLatch latch = new CountDownLatch(1);
+                    CountDownLatch firstLatch = new CountDownLatch(1);
                     connection.ensureConnected(new LatchedActionListener<>(new ActionListener<Void>() {
                         @Override
                         public void onResponse(Void aVoid) {
@@ -1180,12 +1180,13 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         public void onFailure(Exception e) {
                             throw new AssertionError(e);
                         }
-                    }, latch));
-                    latch.await();
+                    }, firstLatch));
+                    firstLatch.await();
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());
 
+                    CountDownLatch secondLatch = new CountDownLatch(1);
                     // exec again we are already connected
                     connection.ensureConnected(new LatchedActionListener<>(new ActionListener<Void>() {
                         @Override
@@ -1196,8 +1197,8 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                         public void onFailure(Exception e) {
                             throw new AssertionError(e);
                         }
-                    }, latch));
-                    latch.await();
+                    }, secondLatch));
+                    secondLatch.await();
                     assertTrue(connectionManager.nodeConnected(seedNode));
                     assertTrue(connectionManager.nodeConnected(discoverableNode));
                     assertTrue(connection.assertNoRunningConnections());

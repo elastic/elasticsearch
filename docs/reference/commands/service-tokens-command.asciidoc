@@ -22,8 +22,7 @@ bin/elasticsearch-service-tokens
 === Description
 This command creates a `service_tokens` file in the `$ES_HOME/config` directory
 when you create the first service account token. This file does not exist by
-default. {es} monitors this file for changes and dynamically reloads it,
-similar to the `users` or `users_roles` files.
+default. {es} monitors this file for changes and dynamically reloads it.
 
 See <<service-accounts,service accounts>> for more information.
 

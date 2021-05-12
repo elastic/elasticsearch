@@ -470,7 +470,7 @@ management.
 ===== Configure {metricbeat} to use TLS
 
 Before starting {metricbeat}, you configure the connections to {es} and
-Kibana. You can configure authentication to send data to your secured cluster
+{kib}. You can configure authentication to send data to your secured cluster
 using basic authentication, API key authentication, or Public Key
 Infrastructure (PKI) certificates.
 
@@ -478,7 +478,7 @@ The following instructions use the credentials for the `metricbeat_writer`
 and `metricbeat_setup` users that you created. If you need a greater level of
 security, we recommend using PKI certificates.
 
-After configuring connections to Elasticsearch and Kibana, you'll enable the
+After configuring connections to {es} and {kib}, you'll enable the
 `elasticsearch-xpack` module and configure that module to use HTTPS.
 
 WARNING: In production environments, we strongly recommend using a separate
@@ -491,10 +491,10 @@ activities from impacting the performance of your production cluster.
 `/kibana` directory that you created when <<encrypt-http-communication,encrypting HTTP client communications for {es}>>.
 
 . Copy the `elasticsearch-ca.pem` certificate to the directory where you
-installed Metricbeat.
+installed {metricbeat}.
 
 . Open the `metricbeat.yml` configuration file and configure the connection
-to Elasticsearch.
+to {es}.
 +
 Under `output.elasticsearch`, specify the following fields:
 +
@@ -521,9 +521,10 @@ output.elasticsearch:
 
    `password`:: Password for the indicated `username`.
 
-   `certificate_authorities`:: Indicates the path to your trusted CA.
+   `certificate_authorities`:: Indicates the path to the local `.pem` file that
+   contains your CA's certificate. 
 
-. Configure the connection to Kibana.
+. Configure the connection to {kib}.
 +
 Under `setup.kibana`, specify the following fields:
 +
@@ -536,10 +537,10 @@ setup.kibana
  password: "p@ssw0rd"
 ----
 
-   `hosts`:: The URLs of the Elasticsearch instances to use for all your
+   `hosts`:: The URLs of the {es} instances to use for all your
    queries. Ensure that you include `https` in the URL.
 
-   `username`:: Name of the user with privileges required to set up dashboards in Kibana. The `metricbeat_setup` user that you created has these privileges.
+   `username`:: Name of the user with privileges required to set up dashboards in {kib}. The `metricbeat_setup` user that you created has these privileges.
 
    `password`:: Password for the indicated `username`.
 
@@ -550,7 +551,8 @@ setup.kibana
 ./metricbeat modules enable elasticsearch-xpack
 ----
 
-. Modify the `elasticsearch-xpack` module to use HTTPS.
+. Modify the `elasticsearch-xpack` module to use HTTPS. This module collects
+metrics about {es}.
 +
 Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
 +
@@ -562,9 +564,15 @@ Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
  hosts: ["https://<your_elasticsearch_host>:9200"]
  username: "remote_monitoring_user"
  password: "<password>"
+ ssl:     <1>
+   enabled: true
+   certificate_authorities: ["elasticsearch-ca.pem"]
+   verification_mode: "certificate"
 ----
+<1> Configuring SSL is required when monitoring a node with encrypted traffic.
+See {metricbeat-ref}/configuration-ssl.html[Configure SSL for {metricbeat}].
 
-   `hosts`:: Specifies the host where your Elasticsearch cluster is running.
+   `hosts`:: Specifies the host where your {es} cluster is running.
    Ensure that you include `https` in the URL.
 
    `username`:: Name of the user with privileges to collect metric data. The
@@ -572,6 +580,9 @@ Open `/modules.d/elasticsearch-xpack.yml` and specify the following fields:
    you can create a user and assign it the `monitoring_user` role.
 
    `password`:: Password for the indicated `username`.
+
+   `certificate_authorities`:: Indicates the path to the local `.pem` file that
+   contains your CA's certificate. 
 
 . If you want to use the predefined assets for parsing, indexing, and
    visualizing your data, run the following command to load these assets:

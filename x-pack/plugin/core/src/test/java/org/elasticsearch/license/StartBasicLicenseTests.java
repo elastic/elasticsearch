@@ -15,8 +15,10 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
@@ -29,11 +31,6 @@ import static org.elasticsearch.test.NodeRoles.addRoles;
 
 @ESIntegTestCase.ClusterScope(scope = SUITE)
 public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase {
-
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -57,19 +54,12 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
             assertEquals("trial", getLicenseResponse.license().type());
         });
 
-        RestClient restClient = getRestClient();
-        Response response = restClient.performRequest(new Request("GET", "/_license/basic_status"));
-        String body = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals("{\"eligible_to_start_basic\":true}", body);
+        GetBasicStatusResponse response = licensingClient.prepareGetStartBasic().get();
+        assertTrue(response.isEligibleToStartBasic());
 
-        Request ackRequest = new Request("POST", "/_license/start_basic");
-        ackRequest.addParameter("acknowledge", "true");
-        Response response2 = restClient.performRequest(ackRequest);
-        String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response2.getStatusLine().getStatusCode());
-        assertTrue(body2.contains("\"acknowledged\":true"));
-        assertTrue(body2.contains("\"basic_was_started\":true"));
+        PostStartBasicResponse startResponse = licensingClient.preparePostStartBasic().setAcknowledge(true).get();
+        assertTrue(startResponse.isAcknowledged());
+        assertTrue(startResponse.getStatus().isBasicStarted());
 
         assertBusy(() -> {
             GetLicenseResponse currentLicense = licensingClient.prepareGetLicense().get();
@@ -79,25 +69,19 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
         long expirationMillis = licensingClient.prepareGetLicense().get().license().expiryDate();
         assertEquals(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, expirationMillis);
 
-        Response response3 = restClient.performRequest(new Request("GET", "/_license"));
-        String body3 = Streams.copyToString(new InputStreamReader(response3.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertTrue(body3.contains("\"type\" : \"basic\""));
-        assertFalse(body3.contains("expiry_date"));
-        assertFalse(body3.contains("expiry_date_in_millis"));
+        GetLicenseResponse licenseResponse = licensingClient.prepareGetLicense().get();
+        assertEquals("basic", licenseResponse.license().type());
+        assertEquals(XPackInfoResponse.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS, licenseResponse.license().expiryDate());
 
-        Response response4 = restClient.performRequest(new Request("GET", "/_license/basic_status"));
-        String body4 = Streams.copyToString(new InputStreamReader(response4.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response3.getStatusLine().getStatusCode());
-        assertEquals("{\"eligible_to_start_basic\":false}", body4);
+        GetBasicStatusResponse response4 = licensingClient.prepareGetStartBasic().get();
+        assertFalse(response4.isEligibleToStartBasic());
 
-        ResponseException ex = expectThrows(ResponseException.class,
-                () -> restClient.performRequest(new Request("POST", "/_license/start_basic")));
-        Response response5 = ex.getResponse();
-        String body5 = Streams.copyToString(new InputStreamReader(response5.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(403, response5.getStatusLine().getStatusCode());
-        assertTrue(body5.contains("\"basic_was_started\":false"));
-        assertTrue(body5.contains("\"acknowledged\":true"));
-        assertTrue(body5.contains("\"error_message\":\"Operation failed: Current license is basic.\""));
+
+        PostStartBasicResponse response5 = licensingClient.preparePostStartBasic().setAcknowledge(true).get();
+        assertEquals(403, response5.status().getStatus());
+        assertFalse(response5.getStatus().isBasicStarted());
+        assertTrue(response5.isAcknowledged());
+        assertEquals("Operation failed: Current license is basic.", response5.getStatus().getErrorMessage());
     }
 
     public void testUnacknowledgedStartBasicLicense() throws Exception {
@@ -110,13 +94,13 @@ public class StartBasicLicenseTests extends AbstractLicensesIntegrationTestCase 
             assertEquals("trial", getLicenseResponse.license().type());
         });
 
-        Response response2 = getRestClient().performRequest(new Request("POST", "/_license/start_basic"));
-        String body2 = Streams.copyToString(new InputStreamReader(response2.getEntity().getContent(), StandardCharsets.UTF_8));
-        assertEquals(200, response2.getStatusLine().getStatusCode());
-        assertTrue(body2.contains("\"acknowledged\":false"));
-        assertTrue(body2.contains("\"basic_was_started\":false"));
-        assertTrue(body2.contains("\"error_message\":\"Operation failed: Needs acknowledgement.\""));
-        assertTrue(body2.contains("\"message\":\"This license update requires acknowledgement. To acknowledge the license, " +
-                "please read the following messages and call /start_basic again, this time with the \\\"acknowledge=true\\\""));
+        PostStartBasicResponse response = licensingClient.preparePostStartBasic().get();
+        assertEquals(200, response.status().getStatus());
+        assertFalse(response.isAcknowledged());
+        assertFalse(response.getStatus().isBasicStarted());
+        assertEquals("Operation failed: Needs acknowledgement.", response.getStatus().getErrorMessage());
+        assertEquals("This license update requires acknowledgement. To acknowledge the license, " +
+                "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:",
+            response.getAcknowledgeMessage());
     }
 }

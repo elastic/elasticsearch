@@ -80,17 +80,17 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public int getDimensionalType() {
-            return value.dimensionalShapeType().ordinal();
+            return value == null ? -1 : value.dimensionalShapeType().ordinal();
         }
 
         @Override
         public GeoPoint getCentroid() {
-            return centroid;
+            return value == null ? null : centroid;
         }
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return boundingBox;
+            return value == null ? null : boundingBox;
         }
 
         @Override

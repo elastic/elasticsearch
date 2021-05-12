@@ -19,7 +19,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -29,6 +28,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -57,33 +57,59 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("lat", vars -> scriptLat(vars, ScriptDocValues.Geometry::getCentroid));
-            scripts.put("lon", vars -> scriptLon(vars, ScriptDocValues.Geometry::getCentroid));
-            scripts.put("height", vars -> scriptHeight(vars, ScriptDocValues.Geometry::getBoundingBox));
-            scripts.put("width", vars -> scriptWidth(vars, ScriptDocValues.Geometry::getBoundingBox));
+            scripts.put("lat", this::scriptLat);
+            scripts.put("lon", this::scriptLon);
+            scripts.put("height", this::scriptHeight);
+            scripts.put("width", this::scriptWidth);
             return scripts;
         }
 
-        static Double scriptHeight(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoBoundingBox> bbox) {
+        private double scriptHeight(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            GeoBoundingBox boundingBox = bbox.apply((ScriptDocValues.Geometry<?>) doc.get("location"));
-            return boundingBox.topLeft().lat() - boundingBox.bottomRight().lat();
+            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            if (geometry.size() == 0) {
+                return Double.NaN;
+            } else {
+                GeoBoundingBox boundingBox = geometry.getBoundingBox();
+                return boundingBox.topLeft().lat() - boundingBox.bottomRight().lat();
+            }
         }
 
-        static Double scriptWidth(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoBoundingBox> bbox) {
+        private double scriptWidth(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            GeoBoundingBox boundingBox = bbox.apply((ScriptDocValues.Geometry<?>) doc.get("location"));
-            return boundingBox.bottomRight().lon() - boundingBox.topLeft().lon();
+            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            if (geometry.size() == 0) {
+                return Double.NaN;
+            } else {
+                GeoBoundingBox boundingBox = geometry.getBoundingBox();
+                return boundingBox.bottomRight().lon() - boundingBox.topLeft().lon();
+            }
         }
 
-        static Double scriptLat(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoPoint> centroid) {
+        private double scriptLat(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            return centroid.apply((ScriptDocValues.Geometry<?>) doc.get("location")).lat();
+            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lat();
         }
 
-        static Double scriptLon(Map<String, Object> vars, Function<ScriptDocValues.Geometry<?>, GeoPoint> centroid) {
+        private double scriptLon(Map<String, Object> vars) {
             Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
-            return centroid.apply((ScriptDocValues.Geometry<?>) doc.get("location")).lon();
+            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lon();
+        }
+
+        private ScriptDocValues.Geometry<?> assertGeometry(Map<?, ?> doc) {
+            ScriptDocValues.Geometry<?> geometry = (ScriptDocValues.Geometry<?>) doc.get("location");
+            if (geometry.size() == 0) {
+                assertThat(geometry.getBoundingBox(), Matchers.nullValue());
+                assertThat(geometry.getCentroid(), Matchers.nullValue());
+                assertThat(geometry.getDimensionalType(), equalTo(-1));
+            } else {
+                assertThat(geometry.getBoundingBox(), Matchers.notNullValue());
+                assertThat(geometry.getCentroid(), Matchers.notNullValue());
+                assertThat(geometry.getDimensionalType(), equalTo(0));
+            }
+            return geometry;
         }
     }
 
@@ -129,9 +155,6 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         assertThat(fields.get("lon").getValue(), equalTo(qLon));
         assertThat(fields.get("height").getValue(), equalTo(0d));
         assertThat(fields.get("width").getValue(), equalTo(0d));
-
-        client().prepareDelete("test", "1").get();
-        client().admin().indices().prepareRefresh("test").get();
     }
 
     public void testRandomMultiPoint() throws Exception {
@@ -178,8 +201,30 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         assertThat(fields.get("lon").getValue(), equalTo(centroidLon));
         assertThat(fields.get("height").getValue(), equalTo(height));
         assertThat(fields.get("width").getValue(), equalTo(width));
+    }
 
-        client().prepareDelete("test", "1").get();
+    public void testNullPoint() throws Exception {
+        client().prepareIndex("test").setId("1")
+            .setSource(jsonBuilder().startObject()
+                .field("name", "TestPosition")
+                .nullField("location")
+                .endObject())
+            .get();
+
         client().admin().indices().prepareRefresh("test").get();
+
+        SearchResponse searchResponse = client().prepareSearch().addStoredField("_source")
+            .addScriptField("lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lat", Collections.emptyMap()))
+            .addScriptField("lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lon", Collections.emptyMap()))
+            .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))
+            .addScriptField("width", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "width", Collections.emptyMap()))
+            .get();
+        assertSearchResponse(searchResponse);
+
+        Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
+        assertThat(fields.get("lat").getValue(), equalTo(Double.NaN));
+        assertThat(fields.get("lon").getValue(), equalTo(Double.NaN));
+        assertThat(fields.get("height").getValue(), equalTo(Double.NaN));
+        assertThat(fields.get("width").getValue(), equalTo(Double.NaN));
     }
 }

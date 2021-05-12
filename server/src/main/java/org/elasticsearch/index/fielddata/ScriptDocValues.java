@@ -394,17 +394,17 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public int getDimensionalType() {
-            return 0;
+            return size() == 0 ? -1 : 0;
         }
 
         @Override
         public GeoPoint getCentroid() {
-            return centroid;
+            return size() == 0 ? null : centroid;
         }
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-          return boundingBox;
+          return size() == 0 ? null : boundingBox;
         }
     }
 

@@ -38,23 +38,25 @@ context is specified.
 [%collapsible%open]
 ====
 `painless_test`::
-The default context if no other context is specified.
+The default context if no other context is specified. See 
+<<painless-execute-test,test context>>.
 
 `filter`::
-Treats scripts as if they were run inside a `script` query.
+Treats scripts as if they were run inside a `script` query. See
+<<painless-execute-filter-context,filter context>>.
 
 `score`::
 Treats scripts as if they were run inside a `script_score` function in a
-`function_score` query.
+`function_score` query. See <<painless-execute-core-context,score context>>.
 
 [[painless-execute-runtime-context]]
-.Runtime fields context
+.Field contexts
 [%collapsible%open]
 =====
 --
-The following contexts are specific to runtime fields.
+The following options are specific to the field contexts.
 
-NOTE: Result ordering in the runtime field context is not guaranteed.
+NOTE: Result ordering in the field contexts is not guaranteed.
 --
 
 ****
@@ -106,7 +108,7 @@ Index containing a mapping that's compatible with the indexed document.
 ====
 
 `params`:: (`Map`, read-only)
-User-defined parameters passed in as part of the query.
+Specifies any named parameters that are passed into the script as variables.
 
 `query`:: (Optional, object)
 NOTE: This parameter only applies when `score` is specified as the script 
@@ -117,10 +119,8 @@ whether or not the document matches, the
 {ref}/query-filter-context.html#query-context[query clause] also calculates a 
 relevance score in the `_score` metadata field.
 
-==== {api-examples-title}
-
 [[painless-execute-test]]
-===== Test context
+==== Test context
 The `painless_test` context runs scripts without additional parameters. The only
 variable that is available is `params`, which can be used to access user defined
 values. The result of the script is always converted to a string.
@@ -128,7 +128,7 @@ values. The result of the script is always converted to a string.
 Because the default context is `painless_test`, you don't need to specify the
 `context` or `context_setup`.
 
-====== Request
+===== Request
 
 [source,console]
 ----
@@ -144,7 +144,7 @@ POST /_scripts/painless/_execute
 }
 ----
 
-====== Response
+===== Response
 
 [source,console-result]
 ----
@@ -154,14 +154,14 @@ POST /_scripts/painless/_execute
 ----
 
 [[painless-execute-filter-context]]
-===== Filter context
+==== Filter context
 The `filter` context treats scripts as if they were run inside a `script` query.
 For testing purposes, a document must be provided so that it will be temporarily
 indexed in-memory and is accessible from the script. More precisely, the
 `_source`, stored fields and doc values of such a document are available to the
 script being tested.
 
-====== Request
+===== Request
 
 [source,console]
 ----
@@ -198,7 +198,7 @@ POST /_scripts/painless/_execute
 ----
 // TEST[continued]
 
-====== Response
+===== Response
 
 [source,console-result]
 ----
@@ -208,7 +208,7 @@ POST /_scripts/painless/_execute
 ----
 
 [[painless-execute-core-context]]
-===== Score context
+==== Score context
 The `score` context treats scripts as if they were run inside a `script_score`
 function in a `function_score` query.
 
@@ -262,17 +262,17 @@ POST /_scripts/painless/_execute
 ----
 
 [[painless-execute-runtime-field-context]]
-===== Runtime field context
-The <<painless-runtime-fields-context,runtime field context>> runs a script used
-for a runtime field and returns results in doc-values order.
+==== Field contexts
+The field contexts treat scripts as if they were run inside the
+{ref}/runtime-search-request.html[`runtime_mappings` section] of a search query.
+You can use field contexts to test scripts for different field types, and then
+include those scripts anywhere that they're supported, such as  <<painless-runtime-fields,runtime fields>>.
 
-Although runtime fields have their own context within the Painless execute API,
-you indicate the context for a runtime field based on the data type you want to
-return.
+Choose a field context based on the data type you want to return.
 
 [[painless-runtime-boolean]]
-====== `boolean_field`
-Use the `boolean_field` runtime field context when you want to return a `true`
+===== `boolean_field`
+Use the `boolean_field` field context when you want to return a `true`
 or `false` value from a script valuation. {ref}/boolean.html[Boolean fields]
 accept `true` and `false` values, but can also accept strings that are
 interpreted as either true or false. 
@@ -281,7 +281,7 @@ Let's say you have data for the top 100 science fiction books of all time. You
 want to write scripts that return a boolean response such as whether books
 exceed a certain page count, or if a book was published after a specific year.
 
-Add the following fields to your mapping:
+Consider that your data is structured like this:
 
 [source,console]
 ----
@@ -315,7 +315,7 @@ POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-       emit(doc['release_date'].value.dayOfYear < 1972);
+      emit(doc['release_date'].value.year < 1972);
     """
   },
   "context": "boolean_field",
@@ -354,8 +354,8 @@ POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-       int space = doc['author'].value.indexOf(' ');
-       emit(space > 0 && space < 5);
+      int space = doc['author'].value.indexOf(' ');
+      emit(space > 0 && space < 5);
     """
   },
   "context": "boolean_field",
@@ -418,18 +418,17 @@ PUT /my-index-000001
 }
 ----
 
-The following script adds a variable named `pageTime`. The value for this field
-is `28800000` milliseconds, which equates to eight hours. We'll assume that this
-is an approximate time required to write a complete page for a book.
+The following script adds a variable named `pageTime` and makes an incredible
+assumption that this is an approximate time required to write a complete page
+for a book.
 
-The script then assesses the `author` and either divides or multiplies the
-`pageTime` value. If the author is `Robert A. Heinlein`, the script divides by
-two. Because `Alastair Reynolds` writes much slower, the script multiplies
-`pageTime` by two if that's the matching author.
+The script then retrieves the `author` and makes another fantastic assumption
+to either divide or multiply the `pageTime` value based on the author's
+perceived writing speed (yet another wild assumption).
 
-Then, the script subtracts the release date value (in milliseconds) from the
-calculation of `pageTime` times the `page_count` to determine approximately when
-the author began writing the book.
+The script subtracts the release date value (in milliseconds) from the
+calculation of `pageTime` times the `page_count` to determine approximately
+(based on numerous assumptions) when the author began writing the book.
 
 [source,console]
 ----
@@ -437,14 +436,14 @@ POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-    String author = doc['author'].value;
-    long pageTime = 28800000;
-    if (author == 'Robert A. Heinlein') {
-      pageTime /= 2;
-    } else if (author == 'Alastair Reynolds') {
-      pageTime *= 2;
-    }
-    emit(doc['release_date'].value.toInstant().toEpochMilli() - pageTime * doc['page_count'].value);
+      String author = doc['author'].value;
+      long pageTime = 28800000;  <1>
+      if (author == 'Robert A. Heinlein') {
+        pageTime /= 2;           <2>
+      } else if (author == 'Alastair Reynolds') {
+        pageTime *= 2;           <3>
+      }
+      emit(doc['release_date'].value.toInstant().toEpochMilli() - pageTime * doc['page_count'].value);
     """
   },
   "context": "date_field",
@@ -460,6 +459,9 @@ POST /_scripts/painless/_execute
 }
 ----
 //TEST[continued]
+<1> Eight hours, represented in milliseconds
+<2> Incredibly fast writing from Robert A. Heinlein
+<3> Alastair Reynolds writes space operas at a much slower speed
 
 In this case, the author is Alastair Reynolds. Based on a release date of
 `2000-03-15`, the script calculates that the author started writing
@@ -477,7 +479,7 @@ year is pretty impressive!
 
 [[painless-runtime-double]]
 ===== `double_field`
-Use the `double_field` runtime context for {ref}/number.html[numeric data] of type
+Use the `double_field` context for {ref}/number.html[numeric data] of type
 `double`. For example, let's say you have sensor data that includes a `voltage`
 field with values like 5.6. You need to multiply this value, but only for
 sensors that match a specific model number.
@@ -519,9 +521,11 @@ that match the specified criteria.
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": """if (doc['model_number'].value.equals('QVKC92Q'))
-        {emit(1.7 * params._source['measures']['voltage']);}
-        else{emit(params._source['measures']['voltage']);}"""
+    "source": """
+      if (doc['model_number'].value.equals('QVKC92Q'))
+      {emit(1.7 * params._source['measures']['voltage']);}
+      else{emit(params._source['measures']['voltage']);}
+    """
   },
   "context": "double_field",
   "context_setup": {
@@ -552,9 +556,9 @@ the original value of `5.6` by `1.7`:
 
 [[painless-runtime-geo]]
 ===== `geo_point_field`
-{ref}/geo-point.html[Geo point] fields accept latitude-longitude pairs. You can define a
-geo-point field in several ways, and include values for latitude and longitude
-in the document for your script.
+{ref}/geo-point.html[Geo point] fields accept latitude-longitude pairs. You can
+define a geo-point field in several ways, and include values for latitude and
+longitude in the document for your script.
 
 If you already have a known geo-point, it's simpler to clearly state the
 positions of `lat` and `lon` in your index mappings. 
@@ -585,8 +589,8 @@ POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-        emit(doc['lat'].value, doc['lon'].value);
-        """
+      emit(doc['lat'].value, doc['lon'].value);
+    """
   },
   "context": "geo_point_field",
   "context_setup": {
@@ -655,9 +659,9 @@ POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-        String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
-        if (clientip != null) emit(clientip); 
-      """
+      String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
+      if (clientip != null) emit(clientip); 
+    """
   },
   "context": "ip_field",
   "context_setup": {
@@ -713,7 +717,9 @@ script in the `keyword_field` runtime field context:
 POST /_scripts/painless/_execute
 {
   "script": {
-    "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));"
+    "source": """
+      emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+    """
   },
   "context": "keyword_field",
   "context_setup": {
@@ -778,8 +784,8 @@ POST /_scripts/painless/_execute
 {
   "script": {
     "source": """
-          emit(doc['measures.end'].value - doc['measures.start'].value);
-          """
+      emit(doc['measures.end'].value - doc['measures.start'].value);
+    """
   },
   "context": "long_field",
   "context_setup": {

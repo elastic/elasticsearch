@@ -105,6 +105,16 @@ realm when using a custom web application other than Kibana
 * <<security-api-saml-invalidate, Submit a logout request from the IdP>>
 * <<security-api-saml-sp-metadata,Generate SAML metadata>>
 
+[discrete]
+[[security-enrollment-apis]]
+=== Enrollment
+
+You can use the following APIs to allow new nodes to join an existing cluster with
+security enabled or to allow a client to configure itself to communicate with
+a secured {es} cluster
+
+* <<security-api-node-enrollment, Enroll a new node>>
+
 
 include::security/authenticate.asciidoc[]
 include::security/change-password.asciidoc[]
@@ -124,6 +134,7 @@ include::security/delete-roles.asciidoc[]
 include::security/delete-users.asciidoc[]
 include::security/disable-users.asciidoc[]
 include::security/enable-users.asciidoc[]
+include::security/enroll-node.asciidoc[]
 include::security/get-api-keys.asciidoc[]
 include::security/get-app-privileges.asciidoc[]
 include::security/get-builtin-privileges.asciidoc[]

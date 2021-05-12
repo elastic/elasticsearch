@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.security.action.enrollment;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,8 +40,8 @@ import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.nio.charset.StandardCharsets;
+import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -52,8 +53,9 @@ import java.util.stream.Collectors;
 public class TransportCreateEnrollmentTokenAction
     extends HandledTransportAction<CreateEnrollmentTokenRequest, CreateEnrollmentTokenResponse> {
 
-    public static final long ENROLL_API_KEY_EXPIRATION_SEC = 30*60;
+    protected static final long ENROLL_API_KEY_EXPIRATION_SEC = 30*60;
 
+    private static final Logger logger = LogManager.getLogger(TransportCreateEnrollmentTokenAction.class);
     private final ApiKeyGenerator generator;
     private final SecurityContext securityContext;
     private final Environment environment;
@@ -65,8 +67,16 @@ public class TransportCreateEnrollmentTokenAction
                                                 SecurityContext context, CompositeRolesStore rolesStore,
                                                 NamedXContentRegistry xContentRegistry, Environment environment, NodeService nodeService,
                                                 SSLService sslService) {
+        this(transportService, actionFilters, context,
+            environment, nodeService, sslService, new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry));
+    }
+
+    // Constructor for testing
+    TransportCreateEnrollmentTokenAction(TransportService transportService, ActionFilters actionFilters, SecurityContext context,
+                                         Environment environment, NodeService nodeService, SSLService sslService,
+                                         ApiKeyGenerator generator) {
         super(CreateEnrollmentTokenAction.NAME, transportService, actionFilters, CreateEnrollmentTokenRequest::new);
-        this.generator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
+        this.generator = generator;
         this.securityContext = context;
         this.environment = environment;
         this.nodeService = nodeService;
@@ -84,60 +94,52 @@ public class TransportCreateEnrollmentTokenAction
                         "keystore"));
                 return;
             }
-            final List<X509Certificate> caCertificates = ((StoreKeyConfig) keyConfig).x509Certificates(environment).stream()
-                .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1).collect(Collectors.toList());
-            if (caCertificates.size() != 1) {
+            final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates =
+                ((StoreKeyConfig) keyConfig).getPrivateKeyEntries(environment).stream()
+                    .filter(t -> t.v2().getBasicConstraints() != -1).collect(Collectors.toList());
+            if (httpCaKeysAndCertificates.isEmpty()) {
                 listener.onFailure(new IllegalStateException(
-                    "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration Keystore doesn't contain a " +
-                    "single PrivateKey entry where the associated certificate is a CA certificate"));
+                    "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration Keystore doesn't contain any " +
+                        "PrivateKey entries where the associated certificate is a CA certificate"));
+                return;
+            } else if (httpCaKeysAndCertificates.size() > 1) {
+                listener.onFailure(new IllegalStateException(
+                    "Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration Keystore contain multiple " +
+                        "PrivateKey entries where the associated certificate is a CA certificate"));
+                return;
             } else {
                 final TimeValue expiration = TimeValue.timeValueSeconds(ENROLL_API_KEY_EXPIRATION_SEC);
-                final List<RoleDescriptor> roleDescriptors = new ArrayList<>(1);
                 final String[] clusterPrivileges = { "enroll" };
-                final RoleDescriptor roleDescriptor = new RoleDescriptor("create_enrollment_token", clusterPrivileges, null, null);
-                roleDescriptors.add(roleDescriptor);
-                CreateApiKeyRequest apiRequest = new CreateApiKeyRequest(UUIDs.base64UUID(), roleDescriptors, expiration);
-                final String fingerprint = SslUtil.calculateFingerprint(caCertificates.get(0));
-                createEnrolmentToken(fingerprint, apiRequest, listener);
+                final List<RoleDescriptor> roleDescriptors = List.of(new RoleDescriptor("create_enrollment_token", clusterPrivileges, null, null));
+                CreateApiKeyRequest apiRequest = new CreateApiKeyRequest("enrollment_token_API_key_" + UUIDs.base64UUID(),
+                    roleDescriptors, expiration);
+                final String fingerprint = SslUtil.calculateFingerprint(httpCaKeysAndCertificates.get(0).v2());
+                generator.generateApiKey(securityContext.getAuthentication(), apiRequest,
+                    ActionListener.wrap(
+                        CreateApiKeyResponse -> {
+                            try {
+                                final String address = nodeService.info(false, false, false, false, false, false,
+                                    true, false, false, false, false).getInfo(HttpInfo.class).getAddress().publishAddress().toString();
+                                final XContentBuilder builder = JsonXContent.contentBuilder();
+                                builder.startObject();
+                                builder.field("adr", address);
+                                builder.field("fgr", fingerprint);
+                                builder.field("key", CreateApiKeyResponse.getKey().toString());
+                                builder.endObject();
+                                final String jsonString = Strings.toString(builder);
+                                final String token = Base64.getEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
+                                final CreateEnrollmentTokenResponse response = new CreateEnrollmentTokenResponse(token);
+                                listener.onResponse(response);
+                            } catch (Exception e) {
+                                logger.error(("Error generating enrollment token"), e);
+                                listener.onFailure(e);
+                            }
+                        },
+                        listener::onFailure
+                    )
+                );
             }
         } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    private void createEnrolmentToken(String fingerprint, CreateApiKeyRequest apiRequest,
-                                      ActionListener<CreateEnrollmentTokenResponse> listener) {
-        try {
-            generator.generateApiKey(securityContext.getAuthentication(), apiRequest,
-                ActionListener.wrap(
-                    CreateApiKeyResponse -> {
-                        try {
-                            final NodeInfo nodeInfo = nodeService.info(false, false, false, false, false, false,
-                                true, false, false, false, false);
-                            final HttpInfo httpInfo = nodeInfo.getInfo(HttpInfo.class);
-                            final String address = httpInfo.getAddress().publishAddress().toString();
-
-                            final XContentBuilder builder = JsonXContent.contentBuilder();
-                            builder.startObject();
-                            builder.field("adr", address);
-                            builder.field("fgr", fingerprint);
-                            builder.field("key", CreateApiKeyResponse.getKey().toString());
-                            builder.endObject();
-                            final String jsonString = Strings.toString(builder);
-                            final String token = Base64.getEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
-
-                            final CreateEnrollmentTokenResponse response = new CreateEnrollmentTokenResponse(token);
-                            listener.onResponse(response);
-                        } catch (Exception e) {
-                            logger.error(() -> new ParameterizedMessage("Error generating enrollment token"), e);
-                            listener.onFailure(e);
-                        }
-                    },
-                    listener::onFailure
-                )
-            );
-        } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("Error generating enrollment token"), e);
             listener.onFailure(e);
         }
     }

@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.enrollment.EnrollmentSettings;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -59,7 +59,7 @@ public class RestCreateEnrollmentTokenAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (EnrollmentSettings.ENROLLMENT_ENABLED.get(settings) != true) {
+        if (Node.ENROLLMENT_ENABLED.get(settings) != true) {
             throw new IllegalStateException("Enrollment mode is not enabled.");
         }
         final CreateEnrollmentTokenRequest enrollmentTokenRequest = new CreateEnrollmentTokenRequest();

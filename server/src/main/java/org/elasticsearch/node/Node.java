@@ -230,6 +230,10 @@ public class Node implements Closeable {
     public static final Setting<TimeValue> INITIAL_STATE_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("discovery.initial_state_timeout", TimeValue.timeValueSeconds(30), Property.NodeScope);
 
+    /** Setting for enabling or disabling enrollment mode. Defaults to false. */
+    public static final Setting<Boolean> ENROLLMENT_ENABLED = Setting.boolSetting("node.enrollment.enabled", false,
+        Setting.Property.NodeScope);
+
     private static final String CLIENT_TYPE = "node";
 
     private final Lifecycle lifecycle = new Lifecycle();

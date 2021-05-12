@@ -34,8 +34,11 @@ import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -43,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.RequestOptions.DEFAULT;
 import static org.hamcrest.Matchers.endsWith;
@@ -158,13 +162,23 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteRoleResponse.isFound(), is(true));
     }
 
-    @AwaitsFix(bugUrl = "Requires SSL")
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
     public void testCreateEnrollmentTokenClient() throws Exception {
         final SecurityClient securityClient = highLevelClient().security();
+        final Map<String, Object> info;
         CreateEnrollmentTokenResponse clientResponse =
             execute(securityClient::createEnrollmentToken, securityClient::createEnrollmentTokenAsync, DEFAULT);
-
         assertThat(clientResponse, notNullValue());
+        String jsonString = new String(Base64.getDecoder().decode(clientResponse.getEnrollmentToken()), StandardCharsets.UTF_8);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
+            info = parser.map();
+            assertNotEquals(info, null);
+            info.entrySet().stream()
+                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().toString()));
+        }
+        assertThat(info.get("adr"), notNullValue());
+        assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", info.get("fgr"));
+        assertThat(info.get("key"), notNullValue());
     }
 
     @AwaitsFix(bugUrl = "Determine behavior for keystore with multiple keys")

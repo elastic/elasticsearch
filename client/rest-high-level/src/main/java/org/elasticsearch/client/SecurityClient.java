@@ -1155,6 +1155,7 @@ public final class SecurityClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(CreateEnrollmentTokenRequest.INSTANCE,
             CreateEnrollmentTokenRequest::getRequest, options,
             CreateEnrollmentTokenResponse::fromXContent, listener, emptySet());
+    }
 
 
     /**

@@ -12,6 +12,8 @@ communicate with a secured elasticsearch cluster.
 
 `POST /_security/enrollment_token`
 
+`PUT /_security/enrollment_token`
+
 [[cluster-create-enrollment-token-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -19,7 +21,7 @@ communicate with a secured elasticsearch cluster.
 [[cluster-create-enrollment-token-api-desc]]
 ==== {api-description-title}
 
-The purpose of the create enrollment token API is to generate a token with which user can enroll a new node
+The purpose of the create enrollment token API is to generate an enrollment with which user can enroll a new node
 in an existing secured elasticsearch cluster, or a client can configure itself to
 communicate with a secured elasticsearch cluster.
 
@@ -45,7 +47,7 @@ The API returns a response such as
     - The fingerprint of the CA certificate that is used to sign the certificate that the Elasticsearch node presents for TLS on the HTTP layer;
     - An API key which allows a holder of the token to authenticate themself to the elasticsearch node.
 
-as Base64 encoded string.
+as a Base64 encoded string.
 
 A decoded enrollment token is shown below (spaces and new lines added for clarity) :
 [source,console-result]

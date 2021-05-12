@@ -957,7 +957,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
                 new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
                 new RestGetServiceAccountAction(settings, getLicenseState()),
-                new RestCreateEnrollmentTokenAction(settings, getLicenseState())
+                new RestCreateEnrollmentTokenAction(settings, getLicenseState()),
                 new RestNodeEnrollmentAction(settings, getLicenseState())
         );
     }

@@ -7,7 +7,7 @@
 [id="{upid}-{api}"]
 === Create Enrollment Token API
 
-Enrollment Token can be created using this API.
+Enrollment Tokens can be created using this API.
 
 [id="{upid}-{api}-request"]
 ==== Create Enrollment Token Request
@@ -24,7 +24,7 @@ include::../execution.asciidoc[]
 [id="{upid}-{api}-response"]
 ==== Create Enrollment Token Response
 
-The returned +{response}+ contains a string that contains the enrollment token with which user can enroll a new node
+The returned +{response}+ contains a string with the enrollment token with which user can enroll a new node
 in an existing secured elasticsearch cluster, or a client can configure itself to
 communicate with a secured elasticsearch cluster.
 

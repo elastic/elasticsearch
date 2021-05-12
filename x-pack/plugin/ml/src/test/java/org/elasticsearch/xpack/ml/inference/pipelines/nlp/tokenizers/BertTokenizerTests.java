@@ -16,20 +16,17 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.contains;
 
 public class BertTokenizerTests extends ESTestCase {
 
     public void testTokenize() {
-        BertTokenizer tokenizer = BertTokenizer.builder(
-            WordPieceTokenizerTests.createVocabMap("Elastic", "##search", "fun"))
-            .build();
+        BertTokenizer tokenizer = BertTokenizer.builder(Arrays.asList("Elastic", "##search", "fun")).build();
 
         BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize("Elasticsearch fun", false);
         assertThat(tokenization.getTokens(), contains("Elastic", "##search", "fun"));
@@ -38,10 +35,8 @@ public class BertTokenizerTests extends ESTestCase {
     }
 
     public void testTokenizeAppendSpecialTokens() {
-        BertTokenizer tokenizer = BertTokenizer.builder(
-            WordPieceTokenizerTests.createVocabMap("elastic", "##search", "fun",
-                BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN))
-            .build();
+        BertTokenizer tokenizer = BertTokenizer.builder(Arrays.asList(
+            "elastic", "##search", "fun", BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN)).build();
 
         BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize("elasticsearch fun", true);
         assertThat(tokenization.getTokens(), contains("[CLS]", "elastic", "##search", "fun", "[SEP]"));
@@ -50,7 +45,7 @@ public class BertTokenizerTests extends ESTestCase {
     }
 
     public void testBertVocab() throws IOException {
-        BertTokenizer tokenizer = BertTokenizer.builder(vocabMap(loadVocab())).setDoLowerCase(false).build();
+        BertTokenizer tokenizer = BertTokenizer.builder(loadVocab()).setDoLowerCase(false).build();
 
         BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize("Jim bought 300 shares of Acme Corp. in 2006", true);
 
@@ -58,19 +53,11 @@ public class BertTokenizerTests extends ESTestCase {
             tokenization.getTokenIds());
     }
 
-    private SortedMap<String, Integer> vocabMap(List<String> vocabulary) {
-        SortedMap<String, Integer> vocab = new TreeMap<>();
-        for (int i = 0; i < vocabulary.size(); i++) {
-            vocab.put(vocabulary.get(i), i);
-        }
-        return vocab;
-    }
-
     public void testNeverSplitTokens() {
         final String specialToken = "SP001";
 
         BertTokenizer tokenizer = BertTokenizer.builder(
-            WordPieceTokenizerTests.createVocabMap("Elastic", "##search", "fun", specialToken, BertTokenizer.UNKNOWN_TOKEN))
+            Arrays.asList("Elastic", "##search", "fun", specialToken, BertTokenizer.UNKNOWN_TOKEN))
             .setNeverSplit(Collections.singleton(specialToken))
             .build();
 
@@ -83,7 +70,7 @@ public class BertTokenizerTests extends ESTestCase {
     public void testDoLowerCase() {
         {
             BertTokenizer tokenizer = BertTokenizer.builder(
-                WordPieceTokenizerTests.createVocabMap("elastic", "##search", "fun", BertTokenizer.UNKNOWN_TOKEN))
+                Arrays.asList("elastic", "##search", "fun", BertTokenizer.UNKNOWN_TOKEN))
                 .setDoLowerCase(false)
                 .build();
 
@@ -97,8 +84,7 @@ public class BertTokenizerTests extends ESTestCase {
         }
 
         {
-            BertTokenizer tokenizer = BertTokenizer.builder(
-                WordPieceTokenizerTests.createVocabMap("elastic", "##search", "fun"))
+            BertTokenizer tokenizer = BertTokenizer.builder(Arrays.asList("elastic", "##search", "fun"))
                 .setDoLowerCase(true)
                 .build();
 

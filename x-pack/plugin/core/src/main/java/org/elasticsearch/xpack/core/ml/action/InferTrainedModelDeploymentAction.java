@@ -40,11 +40,11 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
         public static final String DEPLOYMENT_ID = "deployment_id";
-        public static final ParseField INPUTS = new ParseField("inputs");
+        public static final ParseField INPUT = new ParseField("input");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
-            PARSER.declareString((request, inputs) -> request.inputs = inputs, INPUTS);
+            PARSER.declareString((request, inputs) -> request.input = inputs, INPUT);
         }
 
         public static Request parseRequest(String deploymentId, XContentParser parser) {
@@ -54,42 +54,42 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         }
 
         private String deploymentId;
-        private String inputs;
+        private String input;
 
         private Request() {
         }
 
-        public Request(String deploymentId, String inputs) {
+        public Request(String deploymentId, String input) {
             this.deploymentId = Objects.requireNonNull(deploymentId);
-            this.inputs = Objects.requireNonNull(inputs);
+            this.input = Objects.requireNonNull(input);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            inputs = in.readString();
+            input = in.readString();
         }
 
         public String getDeploymentId() {
             return deploymentId;
         }
 
-        public String getInputs() {
-            return inputs;
+        public String getInput() {
+            return input;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            out.writeString(inputs);
+            out.writeString(input);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field(DEPLOYMENT_ID, deploymentId);
-            builder.field(INPUTS.getPreferredName(), inputs);
+            builder.field(INPUT.getPreferredName(), input);
             builder.endObject();
             return builder;
         }
@@ -105,12 +105,12 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (o == null || getClass() != o.getClass()) return false;
             InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
             return Objects.equals(deploymentId, that.deploymentId)
-                && Objects.equals(inputs, that.inputs);
+                && Objects.equals(input, that.input);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, inputs);
+            return Objects.hash(deploymentId, input);
         }
     }
 

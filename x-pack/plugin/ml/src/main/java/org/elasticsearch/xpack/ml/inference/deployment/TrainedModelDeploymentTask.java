@@ -60,7 +60,7 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         stop(reason);
     }
 
-    public void infer(String inputs, ActionListener<InferenceResults> listener) {
-        manager.infer(this, inputs, listener);
+    public void infer(String input, ActionListener<InferenceResults> listener) {
+        manager.infer(this, input, listener);
     }
 }

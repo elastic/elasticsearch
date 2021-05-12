@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Performs basic tokenization and normalization of input text
@@ -33,13 +34,13 @@ public class BertTokenizer {
     public static final int DEFAULT_MAX_INPUT_CHARS_PER_WORD = 100;
 
     private final WordPieceTokenizer wordPieceTokenizer;
-    private final Map<String, Integer> vocab;
+    private final SortedMap<String, Integer> vocab;
     private final boolean doLowerCase;
     private final boolean doTokenizeCjKChars;
     private final boolean doStripAccents;
     private final Set<String> neverSplit;
 
-    private BertTokenizer(Map<String, Integer> vocab,
+    private BertTokenizer(SortedMap<String, Integer> vocab,
                           boolean doLowerCase,
                           boolean doTokenizeCjKChars,
                           boolean doStripAccents,
@@ -119,12 +120,12 @@ public class BertTokenizer {
         return new TokenizationResult(tokens, tokenIds, tokenMap);
     }
 
-    public class TokenizationResult {
+    public static class TokenizationResult {
         private final List<String> tokens;
         private final int [] tokenIds;
         private final int [] tokenMap;
 
-        TokenizationResult(List<String> tokens, int [] tokenIds, int [] tokenMap) {
+        public TokenizationResult(List<String> tokens, int[] tokenIds, int[] tokenMap) {
             assert tokens.size() == tokenIds.length;
             assert tokenIds.length == tokenMap.length;
             this.tokens = tokens;
@@ -159,20 +160,28 @@ public class BertTokenizer {
         }
     }
 
-    public static Builder builder(Map<String, Integer> vocab) {
+    public static Builder builder(List<String> vocab) {
         return new Builder(vocab);
     }
 
     public static class Builder {
 
-        private final Map<String, Integer> vocab;
+        private final SortedMap<String, Integer> vocab;
         private boolean doLowerCase = false;
         private boolean doTokenizeCjKChars = true;
         private Boolean doStripAccents = null;
         private Set<String> neverSplit;
 
-        public Builder(Map<String, Integer> vocab) {
-            this.vocab = vocab;
+        private Builder(List<String> vocab) {
+            this.vocab = buildSortedVocab(vocab);
+        }
+
+        private static SortedMap<String, Integer> buildSortedVocab(List<String> vocab) {
+            SortedMap<String, Integer> sortedVocab = new TreeMap<>();
+            for (int i = 0; i < vocab.size(); i++) {
+                sortedVocab.put(vocab.get(i), i);
+            }
+            return sortedVocab;
         }
 
         public Builder setDoLowerCase(boolean doLowerCase) {

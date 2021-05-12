@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokeniz
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 public class PipelineConfig implements ToXContentObject {
 
@@ -63,15 +61,7 @@ public class PipelineConfig implements ToXContentObject {
     }
 
     public BertTokenizer buildTokenizer() {
-        return BertTokenizer.builder(vocabMap()).setDoLowerCase(doLowerCase).build();
-    }
-
-    SortedMap<String, Integer> vocabMap() {
-        SortedMap<String, Integer> vocab = new TreeMap<>();
-        for (int i = 0; i < vocabulary.size(); i++) {
-            vocab.put(vocabulary.get(i), i);
-        }
-        return vocab;
+        return BertTokenizer.builder(vocabulary).setDoLowerCase(doLowerCase).build();
     }
 
     @Override

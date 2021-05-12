@@ -63,8 +63,12 @@ final class TransformPrivilegeChecker {
     ) {
         List<RoleDescriptor.IndicesPrivileges> indicesPrivileges = new ArrayList<>(2);
 
-        List<String> srcPrivileges = new ArrayList<>(2);
-        srcPrivileges.add("read");
+        RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
+            .indices(config.getSource().getIndex())
+            // We need to read the source indices mapping to deduce the destination mapping, hence the need for view_index_metadata
+            .privileges("read", "view_index_metadata")
+            .build();
+        indicesPrivileges.add(sourceIndexPrivileges);
 
         if (checkDestIndexPrivileges) {
             final String destIndex = config.getDestination().getIndex();
@@ -78,8 +82,6 @@ final class TransformPrivilegeChecker {
             // We should check that the creating user has the privileges to create the index.
             if (concreteDest.length == 0) {
                 destPrivileges.add("create_index");
-                // We need to read the source indices mapping to deduce the destination mapping
-                srcPrivileges.add("view_index_metadata");
             }
             RoleDescriptor.IndicesPrivileges destIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(destIndex)
@@ -88,15 +90,9 @@ final class TransformPrivilegeChecker {
             indicesPrivileges.add(destIndexPrivileges);
         }
 
-        RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()
-            .indices(config.getSource().getIndex())
-            .privileges(srcPrivileges)
-            .build();
-        indicesPrivileges.add(sourceIndexPrivileges);
-
         HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
-        privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         privRequest.username(username);
+        privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
         privRequest.indexPrivileges(indicesPrivileges.toArray(RoleDescriptor.IndicesPrivileges[]::new));
         return privRequest;

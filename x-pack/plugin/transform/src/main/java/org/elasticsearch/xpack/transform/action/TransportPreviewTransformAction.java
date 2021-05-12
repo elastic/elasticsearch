@@ -273,13 +273,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                         builder.endObject();
                         var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                         pipelineRequest.setId(pipeline);
-                        ClientHelper.executeAsyncWithOrigin(
-                            client,
-                            ClientHelper.TRANSFORM_ORIGIN,
-                            SimulatePipelineAction.INSTANCE,
-                            pipelineRequest,
-                            pipelineResponseActionListener
-                        );
+                        client.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                     }
                 }
             },

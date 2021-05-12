@@ -78,8 +78,9 @@ Once data is no longer being updated, it can move from the warm tier to the cold
 stays while being queried infrequently.
 The cold tier is still a responsive query tier, but data in the cold tier is not normally updated.
 As data transitions into the cold tier it can be compressed and shrunken.
-For resiliency, indices in the cold tier can rely on
-<<ilm-searchable-snapshot, searchable snapshots>>, eliminating the need for replicas.
+For resiliency, the cold tier can use <<fully-mounted,fully mounted indices>> of
+<<ilm-searchable-snapshot,{search-snaps}>>, eliminating the need for
+replicas.
 
 [discrete]
 [[frozen-tier]]
@@ -88,24 +89,14 @@ For resiliency, indices in the cold tier can rely on
 Once data is no longer being queried, or being queried rarely, it may move from
 the cold tier to the frozen tier where it stays for the rest of its life.
 
-The frozen tier uses <<searchable-snapshots,{search-snaps}>> to store and load
-data from a snapshot repository. Instead of using a full local copy of your
-data, these {search-snaps} use smaller <<shared-cache,local caches>> containing
-only recently searched data. If a search requires data that is not in a cache,
-{es} fetches the data as needed from the snapshot repository. This decouples
-compute and storage, letting you run searches over very large data sets with
-minimal compute resources, which significantly reduces your storage and
-operating costs.
+The frozen tier uses <<partially-mounted,partially mounted indices>> to store
+and load data from a snapshot repository. This reduces local storage and
+operating costs while still letting you search frozen data. Because {es} must
+sometimes fetch frozen data from the snapshot repository, searches on the frozen
+tier are typically slower than on the cold tier.
 
-The <<ilm-index-lifecycle, frozen phase>> automatically converts data
-transitioning into the frozen tier into a shared-cache searchable snapshot.
-
-Search is typically slower on the frozen tier than the cold tier, because {es}
-must sometimes fetch data from the snapshot repository.
-
-NOTE: The frozen tier is not yet available on {ess-trial}[{ess}]. To
-recreate similar functionality, see
-<<searchable-snapshots-frozen-tier-on-cloud>>.
+NOTE: We recommend you use <<data-frozen-node,dedicated nodes>> in the frozen
+tier.
 
 [discrete]
 [[data-tier-allocation]]

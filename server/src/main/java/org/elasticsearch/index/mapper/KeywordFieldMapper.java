@@ -17,8 +17,18 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -249,6 +259,25 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext) throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+            Automaton a = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(string)
+                : Automata.makeString(string);
+            a = Operations.concatenate(a, Automata.makeAnyString());
+            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+
+            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            return automaton.getTermsEnum(terms);            
+        }
+
+        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
@@ -396,15 +425,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            value = nullValue;
         } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else {
-                value = parser.textOrNull();
-            }
+            value = parser.textOrNull();
         }
 
         indexValue(context, value);
@@ -474,4 +499,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).init(this);
     }
+    
+    
 }

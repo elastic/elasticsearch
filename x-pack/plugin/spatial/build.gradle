@@ -1,5 +1,73 @@
 import org.elasticsearch.gradle.internal.info.BuildParams;
 
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  name 'spatial'
+  description 'A plugin for Basic Spatial features'
+  classname 'org.elasticsearch.xpack.spatial.SpatialPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  api project(path: ':modules:geo')
+  restTestConfig project(path: ':modules:geo', configuration: 'restTests')
+  api "com.wdtinc:mapbox-vector-tile:3.1.0"
+  api "com.google.protobuf:protobuf-java:3.14.0"
+  yamlRestTestImplementation("com.wdtinc:mapbox-vector-tile:3.1.0")
+  yamlRestTestImplementation("com.google.protobuf:protobuf-java:3.14.0")
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'indices', 'index', 'search', 'xpack'
+  }
+  restTests {
+    includeCore 'geo_shape'
+  }
+}
+
+testClusters.all {
+  setting 'xpack.license.self_generated.type', 'trial'
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.vector_tile_feature_flag_registered', 'true'
+  }
+}
+
+tasks.named("test").configure {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.vector_tile_feature_flag_registered', 'true'
+  }
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses internal java api: sun.misc.Unsafe
+    'com.google.protobuf.UnsafeUtil',
+    'com.google.protobuf.MessageSchema',
+    'com.google.protobuf.UnsafeUtil$1',
+    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'com.google.protobuf.UnsafeUtil$MemoryAccessor'
+  )
+
+  ignoreMissingClasses(
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory'
+  )
+}
+
+import org.elasticsearch.gradle.internal.info.BuildParams;
+
 apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.yaml-rest-test'

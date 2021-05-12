@@ -9,7 +9,7 @@
 package org.elasticsearch.gradle.internal.vagrant;
 
 import org.apache.commons.io.output.TeeOutputStream;
-import org.elasticsearch.gradle.internal.LoggedExec;
+import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.internal.LoggingOutputStream;
 import org.elasticsearch.gradle.ReaperService;
 import org.elasticsearch.gradle.internal.util.Util;

@@ -98,7 +98,7 @@ public class TransportUpdateDatafeedAction extends
         // Obviously if we're updating a datafeed it's impossible that the config index has no mappings at
         // all, but if we rewrite the datafeed config we may add new fields that require the latest mappings
         ElasticsearchMappings.addDocMappingIfMissing(
-            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state,
+            MlConfigIndex.indexName(), MlConfigIndex::mapping, client, state, request.masterNodeTimeout(),
             ActionListener.wrap(bool -> doUpdate.run(), listener::onFailure));
     }
 

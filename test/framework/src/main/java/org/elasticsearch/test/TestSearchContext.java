@@ -33,6 +33,7 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
@@ -77,6 +78,7 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
+    private final ShardSearchRequest request;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
@@ -85,6 +87,7 @@ public class TestSearchContext extends SearchContext {
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.indexShard = indexService.getShardOrNull(0);
         searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap());
+        this.request = new ShardSearchRequest(indexShard.shardId(), 0L, AliasFilter.EMPTY);
     }
 
     public TestSearchContext(SearchExecutionContext searchExecutionContext) {
@@ -103,6 +106,8 @@ public class TestSearchContext extends SearchContext {
         this.searchExecutionContext = searchExecutionContext;
         this.searcher = searcher;
         this.scrollContext = scrollContext;
+        ShardId shardId = indexShard != null ? indexShard.shardId() : new ShardId("N/A", "N/A", 0);
+        this.request = new ShardSearchRequest(shardId, 0L, AliasFilter.EMPTY);
     }
 
     public void setSearcher(ContextIndexSearcher searcher) {
@@ -130,7 +135,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public ShardSearchRequest request() {
-        return null;
+        return request;
     }
 
     @Override

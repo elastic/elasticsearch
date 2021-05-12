@@ -170,7 +170,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
         shutdown();
     }
 
-    interface Params extends BuildServiceParameters {
+    public interface Params extends BuildServiceParameters {
         Boolean getInternal();
 
         void setInternal(Boolean internal);

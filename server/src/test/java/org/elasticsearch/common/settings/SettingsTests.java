@@ -720,13 +720,4 @@ public class SettingsTests extends ESTestCase {
         assertEquals("{\"ant.bee\":{\"cat.dog\":{\"ewe\":\"value3\"},\"cat\":\"value2\"},\"ant\":\"value1\"}", Strings.toString(builder));
     }
 
-    public void testValidateStringSetting() {
-        Settings settings = Settings.builder().putList("foo.bar", Arrays.asList("bla-a", "bla-b")).build();
-        final Setting<List<String>> newSetting =
-            Setting.listSetting("foo.bar", Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> newSetting.get(settings));
-        assertEquals("Found list type value for setting [foo.bar] but did not expect a list for it.", e.getMessage());
-    }
-
 }

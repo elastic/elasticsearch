@@ -28,6 +28,7 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -162,6 +163,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
         nettyHttpClient = nettyHttpClient
+            .resolver(DefaultAddressResolverGroup.INSTANCE)
             .port(80)
             .wiretap(false);
 

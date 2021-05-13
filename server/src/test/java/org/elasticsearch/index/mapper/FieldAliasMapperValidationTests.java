@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
@@ -186,10 +187,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             ObjectMapper.Dynamic.FALSE, emptyMap());
     }
 
-    private static ObjectMapper createNestedObjectMapper(String name) {
-        return new ObjectMapper(name, name,
-            new Explicit<>(true, false),
-            ObjectMapper.Dynamic.FALSE, emptyMap());
+    private static NestedObjectMapper createNestedObjectMapper(String name) {
+        return new NestedObjectMapper.Builder(name, Version.CURRENT).build(new ContentPath());
     }
 
     private static MappingLookup createMappingLookup(List<FieldMapper> fieldMappers,

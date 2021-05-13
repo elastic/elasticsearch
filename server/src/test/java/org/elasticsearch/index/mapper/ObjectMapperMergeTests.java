@@ -117,9 +117,9 @@ public class ObjectMapperMergeTests extends ESTestCase {
             .includeInParent(true)
             .includeInRoot(true)
             .build(new ContentPath());
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested2", Version.CURRENT)
+        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT)
             .includeInParent(false)
-            .includeInRoot(false)
+            .includeInRoot(true)
             .build(new ContentPath());
 
         MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));

@@ -351,7 +351,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         if (user.fullName().startsWith("Service account - ")) {
             assert false == user.isRunAs() : "cannot run-as service account";
             final Authentication.RealmRef authBy =
-                new Authentication.RealmRef("service_account", "service_account", randomAlphaOfLengthBetween(3, 8));
+                new Authentication.RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
             return new Authentication(user, authBy, null, Version.CURRENT, AuthenticationType.TOKEN,
                 org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName()));
         } else {

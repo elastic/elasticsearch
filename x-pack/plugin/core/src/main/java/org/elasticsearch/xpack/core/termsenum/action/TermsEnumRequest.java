@@ -183,7 +183,9 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         builder.startObject();
         builder.field("field", field);
         builder.field("string", string);
-        builder.field("search_after", searchAfter);
+        if (searchAfter != null) {
+            builder.field("search_after", searchAfter);            
+        }
         builder.field("size", size);
         builder.field("timeout", timeout().getMillis());
         builder.field("case_insensitive", caseInsensitive);

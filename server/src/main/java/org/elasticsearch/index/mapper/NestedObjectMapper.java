@@ -28,23 +28,27 @@ public class NestedObjectMapper extends ObjectMapper {
 
         private Explicit<Boolean> includeInRoot = new Explicit<>(false, false);
         private Explicit<Boolean> includeInParent = new Explicit<>(false, false);
+        private final Version indexCreatedVersion;
 
         public Builder(String name, Version indexCreatedVersion) {
-            super(name, indexCreatedVersion);
+            super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
-        void includeInRoot(boolean includeInRoot) {
+        Builder includeInRoot(boolean includeInRoot) {
             this.includeInRoot = new Explicit<>(includeInRoot, true);
+            return this;
         }
 
-        void includeInParent(boolean includeInParent) {
+        Builder includeInParent(boolean includeInParent) {
             this.includeInParent = new Explicit<>(includeInParent, true);
+            return this;
         }
 
         @Override
         public NestedObjectMapper build(ContentPath contentPath) {
+            fixRedundantIncludes(this, true);
             contentPath.add(name);
-
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(contentPath);
@@ -59,7 +63,20 @@ public class NestedObjectMapper extends ObjectMapper {
             return new NestedObjectMapper(name, contentPath.pathAsText(name), mappers, this);
         }
 
-        protected void fixRedundantIncludes(boolean includeInParent)
+        private static void fixRedundantIncludes(ObjectMapper.Builder objectMapper, boolean parentIncluded) {
+            for (Mapper.Builder builder : objectMapper.builders()) {
+                if (builder instanceof NestedObjectMapper.Builder) {
+                    NestedObjectMapper.Builder child = (NestedObjectMapper.Builder) builder;
+                    boolean includeInRootViaParent = parentIncluded && child.includeInParent.value();
+                    boolean includedInRoot = child.includeInRoot.value();
+                    if (includeInRootViaParent && includedInRoot) {
+                        child.includeInParent(true);
+                        child.includeInRoot(false);
+                    }
+                    fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
+                }
+            }
+        }
     }
 
     public static class TypeParser extends ObjectMapper.TypeParser {

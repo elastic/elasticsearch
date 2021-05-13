@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -67,11 +66,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
         protected Dynamic dynamic;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
-        protected final Version indexCreatedVersion;
 
-        public Builder(String name, Version indexCreatedVersion) {
+        public Builder(String name) {
             super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         public Builder enabled(boolean enabled) {
@@ -87,6 +84,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
             return this;
+        }
+
+        public List<Mapper.Builder> builders() {
+            return mappersBuilders;
         }
 
         @Override
@@ -111,7 +112,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
+            ObjectMapper.Builder builder = new Builder(name);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -197,7 +198,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
                         ObjectMapper.Builder intermediate
-                            = new ObjectMapper.Builder(fieldNameParts[i], parserContext.indexVersionCreated());
+                            = new ObjectMapper.Builder(fieldNameParts[i]);
                         intermediate.add(fieldBuilder);
                         fieldBuilder = intermediate;
                     }

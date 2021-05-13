@@ -16,14 +16,13 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -50,12 +49,10 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
         Collection<String> fields = context.getMatchingFieldNames(fieldPattern);
-        Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
-                || context.isFieldMapped(field)).collect(Collectors.toList());
-        if (mappedFields.size() == 0 && context.getObjectMapper(fieldPattern) != null) {
-            mappedFields = Collections.singleton(fieldPattern);
+        if (fields.size() == 0 && Regex.isSimpleMatchPattern(fieldPattern) == false && context.getObjectMapper(fieldPattern) != null) {
+            fields = context.getMatchingFieldNames(fieldPattern + ".*");
         }
-        if (mappedFields.size() == 0) {
+        if (fields.size() == 0) {
             assertThat(fieldPattern, query, instanceOf(MatchNoDocsQuery.class));
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
@@ -89,8 +86,8 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;
             assertThat(constantScoreQuery.getQuery(), instanceOf(BooleanQuery.class));
             BooleanQuery booleanQuery = (BooleanQuery) constantScoreQuery.getQuery();
-            assertThat(booleanQuery.clauses().size(), equalTo(mappedFields.size()));
-            for (int i = 0; i < mappedFields.size(); i++) {
+            assertThat(booleanQuery.clauses().size(), equalTo(fields.size()));
+            for (int i = 0; i < fields.size(); i++) {
                 BooleanClause booleanClause = booleanQuery.clauses().get(i);
                 assertThat(booleanClause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
             }

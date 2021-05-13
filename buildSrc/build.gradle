@@ -275,7 +275,7 @@ dependencies {
 // only run tests as build-tools
 tasks.named("test").configure {
   enabled = false
-  }
+}
 //}
 
 tasks.register("integTest", Test) {
@@ -287,89 +287,6 @@ tasks.register("integTest", Test) {
 }
 // @TODO: Ignore for now for default builds as this would trigger integTest during each build startup
 // tasks.named("check").configure { dependsOn("integTest") }
-
-
-/*****************************************************************************
- *                           Normal project checks                           *
- *****************************************************************************/
-
-//// TODO These additional conventions will be ported to gradle-conventions and
-//// applied to build-tools
-////
-//  apply plugin: 'elasticsearch.build'
-//  apply plugin: 'elasticsearch.publish'
-//
-//  // groovydoc succeeds, but has some weird internal exception...
-//  tasks.named("groovydoc").configure {
-//    enabled = false
-//  }
-//
-//  // build-tools is not ready for primetime with these...
-//  tasks.named("dependencyLicenses").configure { enabled = false }
-//  tasks.named("dependenciesInfo").configure {enabled = false }
-//  tasks.named("dependenciesGraph").configure {enabled = false }
-//  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
-//  tasks.named("jarHell").configure {
-//    enabled = false
-//  }
-//  tasks.named("thirdPartyAudit").configure {
-//    enabled = false
-//  }
-//  configurations.register("distribution")
-//
-//  dependencies {
-//    distribution project(':distribution:archives:windows-zip')
-//    distribution project(':distribution:archives:darwin-tar')
-//    distribution project(':distribution:archives:darwin-aarch64-tar')
-//    distribution project(':distribution:archives:linux-aarch64-tar')
-//    distribution project(':distribution:archives:linux-tar')
-//    integTestRuntimeOnly(project(":libs:elasticsearch-core"))
-//  }
-//
-//  eclipse {
-//    classpath {
-//      plusConfigurations += [configurations.integTestRuntimeClasspath]
-//    }
-//  }
-//
-//  tasks.withType(Test).configureEach {
-//    // Track reaper jar as a test input using runtime classpath normalization strategy
-//    inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
-//    useJUnitPlatform()
-//  }
-//
-//  tasks.named("test").configure {
-//    include("**/*TestSpec.class")
-//  }
-//
-//  normalization {
-//    runtimeClasspath {
-//      // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
-//      ignore('META-INF/reaper.jar')
-//    }
-//  }
-//
-//  tasks.named("forbiddenPatterns").configure {
-//    exclude '**/*.wav'
-//    exclude '**/*.p12'
-//    exclude '**/*.jks'
-//    exclude '**/*.crt'
-//    // the file that actually defines nocommit
-//    exclude '**/ForbiddenPatternsTask.java'
-//    exclude '**/*.bcfks'
-//  }
-//
-//  tasks.named("testingConventions") {
-//    naming.clear()
-//    naming {
-//      Tests {
-//        baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
-//      }
-//      TestSpec {
-//        baseClass 'spock.lang.Specification'
-//      }
-//    }
-//  }
 //
 //  // for now we hardcode the tests for our build to use the gradle jvm.
 //  tasks.withType(Test).configureEach {

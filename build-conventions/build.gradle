@@ -13,7 +13,6 @@ plugins {
 }
 
 group = "org.elasticsearch"
-version = '1.0'
 
 // TODO fix these settings to be global for the es build
 targetCompatibility = '11'

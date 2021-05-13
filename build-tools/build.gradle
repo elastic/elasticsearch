@@ -58,10 +58,10 @@ def generateVersionProperties = tasks.register("generateVersionProperties", Writ
 
 tasks.named("processResources").configure {
     from(generateVersionProperties)
-        exclude 'buildSrc.marker'
-        into('META-INF') {
-            from configurations.reaper
-        }
+    exclude 'buildSrc.marker'
+    into('META-INF') {
+        from configurations.reaper
+    }
 }
 
 sourceSets {
@@ -137,7 +137,80 @@ tasks.register("integTest", Test) {
     classpath = sourceSets.integTest.runtimeClasspath
     useJUnitPlatform()
 }
+
 tasks.named("check").configure { dependsOn("integTest") }
+
+
+
+// TODO These additional conventions will be applied once those plugins have been ported to build-conventions and
+//
+//  apply plugin: 'elasticsearch.build'
+//  apply plugin: 'elasticsearch.publish'
+//
+//  // groovydoc succeeds, but has some weird internal exception...
+//  tasks.named("groovydoc").configure {
+//    enabled = false
+//  }
+//
+//  // build-tools is not ready for primetime with these...
+//  tasks.named("dependencyLicenses").configure { enabled = false }
+//  tasks.named("dependenciesInfo").configure {enabled = false }
+//  tasks.named("dependenciesGraph").configure {enabled = false }
+//  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
+//  tasks.named("jarHell").configure {
+//    enabled = false
+//  }
+//  tasks.named("thirdPartyAudit").configure {
+//    enabled = false
+//  }
+//  configurations.register("distribution")
+//
+//
+//  tasks.withType(Test).configureEach {
+//    // Track reaper jar as a test input using runtime classpath normalization strategy
+//    inputs.files(configurations.reaper).withNormalizer(ClasspathNormalizer)
+//    useJUnitPlatform()
+//  }
+//
+//  tasks.named("test").configure {
+//    include("**/*TestSpec.class")
+//  }
+//
+//  normalization {
+//    runtimeClasspath {
+//      // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
+//      ignore('META-INF/reaper.jar')
+//    }
+//  }
+//
+//  tasks.named("forbiddenPatterns").configure {
+//    exclude '**/*.wav'
+//    exclude '**/*.p12'
+//    exclude '**/*.jks'
+//    exclude '**/*.crt'
+//    // the file that actually defines nocommit
+//    exclude '**/ForbiddenPatternsTask.java'
+//    exclude '**/*.bcfks'
+//  }
+//
+//  eclipse {
+//    classpath {
+//        plusConfigurations += [configurations.integTestRuntimeClasspath]
+//    }
+//  }
+//
+//  tasks.named("testingConventions") {
+//    naming.clear()
+//    naming {
+//      Tests {
+//        baseClass 'org.elasticsearch.gradle.internal.test.GradleUnitTestCase'
+//      }
+//      TestSpec {
+//        baseClass 'spock.lang.Specification'
+//      }
+//    }
+//  }
+
 
 // Define this here because we need it early.
 class VersionPropertiesLoader {

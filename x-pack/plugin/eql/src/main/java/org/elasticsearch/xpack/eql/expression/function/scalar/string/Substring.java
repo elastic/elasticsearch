@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * EQL specific substring function - similar to the one in Python.
  * Note this is different than the one in SQL.
  */
-public class Substring extends ScalarFunction implements OptionalArgument {
+public class Substring extends ScalarFunction implements OptionalArgument, MultiValuedOperationCompatible {
 
     private final Expression input, start, end;
 

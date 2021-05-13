@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.BinaryComparisonCaseInsensitiveFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -23,7 +24,7 @@ import static org.elasticsearch.xpack.eql.expression.function.scalar.string.Stri
  * stringContains(a, b)
  * Returns true if b is a substring of a
  */
-public class StringContains extends BinaryComparisonCaseInsensitiveFunction {
+public class StringContains extends BinaryComparisonCaseInsensitiveFunction implements MultiValuedOperationCompatible {
 
     public StringContains(Source source, Expression string, Expression substring, boolean caseInsensitive) {
         super(source, string, substring, caseInsensitive);

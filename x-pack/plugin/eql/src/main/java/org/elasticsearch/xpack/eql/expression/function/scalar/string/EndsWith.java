@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.BinaryComparisonCaseInsensitiveFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -22,7 +23,7 @@ import static org.elasticsearch.xpack.eql.expression.function.scalar.string.Ends
  * Function that checks if first parameter ends with the second parameter. Both parameters should be strings
  * and the function returns a boolean value. The function is case insensitive.
  */
-public class EndsWith extends BinaryComparisonCaseInsensitiveFunction {
+public class EndsWith extends BinaryComparisonCaseInsensitiveFunction implements MultiValuedOperationCompatible {
 
     public EndsWith(Source source, Expression input, Expression pattern, boolean caseInsensitive) {
         super(source, input, pattern, caseInsensitive);

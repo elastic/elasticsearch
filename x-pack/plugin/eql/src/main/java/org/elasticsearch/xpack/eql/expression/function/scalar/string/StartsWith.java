@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
-public class StartsWith extends org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith {
+public class StartsWith extends org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith
+    implements MultiValuedOperationCompatible {
 
     public StartsWith(Source source, Expression input, Expression pattern, boolean caseInsensitive) {
         super(source, input, pattern, caseInsensitive);

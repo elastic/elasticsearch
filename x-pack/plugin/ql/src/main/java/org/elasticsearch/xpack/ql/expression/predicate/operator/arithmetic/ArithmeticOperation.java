@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -16,7 +17,8 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation> {
+public abstract class ArithmeticOperation extends BinaryOperator<Object, Object, Object, BinaryArithmeticOperation>
+    implements MultiValuedOperationCompatible {
 
     private DataType dataType;
 

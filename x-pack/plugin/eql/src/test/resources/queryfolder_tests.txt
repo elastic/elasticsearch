@@ -242,24 +242,24 @@ process where bool != false
 lengthFunctionWithExactSubField
 process where length(file_name) > 0
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
-InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalEqlScriptUtils.length(X0),params.v1)))",
 "params":{"v0":"file_name.keyword","v1":0}
 ;
 
 lengthFunctionWithExactField
 process where 12 == length(user_name)
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.length(X0),params.v1)))",
 "params":{"v0":"user_name","v1":12}
 ;
 
 lengthFunctionWithConstantKeyword
 process where 5 > length(constant_keyword)
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.lt(
-InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.lt(InternalEqlScriptUtils.length(X0),params.v1)))",
 "params":{"v0":"constant_keyword","v1":5}
 ;
 
@@ -340,49 +340,47 @@ InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),par
 indexOfFunction-caseSensitive
 process where indexOf(user_name, "A", 2) > 0
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
-InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.indexOf(X0,params.v1,params.v2,params.v3),params.v4)))",
 "params":{"v0":"user_name","v1":"A","v2":2,"v3":false,"v4":0}
 ;
 
 indexOfFunction-insensitive
 process where indexOf~(user_name, "A", 2) > 0
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
-InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
+script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
+InternalEqlScriptUtils.indexOf(X0,params.v1,params.v2,params.v3),params.v4)))",
 "params":{"v0":"user_name","v1":"A","v2":2,"v3":true,"v4":0}
 ;
 
 substringFunction
 process where substring(file_name, -4) : ".exe"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
-InternalEqlScriptUtils.substring(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
-"params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}
+"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(InternalEqlScriptUtils.substring(X0,params.v1,params.v2),params.v3)))"
+"params":{"v0":"file_name.keyword","v1":-4,"v2":null,"v3":".exe"}}
 ;
 
 betweenFunction
 process where between(process_name, "s", "e") : "yst"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
-InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
-"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(InternalEqlScriptUtils.between(X0,params.v1,params.v2,params.v3,params.v4),params.v5)))"
+"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":false,"v5":"yst"}}
 ;
 
 betweenFunction-insensitive
 process where between~(process_name, "s", "e") : "yst"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
-InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
-"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":true,"v5":"yst"}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(InternalEqlScriptUtils.between(X0,params.v1,params.v2,params.v3,params.v4),params.v5)))"
+"params":{"v0":"process_name","v1":"s","v2":"e","v3":false,"v4":true,"v5":"yst"}}
 ;
 
 concatFunction
 process where concat(process_name, "::foo::", null, 1) : "net.exe::foo::1"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
-InternalEqlScriptUtils.concat([InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3]),params.v4))",
-"params":{"v0":"process_name","v1":"::foo::","v2":null,"v3":1,"v4":"net.exe::foo::1"}
+"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(InternalEqlScriptUtils.concat([X0,params.v1,params.v2,params.v3]),params.v4)))"
+"params":{"v0":"process_name","v1":"::foo::","v2":null,"v3":1,"v4":"net.exe::foo::1"}}
 ;
 
 cidrMatchFunctionOne
@@ -504,161 +502,161 @@ process where wildcard~(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*de
 addOperator
 process where serial_event_id + 2 == -2147483647
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.add(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addOperatorReversed
 process where 2 + serial_event_id == -2147483647
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.add(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addFunction
 process where add(serial_event_id, 2) == -2147483647
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.add(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 addFunctionReversed
 process where add(2, serial_event_id) == -2147483647
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.add(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":-2147483647}
 ;
 
 divideOperator
 process where serial_event_id / 2 == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.div(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.div(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 divideOperatorReversed
 process where 82 / serial_event_id == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.div(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":82,"v1":"serial_event_id","v2":41}
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.div(params.v1,X0),params.v2)))",
+"params":{"v0":"serial_event_id","v1":82,"v2":41}
 ;
 
 divideFunction
 process where divide(serial_event_id, 2) == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.div(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.div(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 divideFunctionReversed
 process where divide(82, serial_event_id) == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.div(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":82,"v1":"serial_event_id","v2":41}
+{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.div(params.v1,X0),params.v2)))",
+"params":{"v0":"serial_event_id","v1":82,"v2":41}
 ;
 
 moduloOperator
 process where serial_event_id % 2 == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mod(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.mod(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 moduloOperatorReversed
 process where 42 % serial_event_id == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mod(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":42,"v1":"serial_event_id","v2":41}
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.mod(params.v1,X0),params.v2)))",
+"params":{"v0":"serial_event_id","v1":42,"v2":41}
 ;
 
 moduloFunction
 process where modulo(serial_event_id, 2) == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mod(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.mod(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 moduloFunctionReversed
 process where modulo(42, serial_event_id) == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mod(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":42,"v1":"serial_event_id","v2":41}
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.mod(params.v1,X0),params.v2)))",
+"params":{"v0":"serial_event_id","v1":42,"v2":41}
 ;
 
 multiplyOperator
 process where serial_event_id * 2 == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.mul(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 multiplyOperatorReversed
 process where 2 * serial_event_id == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.mul(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 multiplyFunction
 process where multiply(serial_event_id, 2) == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.mul(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 multiplyFunctionReversed
 process where multiply(2, serial_event_id) == 41
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.mul(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.mul(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":41}
 ;
 
 subtractOperator
 process where serial_event_id - 2 == 2147483647
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.sub(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":2147483647}
 ;
 
 subtractOperatorReversed
 process where 43 - serial_event_id == -2147483647
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":43,"v1":"serial_event_id","v2":-2147483647}
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.sub(params.v1,X0),params.v2)))",
+"params":{"v0":"serial_event_id","v1":43,"v2":-2147483647}
 ;
 
 subtractFunction
 process where subtract(serial_event_id, 2) == 2147483647
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.sub(InternalQlScriptUtils.docValue(doc,params.v0),params.v1),params.v2))",
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.sub(X0,params.v1),params.v2)))",
 "params":{"v0":"serial_event_id","v1":2,"v2":2147483647}
 ;
 
 subtractFunctionReversed
 process where subtract(43, serial_event_id) == -2147483647
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(
-InternalQlScriptUtils.sub(params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
-"params":{"v0":43,"v1":"serial_event_id","v2":-2147483647}
+"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,
+X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.sub(params.v1,X0),params.v2)))",
+"params":{"v0":"serial_event_id","v1":43,"v2":-2147483647}
 ;
 
 eventQueryDefaultLimit
@@ -810,5 +808,41 @@ process where substring(command_line, 5) regex~ ("^.*?net.exe", "net\\.exe", "C:
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
 InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3,params.v4))",
 "params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","v4":true}}
+;
+
+conjunctionOfLengthFunctions
+process where length(file_name) > 0 and length(process_name) <= 0
+;
+{"bool":{"must":[{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalEqlScriptUtils.length(X0),params.v1)))"
+"params":{"v0":"file_name.keyword","v1":0}}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.lte(InternalEqlScriptUtils.length(X0),params.v1)))"
+"params":{"v0":"process_name","v1":0}}
+;
+
+disjunctionOfLengthFunctions
+process where length(file_name) > 0 or length(process_name) <= 0
+;
+{"bool":{"should":[{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalEqlScriptUtils.length(X0),params.v1)))"
+"params":{"v0":"file_name.keyword","v1":0}}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.lte(InternalEqlScriptUtils.length(X0),params.v1)))"
+"params":{"v0":"process_name","v1":0}}
+;
+
+conjunctionOfMultiFieldsFunctions
+process where concat(file_name, ".", process_name) == "foo" and add(pid, ppid) > 100
+;
+{"bool":{"must":[{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.concat([X0,params.v2,X1]),params.v3))))"
+"params":{"v0":"file_name","v1":"process_name","v2":".","v3":"foo"}}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.add(X0,X1),params.v2))))"
+"params":{"v0":"pid","v1":"ppid","v2":100}}
+;
+
+disjunctionOfMultiFieldsFunctions
+process where concat(file_name, ".", process_name) == "foo" or add(pid, ppid) > 100
+;
+{"bool":{"should":[{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.concat([X0,params.v2,X1]),params.v3))))"
+"params":{"v0":"file_name","v1":"process_name","v2":".","v3":"foo"}}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.add(X0,X1),params.v2))))"
+"params":{"v0":"pid","v1":"ppid","v2":100}}
 ;
 

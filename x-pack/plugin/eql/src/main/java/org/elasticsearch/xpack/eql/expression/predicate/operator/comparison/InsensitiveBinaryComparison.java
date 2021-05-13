@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
@@ -21,7 +22,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.ZoneId;
 
 // marker class to indicate operations that rely on values
-public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object, Object, Boolean, InsensitiveBinaryComparisonOperation> {
+public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object, Object, Boolean, InsensitiveBinaryComparisonOperation>
+    implements MultiValuedOperationCompatible {
 
     private final ZoneId zoneId;
 

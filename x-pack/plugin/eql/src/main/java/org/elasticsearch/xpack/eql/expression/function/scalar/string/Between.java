@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseInsensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -36,7 +37,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * between(source, left, right[, greedy=false])
  * Extracts a substring from source that’s between left and right substrings
  */
-public class Between extends CaseInsensitiveScalarFunction implements OptionalArgument {
+public class Between extends CaseInsensitiveScalarFunction implements OptionalArgument, MultiValuedOperationCompatible {
 
     private final Expression input, left, right, greedy;
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
@@ -29,7 +30,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 /**
  * EQL specific concat function to build a string of all input arguments concatenated.
  */
-public class Concat extends ScalarFunction {
+public class Concat extends ScalarFunction implements MultiValuedOperationCompatible {
 
     private final List<Expression> values;
 

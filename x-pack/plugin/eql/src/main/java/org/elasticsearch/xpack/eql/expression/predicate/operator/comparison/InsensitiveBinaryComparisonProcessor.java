@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.eql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.gen.processor.FunctionalEnumBinaryProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.expression.predicate.PredicateBiFunction;
@@ -17,7 +18,8 @@ import java.util.function.BiFunction;
 public class InsensitiveBinaryComparisonProcessor extends
     FunctionalEnumBinaryProcessor<Object, Object, Boolean, InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation> {
 
-    public enum InsensitiveBinaryComparisonOperation implements PredicateBiFunction<Object, Object, Boolean> {
+    public enum InsensitiveBinaryComparisonOperation
+        implements PredicateBiFunction<Object, Object, Boolean>, MultiValuedOperationCompatible {
 
         SEQ(StringComparisons::insensitiveEquals, ":"),
         SNEQ(StringComparisons::insensitiveNotEquals, "!:");

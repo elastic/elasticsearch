@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
@@ -19,7 +20,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.time.ZoneId;
 
 // marker class to indicate operations that rely on values
-public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation> {
+public abstract class BinaryComparison extends BinaryOperator<Object, Object, Boolean, BinaryComparisonOperation>
+    implements MultiValuedOperationCompatible {
 
     private final ZoneId zoneId;
 

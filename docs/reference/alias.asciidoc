@@ -45,7 +45,7 @@ POST _aliases
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\n/]
 
-The API's `index` and `indices` parameters supports wildcards (`*`). If the
+The API's `index` and `indices` parameters support wildcards (`*`). If the
 wildcard pattern matches data streams or indices, the action only uses matching
 data streams.
 

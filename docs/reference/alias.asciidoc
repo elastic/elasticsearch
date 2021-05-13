@@ -26,8 +26,8 @@ data stream's backing index to an index alias.
 === Add an alias
 
 To add an existing data stream or index to an alias, use the
-<<indices-aliases,aliases API>>'s `add` action. If the alias doesn't exist,
-this creates it.
+<<indices-aliases,alias API>>'s `add` action. If the alias doesn't exist,
+the action creates it.
 
 [source,console]
 ----
@@ -45,9 +45,9 @@ POST _aliases
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\n/]
 
-The API's `index` and `indices` parameters support wildcards (`*`). If the
-wildcard pattern matches data streams and indices, the action only uses matching
-data streams.
+The API's `index` and `indices` parameters support wildcards (`*`). If a
+wildcard pattern matches both data streams and indices, the action only uses
+matching data streams.
 
 [source,console]
 ----
@@ -69,7 +69,7 @@ POST _aliases
 [[remove-alias]]
 === Remove an alias
 
-To remove an alias, use the aliases API's `remove` action.
+To remove an alias, use the alias API's `remove` action.
 
 [source,console]
 ----
@@ -154,7 +154,7 @@ PUT _index_template/my-index-template
 // TEST[s/, "my-mappings", "my-settings"//]
 // TEST[teardown:data_stream_cleanup]
 
-You can also specify aliases in <<indices-create-index,create index API>>
+You can also specify index aliases in <<indices-create-index,create index API>>
 requests.
 
 [source,console]
@@ -189,8 +189,8 @@ GET _alias/logs
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
 // TEST[catch:missing]
 
-To view the aliases for a data stream or index, specify it in the get alias
-API's request path.
+To view the aliases for a data stream or index, specify the stream or index name
+in the get alias API's request path.
 
 [source,console]
 ----

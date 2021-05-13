@@ -295,7 +295,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         final class SearchAfterTermsEnum extends FilteredTermsEnum {
             private final BytesRef afterRef;
 
-            public SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
+            SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
                 super(tenum);
                 afterRef = termText;
                 setInitialSeekTerm(termText);

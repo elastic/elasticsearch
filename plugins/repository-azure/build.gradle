@@ -64,7 +64,7 @@ dependencies {
   // netty
   api "io.netty:netty-buffer:${versions.azureNetty}"
   api "io.netty:netty-codec:${versions.azureNetty}"
-  // NOTE: we omit codec-dns so it is not loaded, netty gracefully ignores...
+  api "io.netty:netty-codec-dns:${versions.azureNetty}"
   api "io.netty:netty-codec-http:${versions.azureNetty}"
   api "io.netty:netty-codec-http2:${versions.azureNetty}"
   api "io.netty:netty-codec-socks:${versions.azureNetty}"

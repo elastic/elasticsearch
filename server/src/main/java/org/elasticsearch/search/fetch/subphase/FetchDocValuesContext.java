@@ -31,11 +31,9 @@ public class FetchDocValuesContext {
      */
     public FetchDocValuesContext(SearchExecutionContext searchExecutionContext, List<FieldAndFormat> fieldPatterns) {
         for (FieldAndFormat field : fieldPatterns) {
-            Collection<String> fieldNames = searchExecutionContext.simpleMatchToIndexNames(field.field);
+            Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(field.field);
             for (String fieldName : fieldNames) {
-                if (searchExecutionContext.isFieldMapped(fieldName)) {
-                    fields.add(new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
-                }
+                fields.add(new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
             }
         }
 

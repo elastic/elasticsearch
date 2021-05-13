@@ -58,7 +58,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -302,24 +301,76 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns all the fields that match a given pattern. If prefixed with a
-     * type then the fields will be returned with a type prefix.
+     * Returns the names of all mapped fields that match a given pattern
+     *
+     * All names returned by this method are guaranteed to resolve to a
+     * MappedFieldType if passed to {@link #getFieldType(String)}
+     *
+     * @param pattern the field name pattern
      */
-    public Set<String> simpleMatchToIndexNames(String pattern) {
+    public Set<String> getMatchingFieldNames(String pattern) {
         if (runtimeMappings.isEmpty()) {
-            return mappingLookup.simpleMatchToFullName(pattern);
+            return mappingLookup.getMatchingFieldNames(pattern);
         }
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.simpleMatchToFullName(pattern));
-        for (String name : runtimeMappings.keySet()) {
-            if (Regex.simpleMatch(pattern, name)) {
-                matches.add(name);
+        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+        if ("*".equals(pattern)) {
+            matches.addAll(runtimeMappings.keySet());
+        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcard
+            if (runtimeMappings.containsKey(pattern)) {
+                matches.add(pattern);
+            }
+        } else {
+            for (String name : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(pattern, name)) {
+                    matches.add(name);
+                }
             }
         }
         return matches;
+    }
+
+    /**
+     * @return all mapped field types, including runtime fields defined in the request
+     */
+    public Collection<MappedFieldType> getAllFieldTypes() {
+        return getMatchingFieldTypes("*");
+    }
+
+    /**
+     * Returns all mapped field types that match a given pattern
+     *
+     * Includes any runtime fields that have been defined in the request. Note
+     * that a runtime field with the same name as a mapped field will override
+     * the mapped field.
+     *
+     * @param pattern the field name pattern
+     */
+    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+        Collection<MappedFieldType> mappedFieldTypes = mappingLookup.getMatchingFieldTypes(pattern);
+        if (runtimeMappings.isEmpty()) {
+            return mappedFieldTypes;
+        }
+
+        Map<String, MappedFieldType> mappedByName = new HashMap<>();
+        mappedFieldTypes.forEach(ft -> mappedByName.put(ft.name(), ft));
+
+        if ("*".equals(pattern)) {
+            mappedByName.putAll(runtimeMappings);
+        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcard
+            if (runtimeMappings.containsKey(pattern) == false) {
+                return mappedFieldTypes;
+            }
+            mappedByName.put(pattern, runtimeMappings.get(pattern));
+        } else {
+            for (String name : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(pattern, name)) {
+                    mappedByName.put(name, runtimeMappings.get(name));
+                }
+            }
+        }
+        return mappedByName.values();
     }
 
     /**
@@ -333,15 +384,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
-    }
-
-    /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> getFieldTypes() {
-        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
-        fields.addAll(runtimeMappings.values());
-        return fields;
     }
 
     /**

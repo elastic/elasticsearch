@@ -304,7 +304,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             securityIndex, securityIndex, clusterService);
         Authentication authentication = new Authentication(
             new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
-            new Authentication.RealmRef("_service_account_" + randomFrom("file", "index"), "service_account", "node"), null);
+            new Authentication.RealmRef("_service_account", "_service_account", "node"), null);
         authentication.writeToContext(threadPool.getThreadContext());
 
         final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,

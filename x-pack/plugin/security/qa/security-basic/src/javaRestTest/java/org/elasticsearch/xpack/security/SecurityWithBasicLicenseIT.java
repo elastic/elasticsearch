@@ -231,8 +231,8 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         final Response response = adminClient().performRequest(request);
         assertOK(response);
         @SuppressWarnings("unchecked")
-        final Map<String, String> tokenMap = (Map<String, String>) responseAsMap(response).get("token");
-        return tokenMap.get("value");
+        final Map<String, ?> tokenMap = (Map<String, ?>) responseAsMap(response).get("token");
+        return String.valueOf(tokenMap.get("value"));
     }
 
     private void assertAuthenticateWithServiceAccountToken(String bearerString) throws IOException {

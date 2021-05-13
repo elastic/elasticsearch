@@ -314,7 +314,7 @@ public class SSLConfigurationSettings {
         }
 
         public Setting<T> realm(RealmConfig.RealmIdentifier realmId) {
-            return realm(realmId.getType()).getConcreteSetting(realmId.getName());
+            return realm(realmId.getType()).getConcreteSettingForNamespace(realmId.getName());
         }
 
         Setting.AffixSetting<T> transportProfile() {

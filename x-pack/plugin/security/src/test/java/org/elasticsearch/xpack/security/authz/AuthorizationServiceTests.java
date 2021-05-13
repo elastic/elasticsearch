@@ -701,7 +701,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final User serviceUser = new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
         final Authentication authentication = new Authentication(serviceUser,
-            new RealmRef("service_account", "service_account", randomAlphaOfLengthBetween(3, 8)),
+            new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,

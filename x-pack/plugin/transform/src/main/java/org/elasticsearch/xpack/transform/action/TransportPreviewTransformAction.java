@@ -272,7 +272,8 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                         builder.startObject();
                         builder.field("docs", results);
                         builder.endObject();
-                        var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
+                        SimulatePipelineRequest pipelineRequest =
+                            new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
                         pipelineRequest.setId(pipeline);
                         client.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                     }

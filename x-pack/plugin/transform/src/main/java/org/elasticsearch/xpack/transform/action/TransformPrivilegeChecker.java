@@ -94,7 +94,7 @@ final class TransformPrivilegeChecker {
         privRequest.username(username);
         privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         privRequest.clusterPrivileges(Strings.EMPTY_ARRAY);
-        privRequest.indexPrivileges(indicesPrivileges.toArray(RoleDescriptor.IndicesPrivileges[]::new));
+        privRequest.indexPrivileges(indicesPrivileges.toArray(new RoleDescriptor.IndicesPrivileges[0]));
         return privRequest;
     }
 

@@ -16,10 +16,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -45,7 +46,13 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class XPackUsageRestCancellationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class, BlockingUsageActionXPackPlugin.class);
+        return Arrays.asList(getTestTransportPlugin(), BlockingUsageActionXPackPlugin.class, NioTransportPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int ordinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(ordinal, otherSettings))
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME).build();
     }
 
     @Override

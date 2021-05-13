@@ -388,7 +388,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Collection<MappedFieldType> getFieldTypes() {
+            public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
                 throw new UnsupportedOperationException();
             }
 
@@ -534,8 +534,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
             inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
-        when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
-            inv -> mapperService.mappingLookup().simpleMatchToFullName(inv.getArguments()[0].toString())
+        when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
+            inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
+        );
+        when(searchExecutionContext.getMatchingFieldTypes(anyObject())).thenAnswer(
+            inv -> mapperService.mappingLookup().getMatchingFieldTypes(inv.getArguments()[0].toString())
         );
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {

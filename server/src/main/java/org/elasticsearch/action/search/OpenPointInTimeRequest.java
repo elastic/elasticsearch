@@ -27,23 +27,18 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public final class OpenPointInTimeRequest extends ActionRequest implements IndicesRequest.Replaceable {
     private String[] indices;
-    private final IndicesOptions indicesOptions;
-    private final TimeValue keepAlive;
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
+    private TimeValue keepAlive;
 
     @Nullable
-    private final String routing;
+    private String routing;
     @Nullable
-    private final String preference;
+    private String preference;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
-    public OpenPointInTimeRequest(String[] indices, IndicesOptions indicesOptions,
-                                  TimeValue keepAlive, String routing, String preference) {
-        this.indices = Objects.requireNonNull(indices);
-        this.indicesOptions = Objects.requireNonNull(indicesOptions);
-        this.keepAlive = keepAlive;
-        this.routing = routing;
-        this.preference = preference;
+    public OpenPointInTimeRequest(String... indices) {
+        this.indices = Objects.requireNonNull(indices, "[index] is not specified");
     }
 
     public OpenPointInTimeRequest(StreamInput in) throws IOException {
@@ -68,7 +63,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (indices.length == 0) {
+        if (indices == null || indices.length == 0) {
             validationException = addValidationError("[index] is not specified", validationException);
         }
         if (keepAlive == null) {
@@ -93,21 +88,44 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         return indicesOptions;
     }
 
-    @Override
-    public boolean includeDataStreams() {
-        return true;
+    public OpenPointInTimeRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = Objects.requireNonNull(indicesOptions, "[indices_options] parameter must be non null");
+        return this;
     }
 
     public TimeValue keepAlive() {
         return keepAlive;
     }
 
+    /**
+     * Set keep alive for the point in time
+     */
+    public OpenPointInTimeRequest keepAlive(TimeValue keepAlive) {
+        this.keepAlive = Objects.requireNonNull(keepAlive, "[keep_alive] parameter must be non null");
+        return this;
+    }
+
     public String routing() {
         return routing;
     }
 
+    public OpenPointInTimeRequest routing(String routing) {
+        this.routing = routing;
+        return this;
+    }
+
     public String preference() {
         return preference;
+    }
+
+    public OpenPointInTimeRequest preference(String preference) {
+        this.preference = preference;
+        return this;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     @Override

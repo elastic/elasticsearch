@@ -49,11 +49,13 @@ The following request deletes the `token1` service account token from the
 
 [source,console]
 ----
-DELETE /_security/service/elastic/fleet-server/credential/token/token1
+DELETE /_security/service/elastic/fleet-server/credential/token/token42
 ----
+// TEST[setup:service_token42]
 
 If the service account token is successfully deleted, the request returns
-`{"found": true}`. Otherwise, `found` is set to `false`.
+`{"found": true}`. Otherwise, the response will have status code `404` and
+found` will be set to `false`.
 
 [source,js]
 ----
@@ -61,4 +63,3 @@ If the service account token is successfully deleted, the request returns
   "found" : true
 }
 ----
-// NOTCONSOLE

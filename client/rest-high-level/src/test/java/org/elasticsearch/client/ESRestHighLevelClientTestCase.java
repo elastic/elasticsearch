@@ -326,8 +326,9 @@ public abstract class ESRestHighLevelClientTestCase extends ESRestTestCase {
             TaskGroup taskGroup = taskGroups.get(0);
             assertThat(taskGroup.getChildTasks(), empty());
             // check that the task initialized enough that it can rethrottle too.
-            if (((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap().containsKey("batches"))
+            if (((RawTaskStatus) taskGroup.getTaskInfo().getStatus()).toMap().containsKey("batches")) {
                 return taskGroup.getTaskInfo().getTaskId();
+            }
         } while (System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10));
         throw new AssertionError("Couldn't find tasks to rethrottle. Here are the running tasks " +
             highLevelClient().tasks().list(request, RequestOptions.DEFAULT));

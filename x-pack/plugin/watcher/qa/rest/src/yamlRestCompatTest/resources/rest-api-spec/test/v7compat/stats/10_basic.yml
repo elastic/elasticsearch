@@ -28,7 +28,7 @@ setup:
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
       warnings:
-        - "[GET /_xpack/watcher/stats/{metric}] is deprecated! Use [GET /_watcher/stats/{metric}] instead."
+        - "[GET /_xpack/watcher/stats] is deprecated! Use [GET /_watcher/stats] instead."
       xpack-watcher.stats:
         emit_stacktraces: "true"
   - match: { "manually_stopped": false }

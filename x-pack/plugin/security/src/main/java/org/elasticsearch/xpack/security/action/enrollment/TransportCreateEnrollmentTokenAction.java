@@ -110,7 +110,8 @@ public class TransportCreateEnrollmentTokenAction
             } else {
                 final TimeValue expiration = TimeValue.timeValueSeconds(ENROLL_API_KEY_EXPIRATION_SEC);
                 final String[] clusterPrivileges = { "enroll" };
-                final List<RoleDescriptor> roleDescriptors = List.of(new RoleDescriptor("create_enrollment_token", clusterPrivileges, null, null));
+                final List<RoleDescriptor> roleDescriptors = List.of(new RoleDescriptor("create_enrollment_token", clusterPrivileges,
+                    null, null));
                 CreateApiKeyRequest apiRequest = new CreateApiKeyRequest("enrollment_token_API_key_" + UUIDs.base64UUID(),
                     roleDescriptors, expiration);
                 final String fingerprint = SslUtil.calculateFingerprint(httpCaKeysAndCertificates.get(0).v2());

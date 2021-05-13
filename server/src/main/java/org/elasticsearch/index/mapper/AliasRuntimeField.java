@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 
 public class AliasRuntimeField implements RuntimeField {
@@ -56,6 +57,9 @@ public class AliasRuntimeField implements RuntimeField {
     public AliasRuntimeField(String name, String path) {
         this.name = name;
         this.path = path;
+        if (Objects.equals(name, path)) {
+            throw new MapperParsingException("Invalid path [" + path + "] for alias [" + path + "]: an alias cannot refer to itself");
+        }
     }
 
     @Override
@@ -67,7 +71,7 @@ public class AliasRuntimeField implements RuntimeField {
     public MappedFieldType asMappedFieldType(Function<String, MappedFieldType> lookup) {
         MappedFieldType ft = lookup.apply(path);
         if (ft == null) {
-            throw new IllegalStateException("Cannot resolve alias [" + name + "]: path [" + path + "] does not exist");
+            throw new MapperParsingException("Cannot resolve alias [" + name + "]: path [" + path + "] does not exist in mappings");
         }
         return ft;
     }

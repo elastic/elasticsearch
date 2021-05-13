@@ -62,26 +62,20 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "field");
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "alias");
 
-        MappingLookup mappers = createMappingLookup(
+        Exception e = expectThrows(MapperParsingException.class, () -> createMappingLookup(
             singletonList(field),
             emptyList(),
             Arrays.asList(alias, invalidAlias),
             emptyList()
-        );
-        alias.validate(mappers);
+        ));
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
-            invalidAlias.validate(mappers);
-        });
-
-        assertEquals("Invalid [path] value [alias] for field alias [invalid-alias]: an alias" +
-            " cannot refer to another alias.", e.getMessage());
+        assertEquals("Cannot resolve alias [invalid-alias]: path [alias] does not exist in mappings", e.getMessage());
     }
 
     public void testAliasThatRefersToItself() {
         FieldAliasMapper invalidAlias = new FieldAliasMapper("invalid-alias", "invalid-alias", "invalid-alias");
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        Exception e = expectThrows(MapperParsingException.class, () -> {
             MappingLookup mappers = createMappingLookup(
                 emptyList(),
                 emptyList(),
@@ -91,8 +85,8 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             invalidAlias.validate(mappers);
         });
 
-        assertEquals("Invalid [path] value [invalid-alias] for field alias [invalid-alias]: an alias" +
-            " cannot refer to itself.", e.getMessage());
+        assertEquals("Invalid path [invalid-alias] for alias [invalid-alias]: an alias" +
+            " cannot refer to itself", e.getMessage());
     }
 
     public void testAliasWithNonExistentPath() {
@@ -108,8 +102,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             invalidAlias.validate(mappers);
         });
 
-        assertEquals("Invalid [path] value [non-existent] for field alias [invalid-alias]: an alias" +
-            " must refer to an existing field in the mappings.", e.getMessage());
+        assertEquals("Cannot resolve alias [invalid-alias]: path [non-existent] does not exist in mappings", e.getMessage());
     }
 
     public void testFieldAliasWithNestedScope() {

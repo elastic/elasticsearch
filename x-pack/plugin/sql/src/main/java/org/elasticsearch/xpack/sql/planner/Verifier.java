@@ -66,13 +66,11 @@ abstract class Verifier {
                 hasLimit.set(Boolean.TRUE);
                 return;
             }
-            if (orderBy.get() == null && p instanceof OrderExec) {
-                orderBy.set(((OrderExec) p).order());
-                return;
-            }
-            if (hasLimit.get() && orderBy.get() != null && p instanceof OrderExec) {
-                if (((OrderExec) p).order().equals(orderBy.get()) == false) {
+            if (p instanceof OrderExec) {
+                if (hasLimit.get() && orderBy.get() != null && ((OrderExec) p).order().equals(orderBy.get()) == false) {
                     failures.add(fail(p, "Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT"));
+                } else {
+                    orderBy.set(((OrderExec) p).order());
                 }
             }
         });

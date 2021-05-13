@@ -58,13 +58,23 @@ public class VerifierTests extends ESTestCase {
                 "1:75: Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT",
                 error("SELECT * FROM (SELECT * FROM (SELECT * FROM test ORDER BY 1 ASC) LIMIT 5) ORDER BY 1 DESC")
         );
+        assertEquals(
+                "1:152: Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT",
+                error("SELECT * FROM (" +
+                        "SELECT * FROM (" +
+                            "SELECT * FROM (" +
+                                "SELECT * FROM test ORDER BY int DESC" +
+                            ") ORDER BY int ASC NULLS LAST) " +
+                        "ORDER BY int DESC NULLS LAST LIMIT 12) " +
+                      "ORDER BY int DESC NULLS FIRST")
+        );
     }
 
     public void testSubselectWithOrderByOnTopOfGroupByOrderByAndLimit() {
         assertEquals(
             "1:96: Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT",
             error(
-                "SELECT * FROM (" + "SELECT max(int) AS max, bool FROM test GROUP BY bool ORDER BY max ASC LIMIT 10) " + "ORDER BY max DESC"
+                "SELECT * FROM (SELECT max(int) AS max, bool FROM test GROUP BY bool ORDER BY max ASC LIMIT 10) ORDER BY max DESC"
             )
         );
         assertEquals(
@@ -76,6 +86,16 @@ public class VerifierTests extends ESTestCase {
                     + "LIMIT 10) "
                     + "ORDER BY max DESC"
             )
+        );
+        assertEquals(
+                "1:186: Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT",
+                error("SELECT * FROM (" +
+                        "SELECT * FROM (" +
+                            "SELECT * FROM (" +
+                                "SELECT max(int) AS max, bool FROM test GROUP BY bool ORDER BY max DESC" +
+                            ") ORDER BY max ASC NULLS LAST) " +
+                        "ORDER BY max DESC NULLS LAST LIMIT 12) " +
+                      "ORDER BY max DESC NULLS FIRST")
         );
     }
 }

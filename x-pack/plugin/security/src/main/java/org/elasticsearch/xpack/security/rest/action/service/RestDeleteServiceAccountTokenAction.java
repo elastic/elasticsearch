@@ -17,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
@@ -53,13 +54,10 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
             deleteServiceAccountTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
         }
         return channel -> client.execute(DeleteServiceAccountTokenAction.INSTANCE, deleteServiceAccountTokenRequest,
-            new RestBuilderListener<>(channel) {
+            new RestToXContentListener<>(channel) {
                 @Override
-                public RestResponse buildResponse(DeleteServiceAccountTokenResponse response, XContentBuilder builder) throws Exception {
-                    return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
-                        builder.startObject()
-                            .field("found", response.found())
-                            .endObject());
+                protected RestStatus getStatus(DeleteServiceAccountTokenResponse response) {
+                    return response.found() ? RestStatus.OK : RestStatus.NOT_FOUND;
                 }
             });
     }

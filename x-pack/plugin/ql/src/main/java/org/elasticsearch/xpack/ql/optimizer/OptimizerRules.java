@@ -127,7 +127,7 @@ public final class OptimizerRules {
         }
     }
 
-    public static final class BooleanSimplification extends OptimizerExpressionRule<ScalarFunction> {
+    public static class BooleanSimplification extends OptimizerExpressionRule<ScalarFunction> {
 
         public BooleanSimplification() {
             super(TransformDirection.UP);
@@ -229,7 +229,7 @@ public final class OptimizerRules {
         }
 
         @SuppressWarnings("rawtypes")
-        private Expression simplifyNot(Not n) {
+        protected Expression simplifyNot(Not n) {
             Expression c = n.field();
 
             if (TRUE.semanticEquals(c)) {

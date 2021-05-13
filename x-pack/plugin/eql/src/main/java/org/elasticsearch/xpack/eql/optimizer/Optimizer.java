@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -40,12 +39,10 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceSurrogateFunction;
@@ -67,7 +64,8 @@ import java.util.Objects;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateNullable;
+import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -86,14 +84,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
                 // boolean
-                new BooleanSimplification(),
+                new EqlBooleanSimplification(),
                 new LiteralsOnTheRight(),
                 new BinaryComparisonSimplification(),
                 new BooleanFunctionEqualsElimination(),
-                // needs to occur before BinaryComparison combinations
-                new PropagateEquals(),
-                new PropagateNullable(),
-                new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
                 new SimplifyComparisonsArithmetics(DataTypes::areCompatible),
                 // prune/elimination
@@ -183,7 +177,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         if (cmp instanceof Equals) {
                             result = new IsNull(cmp.source(), comparableToNull);
                         } else {
-                            result = new IsNotNull(cmp.source(), comparableToNull);
+                            result = new Not(cmp.source(), new IsNull(cmp.source(), comparableToNull));
                         }
                     }
                 }
@@ -198,6 +192,31 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return regexMatch.caseInsensitive()
                 ? new InsensitiveEquals(regexMatch.source(), regexMatch.field(), literal, null)
                 : new Equals(regexMatch.source(), regexMatch.field(), literal);
+        }
+    }
+
+    private static class EqlBooleanSimplification extends BooleanSimplification {
+
+        EqlBooleanSimplification() {
+            super();
+        }
+
+        @Override
+        protected Expression simplifyNot(Not n) {
+            Expression c = n.field();
+
+            if (TRUE.semanticEquals(c)) {
+                return new Literal(n.source(), Boolean.FALSE, DataTypes.BOOLEAN);
+            }
+            if (FALSE.semanticEquals(c)) {
+                return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
+            }
+
+            if (c instanceof Not) {
+                return ((Not) c).field();
+            }
+
+            return n;
         }
     }
 

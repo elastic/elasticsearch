@@ -22,7 +22,7 @@ public class ScriptQuery extends LeafQuery {
     public ScriptQuery(Source source, ScriptTemplate script) {
         super(source);
         // make script null safe
-        this.script = Scripts.nullSafeFilter(script);
+        this.script = nullSafeScript(script);
     }
 
     public ScriptTemplate script() {
@@ -56,5 +56,9 @@ public class ScriptQuery extends LeafQuery {
     @Override
     protected String innerToString() {
         return script.toString();
+    }
+
+    protected ScriptTemplate nullSafeScript(ScriptTemplate script) {
+        return Scripts.nullSafeFilter(script);
     }
 }

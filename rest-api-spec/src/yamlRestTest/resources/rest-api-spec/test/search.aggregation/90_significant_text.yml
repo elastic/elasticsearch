@@ -161,6 +161,10 @@ profile:
 
 ---
 include:
+  - skip:
+      version: " - 7.9.99"
+      reason: 7.9 has trouble with this one, not sure why but not worth tracking down
+
   - do:
       search:
         index: goodbad

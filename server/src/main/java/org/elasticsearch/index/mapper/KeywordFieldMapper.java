@@ -291,7 +291,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         
         // Initialises with a seek to a given term but excludes that term
-        // from results
+        // from any results. The problem it addresses is that termsEnum.seekCeil()
+        // would work but either leaves us positioned on the seek term (if it exists) or the 
+        // term after (if the seek term doesn't exist). That complicates any subsequent 
+        // iteration logic so this class simplifies the pagination use case. 
         final class SearchAfterTermsEnum extends FilteredTermsEnum {
             private final BytesRef afterRef;
 

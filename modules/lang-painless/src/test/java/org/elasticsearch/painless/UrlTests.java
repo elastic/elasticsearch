@@ -19,7 +19,8 @@ public class UrlTests extends ScriptTestCase {
         assertEquals("no protocol: ", e.getMessage());
 
         e = expectScriptThrows(MalformedURLException.class, () -> exec("new URL(null)"));
-        assertEquals("Cannot invoke \"String.length()\" because \"spec\" is null", e.getMessage());
+        // Can't check error message because in Java 11 message is null (it's not null in Java 15)
+        assertNotNull(e);
 
         e = expectScriptThrows(MalformedURLException.class, () -> exec("new URL('abc://www.example.com')"));
         assertEquals("unknown protocol: abc", e.getMessage());

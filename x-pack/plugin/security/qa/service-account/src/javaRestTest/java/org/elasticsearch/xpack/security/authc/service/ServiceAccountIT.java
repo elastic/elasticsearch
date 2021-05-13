@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -337,9 +338,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         )));
 
         final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");
-        final Response deleteTokenResponse2 = client().performRequest(deleteTokenRequest2);
-        assertOK(deleteTokenResponse2);
-        assertThat(responseAsMap(deleteTokenResponse2).get("found"), is(false));
+        final ResponseException e2 = expectThrows(ResponseException.class, () -> client().performRequest(deleteTokenRequest2));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(EntityUtils.toString(e2.getResponse().getEntity()), equalTo("{\"found\":false}"));
     }
 
     public void testClearCache() throws IOException {

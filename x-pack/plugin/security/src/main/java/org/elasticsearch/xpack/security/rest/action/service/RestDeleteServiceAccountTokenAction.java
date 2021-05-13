@@ -50,7 +50,7 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
             deleteServiceAccountTokenRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(refreshPolicy));
         }
         return channel -> client.execute(DeleteServiceAccountTokenAction.INSTANCE, deleteServiceAccountTokenRequest,
-            new RestToXContentListener<>(channel) {
+            new RestToXContentListener<DeleteServiceAccountTokenResponse>(channel) {
                 @Override
                 protected RestStatus getStatus(DeleteServiceAccountTokenResponse response) {
                     return response.found() ? RestStatus.OK : RestStatus.NOT_FOUND;

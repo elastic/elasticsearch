@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -25,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
@@ -275,8 +277,33 @@ public final class KeywordFieldMapper extends FieldMapper {
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
+            
+            if (automaton.type == AUTOMATON_TYPE.ALL) {
+                TermsEnum result = terms.iterator();
+                if (searchAfter != null) {
+                    result = new SearchAfterTermsEnum(result, searchAfter);
+                }
+                return result;
+            }
             return terms.intersect(automaton, searchAfter);
         }
+        
+        // Initialises with a seek to a given term but excludes that term
+        // from results
+        public final class SearchAfterTermsEnum extends FilteredTermsEnum {
+            private final BytesRef afterRef;
+
+            public SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
+                super(tenum);
+                afterRef = termText;
+                setInitialSeekTerm(termText);
+            }
+
+            @Override
+            protected AcceptStatus accept(BytesRef term) {
+                return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
+            }
+        }          
 
         @Override
         public String typeName() {

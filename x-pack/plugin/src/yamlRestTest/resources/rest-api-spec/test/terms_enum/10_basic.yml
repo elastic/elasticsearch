@@ -296,6 +296,13 @@ teardown:
         body:  {"field": "foo", "string":"b", "search_after":"baa"}
   - length: {terms: 1}
 
+  - do:
+      termsenum:
+        index:  test_k
+        body:  {"field": "foo", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
+
+
 ---
 "Test search after flattened field":
   - do:
@@ -316,6 +323,12 @@ teardown:
         body:  {"field": "foo.bar", "string":"b", "search_after":"baa"}
   - length: {terms: 1}
 
+  - do:
+      termsenum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
+
 ---
 "Test search after constant keyword field":
   - do:
@@ -334,6 +347,12 @@ teardown:
       termsenum:
         index:  test_ck
         body:  {"field": "foo", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
+
+  - do:
+      termsenum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"", "search_after":"baa"}
   - length: {terms: 1}
 
 ---

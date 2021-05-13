@@ -34,7 +34,7 @@ public class RuntimeAliasTests extends MapperServiceTestCase {
     }
 
     public void testInvalidAlias() {
-        Exception e = expectThrows(IllegalStateException.class, () -> createMapperService(topMapping(b -> {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
             b.startObject("runtime");
             {
                 b.startObject("alias-to-field").field("type", "alias").field("path", "field").endObject();

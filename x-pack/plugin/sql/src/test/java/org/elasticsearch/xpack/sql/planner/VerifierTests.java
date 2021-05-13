@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.sql.stats.Metrics;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
 
-public class VerifierErrorTests extends ESTestCase {
+public class VerifierTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
     private final IndexResolution indexResolution = IndexResolution.valid(

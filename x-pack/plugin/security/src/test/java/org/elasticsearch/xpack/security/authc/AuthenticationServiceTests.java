@@ -1914,7 +1914,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         Mockito.reset(serviceAccountService);
         final Authentication authentication = new Authentication(
             new User("elastic/fleet-server"),
-            new RealmRef("service_account", "service_account", "foo"), null,
+            new RealmRef("_service_account", "_service_account", "foo"), null,
             Version.CURRENT, AuthenticationType.TOKEN,
             org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName()));
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {

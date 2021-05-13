@@ -56,12 +56,12 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  },\n"
         + "  \"enabled\": true,\n"
         + "  \"authentication_realm\": {\n"
-        + "    \"name\": \"service_account\",\n"
-        + "    \"type\": \"service_account\"\n"
+        + "    \"name\": \"_service_account\",\n"
+        + "    \"type\": \"_service_account\"\n"
         + "  },\n"
         + "  \"lookup_realm\": {\n"
-        + "    \"name\": \"service_account\",\n"
-        + "    \"type\": \"service_account\"\n"
+        + "    \"name\": \"_service_account\",\n"
+        + "    \"type\": \"_service_account\"\n"
         + "  },\n"
         + "  \"authentication_type\": \"token\"\n"
         + "}\n";
@@ -409,7 +409,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(apiKey.get("id"), equalTo(apiKeyId));
         assertThat(apiKey.get("name"), equalTo(name));
         assertThat(apiKey.get("username"), equalTo("elastic/fleet-server"));
-        assertThat(apiKey.get("realm"), equalTo("service_account"));
+        assertThat(apiKey.get("realm"), equalTo("_service_account"));
         assertThat(apiKey.get("invalidated"), is(invalidated));
     }
 

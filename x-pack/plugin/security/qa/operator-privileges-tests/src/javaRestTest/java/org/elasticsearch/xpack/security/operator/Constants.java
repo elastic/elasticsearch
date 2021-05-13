@@ -172,6 +172,7 @@ public class Constants {
         "cluster:admin/xpack/security/api_key/invalidate",
         "cluster:admin/xpack/security/cache/clear",
         "cluster:admin/xpack/security/delegate_pki",
+        "cluster:admin/xpack/security/enrollment/enroll/node",
         "cluster:admin/xpack/security/oidc/authenticate",
         "cluster:admin/xpack/security/oidc/logout",
         "cluster:admin/xpack/security/oidc/prepare",

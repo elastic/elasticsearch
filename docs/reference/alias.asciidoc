@@ -26,7 +26,7 @@ data stream's backing index to an index alias.
 === Add an alias
 
 To add an existing data stream or index to an alias, use the
-<<indices-aliases,alias API>>'s `add` action. If the alias doesn't exist,
+<<indices-aliases,aliases API>>'s `add` action. If the alias doesn't exist,
 the action creates it.
 
 [source,console]
@@ -69,7 +69,7 @@ POST _aliases
 [[remove-alias]]
 === Remove an alias
 
-To remove an alias, use the alias API's `remove` action.
+To remove an alias, use the aliases API's `remove` action.
 
 [source,console]
 ----

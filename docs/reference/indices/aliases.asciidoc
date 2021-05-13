@@ -553,7 +553,7 @@ POST _aliases
 // TEST[continued]
 
 To verify the alias points to both data streams, use the
-<<indices-get-alias,get index alias API>>.
+<<indices-get-alias,get alias API>>.
 
 [source,console]
 ----

@@ -155,21 +155,6 @@ Manually triggers a <<glossary-merge,merge>> to reduce the number of
 See the {ref}/indices-forcemerge.html[force merge API].
 // end::force-merge-def[]
 
-[[glossary-freeze]] freeze::
-// tag::freeze-def[]
-// tag::freeze-def-short[]
-Makes an index read-only and minimizes its memory footprint.
-// end::freeze-def-short[]
-See the {ref}/freeze-index-api.html[freeze API].
-// end::freeze-def[]
-
-[[glossary-frozen-index]] frozen index::
-// tag::frozen-index-def[]
-An <<glossary-index,index>> reduced to a low overhead state that still enables
-occasional searches.
-See the {ref}/freeze-index-api.html[freeze API].
-// end::frozen-index-def[]
-
 [[glossary-frozen-phase]] frozen phase::
 // tag::frozen-phase-def[]
 Fourth possible phase in the <<glossary-index-lifecycle,index lifecycle>>. In

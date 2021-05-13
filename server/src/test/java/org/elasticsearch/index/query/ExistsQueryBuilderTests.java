@@ -21,6 +21,7 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,11 +49,14 @@ public class ExistsQueryBuilderTests extends AbstractQueryTestCase<ExistsQueryBu
     @Override
     protected void doAssertLuceneQuery(ExistsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         String fieldPattern = queryBuilder.fieldName();
-        Collection<String> fields = context.simpleMatchToIndexNames(fieldPattern);
+        Collection<String> fields = context.getMatchingFieldNames(fieldPattern);
         Collection<String> mappedFields = fields.stream().filter((field) -> context.getObjectMapper(field) != null
                 || context.isFieldMapped(field)).collect(Collectors.toList());
+        if (mappedFields.size() == 0 && context.getObjectMapper(fieldPattern) != null) {
+            mappedFields = Collections.singleton(fieldPattern);
+        }
         if (mappedFields.size() == 0) {
-            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+            assertThat(fieldPattern, query, instanceOf(MatchNoDocsQuery.class));
         } else if (fields.size() == 1) {
             assertThat(query, instanceOf(ConstantScoreQuery.class));
             ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) query;

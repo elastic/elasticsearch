@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -63,11 +64,13 @@ public class MlDeprecationChecker implements DeprecationChecker {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-upgrade-job-model-snapshot.html",
                String.format(
                    Locale.ROOT,
-                   "model snapshot [%s] for job [%s] supports minimum version [%s] and needs to be at least [%s]",
+                   "model snapshot [%s] for job [%s] supports minimum version [%s] and needs to be at least [%s]. " +
+                       "The model snapshot's latest record timestamp is [%s]",
                    modelSnapshot.getSnapshotId(),
                    modelSnapshot.getJobId(),
                    modelSnapshot.getMinVersion(),
-                   Version.V_7_0_0
+                   Version.V_7_0_0,
+                   XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(modelSnapshot.getLatestRecordTimeStamp().getTime())
                )
             ));
         }

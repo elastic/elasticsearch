@@ -203,8 +203,38 @@ GET my-data-stream/_alias
 [[write-index]]
 === Write index
 
-We typically recommend you use data streams to store and manage time series
-data. However, data streams are append-only. If you need to frequently update or
-delete documents, you can use an index alias with a write index instead. See
-<<manage-time-series-data-without-data-streams>>.
+If an alias points to multiple indices, you can use `is_write_index` to specify
+a write index. {es} routes any write requests for the alias to this index.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "my-index-2099.05.06-000001",
+        "alias": "my-alias"
+      }
+    },
+    {
+      "add": {
+        "index": "my-index-2099.05.07-000002",
+        "alias": "my-alias",
+        "is_write_index": true
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my-index-2099.05.06-000001\nPUT my-index-2099.05.07-000002\n/]
+
+If you use {es} for time series data and need to update or delete your
+documents, you can use an index alias rather than a data stream to store your
+data. See <<manage-time-series-data-without-data-streams>>.
+
+If an alias points to multiple indices with no write index, the alias will
+reject write requests. If an alias points to one index and `is_write_index` is
+not set, that index will automatically act as the write index. Data stream
+aliases do not support `is_write_index`.
  

@@ -18,10 +18,10 @@ the response only includes ongoing shard recoveries.
 Defaults to `false`.
 end::active-only[]
 
-tag::index-alias[]
-Comma-separated list or wildcard expression of index alias names
-used to limit the request.
-end::index-alias[]
+tag::alias[]
+Comma-separated list of aliases used to limit the request. Supports wildcards
+(`*`).
+end::alias[]
 
 tag::aliases[]
 `aliases`::
@@ -305,13 +305,12 @@ in the `completion_fields` or `fielddata_fields` parameters.
 --
 end::fields[]
 
-tag::index-alias-filter[]
-<<query-dsl-bool-query, Filter query>>
-used to limit the index alias.
-+
-If specified,
-the index alias only applies to documents returned by the filter.
-end::index-alias-filter[]
+tag::alias-filter[]
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>)
+Query used to limit the alias. If specified, the alias can only access documents
+that match the filter.
+end::alias-filter[]
 
 tag::flat-settings[]
 `flat_settings`::
@@ -548,6 +547,23 @@ Comma-separated list of index template names used to limit the request. Wildcard
 (`*`) expressions are supported.
 end::index-template[]
 
+tag::is-hidden[]
+`is_hidden`::
+(Optional, Boolean)
+If `true`, the alias is <<index-hidden,hidden>>. Defaults to `false`.
+end::is-hidden[]
+
+tag::is-write-index[]
+`is_write_index`::
+(Optional, Boolean)
+If `true`, the `index` is the alias's write index. Defaults to `false`.
++
+An alias can have one write index at a time. If an alias points to multiple
+indices with no write index, the alias rejects write requests. If an alias
+points to one index and `is_write_index` is not set, that index automatically
+acts as the write index.
+end::is-write-index[]
+
 tag::component-template[]
 `<component-template>`::
 (Required, string)
@@ -611,6 +627,13 @@ such as `1264`.
 +
 A value of `-1` indicates {es} was unable to compute this number.
 end::memory[]
+
+tag::must-exist[]
+`must_exist`::
+(Optional, Boolean)
+If `true`, the alias must exist to perform the `remove` action. Defaults to
+`false`.
+end::must-exist[]
 
 tag::bulk-require-alias[]
 `require_alias`::
@@ -801,6 +824,22 @@ tag::routing[]
 (Optional, string)
 Custom value used to route operations to a specific shard.
 end::routing[]
+
+tag::index-routing[]
+`index_routing`::
+(Optional, string)
+Custom value used to route indexing operations to a specific shard.
++
+If specified, this overwrites the `routing` parameter for indexing operations.
+end::index-routing[]
+
+tag::search-routing[]
+`search_routing`::
+(Optional, string)
+Custom value used to route search operations to a specific shard.
++
+If specified, this overwrites the `routing` parameter for search operations.
+end::search-routing[]
 
 tag::cat-s[]
 `s`::

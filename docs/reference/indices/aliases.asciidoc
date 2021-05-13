@@ -12,20 +12,25 @@ indices. Most {es} APIs accept an index alias in place of an index.
 
 [source,console]
 ----
-POST /_aliases
+POST _aliases
 {
-  "actions" : [
-    { "add" : { "index" : "my-index-000001", "alias" : "alias1" } }
+  "actions": [
+    {
+      "add": {
+        "index": "my-data-stream",
+        "alias": "my-alias"
+      }
+    }
   ]
 }
 ----
-// TEST[setup:my_index]
-
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
 [[indices-aliases-api-request]]
 ==== {api-request-title}
 
-`POST /_aliases`
+`POST _aliases`
 
 [[indices-aliases-api-prereqs]]
 ==== {api-prereq-title}
@@ -34,141 +39,110 @@ POST /_aliases
 <<privileges-list-indices,index privileges>>:
 
 ** To use the `add` or `remove` action, you must have the `manage` index
-privilege for both the index and index alias.
+privilege for the alias and its data streams or indices.
 
 ** To use the `remove_index` action, you must have the `manage` index privilege
 for the index.
-
-[[indices-aliases-api-desc]]
-==== {api-description-title}
-
-APIs in Elasticsearch accept an index name when working against a
-specific index, and several indices when applicable. The index aliases
-API allows aliasing an index with a name, with all APIs automatically
-converting the alias name to the actual index name. An alias can also be
-mapped to more than one index, and when specifying it, the alias will
-automatically expand to the aliased indices. An alias can also be
-associated with a filter that will automatically be applied when
-searching, and routing values. An alias cannot have the same name as an index.
-
 
 [[indices-aliases-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[indices-aliases-api-request-body]]
 ==== {api-request-body-title}
 
 `actions`::
+(Required, array of objects)
+Actions to perform.
 +
---
-(Required, array of actions)
-Set of actions to perform.
-Valid actions include:
+.Properties of `actions` objects
+[%collapsible%open]
+====
 
+`<action>`::
+The key is the action type.
++
+.Valid `<action>` keys
+[%collapsible%open]
+=====
 `add`::
-Adds an alias to an index.
+Adds a data stream or index to an alias. If the alias doesn't exist, the action
+creates it.
++
+An alias cannot point to both data streams and indices. You cannot add a
+data stream's backing index to an alias.
 
 `remove`::
-Removes an alias from an index.
+Removes a data stream or index from an alias.
 
 `remove_index`::
-Deletes a concrete index, similar to the <<indices-delete-index, delete index
-API>>. Attempts to remove an index alias will fail.
-
-You can perform these actions on alias objects.
-Valid parameters for alias objects include:
-
-`index`::
-(String)
-Wildcard expression of index names
-used to perform the action.
+Deletes an index. You cannot delete an alias or data stream.
+=====
 +
-If the `indices` parameter is not specified,
-this parameter is required.
+The object body contains options for the action.
 +
-NOTE: You cannot add <<data-streams,data streams>> to an index alias.
-
-`indices`::
-(Array)
-Array of index names
-used to perform the action.
-+
-If the `index` parameter is not specified,
-this parameter is required.
-+
-NOTE: You cannot add <<data-streams,data streams>> to an index alias.
-
+.Properties of `<action>`
+[%collapsible%open]
+=====
 `alias`::
-(String)
-Comma-separated list or wildcard expression of index alias names to add, remove,
-or delete. Supports <<date-math-index-names,date math>>.
+(Required*, string)
+Alias for the action. Index alias names support <<date-math-index-names,date
+math>>.
 +
-If the `aliases` parameter is not specified,
-this parameter is required for the `add` or `remove` action.
+If you don't specify `aliases`, this parameter is required for the `add` and
+`remove` actions.
 
 `aliases`::
-(Array of strings)
-Array of index alias names to add, remove, or delete. Supports
-<<date-math-index-names,date math>>.
+(Required*, array of strings)
+Aliases for the action. Index alias names support <<date-math-index-names,date
+math>>.
 +
-If the `alias` parameter is not specified, this parameter is required for the
-`add` or `remove` action.
+If you don't specify `alias`, this parameter is required for the `add` and
+`remove` actions.
 
-`filter`::
-(Optional, query object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=alias-filter]
 +
-See <<filtered>> for an example.
+Data stream aliases do not support this parameter.
 
-`is_hidden`::
-(Optional, Boolean)
-If `true`, the alias will be excluded from wildcard expressions by default,
-unless overridden in the request using the `expand_wildcards` parameter,
-similar to <<index-hidden,hidden indices>>. This property must be set to the
-same value on all indices that share an alias. Defaults to `false`.
+`index`::
+(Required*, string)
+Data stream or index for the action. Supports wildcards (`*`).
++
+To match all data streams, use `_all`. If no data streams exist, `_all` matches
+all indices. If `_all` or a wildcard pattern matches both data streams and
+indices, the request only uses matching data streams.
++
+If you don't specify `indices`, this parameter is required.
 
-`must_exist`::
-(Optional, Boolean)
-If `true`, the alias to remove must exist. Defaults to `false`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
++
+Data stream aliases do not support this parameter.
 
-`is_write_index`::
-(Optional, Boolean)
-If `true`, assigns the index as an alias's write index.
-Defaults to `false`.
+`indices`::
+(Required*, array of strings)
+Data streams or indices for the action. Supports wildcards (`*`).
 +
-An alias can have one write index at a time.
+To match all data streams, use `_all`. If no data streams exist, `_all` matches
+all indices. If `_all` or a wildcard pattern matches both data streams and
+indices, the request only uses matching data streams.
 +
-See <<write-index>> for an example.
+If you don't specify `index`, this parameter is required.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=is-hidden]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=is-write-index]
 +
-[IMPORTANT]
-====
-Aliases that do not explicitly set `is_write_index: true` for an index, and
-only reference one index, will have that referenced index behave as if it is the write index
-until an additional index is referenced. At that point, there will be no write index and
-writes will be rejected.
-====
+Data stream aliases do not support this parameter.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=must-exist]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 +
-See <<aliases-routing>> for an example.
+Data stream aliases do not support this parameter.
 
-`index_routing`::
-(Optional, string)
-Custom <<mapping-routing-field, routing value>> used
-for the alias's indexing operations.
-+
-See <<aliases-routing>> for an example.
-
-`search_routing`::
-(Optional, string)
-Custom <<mapping-routing-field, routing value>> used
-for the alias's search operations.
-+
-See <<aliases-routing>> for an example.
---
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-routing]
 
 
 [[indices-aliases-api-example]]

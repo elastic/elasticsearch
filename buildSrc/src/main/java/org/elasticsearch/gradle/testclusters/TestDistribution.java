@@ -13,5 +13,4 @@ package org.elasticsearch.gradle.testclusters;
 public enum TestDistribution {
     INTEG_TEST,
     DEFAULT,
-    OSS
 }

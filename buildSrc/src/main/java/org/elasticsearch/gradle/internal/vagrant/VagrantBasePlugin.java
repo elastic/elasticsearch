@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.vagrant;
 
 import org.elasticsearch.gradle.ReaperPlugin;
+import org.elasticsearch.gradle.internal.InternalReaperPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -33,7 +34,7 @@ public class VagrantBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(VagrantSetupCheckerPlugin.class);
         project.getRootProject().getPluginManager().apply(VagrantManagerPlugin.class);
-        project.getRootProject().getPluginManager().apply(ReaperPlugin.class);
+        project.getRootProject().getPluginManager().apply(InternalReaperPlugin.class);
 
         var reaperServiceProvider = GradleUtils.getBuildService(project.getGradle().getSharedServices(), ReaperPlugin.REAPER_SERVICE_NAME);
         var extension = project.getExtensions().create("vagrant", VagrantExtension.class, project);

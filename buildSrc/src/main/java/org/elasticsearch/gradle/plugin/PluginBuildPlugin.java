@@ -12,19 +12,14 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.lang.Closure;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.elasticsearch.gradle.internal.BuildPlugin;
-import org.elasticsearch.gradle.NoticeTask;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
-import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.precommit.PrecommitTasks;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.elasticsearch.gradle.internal.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
@@ -35,6 +30,7 @@ import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.publish.PublishingExtension;
@@ -51,7 +47,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -60,15 +55,15 @@ import java.util.stream.Collectors;
 public class PluginBuildPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
-        project.getPluginManager().apply(BuildPlugin.class);
-        project.getPluginManager().apply(RestTestBasePlugin.class);
+        PrecommitTasks.create(project);
+        project.getPluginManager().apply(JavaPlugin.class);
+        project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(CompileOnlyResolvePlugin.class);
 
         var extension = project.getExtensions().create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
         configureDependencies(project);
 
         final var bundleTask = createBundleTasks(project, extension);
-
         project.afterEvaluate(project1 -> {
             project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
                 // Auto add dependent modules to the test cluster
@@ -112,54 +107,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 copy.expand(map);
                 copy.getInputs().properties(map);
             });
-            BuildParams.withInternalBuild(() -> {
-                boolean isModule = GradleUtils.isModuleProject(project1.getPath());
-                boolean isXPackModule = isModule && project1.getPath().startsWith(":x-pack");
-                if (isModule == false || isXPackModule) {
-                    addNoticeGeneration(project1, extension1);
-                }
-            });
         });
-
-        BuildParams.withInternalBuild(() -> {
-            // We've ported this from multiple build scripts where we see this pattern into
-            // an extension method as a first step of consolidation.
-            // We might want to port this into a general pattern later on.
-            project.getExtensions()
-                .getExtraProperties()
-                .set("addQaCheckDependencies", new Closure<Object>(PluginBuildPlugin.this, PluginBuildPlugin.this) {
-                    public void doCall(Object it) {
-                        project.afterEvaluate(project1 -> {
-                            // let check depend on check tasks of qa sub-projects
-                            final var checkTaskProvider = project1.getTasks().named("check");
-                            Optional<Project> qaSubproject = project1.getSubprojects()
-                                .stream()
-                                .filter(p -> p.getPath().equals(project1.getPath() + ":qa"))
-                                .findFirst();
-                            qaSubproject.ifPresent(
-                                qa -> qa.getSubprojects()
-                                    .forEach(p -> checkTaskProvider.configure(task -> task.dependsOn(p.getPath() + ":check")))
-                            );
-                        });
-                    }
-
-                    public void doCall() {
-                        doCall(null);
-                    }
-                });
-
-            project.getTasks().withType(TestingConventionsTasks.class).named("testingConventions").configure(t -> {
-                t.getNaming().clear();
-                t.getNaming()
-                    .create("Tests", testingConventionRule -> testingConventionRule.baseClass("org.apache.lucene.util.LuceneTestCase"));
-                t.getNaming().create("IT", testingConventionRule -> {
-                    testingConventionRule.baseClass("org.elasticsearch.test.ESIntegTestCase");
-                    testingConventionRule.baseClass("org.elasticsearch.test.rest.ESRestTestCase");
-                    testingConventionRule.baseClass("org.elasticsearch.test.ESSingleNodeTestCase");
-                });
-            });
-        });
-
         project.getConfigurations().getByName("default").extendsFrom(project.getConfigurations().getByName("runtimeClasspath"));
 
         // allow running ES with this plugin in the foreground of a build
@@ -193,13 +141,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     private static void configureDependencies(final Project project) {
         var dependencies = project.getDependencies();
-        if (BuildParams.isInternal()) {
-            dependencies.add("compileOnly", dependencies.project(Map.of("path", ":server")));
-            dependencies.add("testImplementation", dependencies.project(Map.of("path", ":test:framework")));
-        } else {
-            dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
-            dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
-        }
+        dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
+        dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
 
         // we "upgrade" these optional deps to provided for plugins, since they will run
         // with a full elasticsearch server that includes optional deps
@@ -294,29 +237,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getArtifacts().add("zip", bundle);
 
         return bundle;
-    }
-
-    /**
-     * Configure the pom for the main jar of this plugin
-     */
-    protected static void addNoticeGeneration(final Project project, PluginPropertiesExtension extension) {
-        final var licenseFile = extension.getLicenseFile();
-        var tasks = project.getTasks();
-        if (licenseFile != null) {
-            tasks.withType(Zip.class).named("bundlePlugin").configure(zip -> zip.from(licenseFile.getParentFile(), copySpec -> {
-                copySpec.include(licenseFile.getName());
-                copySpec.rename(s -> "LICENSE.txt");
-            }));
-        }
-
-        final var noticeFile = extension.getNoticeFile();
-        if (noticeFile != null) {
-            final var generateNotice = tasks.register("generateNotice", NoticeTask.class, noticeTask -> {
-                noticeTask.setInputFile(noticeFile);
-                noticeTask.source(Util.getJavaMainSourceSet(project).get().getAllJava());
-            });
-            tasks.withType(Zip.class).named("bundlePlugin").configure(task -> task.from(generateNotice));
-        }
     }
 
     public static final String PLUGIN_EXTENSION_NAME = "esplugin";

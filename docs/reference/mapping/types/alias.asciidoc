@@ -1,4 +1,4 @@
-[[alias]]
+[[field-alias]]
 === Alias field type
 ++++
 <titleabbrev>Alias</titleabbrev>

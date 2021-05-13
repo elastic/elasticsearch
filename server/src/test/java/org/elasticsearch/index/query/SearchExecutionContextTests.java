@@ -75,6 +75,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -88,6 +89,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -348,14 +350,22 @@ public class SearchExecutionContextTests extends ESTestCase {
             runtimeMappings);
         assertTrue(context.isFieldMapped("cat"));
         assertThat(context.getFieldType("cat"), instanceOf(KeywordScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("cat"), equalTo(Set.of("cat")));
+        assertThat(context.getMatchingFieldNames("cat"), equalTo(Set.of("cat")));
         assertTrue(context.isFieldMapped("dog"));
         assertThat(context.getFieldType("dog"), instanceOf(LongScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("dog"), equalTo(Set.of("dog")));
+        assertThat(context.getMatchingFieldNames("dog"), equalTo(Set.of("dog")));
         assertTrue(context.isFieldMapped("pig"));
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
-        assertThat(context.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
+        assertThat(context.getMatchingFieldNames("pig"), equalTo(Set.of("pig")));
+        assertThat(context.getMatchingFieldNames("*"), equalTo(Set.of("cat", "dog", "pig")));
+
+        // test that shadowed fields aren't returned by getMatchingFieldTypes
+        Collection<MappedFieldType> matches = context.getMatchingFieldTypes("ca*");
+        assertThat(matches, hasSize(1));
+        assertThat(matches.iterator().next(), instanceOf(KeywordScriptFieldType.class));
+
+        matches = context.getAllFieldTypes();
+        assertThat(matches, hasSize(3));
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {

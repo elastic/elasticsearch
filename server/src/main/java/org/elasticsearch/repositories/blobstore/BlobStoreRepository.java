@@ -121,8 +121,11 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -233,9 +236,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final boolean cacheRepositoryData;
 
-    private final RateLimiter snapshotRateLimiter;
+    private volatile RateLimiter snapshotRateLimiter;
 
-    private final RateLimiter restoreRateLimiter;
+    private volatile RateLimiter restoreRateLimiter;
 
     private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
 
@@ -257,6 +260,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> INDEX_SHARD_SNAPSHOTS_FORMAT =
             new ChecksumBlobStoreFormat<>("snapshots", SNAPSHOT_INDEX_NAME_FORMAT, BlobStoreIndexShardSnapshots::fromXContent);
+
+    public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting("max_snapshot_bytes_per_sec",
+            new ByteSizeValue(40, ByteSizeUnit.MB), Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    public static final Setting<ByteSizeValue> MAX_RESTORE_BYTES_PER_SEC = Setting.byteSizeSetting("max_restore_bytes_per_sec",
+            ByteSizeValue.ZERO, Setting.Property.Dynamic, Setting.Property.NodeScope);
+
+    /**
+     * Repository settings that can be updated dynamically without having to create a new repository.
+     */
+    private static final Set<String> DYNAMIC_SETTING_NAMES =
+            Set.of(MAX_SNAPSHOT_BYTES_PER_SEC.getKey(), MAX_RESTORE_BYTES_PER_SEC.getKey());
 
     private final boolean readOnly;
 
@@ -330,8 +345,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.recoverySettings = recoverySettings;
         this.compress = COMPRESS_SETTING.get(metadata.settings());
         this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
-        snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
-        restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
+        snapshotRateLimiter = getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC);
+        restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC);
         readOnly = metadata.settings().getAsBoolean(READONLY_SETTING_KEY, false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
@@ -489,11 +504,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return Math.toIntExact(Math.min(Integer.MAX_VALUE, indexFiles.stream().filter(fi -> fi.physicalName().endsWith(".si")).count()));
     }
 
+    @Override
+    public boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        final Settings current = metadata.settings();
+        if (current.equals(updatedSettings)) {
+            return true;
+        }
+        final Set<String> changedSettingNames = new HashSet<>(current.keySet());
+        changedSettingNames.addAll(updatedSettings.keySet());
+        changedSettingNames.removeAll(ignoredSettings);
+        changedSettingNames.removeIf(setting -> Objects.equals(current.get(setting), updatedSettings.get(setting)));
+        changedSettingNames.removeAll(DYNAMIC_SETTING_NAMES);
+        return changedSettingNames.isEmpty();
+    }
+
     // Inspects all cluster state elements that contain a hint about what the current repository generation is and updates
     // #latestKnownRepoGen if a newer than currently known generation is found
     @Override
     public void updateState(ClusterState state) {
+        final Settings previousSettings = metadata.settings();
         metadata = getRepoMetadata(state);
+        final Settings updatedSettings = metadata.settings();
+        if (updatedSettings.equals(previousSettings) == false) {
+            snapshotRateLimiter = getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC);
+            restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC);
+        }
+
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
         final boolean wasBestEffortConsistency = bestEffortConsistency;
         bestEffortConsistency = uncleanStart || isReadOnly() || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN;
@@ -778,8 +814,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void asyncCleanupUnlinkedShardLevelBlobs(RepositoryData oldRepositoryData, Collection<SnapshotId> snapshotIds,
                                                      Collection<ShardSnapshotMetaDeleteResult> deleteResults,
                                                      ActionListener<Void> listener) {
-        final List<String> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
-        if (filesToDelete.isEmpty()) {
+        final Iterator<String> filesToDelete = resolveFilesToDelete(oldRepositoryData, snapshotIds, deleteResults);
+        if (filesToDelete.hasNext() == false) {
             listener.onResponse(null);
             return;
         }
@@ -885,7 +921,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private List<String> resolveFilesToDelete(RepositoryData oldRepositoryData, Collection<SnapshotId> snapshotIds,
+    private Iterator<String> resolveFilesToDelete(RepositoryData oldRepositoryData, Collection<SnapshotId> snapshotIds,
                                               Collection<ShardSnapshotMetaDeleteResult> deleteResults) {
         final String basePath = basePath().buildAsString();
         final int basePathLen = basePath.length();
@@ -904,7 +940,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ).map(absolutePath -> {
             assert absolutePath.startsWith(basePath);
             return absolutePath.substring(basePathLen);
-        }).collect(Collectors.toList());
+        }).iterator();
     }
 
     /**
@@ -1038,7 +1074,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     logger.info("[{}] Found stale root level blobs {}. Cleaning them up", metadata.name(), blobsToLog);
                 }
             }
-            deleteFromContainer(blobContainer(), blobsToDelete);
+            deleteFromContainer(blobContainer(), blobsToDelete.iterator());
             return blobsToDelete;
         } catch (Exception e) {
             logger.warn(() -> new ParameterizedMessage(
@@ -1175,7 +1211,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             (indexId, gens) -> gens.forEach((shardId, oldGen) -> toDelete.add(
                 shardContainer(indexId, shardId).path().buildAsString().substring(prefixPathLen) + INDEX_FILE_PREFIX + oldGen)));
         try {
-            deleteFromContainer(blobContainer(), toDelete);
+            deleteFromContainer(blobContainer(), toDelete.iterator());
         } catch (Exception e) {
             logger.warn("Failed to clean up old shard generation blobs", e);
         }
@@ -1213,9 +1249,26 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    private void deleteFromContainer(BlobContainer container, List<String> blobs) throws IOException {
-        logger.trace(() -> new ParameterizedMessage("[{}] Deleting {} from [{}]", metadata.name(), blobs, container.path()));
-        container.deleteBlobsIgnoringIfNotExists(blobs);
+    private void deleteFromContainer(BlobContainer container, Iterator<String> blobs) throws IOException {
+        final Iterator<String> wrappedIterator;
+        if (logger.isTraceEnabled()) {
+            wrappedIterator = new Iterator<>() {
+                @Override
+                public boolean hasNext() {
+                    return blobs.hasNext();
+                }
+
+                @Override
+                public String next() {
+                    final String blobName = blobs.next();
+                    logger.trace("[{}] Deleting [{}] from [{}]", metadata.name(), blobName, container.path());
+                    return blobName;
+                }
+            };
+        } else {
+            wrappedIterator = blobs;
+        }
+        container.deleteBlobsIgnoringIfNotExists(wrappedIterator);
     }
 
     private BlobPath indicesPath() {
@@ -1239,11 +1292,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *
      * @param repositorySettings repository settings
      * @param setting            setting to use to configure rate limiter
-     * @param defaultRate        default limiting rate
      * @return rate limiter or null of no throttling is needed
      */
-    private RateLimiter getRateLimiter(Settings repositorySettings, String setting, ByteSizeValue defaultRate) {
-        ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.getAsBytesSize(setting, defaultRate);
+    private static RateLimiter getRateLimiter(Settings repositorySettings, Setting<ByteSizeValue> setting) {
+        ByteSizeValue maxSnapshotBytesPerSec = setting.get(repositorySettings);
         if (maxSnapshotBytesPerSec.getBytes() <= 0) {
             return null;
         } else {
@@ -1902,14 +1954,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             // If there are more than 1000 dangling index-N cleanup functionality on repo delete will take care of them.
                             // Deleting one older than the current expectedGen is done for BwC reasons as older versions used to keep
                             // two index-N blobs around.
-                            final List<String> oldIndexN = LongStream.range(
-                                Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
-                                .mapToObj(gen -> INDEX_FILE_PREFIX + gen)
-                                .collect(Collectors.toList());
                             try {
-                                deleteFromContainer(blobContainer(), oldIndexN);
+                                deleteFromContainer(
+                                    blobContainer(),
+                                    LongStream.range(Math.max(Math.max(expectedGen - 1, 0), newGen - 1000), newGen)
+                                        .mapToObj(gen -> INDEX_FILE_PREFIX + gen).iterator()
+                                );
                             } catch (IOException e) {
-                                logger.warn(() -> new ParameterizedMessage("Failed to clean up old index blobs {}", oldIndexN), e);
+                                logger.warn(() ->
+                                    new ParameterizedMessage("Failed to clean up old index blobs from before [{}]", newGen), e);
                             }
                             return newRepositoryData;
                         }));
@@ -2284,7 +2337,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                         + INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(indexGeneration) + "]", e);
                     }
                     try {
-                        deleteFromContainer(shardContainer, blobsToDelete);
+                        deleteFromContainer(shardContainer, blobsToDelete.iterator());
                     } catch (IOException e) {
                         logger.warn(() -> new ParameterizedMessage("[{}][{}] failed to delete old index-N blobs during finalization",
                                 snapshotId, shardId), e);

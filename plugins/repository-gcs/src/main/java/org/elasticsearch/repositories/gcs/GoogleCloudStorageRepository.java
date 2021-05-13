@@ -78,13 +78,13 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
-            BlobPath path = new BlobPath();
+            BlobPath path = BlobPath.EMPTY;
             for (String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
             return path;
         } else {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         }
     }
 

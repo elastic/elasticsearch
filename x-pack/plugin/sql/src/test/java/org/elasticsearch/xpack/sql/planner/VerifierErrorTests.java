@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.stats.Metrics;
@@ -28,7 +29,7 @@ public class VerifierErrorTests extends ESTestCase {
         TEST_CFG,
         new SqlFunctionRegistry(),
         indexResolution,
-        new org.elasticsearch.xpack.sql.analysis.analyzer.Verifier(new Metrics())
+        new Verifier(new Metrics())
     );
     private final Planner planner = new Planner();
 

@@ -289,11 +289,11 @@ public class SamlIdentityProviderBuilder {
     static List<X509Credential> buildCredentials(Environment env, Settings settings, String prefix, boolean allowMultiple) {
         final SslKeyConfig keyConfig = CertParsingUtils.createKeyConfig(settings, prefix, env, false);
         if (keyConfig.hasKeyMaterial() == false) {
-            return null;
+            return List.of();
         }
         final X509KeyManager keyManager = keyConfig.createKeyManager();
         if (keyManager == null) {
-            return null;
+            return List.of();
         }
 
         final List<X509Credential> credentials = new ArrayList<>();

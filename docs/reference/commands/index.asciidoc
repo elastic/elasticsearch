@@ -4,7 +4,7 @@
 [partintro]
 --
 
-{es} provides the following tools for configuring security and performing other 
+{es} provides the following tools for configuring security and performing other
 tasks from the command line:
 
 * <<certgen>>
@@ -28,6 +28,7 @@ include::keystore.asciidoc[]
 include::migrate-tool.asciidoc[]
 include::node-tool.asciidoc[]
 include::saml-metadata.asciidoc[]
+include::service-tokens-command.asciidoc[]
 include::setup-passwords.asciidoc[]
 include::shard-tool.asciidoc[]
 include::syskeygen.asciidoc[]

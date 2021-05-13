@@ -424,13 +424,13 @@ PUT /my-index-000001
 }
 ----
 
-The following script adds a variable named `pageTime` and makes an incredible
-assumption that this is an approximate time required to write a complete page
-for a book.
+The following script makes the incredible assumption that when writing a book,
+authors just write each page and don't do research or revisions. Further, the
+script assumes that the average time it takes to write a page is eight hours.
 
-The script then retrieves the `author` and makes another fantastic assumption
-to either divide or multiply the `pageTime` value based on the author's
-perceived writing speed (yet another wild assumption).
+The script retrieves the `author` and makes another fantastic assumption to
+either divide or multiply the `pageTime` value based on the author's perceived
+writing speed (yet another wild assumption).
 
 The script subtracts the release date value (in milliseconds) from the
 calculation of `pageTime` times the `page_count` to determine approximately
@@ -487,7 +487,12 @@ year is pretty impressive!
 ===== `double_field`
 Use the `double_field` context for {ref}/number.html[numeric data] of type
 `double`. For example, let's say you have sensor data that includes a `voltage`
-field with values like 5.6. You need to multiply this value, but only for
+field with values like 5.6. After indexing millions of documents, you discover
+that the sensor with model number `QVKC92Q` is under reporting its voltage by a
+factor of 1.7. Rather than reindex your data, you can fix it with a
+runtime field.
+
+You need to multiply this value, but only for
 sensors that match a specific model number.
 
 Add the following fields to your index mapping. The `voltage` field is a 

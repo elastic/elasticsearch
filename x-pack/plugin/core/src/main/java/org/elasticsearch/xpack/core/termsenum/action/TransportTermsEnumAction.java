@@ -298,12 +298,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 );
                 final MappedFieldType mappedFieldType = indexShard.mapperService().fieldType(request.field());
                 if (mappedFieldType != null) {
-                    BytesRef searchAfterRef = request.searchAfter() == null ? null : new BytesRef(request.searchAfter());
                     TermsEnum terms = mappedFieldType.getTerms(
                         request.caseInsensitive(),
                         request.string(),
                         queryShardContext,
-                        searchAfterRef                        
+                        request.searchAfter()                        
                     );
                     if (terms != null) {
                         shardTermsEnums.add(terms);

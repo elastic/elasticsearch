@@ -148,7 +148,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, BytesRef searchAfter)
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
             throws IOException {
             boolean matches = caseInsensitive ? 
                 value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT)) : 
@@ -157,7 +157,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return null;
             }
             if (searchAfter != null) {
-                if (searchAfter.compareTo(new BytesRef(value)) >= 0) {
+                if (searchAfter.compareTo(value) >= 0) {
                     // The constant value is before the searchAfter value so must be ignored
                     return null;
                 }

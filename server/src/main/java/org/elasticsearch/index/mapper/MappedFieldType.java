@@ -444,7 +444,7 @@ public abstract class MappedFieldType {
      * @return null or an enumeration of matching terms and their doc frequencies
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, BytesRef searchAfter)
+    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
         throws IOException {
         return null;
     }

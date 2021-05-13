@@ -261,7 +261,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, BytesRef searchAfter)
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
             throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
 
@@ -278,19 +278,21 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
             
+            BytesRef searchBytes = searchAfter == null? null: new BytesRef(searchAfter);
+            
             if (automaton.type == AUTOMATON_TYPE.ALL) {
                 TermsEnum result = terms.iterator();
                 if (searchAfter != null) {
-                    result = new SearchAfterTermsEnum(result, searchAfter);
+                    result = new SearchAfterTermsEnum(result, searchBytes);
                 }
                 return result;
             }
-            return terms.intersect(automaton, searchAfter);
+            return terms.intersect(automaton, searchBytes);
         }
         
         // Initialises with a seek to a given term but excludes that term
         // from results
-        public final class SearchAfterTermsEnum extends FilteredTermsEnum {
+        final class SearchAfterTermsEnum extends FilteredTermsEnum {
             private final BytesRef afterRef;
 
             public SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {

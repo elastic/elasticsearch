@@ -177,7 +177,7 @@ public class DateFormatters {
         .withResolverStyle(ResolverStyle.STRICT);
 
     private static final DateTimeFormatter STRICT_DATE_OPTIONAL_TIME_PRINTER_NANOS = new DateTimeFormatterBuilder()
-        .append(STRICT_YEAR_MONTH_DAY_FORMATTER)
+        .append(STRICT_YEAR_MONTH_DAY_PRINTER)
         .appendLiteral('T')
         .optionalStart()
         .appendValue(HOUR_OF_DAY, 2, 2, SignStyle.NOT_NEGATIVE)

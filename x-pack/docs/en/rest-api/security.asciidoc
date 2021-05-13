@@ -113,7 +113,7 @@ You can use the following API to generate a token with which a user can enroll a
 in an existing secured elasticsearch cluster, or a client can configure itself to
 communicate with a secured elasticsearch cluster.
 
-* <<security-create-enrollment-token-apis, Create enrollment token>>
+* <<create-enrollment-token, Create enrollment token>>
 
 You can use the following APIs to allow new nodes to join an existing cluster with
 security enabled or to allow a client to configure itself to communicate with

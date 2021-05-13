@@ -32,7 +32,6 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;

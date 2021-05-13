@@ -697,7 +697,7 @@ public final class Verifier {
                 if (unsupported.isEmpty() == false) {
                     String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
                     localFailures.add(
-                            fail(filter.condition(), "HAVING filter is unsupported for function" + plural + " {}",
+                            fail(filter.condition(), "filtering is unsupported for function" + plural + " {}",
                                     Expressions.names(unsupported)));
                 }
             }

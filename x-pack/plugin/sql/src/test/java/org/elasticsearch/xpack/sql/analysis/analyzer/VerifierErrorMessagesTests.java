@@ -1102,21 +1102,21 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testTopHitsByHavingUnsupported() {
         String topHitsFunction = randomTopHitsFunction();
         int column = 31 + topHitsFunction.length();
-        assertEquals("1:" + column + ": HAVING filter is unsupported for function [" + topHitsFunction + "(int)]",
+        assertEquals("1:" + column + ": filtering is unsupported for function [" + topHitsFunction + "(int)]",
                 error("SELECT " + topHitsFunction + "(int) FROM test HAVING " + topHitsFunction + "(int) > 10"));
     }
 
     public void testTopHitsGroupByHavingUnsupported() {
         String topHitsFunction = randomTopHitsFunction();
         int column = 45 + topHitsFunction.length();
-        assertEquals("1:" + column + ": HAVING filter is unsupported for function [" + topHitsFunction + "(int)]",
+        assertEquals("1:" + column + ": filtering is unsupported for function [" + topHitsFunction + "(int)]",
             error("SELECT " + topHitsFunction + "(int) FROM test GROUP BY text HAVING " + topHitsFunction + "(int) > 10"));
     }
 
     public void testTopHitsHavingWithSubqueryUnsupported() {
         String filter = randomFrom("WHERE", "HAVING");
         int column = 99 + filter.length();
-        assertEquals("1:" + column + ": HAVING filter is unsupported for functions [FIRST(int), LAST(int)]",
+        assertEquals("1:" + column + ": filtering is unsupported for functions [FIRST(int), LAST(int)]",
                 error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT FIRST(int) AS f, LAST(int) AS l FROM test))) " +
                         filter + " f > 10 or l < 10"));
     }
@@ -1124,7 +1124,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     public void testTopHitsGroupByHavingWithSubqueryUnsupported() {
         String filter = randomFrom("WHERE", "HAVING");
         int column = 113 + filter.length();
-        assertEquals("1:" + column + ": HAVING filter is unsupported for functions [FIRST(int), LAST(int)]",
+        assertEquals("1:" + column + ": filtering is unsupported for functions [FIRST(int), LAST(int)]",
                 error("SELECT * FROM (SELECT * FROM (SELECT * FROM (SELECT FIRST(int) AS f, LAST(int) AS l FROM test GROUP BY bool))) " +
                         filter + " f > 10 or l < 10"));
     }

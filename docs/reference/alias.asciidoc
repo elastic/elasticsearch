@@ -229,10 +229,9 @@ POST _aliases
 ----
 // TEST[s/^/PUT my-index-2099.05.06-000001\nPUT my-index-2099.05.07-000002\n/]
 
-TIP: We typically recommend using data streams to store time series data.
-However, data streams are append-only. If you often need to update or delete
-documents, you can use an index alias instead. See
-<<manage-time-series-data-without-data-streams>>.
+TIP: We recommend using data streams to store append-only time series data. If
+you frequently update or delete existing time series data, use an index alias
+with a write index instead. See <<manage-time-series-data-without-data-streams>>.
 
 If an alias points to multiple indices with no write index, the alias will
 reject write requests. If an alias points to one index and `is_write_index` is

@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
@@ -37,9 +36,7 @@ import static java.util.Collections.unmodifiableMap;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath()),
-        new MetadataFieldMapper[0],
-        Collections.emptyMap());
+        new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath()), new MetadataFieldMapper[0], null);
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
@@ -69,7 +66,11 @@ public final class Mapping implements ToXContentFragment {
 
     }
 
-    CompressedXContent toCompressedXContent() {
+    /**
+     * Outputs this mapping instance and returns it in {@link CompressedXContent} format
+     * @return the {@link CompressedXContent} representation of this mapping instance
+     */
+    public CompressedXContent toCompressedXContent() {
         try {
             return new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {

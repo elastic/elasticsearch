@@ -56,7 +56,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         public final Field primaryTerm;
         public final Field tombstoneField;
 
-        public SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
+        private SequenceIDFields(Field seqNo, Field seqNoDocValue, Field primaryTerm, Field tombstoneField) {
             Objects.requireNonNull(seqNo, "sequence number field cannot be null");
             Objects.requireNonNull(seqNoDocValue, "sequence number dv field cannot be null");
             Objects.requireNonNull(primaryTerm, "primary term field cannot be null");
@@ -66,10 +66,27 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             this.tombstoneField = tombstoneField;
         }
 
+        public void addFields(Document document) {
+            document.add(seqNo);
+            document.add(seqNoDocValue);
+            document.add(primaryTerm);
+            if (tombstoneField != null) {
+                document.add(tombstoneField);
+            }
+        }
+
         public static SequenceIDFields emptySeqID() {
+            return new SequenceIDFields(
+                new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                new NumericDocValuesField(PRIMARY_TERM_NAME, 0),
+                null);
+        }
+
+        public static SequenceIDFields tombstone() {
             return new SequenceIDFields(new LongPoint(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                    new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
-                    new NumericDocValuesField(PRIMARY_TERM_NAME, 0), new NumericDocValuesField(TOMBSTONE_NAME, 0));
+                new NumericDocValuesField(NAME, SequenceNumbers.UNASSIGNED_SEQ_NO),
+                new NumericDocValuesField(PRIMARY_TERM_NAME, 0), new NumericDocValuesField(TOMBSTONE_NAME, 1));
         }
     }
 
@@ -78,7 +95,9 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     public static final String PRIMARY_TERM_NAME = "_primary_term";
     public static final String TOMBSTONE_NAME = "_tombstone";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new SeqNoFieldMapper());
+    public static final SeqNoFieldMapper INSTANCE = new SeqNoFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class SeqNoFieldType extends SimpleMappedFieldType {
 
@@ -170,9 +189,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         // also see ParsedDocument.updateSeqID (called by innerIndex)
         SequenceIDFields seqID = SequenceIDFields.emptySeqID();
         context.seqID(seqID);
-        context.doc().add(seqID.seqNo);
-        context.doc().add(seqID.seqNoDocValue);
-        context.doc().add(seqID.primaryTerm);
+        seqID.addFields(context.doc());
     }
 
     @Override

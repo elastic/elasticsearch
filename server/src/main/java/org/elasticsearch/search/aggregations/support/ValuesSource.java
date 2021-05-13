@@ -38,13 +38,12 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
-
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
@@ -55,7 +54,7 @@ import java.util.function.LongUnaryOperator;
  * top level sub-classes define type-specific behavior, such as
  * {@link ValuesSource.Numeric#isFloatingPoint()}. Second level subclasses are
  * then specialized based on where they read values from, e.g. script or field
- * cases. There are also adapter classes like {@link CellIdSource} which do
+ * cases. There are also adapter classes like {@link GeoTileCellIdSource} which do
  * run-time conversion from one type to another, often dependent on a user
  * specified parameter (precision in that case).
  */

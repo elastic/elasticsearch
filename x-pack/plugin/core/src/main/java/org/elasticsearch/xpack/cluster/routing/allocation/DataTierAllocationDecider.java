@@ -56,17 +56,17 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     private static final DataTierValidator VALIDATOR = new DataTierValidator();
     public static final Setting<String> CLUSTER_ROUTING_REQUIRE_SETTING = Setting.simpleString(CLUSTER_ROUTING_REQUIRE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<String> CLUSTER_ROUTING_INCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_INCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<String> CLUSTER_ROUTING_EXCLUDE_SETTING = Setting.simpleString(CLUSTER_ROUTING_EXCLUDE,
-        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope);
+        DataTierAllocationDecider::validateTierSetting, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_REQUIRE_SETTING = Setting.simpleString(INDEX_ROUTING_REQUIRE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_INCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_INCLUDE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_EXCLUDE_SETTING = Setting.simpleString(INDEX_ROUTING_EXCLUDE,
-        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
+        VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope, Setting.Property.Deprecated);
     public static final Setting<String> INDEX_ROUTING_PREFER_SETTING = new Setting<>(new Setting.SimpleKey(INDEX_ROUTING_PREFER),
         DataTierValidator::getDefaultTierPreference, Function.identity(), VALIDATOR, Setting.Property.Dynamic, Setting.Property.IndexScope);
 

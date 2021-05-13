@@ -385,13 +385,13 @@ public class SearchExecutionContextTests extends ESTestCase {
             Map.entry("alias-loop-1", Map.of("type", "alias", "path", "alias-loop-2")),
             Map.entry("alias-loop-2", Map.of("type", "alias", "path", "alias-loop-1"))
         );
-        Exception e = expectThrows(IllegalStateException.class, () -> createSearchExecutionContext(
+        Exception e = expectThrows(MapperParsingException.class, () -> createSearchExecutionContext(
             "uuid",
             null,
             createMappingLookup(Collections.emptyList(), Collections.emptyList()),
             runtimeMappings
         ));
-        assertEquals("Cannot resolve alias [alias-loop-2]: path [alias-loop-1] does not exist", e.getMessage());
+        assertEquals("Cannot resolve alias [alias-loop-2]: path [alias-loop-1] does not exist in mappings", e.getMessage());
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {

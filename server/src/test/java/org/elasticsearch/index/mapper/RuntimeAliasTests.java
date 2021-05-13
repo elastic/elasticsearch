@@ -41,7 +41,7 @@ public class RuntimeAliasTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertEquals("Cannot resolve alias [alias-to-field]: path [field] does not exist", e.getMessage());
+        assertEquals("Cannot resolve alias [alias-to-field]: path [field] does not exist in mappings", e.getMessage());
     }
 
     public void testDynamicLookup() throws IOException {

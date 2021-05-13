@@ -55,7 +55,7 @@ import java.nio.file.NoSuchFileException;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
@@ -659,7 +659,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
             delegatedBlobContainer.deleteBlobsIgnoringIfNotExists(blobNames);
         }
 

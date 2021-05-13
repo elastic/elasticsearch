@@ -8,8 +8,12 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.common.collect.Tuple;
+
 import javax.net.ssl.X509ExtendedKeyManager;
 import java.nio.file.Path;
+import java.security.PrivateKey;
+import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.List;
 
@@ -26,6 +30,11 @@ public final class EmptyKeyConfig implements SslKeyConfig {
 
     @Override
     public Collection<Path> getDependentFiles() {
+        return List.of();
+    }
+
+    @Override
+    public List<Tuple<PrivateKey, X509Certificate>> getKeys() {
         return List.of();
     }
 

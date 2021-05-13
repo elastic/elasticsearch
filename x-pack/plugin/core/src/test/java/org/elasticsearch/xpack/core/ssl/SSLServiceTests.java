@@ -415,7 +415,7 @@ public class SSLServiceTests extends ESTestCase {
         ElasticsearchException e =
             expectThrows(ElasticsearchException.class, () -> new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings))));
         assertThat(e, throwableWithMessage(startsWith("failed to load SSL configuration [xpack.security.transport.ssl] - ")));
-        assertThat(e.getCause(), throwableWithMessage(containsString("password was incorrect")));
+        assertThat(e.getCause(), throwableWithMessage(containsString("incorrect password")));
     }
 
     public void testThatKeystorePasswordIsRequired() throws Exception {
@@ -427,7 +427,7 @@ public class SSLServiceTests extends ESTestCase {
         ElasticsearchException e =
             expectThrows(ElasticsearchException.class, () -> new SSLService(TestEnvironment.newEnvironment(buildEnvSettings(settings))));
         assertThat(e, throwableWithMessage(startsWith("failed to load SSL configuration [xpack.security.transport.ssl] - ")));
-        assertThat(e.getCause(), throwableWithMessage(containsString("password was incorrect")));
+        assertThat(e.getCause(), throwableWithMessage(containsString("incorrect password")));
     }
 
     public void testCiphersAndInvalidCiphersWork() throws Exception {

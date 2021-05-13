@@ -253,7 +253,6 @@ public class XPackPlugin extends XPackClientPlugin
         return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
 
-
     @Override
     public Settings additionalSettings() {
         final String xpackInstalledNodeAttrSetting = "node.attr." + XPACK_INSTALLED_NODE_ATTR;
@@ -336,7 +335,7 @@ public class XPackPlugin extends XPackClientPlugin
         handlers.add(new RestReloadAnalyzersAction());
         handlers.add(new RestTermsEnumAction());
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
-                indexNameExpressionResolver, nodesInCluster));
+            indexNameExpressionResolver, nodesInCluster));
         return handlers;
     }
 

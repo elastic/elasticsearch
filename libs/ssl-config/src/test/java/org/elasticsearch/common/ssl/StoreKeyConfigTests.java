@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -24,6 +25,7 @@ import java.security.PrivateKey;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -170,6 +172,17 @@ public class StoreKeyConfigTests extends ESTestCase {
                 Arrays.asList(DNS_NAME, "localhost"),
                 Arrays.asList(IP_NAME, "127.0.0.1")
             ));
+        }
+
+        final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys();
+        assertThat(keys, iterableWithSize(names.length));
+        for (Tuple<PrivateKey, X509Certificate> tup : keys) {
+            PrivateKey privateKey = tup.v1();
+            assertThat(privateKey, notNullValue());
+            assertThat(privateKey.getAlgorithm(), is("RSA"));
+
+            final X509Certificate certificate = tup.v2();
+            assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
         }
     }
 

@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
+import java.security.Key;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -31,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -157,46 +159,78 @@ public final class KeyStoreUtil {
             + "] and truststore [" + trustStore + "]");
     }
 
-    static Stream<KeyStoreEntry> stream(KeyStore keyStore) throws KeyStoreException {
-        return Collections.list(keyStore.aliases()).stream().map(a -> new KeyStoreEntry(keyStore, a));
+    static Stream<KeyStoreEntry> stream(KeyStore keyStore,
+                                        Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler) {
+        try {
+            return Collections.list(keyStore.aliases()).stream().map(a -> new KeyStoreEntry(keyStore, a, exceptionHandler));
+        } catch (KeyStoreException e) {
+            throw exceptionHandler.apply(e);
+        }
     }
 
     static class KeyStoreEntry {
         private final KeyStore store;
         private final String alias;
+        private final Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler;
 
-        KeyStoreEntry(KeyStore store, String alias) {
+        KeyStoreEntry(KeyStore store, String alias, Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler) {
             this.store = store;
             this.alias = alias;
+            this.exceptionHandler = exceptionHandler;
         }
 
         public String getAlias() {
             return alias;
         }
 
-        public X509Certificate getX509Certificate() throws KeyStoreException {
-            final Certificate c = store.getCertificate(alias);
-            if (c instanceof X509Certificate) {
-                return (X509Certificate) c;
-            } else {
+        public X509Certificate getX509Certificate() {
+            try {
+                final Certificate c = store.getCertificate(alias);
+                if (c instanceof X509Certificate) {
+                    return (X509Certificate) c;
+                } else {
+                    return null;
+                }
+            } catch (KeyStoreException e) {
+                throw exceptionHandler.apply(e);
+            }
+        }
+
+        public boolean isKeyEntry() {
+            try {
+                return store.isKeyEntry(alias);
+            } catch (KeyStoreException e) {
+                throw exceptionHandler.apply(e);
+            }
+        }
+
+        public PrivateKey getKey(char[] password) {
+            try {
+                final Key key = store.getKey(alias, password);
+                if (key instanceof PrivateKey) {
+                    return (PrivateKey) key;
+                }
                 return null;
+            } catch (GeneralSecurityException e) {
+                throw exceptionHandler.apply(e);
             }
         }
 
-        public boolean isKeyEntry() throws KeyStoreException {
-            return store.isKeyEntry(alias);
+        public List<? extends X509Certificate> getX509CertificateChain() {
+            try {
+                final Certificate[] certificates = store.getCertificateChain(alias);
+                if (certificates == null || certificates.length == 0) {
+                    return List.of();
+                }
+                return Stream.of(certificates)
+                    .filter(c -> c instanceof X509Certificate)
+                    .map(X509Certificate.class::cast)
+                    .collect(Collectors.toUnmodifiableList());
+            } catch (KeyStoreException e) {
+                throw exceptionHandler.apply(e);
+            }
         }
 
-        public List<? extends X509Certificate> getX509CertificateChain() throws KeyStoreException {
-            final Certificate[] certificates = store.getCertificateChain(alias);
-            if (certificates == null || certificates.length == 0) {
-                return List.of();
-            }
-            return Stream.of(certificates)
-                .filter(c -> c instanceof X509Certificate)
-                .map(X509Certificate.class::cast)
-                .collect(Collectors.toUnmodifiableList());
-        }
     }
 
 

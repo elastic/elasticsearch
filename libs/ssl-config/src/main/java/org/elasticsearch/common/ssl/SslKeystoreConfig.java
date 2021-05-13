@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.common.collect.Tuple;
+
 import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -15,6 +17,7 @@ import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
+import java.security.PrivateKey;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -77,34 +80,43 @@ public abstract class SslKeystoreConfig implements SslKeyConfig {
     }
 
     @Override
+    public List<Tuple<PrivateKey, X509Certificate>> getKeys() {
+        final Path path = resolvePath();
+        final KeyStore keyStore = readKeyStore(path);
+        return KeyStoreUtil.stream(keyStore, ex -> keystoreException(path, ex))
+            .filter(KeyStoreUtil.KeyStoreEntry::isKeyEntry)
+            .map(entry -> {
+                for (X509Certificate certificate : entry.getX509CertificateChain()) {
+                    // Return the first certificate found, this is the certificate that matches the key
+                    return new Tuple<>(entry.getKey(keyPassword), certificate);
+                }
+                return null;
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toUnmodifiableList());
+    }
+
+    @Override
     public Collection<? extends StoredCertificate> getConfiguredCertificates() {
         final Path path = resolvePath();
-        try {
-            final KeyStore keyStore = readKeyStore(path);
-            return KeyStoreUtil.stream(keyStore)
-                .flatMap(entry -> {
-                    try {
-                        final List<StoredCertificate> certificates = new ArrayList<>();
-                        boolean firstElement = true;
-                        for (X509Certificate certificate : entry.getX509CertificateChain()) {
-                            certificates.add(new StoredCertificate(
-                                certificate,
-                                getKeystorePath(),
-                                getKeystoreType(),
-                                entry.getAlias(),
-                                firstElement
-                            ));
-                            firstElement = false;
-                        }
-                        return certificates.stream();
-                    } catch (KeyStoreException ex) {
-                        throw keystoreException(path, ex);
-                    }
-                })
-                .collect(Collectors.toUnmodifiableList());
-        } catch (GeneralSecurityException e) {
-            throw keystoreException(path, e);
-        }
+        final KeyStore keyStore = readKeyStore(path);
+        return KeyStoreUtil.stream(keyStore, ex -> keystoreException(path, ex))
+            .flatMap(entry -> {
+                final List<StoredCertificate> certificates = new ArrayList<>();
+                boolean firstElement = true;
+                for (X509Certificate certificate : entry.getX509CertificateChain()) {
+                    certificates.add(new StoredCertificate(
+                        certificate,
+                        getKeystorePath(),
+                        getKeystoreType(),
+                        entry.getAlias(),
+                        firstElement
+                    ));
+                    firstElement = false;
+                }
+                return certificates.stream();
+            })
+            .collect(Collectors.toUnmodifiableList());
     }
 
     @Override

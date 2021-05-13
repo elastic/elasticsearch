@@ -819,6 +819,10 @@ public class SSLService {
         return getSSLConfiguration(XPackSettings.HTTP_SSL_PREFIX);
     }
 
+    public SslConfiguration getTransportSSLConfiguration() {
+        return getSSLConfiguration(XPackSettings.TRANSPORT_SSL_PREFIX);
+    }
+
     private static Map<String, Settings> getMonitoringExporterSettings(Settings settings) {
         Map<String, Settings> sslSettings = new HashMap<>();
         Map<String, Settings> exportersSettings = settings.getGroups("xpack.monitoring.exporters.");

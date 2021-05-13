@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -17,20 +18,26 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PemKeyConfigTests extends ESTestCase {
     private static final int IP_NAME = 7;
@@ -74,6 +81,44 @@ public class PemKeyConfigTests extends ESTestCase {
         final PemKeyConfig keyConfig = new PemKeyConfig(cert, key, "c2-pass".toCharArray(), configBasePath);
         assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(resolve(cert, key)));
         assertCertificateAndKey(keyConfig, "CN=cert2");
+    }
+
+    public void testBuildKeyConfigUsingCertificateChain() throws Exception {
+        final String ca = "ca1/ca.crt";
+        final String cert = "cert1/cert1.crt";
+        final String key = "cert1/cert1.key";
+
+        final Path chain = createTempFile("chain", ".crt");
+        Files.write(chain, Files.readAllBytes(configBasePath.resolve(cert)), StandardOpenOption.APPEND);
+        Files.write(chain, Files.readAllBytes(configBasePath.resolve(ca)), StandardOpenOption.APPEND);
+
+        final PemKeyConfig keyConfig = new PemKeyConfig(chain.toString(), key, new char[0], configBasePath);
+        assertThat(keyConfig.getDependentFiles(), Matchers.containsInAnyOrder(chain, configBasePath.resolve(key)));
+        assertCertificateAndKey(keyConfig, "CN=cert1", "CN=Test CA 1");
+        final Collection<? extends StoredCertificate> certificates = keyConfig.getConfiguredCertificates();
+        assertThat(certificates, Matchers.hasSize(2));
+        final Iterator<? extends StoredCertificate> iterator = certificates.iterator();
+        StoredCertificate c1 = iterator.next();
+        StoredCertificate c2 = iterator.next();
+
+        assertThat(c1.getCertificate().getSubjectDN().toString(), equalTo("CN=cert1"));
+        assertThat(c1.hasPrivateKey(), equalTo(true));
+        assertThat(c1.getAlias(), nullValue());
+        assertThat(c1.getFormat(), equalTo("PEM"));
+        assertThat(c1.getPath(), equalTo(chain.toString()));
+
+        assertThat(c2.getCertificate().getSubjectDN().toString(), equalTo("CN=Test CA 1"));
+        assertThat(c2.hasPrivateKey(), equalTo(false));
+        assertThat(c2.getAlias(), nullValue());
+        assertThat(c2.getFormat(), equalTo("PEM"));
+        assertThat(c2.getPath(), equalTo(chain.toString()));
+
+        final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys();
+        assertThat(keys, iterableWithSize(1));
+        assertThat(keys.get(0).v1(), notNullValue());
+        assertThat(keys.get(0).v1().getAlgorithm(), equalTo("RSA"));
+        assertThat(keys.get(0).v2(), notNullValue());
+        assertThat(keys.get(0).v2().getSubjectDN().toString(), equalTo("CN=cert1"));
     }
 
     public void testKeyManagerFailsWithIncorrectPassword() throws Exception {
@@ -129,7 +174,7 @@ public class PemKeyConfigTests extends ESTestCase {
         return Stream.of(names).map(configBasePath::resolve).toArray(Path[]::new);
     }
 
-    private void assertCertificateAndKey(PemKeyConfig keyConfig, String expectedDN) throws CertificateParsingException {
+    private void assertCertificateAndKey(PemKeyConfig keyConfig, String certDN, String... caDN) throws CertificateParsingException {
         final X509ExtendedKeyManager keyManager = keyConfig.createKeyManager();
         assertThat(keyManager, notNullValue());
 
@@ -139,15 +184,20 @@ public class PemKeyConfigTests extends ESTestCase {
 
         final X509Certificate[] chain = keyManager.getCertificateChain("key");
         assertThat(chain, notNullValue());
-        assertThat(chain, arrayWithSize(1));
+        assertThat(chain, arrayWithSize(1 + caDN.length));
         final X509Certificate certificate = chain[0];
         assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
-        assertThat(certificate.getSubjectDN().getName(), is(expectedDN));
+        assertThat(certificate.getSubjectDN().getName(), is(certDN));
         assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
         assertThat(certificate.getSubjectAlternativeNames(), containsInAnyOrder(
             Arrays.asList(DNS_NAME, "localhost"),
             Arrays.asList(IP_NAME, "127.0.0.1")
         ));
+
+        for (int i = 0; i < caDN.length; i++) {
+            final X509Certificate ca = chain[i + 1];
+            assertThat(ca.getSubjectDN().getName(), is(caDN[i]));
+        }
     }
 
     private void assertPasswordIsIncorrect(PemKeyConfig keyConfig, Path key) {

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.common.collect.Tuple;
+
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.IOException;
@@ -84,13 +86,29 @@ public final class PemKeyConfig implements SslKeyConfig {
         final Path keyPath = resolve(key);
         final PrivateKey privateKey = getPrivateKey(keyPath);
         final Path certPath = resolve(this.certificate);
-        List<Certificate> certificates = getCertificates(certPath);
+        final List<Certificate> certificates = getCertificates(certPath);
         try {
             final KeyStore keyStore = KeyStoreUtil.buildKeyStore(certificates, privateKey, keyPassword);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
             throw new SslConfigException(
                 "failed to load a KeyManager for certificate/key pair [" + certPath + "], [" + keyPath + "]", e);
+        }
+    }
+
+    @Override
+    public List<Tuple<PrivateKey, X509Certificate>> getKeys() {
+        final Path keyPath = resolve(key);
+        final Path certPath = resolve(this.certificate);
+        final List<Certificate> certificates = getCertificates(certPath);
+        if (certificates.isEmpty()) {
+            return List.of();
+        }
+        final Certificate certificate = certificates.get(0);
+        if (certificate instanceof X509Certificate) {
+            return List.of(Tuple.tuple(getPrivateKey(keyPath), (X509Certificate) certificate));
+        } else {
+            return List.of();
         }
     }
 

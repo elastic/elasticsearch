@@ -14,7 +14,6 @@ import java.nio.file.Path;
 import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.KeyStoreException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collection;
@@ -64,27 +63,19 @@ public final class StoreTrustConfig implements SslTrustConfig {
     @Override
     public Collection<? extends StoredCertificate> getConfiguredCertificates() {
         final Path path = resolvePath();
-        try {
-            final KeyStore trustStore = readKeyStore(path);
-            return KeyStoreUtil.stream(trustStore)
-                .map(entry -> {
-                    try {
-                        final X509Certificate certificate = entry.getX509Certificate();
-                        if (certificate != null) {
-                            final boolean hasKey = entry.isKeyEntry();
-                            return new StoredCertificate(certificate, this.truststorePath, this.type, entry.getAlias(), hasKey);
-                        } else {
-                            return null;
-                        }
-                    } catch (KeyStoreException ex) {
-                        throw keystoreException(path, ex);
-                    }
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toUnmodifiableList());
-        } catch (GeneralSecurityException e) {
-            throw keystoreException(path, e);
-        }
+        final KeyStore trustStore = readKeyStore(path);
+        return KeyStoreUtil.stream(trustStore, ex -> keystoreException(path, ex))
+            .map(entry -> {
+                final X509Certificate certificate = entry.getX509Certificate();
+                if (certificate != null) {
+                    final boolean hasKey = entry.isKeyEntry();
+                    return new StoredCertificate(certificate, this.truststorePath, this.type, entry.getAlias(), hasKey);
+                } else {
+                    return null;
+                }
+            })
+            .filter(Objects::nonNull)
+            .collect(Collectors.toUnmodifiableList());
     }
 
     @Override

@@ -1,0 +1,209 @@
+[chapter]
+[[alias]]
+= Aliases
+
+An alias is a secondary name for a group of data streams or indices. Most
+{es} APIs accept an alias in place of a data stream or index name.
+
+You can change the data streams or indices for an alias at any time. If you use
+{es} for a custom application, aliases let you change the targets of
+your requests without modifying your app's code.
+
+[discrete]
+[[alias-types]]
+=== Alias types
+
+There are two types of aliases:
+
+* A **data stream alias** points to one or more data streams.
+* An **index alias** points to one or more indices.
+
+An alias cannot point to both data streams and indices. You also cannot add a
+data stream's backing index to an index alias.
+
+[discrete]
+[[add-alias]]
+=== Add an alias
+
+To add an existing data stream or index to an alias, use the
+<<indices-aliases,bulk alias API>>'s `add` action. If the alias doesn't exist,
+this creates it.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "logs-nginx.access-prod",
+        "alias": "logs"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\n/]
+
+The API's `index` and `indices` parameters supports wildcards (`*`). If the
+wildcard pattern matches data streams or indices, the action only uses matching
+data streams.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "logs-*",
+        "alias": "logs"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\n/]
+
+[discrete]
+[[remove-alias]]
+=== Remove an alias
+
+To remove an alias, use the API's `remove` action.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "remove": {
+        "index": "logs-nginx.access-prod",
+        "alias": "logs"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+[discrete]
+[[multiple-alias-actions]]
+=== Multiple alias actions
+
+You can perform multiple actions in a single atomic operation.
+
+For example, the `logs` alias points to a single data stream. The following
+request swaps the stream for the alias. During this swap, `logs` will never
+point to both streams at the same time.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "remove": {
+        "index": "logs-nginx.access-prod",
+        "alias": "logs"
+      }
+    },
+    {
+      "add": {
+        "index": "logs-my_app-default",
+        "alias": "logs"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT _data_stream\/logs-my_app-default\n/]
+
+[discrete]
+[[add-alias-at-creation]]
+=== Add an alias at index creation
+
+You can also use a <<indices-component-template,component>> or
+<<indices-put-template,index template>> to add aliases at index creation. You
+cannot use a component or index template to add a data stream alias.
+
+[source,console]
+----
+# Component template with index aliases
+PUT _component_template/my-aliases
+{
+  "template": {
+    "aliases": {
+      "my-alias": {}
+    }
+  }
+}
+
+# Index template with index aliases
+PUT _index_template/my-index-template
+{
+  "index_patterns": ["my-index-*"],
+  "composed_of": [ "my-aliases", "my-mappings", "my-settings" ],
+  "template": {
+    "aliases": {
+      "yet-another-alias": {}
+    }
+  }
+}
+----
+// TEST[s/, "my-mappings", "my-settings"//]
+// TEST[teardown:data_stream_cleanup]
+
+You can also specify aliases in <<indices-create-index,create index API>>
+requests.
+
+[source,console]
+----
+# PUT <my-index-{now/d}-000001>
+PUT %3Cmy-index-%7Bnow%2Fd%7D-000001%3E
+{
+  "aliases": {
+    "my-alias": {}
+  }
+}
+----
+
+[discrete]
+[[view-aliases]]
+=== View aliases
+
+To get a list of your cluster's aliases, use the <<cat-alias,cat aliases API>>.
+
+[source,console]
+----
+GET _cat/aliases?v=true
+----
+
+To view the data streams or indices an alias points to, use the
+<<indices-get-alias,get alias API>>.
+
+[source,console]
+----
+GET _alias/logs
+----
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
+// TEST[catch:missing]
+
+To view the aliases for a data stream or index, specify it in the request path.
+
+[source,console]
+----
+GET my-data-stream/_alias
+----
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
+// TEST[s/my-data-stream/logs-nginx.access-prod/]
+
+[discrete]
+[[write-index]]
+=== Write index
+
+We typically recommend you use data streams to store and manage time series
+data. However, data streams are append-only. If you need to frequently update or
+delete documents, you can use an index alias with a write index instead. See
+<<manage-time-series-data-without-data-streams>>.
+ 

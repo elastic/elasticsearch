@@ -113,7 +113,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             throw new UncheckedIOException(e);
         }
 
-        if(GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false){
+        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false){
             return List.of(databaseRegistry.get());
         }
 
@@ -180,6 +180,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             .setOrigin("geoip")
             .setVersionMetaKey("version")
             .setPrimaryIndex(DATABASES_INDEX)
+            .setNetNew()
             .build();
         return Collections.singleton(geoipDatabasesIndex);
     }

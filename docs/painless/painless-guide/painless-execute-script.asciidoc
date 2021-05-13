@@ -30,6 +30,7 @@ The Painless script to execute.
 include::../painless-contexts/painless-runtime-fields-context.asciidoc[tag=runtime-field-emit]
 --
 
+[[_contexts]]
 `context`:: (Optional, string)
 The context that the script should run in. Defaults to `painless_test` if no
 context is specified.

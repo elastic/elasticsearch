@@ -8,7 +8,7 @@ setup:
         wait_for_status: yellow
 
 ---
-"Test get builtin privileges":
+"Test get builtin privileges 8.x":
   - skip:
         version: " - 7.99.99"
         reason: "new privileges in 8.0 only"
@@ -23,7 +23,7 @@ setup:
   - length: { "index" : 19 }
 
 ---
-"Test get builtin privileges":
+"Test get builtin privileges 7.x":
   - skip:
         version: "7.99.99 - "
         reason: "new privileges in 8.0 only"

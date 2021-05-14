@@ -287,6 +287,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
                 SchemaUtil.getDestinationFieldMappings(buildTask.getParentTaskClient(), config.getDestination().getIndex(),
                         getFieldMappingsListener);
             } else {
+                auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
                     buildTask,
                     TransformMessages.getMessage(

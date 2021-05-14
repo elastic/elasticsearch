@@ -24,6 +24,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
@@ -114,7 +115,9 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
 
         // lenient passes but reports invalid
         PivotConfig pivotConfig = createPivotConfigFromString(pivot, true);
-        assertNotNull(pivotConfig.validate(null));
+        ValidationException validationException = pivotConfig.validate(null);
+        assertThat(validationException, is(notNullValue()));
+        assertThat(validationException.getMessage(), containsString("pivot.aggregations must not be null"));
     }
 
     public void testEmptyGroupBy() throws IOException {
@@ -130,7 +133,9 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
 
         // lenient passes but reports invalid
         PivotConfig pivotConfig = createPivotConfigFromString(pivot, true);
-        assertNotNull(pivotConfig.validate(null));
+        ValidationException validationException = pivotConfig.validate(null);
+        assertThat(validationException, is(notNullValue()));
+        assertThat(validationException.getMessage(), containsString("pivot.groups must not be null"));
     }
 
     public void testMissingGroupBy() {
@@ -366,7 +371,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
 
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
         ValidationException validationException = pivotConfig.validate(null);
-        assertNotNull(validationException);
+        assertThat(validationException, is(notNullValue()));
         assertThat(validationException.getMessage(), containsString("duplicate field [jp.us.os.dc] detected"));
     }
 

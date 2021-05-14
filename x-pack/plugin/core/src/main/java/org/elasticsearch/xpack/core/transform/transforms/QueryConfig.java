@@ -120,7 +120,7 @@ public class QueryConfig extends AbstractDiffable<QueryConfig> implements Writea
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (query == null) {
-            validationException = addValidationError("query == null", validationException);
+            validationException = addValidationError("source.query must not be null", validationException);
         }
         return validationException;
     }

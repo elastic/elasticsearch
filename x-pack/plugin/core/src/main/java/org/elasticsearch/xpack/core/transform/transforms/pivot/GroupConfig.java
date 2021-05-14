@@ -83,7 +83,7 @@ public class GroupConfig implements Writeable, ToXContentObject {
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (groups == null) {
-            validationException = addValidationError("groups == null", validationException);
+            validationException = addValidationError("pivot.groups must not be null", validationException);
         } else {
             for (SingleGroupSource group : groups.values()) {
                 validationException = group.validate(validationException);

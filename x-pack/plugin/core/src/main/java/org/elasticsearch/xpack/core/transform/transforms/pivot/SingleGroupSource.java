@@ -108,7 +108,8 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
     ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         // either a script or a field must be declared
         if (field == null && scriptConfig == null) {
-            validationException = addValidationError("field == null && scriptConfig == null", validationException);
+            validationException =
+                addValidationError("Required one of fields [field, script], but none were specified.", validationException);
         }
         return validationException;
     }

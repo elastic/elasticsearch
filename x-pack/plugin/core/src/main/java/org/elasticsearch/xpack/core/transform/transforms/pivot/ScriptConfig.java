@@ -111,7 +111,7 @@ public class ScriptConfig extends AbstractDiffable<ScriptConfig> implements Writ
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (script == null) {
-            validationException = addValidationError("script == null", validationException);
+            validationException = addValidationError("script must not be null", validationException);
         }
         return validationException;
     }

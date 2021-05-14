@@ -153,7 +153,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (aggregations == null) {
-            validationException = addValidationError("aggregations == null", validationException);
+            validationException = addValidationError("pivot.aggregations must not be null", validationException);
         }
         return validationException;
     }

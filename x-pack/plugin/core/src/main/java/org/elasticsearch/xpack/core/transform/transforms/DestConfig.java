@@ -70,7 +70,7 @@ public class DestConfig implements Writeable, ToXContentObject {
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (index.isEmpty()) {
-            validationException = addValidationError("index.isEmpty()", validationException);
+            validationException = addValidationError("dest.index must not be empty", validationException);
         }
         return validationException;
     }

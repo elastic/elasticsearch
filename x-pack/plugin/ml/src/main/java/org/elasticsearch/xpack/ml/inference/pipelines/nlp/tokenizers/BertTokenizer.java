@@ -6,8 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers;
 
+import org.elasticsearch.common.util.set.Sets;
+
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
@@ -33,24 +37,31 @@ public class BertTokenizer {
 
     public static final int DEFAULT_MAX_INPUT_CHARS_PER_WORD = 100;
 
+    private final Set<String> NEVER_SPLIT = new HashSet<>(Arrays.asList(MASK_TOKEN));
+
     private final WordPieceTokenizer wordPieceTokenizer;
+    private final List<String> originalVocab;
+    // TODO Not sure this needs to be a sorted map
     private final SortedMap<String, Integer> vocab;
     private final boolean doLowerCase;
     private final boolean doTokenizeCjKChars;
     private final boolean doStripAccents;
     private final Set<String> neverSplit;
 
-    private BertTokenizer(SortedMap<String, Integer> vocab,
+    private BertTokenizer(
+                          List<String> originalVocab,
+                          SortedMap<String, Integer> vocab,
                           boolean doLowerCase,
                           boolean doTokenizeCjKChars,
                           boolean doStripAccents,
                           Set<String> neverSplit) {
         wordPieceTokenizer = new WordPieceTokenizer(vocab, UNKNOWN_TOKEN, DEFAULT_MAX_INPUT_CHARS_PER_WORD);
+        this.originalVocab = originalVocab;
         this.vocab = vocab;
         this.doLowerCase = doLowerCase;
         this.doTokenizeCjKChars = doTokenizeCjKChars;
         this.doStripAccents = doStripAccents;
-        this.neverSplit = neverSplit;
+        this.neverSplit = Sets.union(neverSplit, NEVER_SPLIT);
     }
 
     public TokenizationResult tokenize(String text) {
@@ -117,20 +128,29 @@ public class BertTokenizer {
             tokenMap[i] = SPECIAL_TOKEN_POSITION;
         }
 
-        return new TokenizationResult(tokens, tokenIds, tokenMap);
+        return new TokenizationResult(text, originalVocab, tokens, tokenIds, tokenMap);
     }
 
     public static class TokenizationResult {
+
+        String input;
+        List<String> vocab;
         private final List<String> tokens;
         private final int [] tokenIds;
         private final int [] tokenMap;
 
-        public TokenizationResult(List<String> tokens, int[] tokenIds, int[] tokenMap) {
+        public TokenizationResult(String input, List<String> vocab, List<String> tokens, int[] tokenIds, int[] tokenMap) {
             assert tokens.size() == tokenIds.length;
             assert tokenIds.length == tokenMap.length;
+            this.input = input;
+            this.vocab = vocab;
             this.tokens = tokens;
             this.tokenIds = tokenIds;
             this.tokenMap = tokenMap;
+        }
+
+        public String getFromVocab(int tokenId) {
+            return vocab.get(tokenId);
         }
 
         /**
@@ -158,6 +178,10 @@ public class BertTokenizer {
         public int[] getTokenMap() {
             return tokenMap;
         }
+
+        public String getInput() {
+            return input;
+        }
     }
 
     public static Builder builder(List<String> vocab) {
@@ -166,6 +190,7 @@ public class BertTokenizer {
 
     public static class Builder {
 
+        private final List<String> originalVocab;
         private final SortedMap<String, Integer> vocab;
         private boolean doLowerCase = false;
         private boolean doTokenizeCjKChars = true;
@@ -173,6 +198,7 @@ public class BertTokenizer {
         private Set<String> neverSplit;
 
         private Builder(List<String> vocab) {
+            this.originalVocab = vocab;
             this.vocab = buildSortedVocab(vocab);
         }
 
@@ -214,7 +240,7 @@ public class BertTokenizer {
                 neverSplit = Collections.emptySet();
             }
 
-            return new BertTokenizer(vocab, doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
+            return new BertTokenizer(originalVocab, vocab, doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
         }
     }
 }

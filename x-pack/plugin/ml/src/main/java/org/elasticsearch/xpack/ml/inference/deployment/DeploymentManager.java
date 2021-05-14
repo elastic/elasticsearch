@@ -205,7 +205,10 @@ public class DeploymentManager {
                 listener.onFailure(new ElasticsearchStatusException("timeout [{}] waiting for inference result",
                     RestStatus.TOO_MANY_REQUESTS, timeout));
             } else {
-                listener.onResponse(inferenceResultsProcessor.processResult(pyTorchResult));
+                logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.modelId, requestId));
+                InferenceResults results = inferenceResultsProcessor.processResult(pyTorchResult);
+                logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.modelId, requestId));
+                listener.onResponse(results);
             }
         } catch (InterruptedException e) {
             listener.onFailure(e);

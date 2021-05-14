@@ -18,6 +18,11 @@ public enum TaskType {
         public NlpPipeline.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
             return new NerProcessor(tokenizer);
         }
+    },
+    FILL_MASK {
+        public NlpPipeline.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+            return new FillMaskProcessor(tokenizer);
+        }
     };
 
     public NlpPipeline.Processor createProcessor(BertTokenizer tokenizer) throws IOException {

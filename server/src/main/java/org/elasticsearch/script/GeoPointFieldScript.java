@@ -66,36 +66,46 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         if (value instanceof List<?>) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) value;
+            if (list.size() > 0 && list.get(0) instanceof Number) {
+                //[2, 1]: two values but one single point, return it as a list or each value will be seen as a different geopoint.
+                return Collections.singletonList(list);
+            }
+            //e.g. [ [2,1], {lat:2, lon:1} ]
             return list;
         }
+        //e.g. {lat: 2, lon: 1}
         return Collections.singletonList(value);
     }
 
     @Override
     protected void emitFromObject(Object value) {
-        try {
+        if (value instanceof List<?>) {
             List<?> values = (List<?>) value;
             if (values.size() > 0 && values.get(0) instanceof Number) {
-                parsePoint(value);
+                emitPoint(value);
             } else {
                 for (Object point : values) {
-                    parsePoint(point);
+                    emitPoint(point);
                 }
             }
-        } catch (Exception e) {
-            // ignore
+        } else {
+            emitPoint(value);
         }
     }
 
-    private void parsePoint(Object point) {
+    private void emitPoint(Object point) {
         if (point != null) {
             final GeoPoint scratch = new GeoPoint();
-            GeoUtils.parseGeoPoint(point, scratch, true);
+            try {
+                GeoUtils.parseGeoPoint(point, scratch, true);
+            } catch(Exception e) {
+                //ignore
+            }
             emit(scratch.lat(), scratch.lon());
         }
     }
 
-    protected void emit(double lat, double lon) {
+    protected final void emit(double lat, double lon) {
         int latitudeEncoded = encodeLatitude(lat);
         int longitudeEncoded = encodeLongitude(lon);
         emit(Long.valueOf((((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL)));

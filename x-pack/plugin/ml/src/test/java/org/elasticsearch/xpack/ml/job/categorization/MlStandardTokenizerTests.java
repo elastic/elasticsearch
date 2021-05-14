@@ -18,7 +18,7 @@ import java.io.StringReader;
 public class MlStandardTokenizerTests extends ESTestCase {
 
     public void testTokenizeNoPaths() throws IOException {
-        String testData = "one .-_two **stars**in**their**eyes** three.-_ sand.-_wich 4four five5 a1b2c3 42 www.elastic.co";
+        String testData = "one .-_two **stars**in**their**eyes** three@-_ sand.-_wich 4four @five5 a1b2c3 42 www.elastic.co";
         try (Tokenizer tokenizer = new MlStandardTokenizer()) {
             tokenizer.setReader(new StringReader(testData));
             tokenizer.reset();
@@ -50,10 +50,10 @@ public class MlStandardTokenizerTests extends ESTestCase {
             assertEquals(47, offset.startOffset());
             assertTrue(tokenizer.incrementToken());
             assertEquals("five5", term.toString());
-            assertEquals(65, offset.startOffset());
+            assertEquals(66, offset.startOffset());
             assertTrue(tokenizer.incrementToken());
             assertEquals("www.elastic.co", term.toString());
-            assertEquals(81, offset.startOffset());
+            assertEquals(82, offset.startOffset());
             assertFalse(tokenizer.incrementToken());
             tokenizer.end();
             assertEquals(testData.length(), offset.endOffset());
@@ -178,6 +178,54 @@ public class MlStandardTokenizerTests extends ESTestCase {
             assertTrue(tokenizer.incrementToken());
             assertEquals("default-apm-apm-server-8200", term.toString());
             assertEquals(171, offset.startOffset());
+            assertFalse(tokenizer.incrementToken());
+            tokenizer.end();
+            assertEquals(testData.length(), offset.endOffset());
+        }
+    }
+
+    public void testTokenizeWithPurelyNumericAtToken() throws IOException {
+        String testData =
+            "[1231529792] INFO  proxy <12309105041220090733@192.168.123.123> - +++++++++++++++ CREATING ProxyCore ++++++++++++++++";
+        try (Tokenizer tokenizer = new MlStandardTokenizer()) {
+            tokenizer.setReader(new StringReader(testData));
+            tokenizer.reset();
+            CharTermAttribute term = tokenizer.addAttribute(CharTermAttribute.class);
+            OffsetAttribute offset = tokenizer.addAttribute(OffsetAttribute.class);
+            assertTrue(tokenizer.incrementToken());
+            assertEquals("INFO", term.toString());
+            assertEquals(13, offset.startOffset());
+            assertTrue(tokenizer.incrementToken());
+            assertEquals("proxy", term.toString());
+            assertEquals(19, offset.startOffset());
+            assertTrue(tokenizer.incrementToken());
+            assertEquals("CREATING", term.toString());
+            assertEquals(82, offset.startOffset());
+            assertTrue(tokenizer.incrementToken());
+            assertEquals("ProxyCore", term.toString());
+            assertEquals(91, offset.startOffset());
+            assertFalse(tokenizer.incrementToken());
+            tokenizer.end();
+            assertEquals(testData.length(), offset.endOffset());
+        }
+    }
+
+    public void testTokenizeWithEmailAddress() throws IOException {
+        String testData = "[1234662464] INFO  session <a.n.other@elastic.co> - -----------------";
+        try (Tokenizer tokenizer = new MlStandardTokenizer()) {
+            tokenizer.setReader(new StringReader(testData));
+            tokenizer.reset();
+            CharTermAttribute term = tokenizer.addAttribute(CharTermAttribute.class);
+            OffsetAttribute offset = tokenizer.addAttribute(OffsetAttribute.class);
+            assertTrue(tokenizer.incrementToken());
+            assertEquals("INFO", term.toString());
+            assertEquals(13, offset.startOffset());
+            assertTrue(tokenizer.incrementToken());
+            assertEquals("session", term.toString());
+            assertEquals(19, offset.startOffset());
+            assertTrue(tokenizer.incrementToken());
+            assertEquals("a.n.other@elastic.co", term.toString());
+            assertEquals(28, offset.startOffset());
             assertFalse(tokenizer.incrementToken());
             tokenizer.end();
             assertEquals(testData.length(), offset.endOffset());

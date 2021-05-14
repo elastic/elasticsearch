@@ -110,8 +110,8 @@ public class MigrateAction implements LifecycleAction {
                     // partially mounted indices will already have data_frozen, and we don't want to change that if they do
                     if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(indexSettings)) {
                         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-                        logger.debug("[{}] action in policy [{}] is configured for index [{}] which is a partially mounted index. skipping this action",
-                            MigrateAction.NAME, policyName, index.getName());
+                        logger.debug("[{}] action in policy [{}] is configured for index [{}] which is a partially mounted index. " +
+                            "skipping this action", MigrateAction.NAME, policyName, index.getName());
                         return true;
                     }
 

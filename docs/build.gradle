@@ -84,6 +84,8 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   configFile 'KeywordTokenizer.rbbi'
   extraConfigFile 'hunspell/en_US/en_US.aff', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.aff')
   extraConfigFile 'hunspell/en_US/en_US.dic', project(":server").file('src/test/resources/indices/analyze/conf_dir/hunspell/en_US/en_US.dic')
+  extraConfigFile 'httpCa.p12', file("./httpCa.p12")
+  extraConfigFile 'transport.p12', file("./transport.p12")
   // Whitelist reindexing from the local node so we can test it.
   setting 'reindex.remote.whitelist', '127.0.0.1:*'
 
@@ -1522,6 +1524,47 @@ setups['setup-repository'] = '''
           body: |
 #atomic_red_data#
 '''
+  // fake data used by the correlation bucket agg
+  buildRestTests.setups['correlate_latency'] = '''
+  - do:
+        indices.create:
+          index: correlate_latency
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                latency:
+                  type: double
+                version:
+                  type: keyword
+  - do:
+        bulk:
+          index: correlate_latency
+          refresh: true
+          body: |'''
+
+
+  for (int i = 100; i < 200; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "1.0"}"""
+  }
+  for (int i = 0; i < 100; i++) {
+    def value = i
+    if (i % 10) {
+      value = i * 10
+    }
+    buildRestTests.setups['correlate_latency'] += """
+            {"index":{}}
+            {"latency": "$value", "version": "2.0"}"""
+  }
+
   /* Load the actual events only if we're going to use them. */
   File atomicRedRegsvr32File = new File("$projectDir/src/test/resources/normalized-T1117-AtomicRed-regsvr32.json")
   inputs.file(atomicRedRegsvr32File)

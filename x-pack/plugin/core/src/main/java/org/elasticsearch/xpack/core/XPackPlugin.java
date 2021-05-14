@@ -247,12 +247,11 @@ public class XPackPlugin extends XPackClientPlugin
             clusterState.custom(TokenMetadata.TYPE) != null ||
             metadata.custom(TransformMetadata.TYPE) != null;
     }
-    
+
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
-    
 
     @Override
     public Settings additionalSettings() {
@@ -336,7 +335,7 @@ public class XPackPlugin extends XPackClientPlugin
         handlers.add(new RestReloadAnalyzersAction());
         handlers.add(new RestTermsEnumAction());
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
-                indexNameExpressionResolver, nodesInCluster));
+            indexNameExpressionResolver, nodesInCluster));
         return handlers;
     }
 

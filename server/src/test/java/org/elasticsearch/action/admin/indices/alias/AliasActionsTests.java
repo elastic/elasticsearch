@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -26,7 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
-import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomMap;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomRouting;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -111,7 +111,7 @@ public class AliasActionsTests extends ESTestCase {
     public void testParseAdd() throws IOException {
         String[] indices = generateRandomStringArray(10, 5, false, false);
         String[] aliases = generateRandomStringArray(10, 5, false, false);
-        Map<String, Object> filter = randomBoolean() ? randomMap(5) : null;
+        Map<String, Object> filter = randomBoolean() ? RandomAliasActionsGenerator.randomMap(5) : null;
         Object searchRouting = randomBoolean() ? randomRouting() : null;
         Object indexRouting = randomBoolean() ? randomBoolean() ? searchRouting : randomRouting() : null;
         boolean writeIndex = randomBoolean();

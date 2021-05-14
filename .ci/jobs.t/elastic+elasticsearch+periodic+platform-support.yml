@@ -1,0 +1,31 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+periodic+platform-support
+    display-name: "elastic / elasticsearch # %BRANCH% - platform support"
+    description: "Testing of the Elasticsearch %BRANCH% branch platform support tests.\n"
+    project-type: multijob
+    node: master
+    vault: []
+    scm:
+      - git:
+          wipe-workspace: false
+    builders:
+      - multijob:
+          name: Packaging tests
+          projects:
+            - name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-darwin
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-unix
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-windows
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-arm
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true

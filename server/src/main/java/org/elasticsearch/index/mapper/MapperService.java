@@ -111,7 +111,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
                 scriptCompiler, indexAnalyzers, indexSettings, idFieldDataEnabled);
-        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction);
+        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction, indexSettings, indexAnalyzers);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
@@ -135,7 +135,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return parserContextSupplier.get();
     }
 
-    DocumentParser documentParser() {
+    /**
+     * Exposes a {@link DocumentParser}
+     * @return a document parser to be used to parse incoming documents
+     */
+    public DocumentParser documentParser() {
         return this.documentParser;
     }
 
@@ -275,7 +279,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
-        DocumentMapper newMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, mapping);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping);
         newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
@@ -369,7 +373,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (this.mapper == null) {
             return Collections.emptySet();
         }
-        return this.mapper.mappers().fieldTypes().stream().filter(MappedFieldType::eagerGlobalOrdinals).collect(Collectors.toList());
+        return this.mapper.mappers().getAllFieldTypes().stream()
+            .filter(MappedFieldType::eagerGlobalOrdinals)
+            .collect(Collectors.toList());
     }
 
     /**

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gradle.util;
 
-import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -18,6 +17,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ModuleDependency;
 import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
@@ -107,7 +107,7 @@ public abstract class GradleUtils {
      * @return A task provider for the newly created test task
      */
     public static TaskProvider<?> addTestSourceSet(Project project, String sourceSetName) {
-        project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
+        project.getPluginManager().apply(JavaPlugin.class);
 
         // create our test source set and task
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

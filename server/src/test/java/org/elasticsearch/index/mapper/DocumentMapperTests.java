@@ -57,10 +57,8 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
-        IndexSettings indexSettings = createIndexSettings(Version.CURRENT, Settings.EMPTY);
-        IndexAnalyzers indexAnalyzers = createIndexAnalyzers(indexSettings);
-        DocumentParser documentParser = new DocumentParser(null, null);
-        DocumentMapper mergedMapper = new DocumentMapper(indexSettings, indexAnalyzers, documentParser, merged);
+        DocumentParser documentParser = new DocumentParser(null, null, null, null);
+        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged);
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
@@ -287,6 +285,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertNotNull(documentMapper.sourceMapper());
         assertNotNull(documentMapper.IndexFieldMapper());
         assertEquals(10, documentMapper.mappers().getMapping().getMetadataMappersMap().size());
-        assertEquals(10, documentMapper.mappers().fieldTypes().size());
+        assertEquals(10, documentMapper.mappers().getMatchingFieldNames("*").size());
     }
 }

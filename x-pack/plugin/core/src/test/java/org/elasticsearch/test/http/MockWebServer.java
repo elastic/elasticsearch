@@ -193,7 +193,11 @@ public class MockWebServer implements Closeable {
      * Creates a MockRequest from an incoming HTTP request, that can later be checked in your test assertions
      */
     private MockRequest createRequest(HttpExchange exchange) throws IOException {
-        MockRequest request = new MockRequest(exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRequestHeaders());
+        MockRequest request = new MockRequest(
+                exchange.getRequestMethod(),
+                exchange.getRequestURI(),
+                exchange.getRequestHeaders(),
+                exchange.getRemoteAddress());
         if (exchange.getRequestBody() != null) {
             String body = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
             if (Strings.isEmpty(body) == false) {

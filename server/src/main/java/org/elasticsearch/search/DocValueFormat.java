@@ -124,7 +124,11 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(BytesRef value) {
-            return value.utf8ToString();
+            try {
+                return value.utf8ToString();
+            } catch (Exception | AssertionError e) {
+                throw new IllegalArgumentException("Failed trying to format bytes as UTF8.  Possibly caused by a mapping mismatch", e);
+            }
         }
 
         @Override
@@ -441,9 +445,16 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(BytesRef value) {
-            byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-            InetAddress inet = InetAddressPoint.decode(bytes);
-            return NetworkAddress.format(inet);
+            try {
+                byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+                InetAddress inet = InetAddressPoint.decode(bytes);
+                return NetworkAddress.format(inet);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Failed trying to format bytes as IP address.  Possibly caused by a mapping mismatch",
+                    e
+                );
+            }
         }
 
         @Override

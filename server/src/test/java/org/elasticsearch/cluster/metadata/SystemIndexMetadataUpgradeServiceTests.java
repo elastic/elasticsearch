@@ -39,10 +39,10 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
     /**
      * When we upgrade Elasticsearch versions, existing indices may be newly
-     * defined as system indices. We need to validate that these indices don't
-     * have the "hidden index" setting.
+     * defined as system indices. If such indices are set to "hidden," we need
+     * to remove that setting.
      */
-    public void testMakingHiddenIndexIntoSystemIndexFails() {
+    public void testUpgradeHiddenIndexToSystemIndex() throws Exception {
         // set up a system index upgrade service
         SystemIndexMetadataUpgradeService service = new SystemIndexMetadataUpgradeService(
             new SystemIndices(
@@ -62,11 +62,11 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .customs(ImmutableOpenMap.of()).build();
 
         // Get a metadata upgrade task and execute it on the initial cluster state
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> service.getTask().execute(clusterState));
+        ClusterState newState = service.getTask().execute(clusterState);
 
-        assertThat(exception.getMessage(),
-            equalTo("Cannot define index [.myindex-1] as a system index because it has the [index.hidden] setting set to true."));
+        IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
+        assertThat(result.isSystem(), equalTo(true));
+        assertThat(result.getSettings().get(IndexMetadata.SETTING_INDEX_HIDDEN), equalTo("false"));
     }
 
     private static Settings.Builder getSettingsBuilder() {

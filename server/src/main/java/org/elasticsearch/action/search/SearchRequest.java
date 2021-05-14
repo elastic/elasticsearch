@@ -99,6 +99,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
+    private long[] afterCheckpointsRefreshed = new long[0];
+
     public SearchRequest() {
         this((Version) null);
     }
@@ -186,6 +188,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
         this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
+        this.afterCheckpointsRefreshed = searchRequest.afterCheckpointsRefreshed;
     }
 
     /**
@@ -230,6 +233,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         } else {
             minCompatibleShardNode = null;
         }
+        // TODO: Change after backport
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            afterCheckpointsRefreshed = in.readLongArray();
+        }
     }
 
     @Override
@@ -262,6 +269,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (minCompatibleShardNode != null) {
                 Version.writeVersion(minCompatibleShardNode, out);
             }
+        }
+        // TODO: Change after backport
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeLongArray(afterCheckpointsRefreshed);
         }
     }
 
@@ -602,6 +613,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
+
+    public long[] getAfterCheckpointsRefreshed() {
+        return afterCheckpointsRefreshed;
+    }
+
+    public void setAfterCheckpointsRefreshed(long[] afterCheckpointsRefreshed) {
+        this.afterCheckpointsRefreshed = afterCheckpointsRefreshed;
+    }
+
     /**
      * Sets a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for

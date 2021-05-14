@@ -26,6 +26,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -723,9 +724,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
+        long afterCheckpointRefreshed;
+        if (request.getAfterCheckpointsRefreshed().length == 0) {
+            afterCheckpointRefreshed = SequenceNumbers.NO_OPS_PERFORMED;
+        } else {
+            afterCheckpointRefreshed = request.getAfterCheckpointsRefreshed()[shardIndex];
+        }
         ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), shardIndex,
             getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(),
-            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
+            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive(), afterCheckpointRefreshed);
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.

@@ -393,7 +393,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final Executor executor = getExecutor(shard);
 
             // TODO: Do here
-            shard.addRefreshListener(request.refreshedSeqNo(), new ActionListener<>() {
+            shard.addRefreshListener(request.afterRefreshedSeqNo(), new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
                     runAsync(executor, () -> executeQueryPhase(orig, task), l);

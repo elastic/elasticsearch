@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -46,8 +47,17 @@ public class RestFleetSearchAction extends BaseRestHandler {
         }
 
         IntConsumer setSize = size -> searchRequest.source().size(size);
-        request.withContentOrSourceParamParserOrNull(parser ->
-            RestSearchAction.parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize));
+        request.withContentOrSourceParamParserOrNull(
+            parser -> RestSearchAction.parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
+        );
+
+        String[] stringAfterCheckpointsRefreshed = request.paramAsStringArray("after_checkpoints_refreshed", Strings.EMPTY_ARRAY);
+        final long[] afterCheckpointsRefreshed = new long[stringAfterCheckpointsRefreshed.length];
+        for (int i = 0; i < stringAfterCheckpointsRefreshed.length; ++i) {
+            afterCheckpointsRefreshed[i] = Long.parseLong(stringAfterCheckpointsRefreshed[i]);
+        }
+
+        searchRequest.setAfterCheckpointsRefreshed(afterCheckpointsRefreshed);
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

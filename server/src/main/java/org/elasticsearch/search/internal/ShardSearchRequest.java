@@ -64,7 +64,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardId shardId;
     private final int shardRequestIndex;
     private final int numberOfShards;
-    private final long refreshedSeqNo;
+    private final long afterRefreshedSeqNo;
     private final SearchType searchType;
     private final Scroll scroll;
     private final float indexBoost;
@@ -109,6 +109,32 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               ShardSearchContextId readerId,
                               TimeValue keepAlive) {
         this(originalIndices,
+            searchRequest,
+            shardId,
+            shardRequestIndex,
+            numberOfShards,
+            aliasFilter,
+            indexBoost,
+            nowInMillis,
+            clusterAlias,
+            readerId,
+            keepAlive,
+            SequenceNumbers.NO_OPS_PERFORMED);
+    }
+
+    public ShardSearchRequest(OriginalIndices originalIndices,
+                              SearchRequest searchRequest,
+                              ShardId shardId,
+                              int shardRequestIndex,
+                              int numberOfShards,
+                              AliasFilter aliasFilter,
+                              float indexBoost,
+                              long nowInMillis,
+                              @Nullable String clusterAlias,
+                              ShardSearchContextId readerId,
+                              TimeValue keepAlive,
+                              long afterRefreshedSeqNo) {
+        this(originalIndices,
             shardId,
             shardRequestIndex,
             numberOfShards,
@@ -123,7 +149,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             clusterAlias,
             readerId,
             keepAlive,
-            SequenceNumbers.NO_OPS_PERFORMED);
+            afterRefreshedSeqNo);
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
@@ -151,7 +177,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                                @Nullable String clusterAlias,
                                ShardSearchContextId readerId,
                                TimeValue keepAlive,
-                               long refreshedSeqNo) {
+                               long afterRefreshedSeqNo) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.numberOfShards = numberOfShards;
@@ -169,7 +195,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
         this.channelVersion = Version.CURRENT;
-        this.refreshedSeqNo = refreshedSeqNo;
+        this.afterRefreshedSeqNo = afterRefreshedSeqNo;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -214,9 +240,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         originalIndices = OriginalIndices.readOriginalIndices(in);
         // TODO: Update after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            refreshedSeqNo = in.readLong();
+            afterRefreshedSeqNo = in.readLong();
         } else {
-            refreshedSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+            afterRefreshedSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         }
     }
 
@@ -239,7 +265,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
         this.channelVersion = clone.channelVersion;
-        this.refreshedSeqNo = clone.refreshedSeqNo;
+        this.afterRefreshedSeqNo = clone.afterRefreshedSeqNo;
     }
 
     @Override
@@ -285,7 +311,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         Version.writeVersion(channelVersion, out);
         // TODO: Update after backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeLong(refreshedSeqNo);
+            out.writeLong(afterRefreshedSeqNo);
         }
     }
 
@@ -409,8 +435,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return keepAlive;
     }
 
-    public long refreshedSeqNo() {
-        return refreshedSeqNo;
+    public long afterRefreshedSeqNo() {
+        return afterRefreshedSeqNo;
     }
 
     /**

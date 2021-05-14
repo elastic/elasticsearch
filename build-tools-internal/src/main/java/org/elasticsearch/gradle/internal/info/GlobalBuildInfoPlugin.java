@@ -11,6 +11,7 @@ import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.GradleException;
 import org.gradle.api.JavaVersion;
@@ -108,7 +109,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setTestSeed(getTestSeed());
             params.setIsCi(System.getenv("JENKINS_URL") != null);
             params.setIsInternal(isInternal);
-            params.setDefaultParallel(findDefaultParallel(project));
+            params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
             if (isInternal) {

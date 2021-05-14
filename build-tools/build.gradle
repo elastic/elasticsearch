@@ -13,6 +13,7 @@ plugins {
     id 'java-test-fixtures'
     id 'elasticsearch.publish'
     id 'elasticsearch.internal-licenseheaders'
+    id 'elasticsearch.basic-conventions'
 }
 
 description = "The elasticsearch build tools"
@@ -109,7 +110,7 @@ dependencies {
     runtimeOnly project(":reaper")
 
     testFixturesApi "junit:junit:${props.getProperty('junit')}"
-    testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('junit')}"
+    testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
 
@@ -154,7 +155,6 @@ tasks.register("checkPart1") {
 // TODO These additional conventions will be applied once those plugins have been ported to build-conventions and
 //
 //  apply plugin: 'elasticsearch.build'
-//  apply plugin: 'elasticsearch.publish'
 //
 //  // groovydoc succeeds, but has some weird internal exception...
 //  tasks.named("groovydoc").configure {

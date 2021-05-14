@@ -15,6 +15,7 @@ plugins {
   id 'groovy'
   id 'java-test-fixtures'
   id 'elasticsearch.internal-licenseheaders'
+  id 'elasticsearch.basic-conventions'
 }
 
 group = 'org.elasticsearch.gradle'

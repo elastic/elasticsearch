@@ -1,26 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
 
@@ -29,7 +17,7 @@ import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.with
 class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
     @Unroll
-    def "#distType version can be resolved"() {
+    def "extracted #distType version can be resolved"() {
         given:
         buildFile << applyPluginAndSetupDistro(version, platform)
 
@@ -61,17 +49,21 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def runner = gradleRunner('clean', 'setupDistro', '-i')
+        def guh = new File(testProjectDir.getRoot(), "gradle-user-home").absolutePath;
+        def runner = gradleRunner('clean', 'setupDistro', '-i', '-g', guh)
+        def unpackingMessage = "Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
+                "using SymbolicLinkPreservingUntarTransform"
         def result = withMockedDistributionDownload(version, platform, runner) {
             // initial run
-            build()
+            def firstRun = build()
+            assertOutputContains(firstRun.output, unpackingMessage)
             // 2nd invocation
             build()
         }
 
         then:
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertOutputContains(result.output, "Skipping ${SymbolicLinkPreservingUntarTransform.class.simpleName}")
+        assertOutputMissing(result.output, unpackingMessage)
     }
 
     def "transforms are reused across projects"() {
@@ -90,10 +82,10 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
                 id 'elasticsearch.distribution-download'
             }
-            
+
             subprojects {
                 apply plugin: 'elasticsearch.distribution-download'
-    
+
                 ${setupTestDistro(version, platform)}
                 ${setupDistroTask()}
             }
@@ -108,8 +100,8 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
-                "using SymbolicLinkPreservingUntarTransform.") == 1
+        result.output.count("Unpacking elasticsearch-${version}-linux-${Architecture.current().classifier}.tar.gz " +
+                "using SymbolicLinkPreservingUntarTransform") == 1
     }
 
     private boolean assertExtractedDistroCreated(String relativePath) {
@@ -130,7 +122,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
             ${setupTestDistro(version, platform)}
             ${setupDistroTask()}
-            
+
         """
     }
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz;
 
@@ -31,7 +32,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -46,9 +47,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -84,7 +85,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -129,7 +130,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 .put("cluster.remote.other_remote.seeds", "127.0.0.1:" + randomIntBetween(9351, 9399))
                 .build();
 
-        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
         DateFormatter dateFormatter = DateFormatter.forPattern("uuuu.MM.dd");
         Instant now = Instant.now(Clock.systemUTC());
@@ -284,7 +285,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
         defaultIndicesResolver =
-            new IndicesAndAliasesResolver(settings, clusterService, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            new IndicesAndAliasesResolver(settings, clusterService, indexNameExpressionResolver);
     }
 
     public void testDashIndicesAreAllowedInShardLevelRequests() {
@@ -1623,18 +1624,18 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final User user = new User("data-stream-tester2", "data_stream_test2");
         GetAliasesRequest request = new GetAliasesRequest("*");
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
-        assertThat(request.includeDataStreams(), is(false));
+        assertThat(request.includeDataStreams(), is(true));
 
         // data streams and their backing indices should _not_ be in the authorized list since the backing indices
         // do not match the requested pattern
         List<String> dataStreams = List.of("logs-foo", "logs-foobar");
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         for (String dsName : dataStreams) {
-            assertThat(authorizedIndices, not(hasItem(dsName)));
+            assertThat(authorizedIndices, hasItem(dsName));
             DataStream dataStream = metadata.dataStreams().get(dsName);
-            assertThat(authorizedIndices, not(hasItem(dsName)));
+            assertThat(authorizedIndices, hasItem(dsName));
             for (Index i : dataStream.getIndices()) {
-                assertThat(authorizedIndices, not(hasItem(i.getName())));
+                assertThat(authorizedIndices, hasItem(i.getName()));
             }
         }
 
@@ -1642,11 +1643,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // pattern
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
         for (String dsName : dataStreams) {
-            assertThat(resolvedIndices.getLocal(), not(hasItem(dsName)));
+            assertThat(resolvedIndices.getLocal(), hasItem(dsName));
             DataStream dataStream = metadata.dataStreams().get(dsName);
-            assertThat(resolvedIndices.getLocal(), not(hasItem(dsName)));
+            assertThat(resolvedIndices.getLocal(), hasItem(dsName));
             for (Index i : dataStream.getIndices()) {
-                assertThat(resolvedIndices.getLocal(), not(hasItem(i.getName())));
+                assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
             }
         }
     }
@@ -1656,24 +1657,24 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String dataStreamName = "logs-foobar";
         GetAliasesRequest request = new GetAliasesRequest(dataStreamName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
-        assertThat(request.includeDataStreams(), is(false));
+        assertThat(request.includeDataStreams(), is(true));
 
         // data streams and their backing indices should _not_ be in the authorized list since the backing indices
         // do not match the requested name
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
-        assertThat(authorizedIndices, not(hasItem(dataStreamName)));
+        assertThat(authorizedIndices, hasItem(dataStreamName));
         DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-        assertThat(authorizedIndices, not(hasItem(dataStreamName)));
+        assertThat(authorizedIndices, hasItem(dataStreamName));
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices, not(hasItem(i.getName())));
+            assertThat(authorizedIndices, hasItem(i.getName()));
         }
 
         // neither data streams nor their backing indices will be in the resolved list since the backing indices do not match the
         // requested name(s)
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(), not(hasItem(dataStreamName)));
+        assertThat(resolvedIndices.getLocal(), hasItem(dataStreamName));
         for (Index i : dataStream.getIndices()) {
-            assertThat(resolvedIndices.getLocal(), not(hasItem(i.getName())));
+            assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
     }
 
@@ -1770,24 +1771,24 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String dataStreamName = "logs-foobar";
         GetAliasesRequest request = new GetAliasesRequest(dataStreamName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
-        assertThat(request.includeDataStreams(), is(false));
+        assertThat(request.includeDataStreams(), is(true));
 
         // data streams and their backing indices should _not_ be in the authorized list since the backing indices
         // did not match the requested pattern and the request does not support data streams
         final List<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
-        assertThat(authorizedIndices, not(hasItem(dataStreamName)));
+        assertThat(authorizedIndices, hasItem(dataStreamName));
         DataStream dataStream = metadata.dataStreams().get(dataStreamName);
-        assertThat(authorizedIndices, not(hasItem(dataStreamName)));
+        assertThat(authorizedIndices, hasItem(dataStreamName));
         for (Index i : dataStream.getIndices()) {
-            assertThat(authorizedIndices, not(hasItem(i.getName())));
+            assertThat(authorizedIndices, hasItem(i.getName()));
         }
 
         // neither data streams nor their backing indices will be in the resolved list since the request does not support data streams
         // and the backing indices do not match the requested name
         ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
-        assertThat(resolvedIndices.getLocal(), not(hasItem(dataStreamName)));
+        assertThat(resolvedIndices.getLocal(), hasItem(dataStreamName));
         for (Index i : dataStream.getIndices()) {
-            assertThat(resolvedIndices.getLocal(), not(hasItem(i.getName())));
+            assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
     }
 
@@ -1842,7 +1843,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String indexName = ".ds-logs-foobar-*";
         GetAliasesRequest request = new GetAliasesRequest(indexName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
-        assertThat(request.includeDataStreams(), is(false));
+        assertThat(request.includeDataStreams(), is(true));
 
         // data streams should _not_ be in the authorized list but their backing indices that matched both the requested pattern
         // and the authorized pattern should be in the list
@@ -1868,7 +1869,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String indexName = ".ds-logs-foobar-*";
         GetAliasesRequest request = new GetAliasesRequest(indexName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
-        assertThat(request.includeDataStreams(), is(false));
+        assertThat(request.includeDataStreams(), is(true));
 
         // data streams should _not_ be in the authorized list but a single backing index that matched the requested pattern
         // and the authorized name should be in the list

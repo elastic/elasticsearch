@@ -1,50 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal
 
+import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Rule
-import org.junit.rules.TemporaryFolder
 
-import java.lang.management.ManagementFactory
 
 class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
-
-    def "plugin application fails on non internal build"() {
-        given:
-        buildFile.text = """
-            plugins {
-             id 'elasticsearch.internal-distribution-download'
-            }
-        """
-
-        when:
-        def result = gradleRunner("tasks").buildAndFail()
-
-        then:
-        assertOutputContains(result.output, "Plugin 'elasticsearch.internal-distribution-download' is not supported. " +
-            "Use 'elasticsearch.distribution-download' plugin instead")
-    }
 
     def "resolves current version from local build"() {
         given:
@@ -72,7 +42,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         def result = gradleRunner("setupDistro", '-g', testProjectDir.newFolder('GUH').path).build()
 
         then:
-        result.task(":distribution:archives:linux-tar:buildExpanded").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:archives:${testArchiveProjectName}:buildExpanded").outcome == TaskOutcome.SUCCESS
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
         assertExtractedDistroIsCreated("build/distro", 'current-marker.txt')
     }
@@ -86,7 +56,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
             elasticsearch_distributions {
               test_distro {
-                  version = "8.1.0"
+                  version = "7.12.0"
                   type = "archive"
                   platform = "linux"
                   architecture = Architecture.current();
@@ -116,7 +86,7 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
             elasticsearch_distributions {
               test_distro {
-                  version = "8.1.0"
+                  version = "7.12.0"
                   type = "archive"
                   platform = "linux"
                   architecture = Architecture.current();
@@ -142,26 +112,26 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
         new File(bwcSubProjectFolder, 'bwc-marker.txt') << "bwc=minor"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             apply plugin:'base'
-            
+
             // packed distro
-            configurations.create("linux-tar")
+            configurations.create("${testArchiveProjectName}")
             tasks.register("buildBwcTask", Tar) {
                 from('bwc-marker.txt')
                 archiveExtension = "tar.gz"
                 compression = Compression.GZIP
             }
             artifacts {
-                it.add("linux-tar", buildBwcTask)
+                it.add("${testArchiveProjectName}", buildBwcTask)
             }
-            
+
             // expanded distro
-            configurations.create("expanded-linux-tar")
+            configurations.create("expanded-${testArchiveProjectName}")
             def expandedTask = tasks.register("buildBwcExpandedTask", Copy) {
                 from('bwc-marker.txt')
                 into('build/install/elastic-distro')
             }
             artifacts {
-                it.add("expanded-linux-tar", file('build/install')) {
+                it.add("expanded-${testArchiveProjectName}", file('build/install')) {
                     builtBy expandedTask
                     type = 'directory'
                 }
@@ -171,9 +141,9 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
 
     private void localDistroSetup() {
         settingsFile << """
-        include ":distribution:archives:linux-tar"
+        include ":distribution:archives:${testArchiveProjectName}"
         """
-        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", "linux-tar")
+        def bwcSubProjectFolder = testProjectDir.newFolder("distribution", "archives", testArchiveProjectName)
         new File(bwcSubProjectFolder, 'current-marker.txt') << "current"
         new File(bwcSubProjectFolder, 'build.gradle') << """
             import org.gradle.api.internal.artifacts.ArtifactAttributes;
@@ -201,10 +171,12 @@ class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest 
                 it.add("extracted", buildExpanded)
             }
         """
-        buildFile << """
-        """
     }
 
+    String getTestArchiveProjectName() {
+        def archSuffix = Architecture.current() == Architecture.AARCH64 ? '-aarch64' : ''
+        return "linux${archSuffix}-tar"
+    }
     boolean assertExtractedDistroIsCreated(String relativeDistroPath, String markerFileName) {
         File extractedFolder = new File(testProjectDir.root, relativeDistroPath)
         assert extractedFolder.exists()

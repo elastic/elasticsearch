@@ -11,12 +11,13 @@ its value will be replaced with the provided one.
 .Set Options
 [options="header"]
 |======
-| Name       | Required  | Default  | Description
-| `field` | yes       | -        | The field to insert, upsert, or update. Supports <<accessing-template-fields,template snippets>>.
-| `value` | yes*     | -        | The value to be set for the field. Supports <<accessing-template-fields,template snippets>>. May specify only one of `value` or `copy_from`.
-| `copy_from` | no       | -        | The origin field which will be copied to `field`, cannot set `value` simultaneously. Supported data types are `boolean`, `number`, `array`, `object`, `string`, `date`, etc.
-| `override` | no        | true     | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
-| `ignore_empty_value` | no        | `false`  | If `true` and `value` is a <<accessing-template-fields,template snippet>> that evaluates to `null` or the empty string, the processor quietly exits without modifying the document
+| Name        | Required | Default | Description
+| `field`     | yes      | -       | The field to insert, upsert, or update. Supports <<template-snippets,template snippets>>.
+| `value`     | yes*     | -       | The value to be set for the field. Supports <<template-snippets,template snippets>>. May specify only one of `value` or `copy_from`.
+| `copy_from` | no       | -       | The origin field which will be copied to `field`, cannot set `value` simultaneously. Supported data types are `boolean`, `number`, `array`, `object`, `string`, `date`, etc.
+| `override`  | no       | `true`  | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
+| `ignore_empty_value` | no | `false` | If `true` and `value` is a <<template-snippets,template snippet>> that evaluates to `null` or the empty string, the processor quietly exits without modifying the document
+| `media_type` | no       | `application/json` | The media type for encoding `value`. Applies only when `value` is a <<template-snippets,template snippet>>. Must be one of `application/json`, `text/plain`, or `application/x-www-form-urlencoded`.
 include::common-options.asciidoc[]
 |======
 
@@ -43,7 +44,7 @@ PUT _ingest/pipeline/set_os
     {
       "set": {
         "field": "host.os.name",
-        "value": "{{os}}"
+        "value": "{{{os}}}"
       }
     }
   ]

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.stats;
@@ -52,9 +53,9 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
         CountAccumulator accumulator2 = new CountAccumulator();
         accumulator2.add("a", 12L);
         accumulator2.add("c", -1L);
-        
+
         accumulator.merge(accumulator2);
-        
+
         assertEquals(25L, accumulator.asMap().get("a").longValue());
         assertEquals(42L, accumulator.asMap().get("b").longValue());
         assertEquals(-1L, accumulator.asMap().get("c").longValue());
@@ -63,20 +64,20 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
 
     public void testFromTermsAggregation() {
         StringTerms termsAggregation = mock(StringTerms.class);
-        
+
         Bucket bucket1 = mock(Bucket.class);
         when(bucket1.getKeyAsString()).thenReturn("a");
         when(bucket1.getDocCount()).thenReturn(10L);
-        
+
         Bucket bucket2 = mock(Bucket.class);
         when(bucket2.getKeyAsString()).thenReturn("b");
         when(bucket2.getDocCount()).thenReturn(33L);
-        
+
         List<Bucket> buckets =  Arrays.asList(bucket1, bucket2);
         when(termsAggregation.getBuckets()).thenReturn(buckets);
-        
+
         CountAccumulator accumulator = CountAccumulator.fromTermsAggregation(termsAggregation);
-        
+
         assertEquals(10L, accumulator.asMap().get("a").longValue());
         assertEquals(33L, accumulator.asMap().get("b").longValue());
         assertEquals(2, accumulator.asMap().size());

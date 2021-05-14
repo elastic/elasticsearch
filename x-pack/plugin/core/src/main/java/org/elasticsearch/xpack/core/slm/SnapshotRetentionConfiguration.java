@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
@@ -144,7 +146,13 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             // count) snapshots to be eligible for deletion
             if (this.maximumSnapshotCount != null) {
                 if (successfulSnapshotCount > this.maximumSnapshotCount) {
-                    final long snapsToDelete = successfulSnapshotCount - this.maximumSnapshotCount;
+                    final long successfulSnapsToDelete = successfulSnapshotCount - this.maximumSnapshotCount;
+                    final Optional<SnapshotInfo> firstNonEligible = sortedSnapshots.stream()
+                        .filter(snap -> SnapshotState.SUCCESS.equals(snap.state()))
+                        .skip(successfulSnapsToDelete)
+                        .findFirst();
+                    assert firstNonEligible.isPresent();
+                    final int snapsToDelete = sortedSnapshots.indexOf(firstNonEligible.get());
                     final boolean eligible = sortedSnapshots.stream()
                         .limit(snapsToDelete)
                         .anyMatch(s -> s.equals(si));
@@ -152,13 +160,12 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                     if (eligible) {
                         logger.trace("[{}]: ELIGIBLE as it is one of the {} oldest snapshots with " +
                                 "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
-                            snapName, snapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
+                            snapName, successfulSnapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
                         return true;
                     } else {
-                        logger.trace("[{}]: INELIGIBLE as it is not one of the {} oldest snapshots with " +
+                        logger.trace("[{}]: SKIPPING as it is not one of the {} oldest snapshots with " +
                                 "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
-                            snapName, snapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
-                        return false;
+                            snapName, successfulSnapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount);
                     }
                 }
             }

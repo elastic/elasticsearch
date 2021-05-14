@@ -28,14 +28,11 @@ Retrieves usage information for {transforms}.
 [[get-transform-stats-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* `monitor_transform` 
-
-The built-in `transform_user` role has this privilege. 
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+* cluster: `monitor_transform` (the `transform_user` built-in role grants this 
+  privilege)
+* destination index: `read`, `view_index_metadata`.
 
 
 [[get-transform-stats-desc]]
@@ -107,6 +104,10 @@ upper bound of data that is included in the checkpoint.
 was created.
 =====
 //End checkpointing.last
+
+`last_search_time`:::
+(date)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=checkpointing-last-search-time]
 
 //Begin checkpointing.next
 `next`:::
@@ -187,6 +188,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=state-transform]
 .Properties of `stats`
 [%collapsible%open]
 ====
+
+`delete_time_in_ms`:::
+(long)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=delete-time-ms]
+
+`documents_deleted`:::
+(long)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted-transform]
 
 `documents_indexed`:::
 (long)
@@ -298,6 +307,8 @@ The API returns the following results:
         "pages_processed" : 78,
         "documents_processed" : 6027,
         "documents_indexed" : 68,
+        "documents_deleted": 22,
+        "delete_time_in_ms": 214,
         "trigger_count" : 168,
         "index_time_in_ms" : 412,
         "index_total" : 20,

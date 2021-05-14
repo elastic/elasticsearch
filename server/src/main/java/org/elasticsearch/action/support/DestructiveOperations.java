@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.support;
@@ -23,6 +12,8 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Arrays;
 
 /**
  * Helper for dealing with destructive operations and wildcard usage.
@@ -33,7 +24,17 @@ public final class DestructiveOperations {
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
     public static final Setting<Boolean> REQUIRES_NAME_SETTING =
-        Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
+        Setting.boolSetting("action.destructive_requires_name", true, Property.Dynamic, Property.NodeScope);
+
+    /**
+     * The "match none" pattern, "*,-*", will never actually be destructive
+     * because it operates on no indices. If plugins or other components add
+     * their own index resolution layers, they can pass this pattern to the
+     * core code in order to indicate that an operation won't run on any
+     * indices, relying on the core code to handle this situation.
+     */
+    private static final String[] MATCH_NONE_PATTERN = {"*", "-*"};
+
     private volatile boolean destructiveRequiresName;
 
     public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
@@ -49,7 +50,7 @@ public final class DestructiveOperations {
      * Fail if there is wildcard usage in indices and the named is required for destructive operations.
      */
     public void failDestructive(String[] aliasesOrIndices) {
-        if (!destructiveRequiresName) {
+        if (destructiveRequiresName == false) {
             return;
         }
 
@@ -59,7 +60,7 @@ public final class DestructiveOperations {
             if (hasWildcardUsage(aliasesOrIndices[0])) {
                 throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
             }
-        } else {
+        } else if (Arrays.equals(aliasesOrIndices, MATCH_NONE_PATTERN) == false) {
             for (String aliasesOrIndex : aliasesOrIndices) {
                 if (hasWildcardUsage(aliasesOrIndex)) {
                     throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");

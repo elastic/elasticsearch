@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.dangling.import_index;
@@ -26,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexAction;
 import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexRequest;
-import org.elasticsearch.action.admin.indices.dangling.find.FindDanglingIndexResponse;
 import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -109,10 +97,8 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
     private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetadata> listener) {
         final String indexUUID = request.getIndexUUID();
-
-        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID), new ActionListener<>() {
-            @Override
-            public void onResponse(FindDanglingIndexResponse response) {
+        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID),
+            listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {
                     final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
                     ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
@@ -122,7 +108,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                         e.addSuppressed(failure);
                     }
 
-                    listener.onFailure(e);
+                    l.onFailure(e);
                     return;
                 }
 
@@ -133,7 +119,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 metaDataSortedByVersion.sort(Comparator.comparingLong(IndexMetadata::getVersion));
 
                 if (metaDataSortedByVersion.isEmpty()) {
-                    listener.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
+                    l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
                     return;
                 }
 
@@ -143,13 +129,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                     indexUUID
                 );
 
-                listener.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
-            }
-
-            @Override
-            public void onFailure(Exception exp) {
-                listener.onFailure(exp);
-            }
-        });
+                l.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
+        }));
     }
 }

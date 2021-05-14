@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -24,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -52,11 +43,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -194,19 +190,18 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 2L));
     }
 
-    public void testRepositoryDataConcurrentModificationNotAllowed() {
+    public void testRepositoryDataConcurrentModificationNotAllowed() throws Exception {
         final BlobStoreRepository repository = setupRepo();
 
         // write to index generational file
         RepositoryData repositoryData = generateRandomRepoData();
         final long startingGeneration = repositoryData.getGenId();
-        final PlainActionFuture<RepositoryData> future1 = PlainActionFuture.newFuture();
-        repository.writeIndexGen(repositoryData, startingGeneration, Version.CURRENT, Function.identity(),future1);
+        writeIndexGen(repository, repositoryData, startingGeneration);
 
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
-        expectThrows(RepositoryException.class,
-            () -> writeIndexGen(repository, repositoryData.withGenId(startingGeneration + 1), repositoryData.getGenId()));
+        final RepositoryData fresherRepositoryData = repositoryData.withGenId(startingGeneration + 1);
+        expectThrows(RepositoryException.class, () -> writeIndexGen(repository, fresherRepositoryData, repositoryData.getGenId()));
     }
 
     public void testBadChunksize() throws Exception {
@@ -221,6 +216,66 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                     .put("location", location)
                     .put("chunk_size", randomLongBetween(-10, 0), ByteSizeUnit.BYTES))
                 .get());
+    }
+
+    public void testRepositoryDataDetails() throws Exception {
+        final BlobStoreRepository repository = setupRepo();
+        final String repositoryName = repository.getMetadata().name();
+        final Settings repositorySettings = repository.getMetadata().settings();
+
+        createIndex("green-index");
+        ensureGreen("green-index");
+
+        assertAcked(client().admin().indices().prepareCreate("red-index")
+                .setSettings(Settings.builder()
+                        .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), "*")
+                        .build())
+                .setWaitForActiveShards(0));
+
+        final long beforeStartTime = getInstanceFromNode(ThreadPool.class).absoluteTimeInMillis();
+        final CreateSnapshotResponse createSnapshotResponse = client().admin()
+                .cluster()
+                .prepareCreateSnapshot(repositoryName, "test-snap-1")
+                .setWaitForCompletion(true)
+                .setPartial(true)
+                .get();
+        final long afterEndTime = System.currentTimeMillis();
+
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
+        final SnapshotId snapshotId = createSnapshotResponse.getSnapshotInfo().snapshotId();
+
+        final Consumer<RepositoryData.SnapshotDetails> snapshotDetailsAsserter = snapshotDetails ->
+        {
+            assertThat(snapshotDetails.getSnapshotState(), equalTo(SnapshotState.PARTIAL));
+            assertThat(snapshotDetails.getVersion(), equalTo(Version.CURRENT));
+            assertThat(snapshotDetails.getStartTimeMillis(), allOf(
+                    greaterThanOrEqualTo(beforeStartTime),
+                    lessThanOrEqualTo(afterEndTime)));
+            assertThat(snapshotDetails.getEndTimeMillis(), allOf(
+                    greaterThanOrEqualTo(beforeStartTime),
+                    lessThanOrEqualTo(afterEndTime),
+                    greaterThanOrEqualTo(snapshotDetails.getStartTimeMillis())));
+        };
+
+        final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
+        final RepositoryData.SnapshotDetails snapshotDetails = repositoryData.getSnapshotDetails(snapshotId);
+        snapshotDetailsAsserter.accept(snapshotDetails);
+
+        // now check the handling of the case where details are missing, by removing the details from the repo data as if from an
+        // older repo format and verifing that they are refreshed from the SnapshotInfo when writing the repo data out
+
+        writeIndexGen(
+                repository,
+                repositoryData.withExtraDetails(Collections.singletonMap(
+                        snapshotId,
+                        new RepositoryData.SnapshotDetails(
+                                SnapshotState.PARTIAL,
+                                Version.CURRENT,
+                                -1,
+                                -1))),
+                repositoryData.getGenId());
+
+        snapshotDetailsAsserter.accept(PlainActionFuture.get(repository::getRepositoryData).getSnapshotDetails(snapshotId));
     }
 
     private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
@@ -242,6 +297,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             client.admin().cluster().preparePutRepository(repositoryName)
                                     .setType(REPO_TYPE)
                                     .setSettings(repoSettings)
+                                    .setVerify(false) // prevent eager reading of repo data
                                     .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 
@@ -265,8 +321,15 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             final ShardGenerations shardGenerations = builder.build();
             final Map<IndexId, String> indexLookup =
                 shardGenerations.indices().stream().collect(Collectors.toMap(Function.identity(), ind -> randomAlphaOfLength(256)));
-            repoData = repoData.addSnapshot(snapshotId,
-                randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED), Version.CURRENT, shardGenerations,
+            final RepositoryData.SnapshotDetails details = new RepositoryData.SnapshotDetails(
+                    randomFrom(SnapshotState.SUCCESS, SnapshotState.PARTIAL, SnapshotState.FAILED),
+                    Version.CURRENT,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong());
+            repoData = repoData.addSnapshot(
+                snapshotId,
+                details,
+                shardGenerations,
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random()))));
         }

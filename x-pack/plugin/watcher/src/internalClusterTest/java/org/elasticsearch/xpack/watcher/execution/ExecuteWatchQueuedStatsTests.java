@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.watcher.execution;
@@ -42,9 +43,9 @@ import static org.hamcrest.Matchers.empty;
 public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // we use a small thread pool to force executions to be queued
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("xpack.watcher.thread_pool.size", 1).build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("xpack.watcher.thread_pool.size", 1).build();
     }
 
     @Override

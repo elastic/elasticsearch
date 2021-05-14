@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.query;
@@ -28,7 +17,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -69,7 +57,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
         }
 
         if (randomBoolean()) {
-            matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQuery.ALL, ZeroTermsQuery.NONE));
+            matchQuery.zeroTermsQuery(randomFrom(ZeroTermsQueryOption.ALL, ZeroTermsQueryOption.NONE));
         }
 
         return matchQuery;
@@ -90,11 +78,12 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchPhraseQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchPhraseQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         assertThat(query, notNullValue());
 
         if (query instanceof MatchAllDocsQuery) {
-            assertThat(queryBuilder.zeroTermsQuery(), equalTo(ZeroTermsQuery.ALL));
+            assertThat(queryBuilder.zeroTermsQuery(), equalTo(ZeroTermsQueryOption.ALL));
             return;
         }
 
@@ -114,7 +103,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     public void testBadAnalyzer() throws IOException {
         MatchPhraseQueryBuilder matchQuery = new MatchPhraseQueryBuilder("fieldName", "text");
         matchQuery.analyzer("bogusAnalyzer");
-        QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
     }
 
@@ -156,7 +145,7 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
 
         assertEquals(json, "this is a test", parsed.value());
         assertEquals(json, 2, parsed.slop());
-        assertEquals(json, ZeroTermsQuery.ALL, parsed.zeroTermsQuery());
+        assertEquals(json, ZeroTermsQueryOption.ALL, parsed.zeroTermsQuery());
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {

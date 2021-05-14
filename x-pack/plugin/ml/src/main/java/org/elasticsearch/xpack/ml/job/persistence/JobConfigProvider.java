@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -65,7 +66,6 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -92,7 +92,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
  * anomaly detector job configuration document
  *
  * The number of jobs returned in a search it limited to
- * {@link AnomalyDetectorsIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
+ * {@link MlConfigIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
  * In most cases we expect 10s or 100s of jobs to be defined and
  * a search for all jobs should return all.
  */
@@ -195,23 +195,16 @@ public class JobConfigProvider {
         DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
-            @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                if (errorIfMissing) {
-                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        actionListener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                        return;
-                    }
-                    assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener.delegateFailure((l, deleteResponse) -> {
+            if (errorIfMissing) {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    l.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    return;
                 }
-                actionListener.onResponse(deleteResponse);
+                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
             }
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        });
+            l.onResponse(deleteResponse);
+        }));
     }
 
     /**
@@ -226,15 +219,14 @@ public class JobConfigProvider {
      *                            are not changed.
      * @param updatedJobListener Updated job listener
      */
-    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
-                          ActionListener<Job> updatedJobListener) {
+    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedJobListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    delegate.onFailure(ExceptionsHelper.missingJobException(jobId));
                     return;
                 }
 
@@ -245,8 +237,7 @@ public class JobConfigProvider {
                 try {
                      jobBuilder = parseJobLenientlyFromSource(source);
                 } catch (IOException e) {
-                    updatedJobListener.onFailure(
-                            new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
+                    delegate.onFailure(new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
                     return;
                 }
 
@@ -255,16 +246,11 @@ public class JobConfigProvider {
                     // Applying the update may result in a validation error
                     updatedJob = update.mergeWithJob(jobBuilder.build(), maxModelMemoryLimit);
                 } catch (Exception e) {
-                    updatedJobListener.onFailure(e);
+                    delegate.onFailure(e);
                     return;
                 }
 
-                indexUpdatedJob(updatedJob, seqNo, primaryTerm, updatedJobListener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                updatedJobListener.onFailure(e);
+                indexUpdatedJob(updatedJob, seqNo, primaryTerm, delegate);
             }
         });
     }
@@ -293,11 +279,11 @@ public class JobConfigProvider {
                                         UpdateValidator validator, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedJobListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    delegate.onFailure(ExceptionsHelper.missingJobException(jobId));
                     return;
                 }
 
@@ -308,8 +294,7 @@ public class JobConfigProvider {
                 try {
                     originalJob = parseJobLenientlyFromSource(source).build();
                 } catch (Exception e) {
-                    updatedJobListener.onFailure(
-                            new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
+                    delegate.onFailure(new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
                     return;
                 }
 
@@ -320,19 +305,14 @@ public class JobConfigProvider {
                                 // Applying the update may result in a validation error
                                 updatedJob = update.mergeWithJob(originalJob, maxModelMemoryLimit);
                             } catch (Exception e) {
-                                updatedJobListener.onFailure(e);
+                                delegate.onFailure(e);
                                 return;
                             }
 
-                            indexUpdatedJob(updatedJob, seqNo, primaryTerm, updatedJobListener);
+                            indexUpdatedJob(updatedJob, seqNo, primaryTerm, delegate);
                         },
-                        updatedJobListener::onFailure
+                        delegate::onFailure
                 ));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                updatedJobListener.onFailure(e);
             }
         });
     }
@@ -521,7 +501,7 @@ public class JobConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
@@ -579,7 +559,7 @@ public class JobConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
@@ -637,7 +617,7 @@ public class JobConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,
@@ -699,7 +679,7 @@ public class JobConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, searchRequest,

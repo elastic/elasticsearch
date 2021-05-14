@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -22,10 +23,12 @@ import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.mockito.invocation.InvocationOnMock;
@@ -69,7 +72,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(settings, threadPool, transportService, mock(ActionFilters.class),
+        TransportSetEnabledAction action = new TransportSetEnabledAction(settings, transportService, mock(ActionFilters.class),
                 securityContext, usersStore);
 
         SetEnabledRequest request = new SetEnabledRequest();
@@ -111,11 +114,12 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
+        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, transportService,
                 mock(ActionFilters.class), securityContext, usersStore);
 
         SetEnabledRequest request = new SetEnabledRequest();
-        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
+        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(), AsyncSearchUser.INSTANCE.principal()));
         request.enabled(randomBoolean());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
@@ -168,7 +172,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
+        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, transportService,
                 mock(ActionFilters.class), securityContext, usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
@@ -223,7 +227,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
+        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, transportService,
             mock(ActionFilters.class), securityContext, usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
@@ -266,7 +270,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
+        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, transportService,
                 mock(ActionFilters.class), securityContext, usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();

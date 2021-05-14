@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -123,7 +124,7 @@ public class JobResultsPersister {
             // If the supplied bucket has records then create a copy with records
             // removed, because we never persist nested records in buckets
             Bucket bucketWithoutRecords = bucket;
-            if (!bucketWithoutRecords.getRecords().isEmpty()) {
+            if (bucketWithoutRecords.getRecords().isEmpty() == false) {
                 bucketWithoutRecords = new Bucket(bucket);
                 bucketWithoutRecords.setRecords(Collections.emptyList());
             }

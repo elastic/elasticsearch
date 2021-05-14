@@ -106,7 +106,7 @@ When a repository is closed or updated the repository metering information
 is archived and kept for a certain period of time. This allows retrieving
 the repository metering information of previous repository instantiations.
 
-`archive_version`::
+`cluster_version`::
 (Optional, long)
 The cluster state version when this object was archived, this field
 can be used as a logical timestamp to delete all the archived metrics up

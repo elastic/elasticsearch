@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -187,7 +188,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         Path conf = home.resolve("config");
         Files.createDirectories(conf);
         Settings.Builder nodeSettings = Settings.builder()
-            .put(nodeSettings(maxNumberOfNodes() - 1).filter(s -> "xpack.security.enabled".equals(s) == false))
+            .put(nodeSettings(maxNumberOfNodes() - 1, Settings.EMPTY).filter(s -> "xpack.security.enabled".equals(s) == false))
             .put("node.name", "my-test-node")
             .put("network.host", "localhost")
             .put("cluster.name", internalCluster().getClusterName())

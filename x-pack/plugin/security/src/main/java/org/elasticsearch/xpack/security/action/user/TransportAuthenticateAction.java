@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -18,9 +19,7 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.stream.Stream;
 
@@ -44,9 +43,9 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
         final User authUser = runAsUser == null ? null : runAsUser.authenticatedUser();
         if (authUser == null) {
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
-        } else if (SystemUser.is(authUser) || XPackUser.is(authUser)) {
+        } else if (User.isInternal(authUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + authUser.principal() + "] is internal"));
-        } else if (SystemUser.is(runAsUser) || XPackUser.is(runAsUser)) {
+        } else if (User.isInternal(runAsUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
             final User user = authentication.getUser();

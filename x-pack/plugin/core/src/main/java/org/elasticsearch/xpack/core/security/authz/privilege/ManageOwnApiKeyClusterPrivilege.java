@@ -1,9 +1,8 @@
 /*
- *
- *  Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- *  or more contributor license agreements. Licensed under the Elastic License;
- *  you may not use this file except in compliance with the Elastic License.
- *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
@@ -26,9 +25,12 @@ import java.util.Arrays;
 public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     public static final ManageOwnApiKeyClusterPrivilege INSTANCE = new ManageOwnApiKeyClusterPrivilege();
     private static final String PRIVILEGE_NAME = "manage_own_api_key";
-    private static final String API_KEY_ID_KEY = "_security_api_key_id";
+    public static final String API_KEY_ID_KEY = "_security_api_key_id";
+
+    private final ClusterPermission permission;
 
     private ManageOwnApiKeyClusterPrivilege() {
+        permission = this.buildPermission(ClusterPermission.builder()).build();
     }
 
     @Override
@@ -39,6 +41,11 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     @Override
     public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
         return builder.add(this, ManageOwnClusterPermissionCheck.INSTANCE);
+    }
+
+    @Override
+    public ClusterPermission permission() {
+        return permission;
     }
 
     private static final class ManageOwnClusterPermissionCheck extends ClusterPermission.ActionBasedPermissionCheck {

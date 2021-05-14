@@ -8,14 +8,12 @@
 [[data-stream-privileges]]
 ==== Data stream privileges
 
-A data stream consists of one or more backing indices, which store the stream's
-data. Most requests sent to a data stream are routed to one or more of these
-backing indices.
+// tag::data-stream-security[]
 
-Similar to an index, you can use <<privileges-list-indices,indices privileges>>
-to control access to a data stream. Any role or user granted privileges to a
-data stream are automatically granted the same privileges to its backing
-indices.
+Use <<privileges-list-indices,indices privileges>> to control access to
+a data stream. Any role or user granted privileges to a data
+stream are automatically granted the same privileges to its backing indices.
+// end::data-stream-security[]
 
 For example, `my-data-stream` consists of two backing indices:
 `.ds-my-data-stream-2099.03.07-000001` and
@@ -39,7 +37,7 @@ backing indices, the user can retrieve a document directly from
 ////
 [source,console]
 ----
-PUT /my-index/_doc/2
+PUT my-index/_doc/2
 {
   "my-field": "foo"
 }
@@ -48,7 +46,7 @@ PUT /my-index/_doc/2
 
 [source,console]
 ----
-GET /.ds-my-data-stream-2099.03.08-000002/_doc/2
+GET .ds-my-data-stream-2099.03.08-000002/_doc/2
 ----
 // TEST[continued]
 // TEST[s/.ds-my-data-stream-2099.03.08-000002/my-index/]
@@ -60,7 +58,7 @@ documents directly from `.ds-my-data-stream-2099.03.09-000003`:
 
 [source,console]
 ----
-GET /.ds-my-data-stream-2099.03.09-000003/_doc/2
+GET .ds-my-data-stream-2099.03.09-000003/_doc/2
 ----
 // TEST[continued]
 // TEST[s/.ds-my-data-stream-2099.03.09-000003/my-index/]

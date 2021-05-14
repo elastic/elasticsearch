@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -151,6 +152,14 @@ public interface Function {
      * @param listener the result listener
      */
     void validateConfig(ActionListener<Boolean> listener);
+
+    /**
+     * Returns names of fields that are critical to achieve good transform performance.
+     * Such fields should ideally be indexed, not runtime or script fields.
+     *
+     * @return list of fields names
+     */
+    List<String> getPerformanceCriticalFields();
 
     /**
      * Runtime validation by querying the source and checking if source and config fit.

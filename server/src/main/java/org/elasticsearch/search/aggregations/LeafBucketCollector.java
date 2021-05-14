@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations;
@@ -24,14 +13,20 @@ import org.apache.lucene.search.Scorable;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 
 import java.io.IOException;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
- * Per-leaf bucket collector.
+ * Collects results for a particular segment. See the docs for
+ * {@link LeafBucketCollector#collect(int, long)} for <strong>how</strong>
+ * to do the collecting.
  */
 public abstract class LeafBucketCollector implements LeafCollector {
-
+    /**
+     * A {@linkplain LeafBucketCollector} that doesn't collect anything.
+     * {@link Aggregator}s will return this if they've already collected
+     * their results and don't need to hook into the primary search. It is
+     * always safe to skip calling this calling {@link #setScorer} and
+     * {@link #collect} on this collector.
+     */
     public static final LeafBucketCollector NO_OP_COLLECTOR = new LeafBucketCollector() {
         @Override
         public void setScorer(Scorable arg0) throws IOException {
@@ -41,37 +36,11 @@ public abstract class LeafBucketCollector implements LeafCollector {
         public void collect(int doc, long bucket) {
             // no-op
         }
-    };
-
-    public static LeafBucketCollector wrap(Iterable<LeafBucketCollector> collectors) {
-        final Stream<LeafBucketCollector> actualCollectors =
-                StreamSupport.stream(collectors.spliterator(), false).filter(c -> c != NO_OP_COLLECTOR);
-        final LeafBucketCollector[] colls = actualCollectors.toArray(size -> new LeafBucketCollector[size]);
-        switch (colls.length) {
-        case 0:
-            return NO_OP_COLLECTOR;
-        case 1:
-            return colls[0];
-        default:
-            return new LeafBucketCollector() {
-
-                @Override
-                public void setScorer(Scorable s) throws IOException {
-                    for (LeafBucketCollector c : colls) {
-                        c.setScorer(s);
-                    }
-                }
-
-                @Override
-                public void collect(int doc, long bucket) throws IOException {
-                    for (LeafBucketCollector c : colls) {
-                        c.collect(doc, bucket);
-                    }
-                }
-
-            };
+        @Override
+        public boolean isNoop() {
+            return true;
         }
-    }
+    };
 
     /**
      * Collect the given {@code doc} in the bucket owned by
@@ -101,6 +70,14 @@ public abstract class LeafBucketCollector implements LeafCollector {
      * uses {@link LongKeyedBucketOrds} which amounts to a hash lookup.
      */
     public abstract void collect(int doc, long owningBucketOrd) throws IOException;
+
+    /**
+     * Does this collector collect anything? If this returns true we can safely
+     * just never call {@link #collect}.
+     */
+    public boolean isNoop() {
+        return false;
+    }
 
     @Override
     public final void collect(int doc) throws IOException {

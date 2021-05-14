@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
@@ -73,7 +62,7 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_NODES_SETTING;
+import static org.elasticsearch.gateway.GatewayService.RECOVER_AFTER_DATA_NODES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -216,7 +205,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("field", "value2")).get(), value2Docs);
             assertHitCount(client().prepareSearch().setSize(0).setQuery(termQuery("num", 179)).get(), value1Docs);
         }
-        if (!indexToAllShards) {
+        if (indexToAllShards == false) {
             // we have to verify primaries are started for them to be restored
             logger.info("Ensure all primaries have been started");
             ensureYellow();
@@ -315,7 +304,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) {
                 return Settings.builder()
-                    .put(RECOVER_AFTER_NODES_SETTING.getKey(), 2)
+                    .put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2)
                     .putList(INITIAL_MASTER_NODES_SETTING.getKey()) // disable bootstrapping
                     .build();
             }
@@ -340,7 +329,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testLatestVersionLoaded() throws Exception {
         // clean two nodes
-        List<String> nodes = internalCluster().startNodes(2, Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        List<String> nodes = internalCluster().startNodes(2, Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build());
         Settings node1DataPathSettings = internalCluster().dataPathSettings(nodes.get(0));
         Settings node2DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
 
@@ -397,8 +386,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> starting the two nodes back");
 
         internalCluster().startNodes(
-            Settings.builder().put(node1DataPathSettings).put("gateway.recover_after_nodes", 2).build(),
-            Settings.builder().put(node2DataPathSettings).put("gateway.recover_after_nodes", 2).build());
+            Settings.builder().put(node1DataPathSettings).put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build(),
+            Settings.builder().put(node2DataPathSettings).put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
@@ -417,7 +406,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     public void testReuseInFileBasedPeerRecovery() throws Exception {
         internalCluster().startMasterOnlyNode();
-        final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0));
+        final String primaryNode = internalCluster().startDataOnlyNode(nodeSettings(0, Settings.EMPTY));
 
         // create the index with our mapping
         client(primaryNode)
@@ -444,7 +433,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
 
         // start the replica node; we do this after indexing so a file-based recovery is triggered to ensure the files are identical
-        final String replicaNode = internalCluster().startDataOnlyNode(nodeSettings(1));
+        final String replicaNode = internalCluster().startDataOnlyNode(nodeSettings(1, Settings.EMPTY));
         ensureGreen();
 
         final RecoveryResponse initialRecoveryReponse = client().admin().indices().prepareRecoveries("test").get();
@@ -553,24 +542,22 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 // make sure state is not recovered
-                return Settings.builder().put(RECOVER_AFTER_NODES_SETTING.getKey(), 2).build();
+                return Settings.builder().put(RECOVER_AFTER_DATA_NODES_SETTING.getKey(), 2).build();
             }
         });
 
         if (corrupt) {
-            for (Path path : internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPaths(shardId)) {
-                final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
-                if (Files.exists(indexPath)) { // multi data path might only have one path in use
-                    try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
-                        for (Path item : stream) {
-                            if (item.getFileName().toString().startsWith("segments_")) {
-                                logger.debug("--> deleting [{}]", item);
-                                Files.delete(item);
-                            }
+            Path path = internalCluster().getInstance(NodeEnvironment.class, nodeName).availableShardPath(shardId);
+            final Path indexPath = path.resolve(ShardPath.INDEX_FOLDER_NAME);
+            if (Files.exists(indexPath)) { // multi data path might only have one path in use
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
+                    for (Path item : stream) {
+                        if (item.getFileName().toString().startsWith("segments_")) {
+                            logger.debug("--> deleting [{}]", item);
+                            Files.delete(item);
                         }
                     }
                 }
-
             }
         }
 

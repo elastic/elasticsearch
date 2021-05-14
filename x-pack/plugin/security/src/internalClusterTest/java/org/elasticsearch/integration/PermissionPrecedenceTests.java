@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
 import java.util.Collections;
@@ -49,7 +51,8 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString("test123".toCharArray())));
+        final String usersPasswdHashed =
+            new String(getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return "admin:" + usersPasswdHashed + "\n" +
             "client:" + usersPasswdHashed + "\n" +
             "user:" + usersPasswdHashed + "\n";
@@ -69,7 +72,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected SecureString nodeClientPassword() {
-        return new SecureString("test123".toCharArray());
+        return SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
     }
 
     public void testDifferentCombinationsOfIndices() throws Exception {
@@ -98,7 +101,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
                 .setPatterns(Collections.singletonList("test_*"))::get, PutIndexTemplateAction.NAME, "user");
 
         Map<String, String> headers = Collections.singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("user",
-                new SecureString("test123")));
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         assertThrowsAuthorizationException(client.filterWithHeader(headers).admin().indices().prepareGetTemplates("template1")::get,
                 GetIndexTemplatesAction.NAME, "user");
     }

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -9,11 +9,11 @@ dependencies {
 
 restResources {
   restApi {
-    includeXpack 'security'
+    include '_common', 'index', 'put_script', 'cluster', 'indices', 'ingest', 'msearch_template', 'render_search_template', 'search', 'security'
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.watcher.enabled', 'false'
   setting 'xpack.security.enabled', 'true'

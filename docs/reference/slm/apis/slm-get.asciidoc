@@ -111,7 +111,7 @@ This request returns the following response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"modified_date": "2019-04-23T01:30:00.000Z"/"modified_date": $body.daily-snapshots.modified_date/ s/"modified_date_millis": 1556048137314/"modified_date_millis": $body.daily-snapshots.modified_date_millis/ s/"next_execution": "2019-04-24T01:30:00.000Z"/"next_execution": $body.daily-snapshots.next_execution/ s/"next_execution_millis": 1556048160000/"next_execution_millis": $body.daily-snapshots.next_execution_millis/]
-<1> The version of the snapshot policy, only the latest verison is stored and incremented when the policy is updated
+<1> The version of the snapshot policy, only the latest version is stored and incremented when the policy is updated
 <2> The last time this policy was modified.
 <3> The next time this policy will be executed.
 

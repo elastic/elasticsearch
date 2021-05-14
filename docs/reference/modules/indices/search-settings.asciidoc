@@ -25,3 +25,10 @@ Maximum number of <<search-aggregations-bucket,aggregation buckets>> allowed in
 a single response. Defaults to 65,535.
 +
 Requests that attempt to return more than this limit will return an error.
+
+[[indices-query-bool-max-nested-depth]]
+`indices.query.bool.max_nested_depth`::
+(<<static-cluster-setting,Static>>, integer) Maximum nested depth of bool queries. Defaults to `20`.
++
+This setting limits the nesting depth of bool queries. Deep nesting of boolean queries may lead to
+stack overflow.

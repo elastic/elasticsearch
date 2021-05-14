@@ -1,87 +1,13 @@
 [[heap-size-settings]]
 [discrete]
-=== Heap size settings
+==== Heap size settings
 
-By default, {es} tells the JVM to use a heap with a minimum and maximum
-size of 1 GB. When moving to production, it is important to configure heap size
-to ensure that {es} has enough heap available.
+By default, {es} automatically sets the JVM heap size based on a node's
+<<node-roles,roles>> and total memory.
+We recommend the default sizing for most production environments.
 
-{es} will assign the entire heap specified in
-<<jvm-options,jvm.options>> via the `Xms` (minimum heap size) and `Xmx` (maximum
-heap size) settings. These two settings must be equal to each other.
+NOTE: Automatic heap sizing requires the <<jvm-version,bundled JDK>> or, if using
+a custom JRE location, a Java 14 or later JRE.
 
-The value for these settings depends on the amount of RAM available on your
-server:
-
-* Set `Xmx` and `Xms` to no more than 50% of your physical RAM. {es} requires
-  memory for purposes other than the JVM heap and it is important to leave
-  space for this. For instance, {es} uses off-heap buffers for efficient
-  network communication, relies on the operating system's filesystem cache for
-  efficient access to files, and the JVM itself requires some memory too. It is
-  normal to observe the {es} process using more memory than the limit
-  configured with the `Xmx` setting.
-
-* Set `Xmx` and `Xms` to no more than the threshold that the JVM uses for
-  compressed object pointers (compressed oops). The exact threshold varies but
-  is near 32 GB. You can verify that you are under the threshold by looking for a line in the logs like the following:
-+
-[source,txt]
-----
-heap size [1.9gb], compressed ordinary object pointers [true]
-----
-
-* Set `Xmx` and `Xms` to no more than the threshold for zero-based
-  compressed oops. The exact threshold varies but 26 GB is safe on most
-  systems and can be as large as 30 GB on some systems. You can verify that
-  you are under this threshold by starting {es} with the JVM options
-  `-XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode` and looking for
-  a line like the following:
-+
-[source,txt]
-----
-heap address: 0x000000011be00000, size: 27648 MB, zero based Compressed Oops
-----
-+
-This line shows that zero-based compressed oops are enabled. If zero-based
-compressed oops are not enabled, you'll see a line like the following instead:
-+
-[source,txt]
-----
-heap address: 0x0000000118400000, size: 28672 MB, Compressed Oops with base: 0x00000001183ff000
-----
-
-The more heap available to {es}, the more memory it can use for its internal
-caches, but the less memory it leaves available for the operating system to use
-for the filesystem cache. Also, larger heaps can cause longer garbage
-collection pauses.
-
-Here is an example of how to set the heap size via a `jvm.options.d/` file:
-
-[source,txt]
-------------------
--Xms2g <1>
--Xmx2g <2>
-------------------
-<1> Set the minimum heap size to 2g.
-<2> Set the maximum heap size to 2g.
-
-Using `jvm.options.d` is the preferred method for configuring the heap size for
-production deployments.
-
-It is also possible to set the heap size via the `ES_JAVA_OPTS` environment
-variable. This is generally discouraged for production deployments but is useful
-for testing because it overrides all other means of setting JVM options.
-
-[source,sh]
-------------------
-ES_JAVA_OPTS="-Xms2g -Xmx2g" ./bin/elasticsearch <1>
-ES_JAVA_OPTS="-Xms4000m -Xmx4000m" ./bin/elasticsearch <2>
-------------------
-<1> Set the minimum and maximum heap size to 2 GB.
-<2> Set the minimum and maximum heap size to 4000 MB.
-
-NOTE: Configuring the heap for the <<windows-service,Windows service>> is
-different than the above. The values initially populated for the Windows
-service can be configured as above but are different after the service has been
-installed. Consult the <<windows-service,Windows service documentation>> for
-additional details.
+If needed, you can override the default sizing by manually
+<<set-jvm-heap-size,setting the JVM heap size>>.

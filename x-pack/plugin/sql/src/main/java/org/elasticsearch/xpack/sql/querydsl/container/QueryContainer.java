@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.Score;
@@ -77,7 +77,7 @@ public class QueryContainer {
 
     // scalar function processors - recorded as functions get folded;
     // at scrolling, their inputs (leaves) get updated
-    private final AttributeMap<Pipe> scalarFunctions;
+    private AttributeMap<Pipe> scalarFunctions;
 
     private final Map<String, Sort> sort;
     private final int limit;
@@ -171,7 +171,7 @@ public class QueryContainer {
 
             sortingColumns.add(new Tuple<>(Integer.valueOf(atIndex), comp));
         }
-        
+
         return sortingColumns;
     }
 
@@ -185,7 +185,7 @@ public class QueryContainer {
         aliasName(columns.get(0));
 
         for (Attribute column : columns) {
-            Expression expression = aliases.getOrDefault(column, column);
+            Expression expression = aliases.resolve(column, column);
 
             // find the column index
             String id = Expressions.id(expression);
@@ -328,50 +328,17 @@ public class QueryContainer {
     // reference methods
     //
     private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
-        FieldAttribute actualField = fieldAttr;
-        FieldAttribute rootField = fieldAttr;
-        StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
-        // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
-        // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
-        // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
-        // the root field to which those sub-fields belong to, are. Instead of "text_field.keyword_subfield" for _source extraction,
-        // we use "text_field", because there is no source for "keyword_subfield".
-        /*
-         *    "text_field": {
-         *       "type": "text",
-         *       "fields": {
-         *         "keyword_subfield": {
-         *           "type": "keyword"
-         *         }
-         *       }
-         *     }
-         */
-        if (fieldAttr.field().isAlias() == false) {
-            while (actualField.parent() != null
-                    && actualField.parent().field().getDataType() != DataTypes.OBJECT
-                    && actualField.parent().field().getDataType() != DataTypes.NESTED
-                    && SqlDataTypes.isFromDocValuesOnly(actualField.field().getDataType()) == false) {
-                actualField = actualField.parent();
-            }
-        }
-        while (rootField.parent() != null) {
-            fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
-            rootField = rootField.parent();
-        }
-        return new SearchHitFieldRef(aliasName(actualField), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
+        return new SearchHitFieldRef(aliasName(fieldAttr), fieldAttr.field().getDataType());
     }
 
     private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name, 
-                SqlDataTypes.format(attr.field().getDataType()), 
+                attr.nestedParent().name(), name,
+                SqlDataTypes.format(attr.field().getDataType()),
                 SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
-        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
-                false, attr.parent().name());
+        SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, attr.field().getDataType(), attr.nestedParent().name());
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
@@ -408,7 +375,11 @@ public class QueryContainer {
 
     // replace function/operators's input with references
     private Tuple<QueryContainer, FieldExtraction> resolvedTreeComputingRef(ScalarFunction function, Attribute attr) {
-        Pipe proc = scalarFunctions.computeIfAbsent(attr, v -> function.asPipe());
+        Pipe proc = null;
+        if ((proc = scalarFunctions.resolve(attr)) == null) {
+            proc = function.asPipe();
+            scalarFunctions = AttributeMap.builder(scalarFunctions).put(attr, proc).build();
+        }
 
         // find the processor inputs (Attributes) and convert them into references
         // no need to promote them to the top since the container doesn't have to be aware
@@ -440,14 +411,14 @@ public class QueryContainer {
     }
 
     public QueryContainer addColumn(Attribute attr) {
-        Expression expression = aliases.getOrDefault(attr, attr);
+        Expression expression = aliases.resolve(attr, attr);
         Tuple<QueryContainer, FieldExtraction> tuple = asFieldExtraction(attr);
         return tuple.v1().addColumn(tuple.v2(), Expressions.id(expression));
     }
 
     private Tuple<QueryContainer, FieldExtraction> asFieldExtraction(Attribute attr) {
         // resolve it Expression
-        Expression expression = aliases.getOrDefault(attr, attr);
+        Expression expression = aliases.resolve(attr, attr);
 
         if (expression instanceof FieldAttribute) {
             FieldAttribute fa = (FieldAttribute) expression;

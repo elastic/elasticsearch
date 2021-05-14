@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
           {
-            "password": "s3krit",
+            "password": "s3krit-password",
             "roles" : [ "x_cluster_role" ]
           }
   - do:
@@ -33,7 +33,7 @@ setup:
         username: "remote"
         body:  >
           {
-            "password": "s3krit",
+            "password": "s3krit-password",
             "roles" : [ "remote_ccs" ]
           }
   - do:
@@ -78,14 +78,14 @@ teardown:
           - '{"f": "l2", "created_at" : "2021-01-02"}'
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       open_point_in_time:
         index: my_remote_cluster:point_in_time_index,local_pit
         keep_alive: 5m
   - set: {id: pit_id}
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         sort: created_at
@@ -107,7 +107,7 @@ teardown:
   - match: { hits.hits.2._source.f: "l2" }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       close_point_in_time:
         body:
           id: "$pit_id"
@@ -116,14 +116,14 @@ teardown:
 "Point in time CCS with only remote indices requires no privileges on local cluster":
 
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       open_point_in_time:
         index: "my_*:point_in_time_index"
         keep_alive: 5m
   - set: {id: pit_id}
 
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         sort: created_at
@@ -143,7 +143,7 @@ teardown:
   - match: { hits.hits.1._source.f: "r4" }
 
   - do:
-      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdA==" }
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
       close_point_in_time:
         body:
           id: "$pit_id"

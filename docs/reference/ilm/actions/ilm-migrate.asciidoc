@@ -14,6 +14,11 @@ replicas, {ilm-init} reduces the number of replicas before migrating the index.
 To prevent automatic migration without specifying allocation options,
 you can explicitly include the migrate action and set the enabled option to `false`.
 
+If the `cold` phase defines a <<ilm-searchable-snapshot, searchable snapshot action>> the `migrate`
+action will not be injected automatically in the `cold` phase because the managed index will be
+mounted directly on the target tier using the same <<tier-preference-allocation-filter, _tier_preference>>
+infrastructure the `migrate` actions configures.
+
 In the warm phase, the `migrate` action sets <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
 to `data_warm,data_hot`. This moves the index to nodes in the
 <<warm-tier, warm tier>>. If there are no nodes in the warm tier,  it falls back to the
@@ -25,9 +30,17 @@ to `data_cold,data_warm,data_hot`. This moves the index to nodes in the
 <<cold-tier, cold tier>>. If there are no nodes in the cold tier, it falls back to the
 <<warm-tier, warm>> tier, or the <<hot-tier, hot>> tier if there are no warm nodes available.
 
+The migrate action is not allowed in the frozen phase. The frozen phase directly
+mounts the searchable snapshot using a
+<<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
+of `data_frozen,data_cold,data_warm,data_hot`. This moves the index to nodes in the
+<<frozen-tier, frozen tier>>. If there are no nodes in the frozen tier, it falls back to the
+<<cold-tier, cold>> tier, then the <<warm-tier, warm>> tier, then finally the <<hot-tier, hot>>
+tier.
+
 The migrate action is not allowed in the hot phase.
 The initial index allocation is performed <<data-tier-allocation, automatically>>,
-and can be configured manually or via <<indices-templates, index templates>>.
+and can be configured manually or via <<index-templates, index templates>>.
 
 [[ilm-migrate-options]]
 ==== Options

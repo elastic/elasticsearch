@@ -1,23 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.admin.indices.mapping.put;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -30,6 +21,7 @@ import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,7 +30,10 @@ import static org.elasticsearch.action.admin.indices.mapping.put.TransportPutMap
 
 public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
+    private static final Logger logger = LogManager.getLogger(TransportAutoPutMappingAction.class);
+
     private final MetadataMappingService metadataMappingService;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportAutoPutMappingAction(
@@ -47,10 +42,12 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             final ThreadPool threadPool,
             final MetadataMappingService metadataMappingService,
             final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver) {
+            final IndexNameExpressionResolver indexNameExpressionResolver,
+            final SystemIndices systemIndices) {
         super(AutoPutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters,
             PutMappingRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.metadataMappingService = metadataMappingService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -72,6 +69,14 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
     protected void masterOperation(Task task, final PutMappingRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         final Index[] concreteIndices = new Index[] {request.getConcreteIndex()};
+
+        final String message = TransportPutMappingAction.checkForSystemIndexViolations(systemIndices, concreteIndices, request);
+        if (message != null) {
+            logger.warn(message);
+            listener.onFailure(new IllegalStateException(message));
+            return;
+        }
+
         performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
     }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -83,6 +72,10 @@ public class DiskThresholdDecider extends AllocationDecider {
     public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE =
         Setting.boolSetting("cluster.routing.allocation.disk.watermark.enable_for_single_data_node", false, Setting.Property.NodeScope);
 
+    public static final Setting<Boolean> SETTING_IGNORE_DISK_WATERMARKS =
+        Setting.boolSetting("index.routing.allocation.disk.watermark.ignore", false,
+                Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+
     private final DiskThresholdSettings diskThresholdSettings;
     private final boolean enableForSingleDataNode;
 
@@ -144,12 +137,19 @@ public class DiskThresholdDecider extends AllocationDecider {
     private static final Decision YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS = Decision.single(Decision.Type.YES, NAME, "the node " +
             "is above the low watermark, but less than the high watermark, and this primary shard has never been allocated before");
 
+    private static final Decision YES_DISK_WATERMARKS_IGNORED = Decision.single(Decision.Type.YES, NAME,
+            "disk watermarks are ignored on this index");
+
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         ImmutableOpenMap<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
+        }
+
+        if (SETTING_IGNORE_DISK_WATERMARKS.get(allocation.metadata().index(shardRouting.index()).getSettings())) {
+            return YES_DISK_WATERMARKS_IGNORED;
         }
 
         final double usedDiskThresholdLow = 100.0 - diskThresholdSettings.getFreeDiskThresholdLow();
@@ -317,6 +317,10 @@ public class DiskThresholdDecider extends AllocationDecider {
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
+        }
+
+        if (SETTING_IGNORE_DISK_WATERMARKS.get(allocation.metadata().index(shardRouting.index()).getSettings())) {
+            return YES_DISK_WATERMARKS_IGNORED;
         }
 
         // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk

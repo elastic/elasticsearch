@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -103,24 +104,27 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return stopTimeout;
         }
 
-        public void setStopTimeout(TimeValue stopTimeout) {
+        public Request setStopTimeout(TimeValue stopTimeout) {
             this.stopTimeout = ExceptionsHelper.requireNonNull(stopTimeout, TIMEOUT.getPreferredName());
+            return this;
         }
 
         public boolean isForce() {
             return force;
         }
 
-        public void setForce(boolean force) {
+        public Request setForce(boolean force) {
             this.force = force;
+            return this;
         }
 
         public boolean allowNoMatch() {
             return allowNoMatch;
         }
 
-        public void setAllowNoMatch(boolean allowNoMatch) {
+        public Request setAllowNoMatch(boolean allowNoMatch) {
             this.allowNoMatch = allowNoMatch;
+            return this;
         }
 
         @Override

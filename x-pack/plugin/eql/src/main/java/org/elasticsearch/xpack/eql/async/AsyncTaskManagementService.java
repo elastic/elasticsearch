@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.async;
@@ -28,6 +29,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
@@ -91,8 +93,9 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return operation.createTask(request, id, type, action, parentTaskId, headers, threadPool.getThreadContext().getHeaders(),
-                new AsyncExecutionId(doc, new TaskId(node, id)));
+            Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+            return operation.createTask(request, id, type, action, parentTaskId, headers, originHeaders, new AsyncExecutionId(doc,
+                    new TaskId(node, id)));
         }
 
         @Override
@@ -193,7 +196,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
     private void storeResults(T searchTask, StoredAsyncResponse<Response> storedResponse, ActionListener<Void> finalListener) {
         try {
             asyncTaskIndexService.createResponse(searchTask.getExecutionId().getDocId(),
-                threadPool.getThreadContext().getHeaders(), storedResponse, ActionListener.wrap(
+                searchTask.getOriginHeaders(), storedResponse, ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
                         logger.trace(() -> new ParameterizedMessage("stored eql search results for [{}]",

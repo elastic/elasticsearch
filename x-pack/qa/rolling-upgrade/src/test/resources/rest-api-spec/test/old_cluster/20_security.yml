@@ -64,7 +64,7 @@
         username: "logstash_system"
         body: >
             {
-              "password" : "changed-it"
+              "password" : "changed-password"
             }
 
   - do:

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -24,19 +13,17 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NotifyOnceListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -50,6 +37,9 @@ final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
+
+    private volatile long slowLogThresholdMs = Long.MAX_VALUE;
+
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays) {
@@ -60,14 +50,12 @@ final class OutboundHandler {
         this.bigArrays = bigArrays;
     }
 
+    void setSlowLogThreshold(TimeValue slowLogThreshold) {
+        this.slowLogThresholdMs = slowLogThreshold.getMillis();
+    }
+
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
-        SendContext sendContext = new SendContext(channel, () -> bytes, listener);
-        try {
-            internalSend(channel, sendContext);
-        } catch (IOException e) {
-            // This should not happen as the bytes are already serialized
-            throw new AssertionError(e);
-        }
+        internalSend(channel, bytes, null, listener);
     }
 
     /**
@@ -115,19 +103,59 @@ final class OutboundHandler {
     }
 
     private void sendMessage(TcpChannel channel, OutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
-        MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
-        SendContext sendContext = new SendContext(channel, serializer, listener, serializer);
-        internalSend(channel, sendContext);
+        final BytesStreamOutput bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
+        final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, bytesStreamOutput::close);
+        final BytesReference message;
+        try {
+            message = networkMessage.serialize(bytesStreamOutput);
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
+            wrappedListener.onFailure(e);
+            throw e;
+        }
+        internalSend(channel, message, networkMessage, wrappedListener);
     }
 
-    private void internalSend(TcpChannel channel, SendContext sendContext) throws IOException {
-        channel.getChannelStats().markAccessed(threadPool.relativeTimeInMillis());
-        BytesReference reference = sendContext.get();
+    private void internalSend(TcpChannel channel, BytesReference reference, @Nullable OutboundMessage message,
+                              ActionListener<Void> listener) {
+        final long startTime = threadPool.relativeTimeInMillis();
+        channel.getChannelStats().markAccessed(startTime);
+        final long messageSize = reference.length();
+        TransportLogger.logOutboundMessage(channel, reference);
         // stash thread context so that channel event loop is not polluted by thread context
         try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
-            channel.sendMessage(reference, sendContext);
+            channel.sendMessage(reference, new ActionListener<>() {
+                @Override
+                public void onResponse(Void v) {
+                    statsTracker.markBytesWritten(messageSize);
+                    listener.onResponse(v);
+                    maybeLogSlowMessage(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+                        logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                    } else {
+                        logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                    }
+                    listener.onFailure(e);
+                    maybeLogSlowMessage(false);
+                }
+
+                private void maybeLogSlowMessage(boolean success) {
+                    final long logThreshold = slowLogThresholdMs;
+                    if (logThreshold > 0) {
+                        final long took = threadPool.relativeTimeInMillis() - startTime;
+                        if (took > logThreshold) {
+                            logger.warn("sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn " +
+                                    "threshold of [{}ms] with success [{}]", message, messageSize, channel, took, logThreshold, success);
+                        }
+                    }
+                }
+            });
         } catch (RuntimeException ex) {
-            sendContext.onFailure(ex);
+            listener.onFailure(ex);
             CloseableChannel.closeChannel(channel);
             throw ex;
         }
@@ -141,82 +169,4 @@ final class OutboundHandler {
         }
     }
 
-    private static class MessageSerializer implements CheckedSupplier<BytesReference, IOException>, Releasable {
-
-        private final OutboundMessage message;
-        private final BigArrays bigArrays;
-        private volatile ReleasableBytesStreamOutput bytesStreamOutput;
-
-        private MessageSerializer(OutboundMessage message, BigArrays bigArrays) {
-            this.message = message;
-            this.bigArrays = bigArrays;
-        }
-
-        @Override
-        public BytesReference get() throws IOException {
-            bytesStreamOutput = new ReleasableBytesStreamOutput(bigArrays);
-            return message.serialize(bytesStreamOutput);
-        }
-
-        @Override
-        public void close() {
-            IOUtils.closeWhileHandlingException(bytesStreamOutput);
-        }
-    }
-
-    private class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
-
-        private final TcpChannel channel;
-        private final CheckedSupplier<BytesReference, IOException> messageSupplier;
-        private final ActionListener<Void> listener;
-        private final Releasable optionalReleasable;
-        private long messageSize = -1;
-
-        private SendContext(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messageSupplier,
-                            ActionListener<Void> listener) {
-            this(channel, messageSupplier, listener, null);
-        }
-
-        private SendContext(TcpChannel channel, CheckedSupplier<BytesReference, IOException> messageSupplier,
-                            ActionListener<Void> listener, Releasable optionalReleasable) {
-            this.channel = channel;
-            this.messageSupplier = messageSupplier;
-            this.listener = listener;
-            this.optionalReleasable = optionalReleasable;
-        }
-
-        public BytesReference get() throws IOException {
-            BytesReference message;
-            try {
-                message = messageSupplier.get();
-                messageSize = message.length();
-                TransportLogger.logOutboundMessage(channel, message);
-                return message;
-            } catch (Exception e) {
-                onFailure(e);
-                throw e;
-            }
-        }
-
-        @Override
-        protected void innerOnResponse(Void v) {
-            assert messageSize != -1 : "If onResponse is being called, the message should have been serialized";
-            statsTracker.markBytesWritten(messageSize);
-            closeAndCallback(() -> listener.onResponse(v));
-        }
-
-        @Override
-        protected void innerOnFailure(Exception e) {
-            if (NetworkExceptionHelper.isCloseConnectionException(e)) {
-                logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
-            } else {
-                logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
-            }
-            closeAndCallback(() -> listener.onFailure(e));
-        }
-
-        private void closeAndCallback(Runnable runnable) {
-            Releasables.close(optionalReleasable, runnable::run);
-        }
-    }
 }

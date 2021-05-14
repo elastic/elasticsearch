@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -18,8 +19,7 @@ import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 public class TransportChangePasswordAction extends HandledTransportAction<ChangePasswordRequest, ActionResponse.Empty> {
@@ -41,7 +41,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         if (AnonymousUser.isAnonymousUsername(username, settings)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified via the API"));
             return;
-        } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
+        } else if (User.isInternalUsername(username)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
             return;
         }
@@ -52,16 +52,6 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
                 " [" + configPwdHashAlgo + "] is configured."));
             return;
         }
-        nativeUsersStore.changePassword(request, new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void v) {
-                listener.onResponse(ActionResponse.Empty.INSTANCE);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        nativeUsersStore.changePassword(request, listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
     }
 }

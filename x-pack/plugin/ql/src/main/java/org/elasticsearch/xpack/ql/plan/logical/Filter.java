@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.plan.logical;
 
@@ -62,5 +63,13 @@ public class Filter extends UnaryPlan {
 
         return Objects.equals(condition, other.condition)
                 && Objects.equals(child(), other.child());
+    }
+
+    public Filter with(Expression condition) {
+        return new Filter(source(), child(), condition);
+    }
+
+    public Filter with(LogicalPlan child, Expression condition) {
+        return new Filter(source(), child, condition);
     }
 }

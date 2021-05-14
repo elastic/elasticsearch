@@ -28,7 +28,7 @@ fields to the shape type.
 |Option |Description| Default
 
 |`orientation` |Optionally define how to interpret vertex order for
-polygons / multipolygons.  This parameter defines one of two coordinate
+polygons / multipolygons. This parameter defines one of two coordinate
 system rules (Right-hand or Left-hand) each of which can be specified in three
 different ways. 1. Right-hand rule: `right`, `ccw`, `counterclockwise`,
 2. Left-hand rule: `left`, `cw`, `clockwise`. The default orientation
@@ -164,7 +164,7 @@ POST /example/_doc
 
 A `linestring` defined by an array of two or more positions. By
 specifying only two points, the `linestring` will represent a straight
-line.  Specifying more than two points creates an arbitrary path. The
+line. Specifying more than two points creates an arbitrary path. The
 following is an example of a LineString in GeoJSON.
 
 [source,console]

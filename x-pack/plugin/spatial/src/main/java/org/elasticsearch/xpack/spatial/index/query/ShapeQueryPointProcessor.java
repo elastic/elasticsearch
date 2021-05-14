@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.spatial.index.query;
 
@@ -27,7 +28,7 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
 import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
@@ -35,7 +36,7 @@ import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 
 public class ShapeQueryPointProcessor {
 
-    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         validateIsPointFieldType(fieldName, context);
         // only the intersects relation is supported for indexed cartesian point types
         if (relation != ShapeRelation.INTERSECTS) {
@@ -46,7 +47,7 @@ public class ShapeQueryPointProcessor {
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
-    private void validateIsPointFieldType(String fieldName, QueryShardContext context) {
+    private void validateIsPointFieldType(String fieldName, SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof PointFieldMapper.PointFieldType == false) {
             throw new QueryShardException(context, "Expected " + PointFieldMapper.CONTENT_TYPE
@@ -55,18 +56,18 @@ public class ShapeQueryPointProcessor {
     }
 
     protected Query getVectorQueryFromShape(
-        Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        Geometry queryShape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
         return queryShape.visit(shapeVisitor);
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
-        QueryShardContext context;
+        SearchExecutionContext context;
         MappedFieldType fieldType;
         String fieldName;
         ShapeRelation relation;
 
-        ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
+        ShapeVisitor(SearchExecutionContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
             this.fieldType = context.getFieldType(fieldName);
             this.fieldName = fieldName;

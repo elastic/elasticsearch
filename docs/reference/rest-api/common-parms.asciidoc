@@ -810,15 +810,9 @@ end::requests_per_second[]
 
 tag::routing[]
 `routing`::
-(Optional, string) Target the specified primary shard.
-end::routing[]
-
-tag::index-routing[]
-`routing`::
 (Optional, string)
-Custom <<mapping-routing-field, routing value>>
-used to route operations to a specific shard.
-end::index-routing[]
+Custom value used to route operations to a specific shard.
+end::routing[]
 
 tag::cat-s[]
 `s`::

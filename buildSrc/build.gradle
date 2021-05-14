@@ -162,15 +162,6 @@ gradlePlugin {
     }
   }
 }
-def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-  outputFile = "${buildDir}/version.properties"
-  comment = 'Generated version properties'
-  properties(props)
-}
-
-tasks.named("processResources").configure {
-  from(generateVersionProperties)
-}
 
 /*****************************************************************************
  *         Java version                                                      *
@@ -180,8 +171,9 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 
-targetCompatibility = '11'
-sourceCompatibility = '11'
+def minRuntimeJava = JavaVersion.toVersion(file('../buildSrc/src/main/resources/minimumRuntimeVersion').text)
+targetCompatibility = minRuntimeJava
+sourceCompatibility = minRuntimeJava
 
 sourceSets {
   integTest {

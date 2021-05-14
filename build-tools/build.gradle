@@ -21,10 +21,13 @@ group = "org.elasticsearch"
 Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../buildSrc/version.properties'))
 version = props.getProperty("elasticsearch")
 
+def minRuntimeJava = JavaVersion.toVersion(file('../buildSrc/src/main/resources/minimumRuntimeVersion').text)
 
-// TODO fix these settings to be global for the es build
-targetCompatibility = '11'
-sourceCompatibility = '11'
+allprojects {
+    apply plugin:'java'
+    targetCompatibility = minRuntimeJava
+    sourceCompatibility = minRuntimeJava
+}
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes

@@ -105,7 +105,7 @@ public class MappingLookupTests extends ESTestCase {
         assertNull(mappingLookup.getMapping().getMeta());
         assertEquals(0, mappingLookup.getMapping().getMetadataMappersMap().size());
         assertFalse(mappingLookup.fieldMappers().iterator().hasNext());
-        assertEquals(0, mappingLookup.fieldTypes().size());
+        assertEquals(0, mappingLookup.getMatchingFieldNames("*").size());
     }
 
     private void assertAnalyzes(Analyzer analyzer, String field, String output) throws IOException {

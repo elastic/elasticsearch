@@ -98,3 +98,10 @@ Defaults to false.
 (Optional,  <<query-dsl,query object>> Allows to filter an index shard if the provided
 query rewrites to `match_none`.
 
+[[terms-enum-search_after-param]]
+`string`::
+(Optional, string)
+The string after which terms in the index should be returned. Allows for a form of
+pagination if the last result from one request is passed as the search_after
+parameter for a subsequent request.
+

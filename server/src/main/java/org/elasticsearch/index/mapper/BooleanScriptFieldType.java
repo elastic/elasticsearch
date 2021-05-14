@@ -33,32 +33,8 @@ import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
-    private static final BooleanFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (BooleanFieldScript.LeafFactory) ctx -> new BooleanFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof Boolean) {
-                    emit((Boolean) v);
-                } else if (v instanceof String) {
-                    try {
-                        emit(Booleans.parseBoolean((String) v));
-                    } catch (IllegalArgumentException e) {
-                        // ignore
-                    }
-                }
-            }
-        }
-    };
-
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, BooleanFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
+        new Builder<>(name, BooleanFieldScript.CONTEXT, BooleanFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(BooleanFieldScript.Factory scriptFactory) {
                 return new BooleanScriptFieldType(name, scriptFactory, getScript(), meta(), this);
@@ -66,7 +42,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         });
 
     public BooleanScriptFieldType(String name) {
-        this(name, PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+        this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
     BooleanScriptFieldType(

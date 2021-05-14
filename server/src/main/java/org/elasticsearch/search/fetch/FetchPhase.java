@@ -211,20 +211,13 @@ public class FetchPhase {
                     continue;
                 }
                 SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
-                Collection<String> fieldNames = searchExecutionContext.simpleMatchToIndexNames(fieldNameOrPattern);
+                Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(fieldNameOrPattern);
                 for (String fieldName : fieldNames) {
                     MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
-                    if (fieldType == null) {
-                        // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
-                        if (searchExecutionContext.getObjectMapper(fieldName) != null) {
-                            throw new IllegalArgumentException("field [" + fieldName + "] isn't a leaf field");
-                        }
-                    } else {
-                        String storedField = fieldType.name();
-                        Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
-                            storedField, key -> new HashSet<>());
-                        requestedFields.add(fieldName);
-                    }
+                    String storedField = fieldType.name();
+                    Set<String> requestedFields = storedToRequestedFields.computeIfAbsent(
+                        storedField, key -> new HashSet<>());
+                    requestedFields.add(fieldName);
                 }
             }
             boolean loadSource = sourceRequired(context);

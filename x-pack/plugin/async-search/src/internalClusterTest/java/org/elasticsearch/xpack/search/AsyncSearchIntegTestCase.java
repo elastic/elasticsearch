@@ -224,13 +224,8 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         final String pitId;
         final SubmitAsyncSearchRequest request;
         if (randomBoolean()) {
-            OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(
-                new String[]{indexName},
-                OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS,
-                TimeValue.timeValueMinutes(between(5, 10)),
-                null,
-                null);
-            pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getSearchContextId();
+            OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(between(5, 10)));
+            pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getPointInTimeId();
             final PointInTimeBuilder pit = new PointInTimeBuilder(pitId);
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 3600)));

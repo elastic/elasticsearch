@@ -30,6 +30,7 @@ import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequestTests;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
+import org.elasticsearch.client.security.CreateEnrollmentTokenResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
@@ -2605,6 +2606,45 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::node-enrollment-execute-async
             client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
             // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testCreateEnrollmentToken() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::create-enrollment-token-execute
+            CreateEnrollmentTokenResponse response = client.security().createEnrollmentToken(RequestOptions.DEFAULT);
+            // end::create-enrollment-token-execute
+
+            // tag::create-enrollment-token-response
+            String enrollmentToken = response.getEnrollmentToken(); // <1>
+            // end::create-enrollment-token-response
+        }
+
+        {
+            // tag::create-enrollment-token-execute-listener
+            ActionListener<CreateEnrollmentTokenResponse> listener =
+                new ActionListener<CreateEnrollmentTokenResponse>() {
+                    @Override
+                    public void onResponse(CreateEnrollmentTokenResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::create-enrollment-token-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::create-enrollment-token-execute-async
+            client.security().createEnrollmentTokenAsync(RequestOptions.DEFAULT, listener);
+            // end::create-enrollment-token-execute-async
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }

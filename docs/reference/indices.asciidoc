@@ -35,11 +35,11 @@ index settings, aliases, mappings, and index templates.
 [discrete]
 [[alias-management]]
 === Alias management:
+* <<indices-aliases>>
 * <<indices-add-alias>>
-* <<indices-delete-alias>>
 * <<indices-get-alias>>
 * <<indices-alias-exists>>
-* <<indices-aliases>>
+* <<indices-delete-alias>>
 
 [discrete]
 [[index-settings]]
@@ -92,9 +92,8 @@ For more information, see <<index-templates, Index Templates>>.
 * <<dangling-index-delete>>
 
 
-
-include::indices/analyze.asciidoc[]
 include::indices/aliases.asciidoc[]
+include::indices/analyze.asciidoc[]
 include::indices/clearcache.asciidoc[]
 include::indices/clone-index.asciidoc[]
 include::indices/close.asciidoc[]

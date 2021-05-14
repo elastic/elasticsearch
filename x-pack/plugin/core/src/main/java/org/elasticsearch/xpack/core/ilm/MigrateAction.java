@@ -109,8 +109,8 @@ public class MigrateAction implements LifecycleAction {
                     Settings indexSettings = clusterState.metadata().index(index).getSettings();
                     if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(indexSettings)) {
                         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-                        logger.debug("[{}] action is configured for index [{}] in policy [{}] which is already mounted as a searchable " +
-                            "snapshot. skipping this action", MigrateAction.NAME, index.getName(), policyName);
+                        logger.debug("[{}] action in policy [{}] is configured for index [{}] which is a partially mounted index. skipping this action",
+                            MigrateAction.NAME, policyName, index.getName());
                         return true;
                     }
 

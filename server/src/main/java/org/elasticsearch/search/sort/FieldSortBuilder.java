@@ -624,18 +624,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      */
     static void validateMissingNestedPath(SearchExecutionContext context, String field) {
         NestedObjectMapper contextMapper = context.nestedScope().getObjectMapper();
-        if (contextMapper == null) {
+        if (contextMapper != null) {
             // already in nested context
             return;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper parentMapper = context.getObjectMapper(parent);
             if (parentMapper instanceof NestedObjectMapper) {
-                if (contextMapper.fullPath().equals(parentMapper.fullPath())) {
-                    // we are in a nested context that matches the path of the provided field so the nested path
-                    // is not required
-                    return ;
-                }
                 NestedObjectMapper parentNested = (NestedObjectMapper) parentMapper;
                 if (parentNested.isIncludeInRoot() == false) {
                     throw new QueryShardException(context,

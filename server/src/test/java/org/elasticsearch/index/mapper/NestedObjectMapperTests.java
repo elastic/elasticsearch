@@ -29,6 +29,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -815,6 +816,33 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         assertThat(doc.docs().get(1).get("nested1.field1"), equalTo("3"));
         assertThat(doc.docs().get(1).get("nested1.field2"), equalTo("4"));
         assertThat(doc.docs().get(2).get("field"), equalTo("value"));
+    }
+
+    public void testMergeChildMappings() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("nested1");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("field1").field("type", "keyword").endObject();
+            b.startObject("field2").field("type", "keyword").endObject();
+            b.startObject("nested2").field("type", "nested").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("nested1");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("field2").field("type", "keyword").endObject();
+            b.startObject("field3").field("type", "keyword").endObject();
+            b.startObject("nested2").field("type", "nested").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        NestedObjectMapper nested1 = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested1");
+        assertThat(nested1.getChildren().values(), hasSize(4));
     }
 
     public void testMergeNestedMappings() throws IOException {

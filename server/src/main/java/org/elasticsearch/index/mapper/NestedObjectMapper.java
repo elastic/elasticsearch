@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
@@ -119,8 +120,8 @@ public class NestedObjectMapper extends ObjectMapper {
         }
     }
 
-    private Explicit<Boolean> includeInRoot;
-    private Explicit<Boolean> includeInParent;
+    private final Explicit<Boolean> includeInRoot;
+    private final Explicit<Boolean> includeInParent;
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
     private final Version indexCreatedVersion;
@@ -159,6 +160,10 @@ public class NestedObjectMapper extends ObjectMapper {
         return this.includeInRoot.value();
     }
 
+    public Map<String, Mapper> getChildren() {
+        return Collections.unmodifiableMap(this.mappers);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(simpleName());
@@ -185,7 +190,7 @@ public class NestedObjectMapper extends ObjectMapper {
             throw new IllegalArgumentException("can't merge a non nested mapping [" + mergeWith.name() + "] with a nested mapping");
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(name(), indexCreatedVersion);
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(simpleName(), indexCreatedVersion);
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
             if (mergeWithObject.includeInParent.explicit()) {
                 builder.includeInParent(mergeWithObject.includeInParent);
@@ -201,7 +206,20 @@ public class NestedObjectMapper extends ObjectMapper {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
         }
-        NestedObjectMapper toMerge = builder.build(new ContentPath());
+        for (Mapper child : mappers.values()) {
+            builder.add(new Mapper.Builder(child.name()) {
+                @Override
+                public Mapper build(ContentPath contentPath) {
+                    return child;
+                }
+            });
+        }
+        ContentPath contentPath = new ContentPath();
+        int lastDot = this.name().lastIndexOf(".");
+        if (lastDot != -1) {
+            contentPath.add(this.name().substring(0, lastDot));
+        }
+        NestedObjectMapper toMerge = builder.build(contentPath);
         toMerge.doMerge(mergeWithObject, reason);
         return toMerge;
     }

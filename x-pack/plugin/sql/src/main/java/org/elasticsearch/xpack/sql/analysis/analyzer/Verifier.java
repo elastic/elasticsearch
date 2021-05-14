@@ -680,13 +680,40 @@ public final class Verifier {
                                 f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
                                         Expressions.name(f)))
                             );
+                            Set<Expression> unsupported = new LinkedHashSet<>();
+                            filter.condition().forEachDown(ReferenceAttribute.class,
+                                f -> {
+                                    Expression t = attributeRefs.resolve(f, f);
+                                    if (t instanceof TopHits) {
+                                        unsupported.add(t);
+                                    }
+                                });
+                            if (unsupported.isEmpty() == false) {
+                                String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
+                                localFailures.add(
+                                    fail(filter.condition(), "filtering is unsupported for function" + plural + " {}",
+                                        Expressions.names(unsupported)));
+                            }
                         } else {
                             localFailures.add(fail(e, "Cannot use WHERE filtering on aggregate function [{}], use HAVING instead",
                                 Expressions.name(e)));
-
                         }
                     }
                 });
+            } else {
+                Set<Expression> unsupported = new LinkedHashSet<>();
+                filter.condition().forEachDown(Expression.class, e -> {
+                    Expression f = attributeRefs.resolve(e, e);
+                    if (f instanceof TopHits) {
+                        unsupported.add(f);
+                    }
+                });
+                if (unsupported.isEmpty() == false) {
+                    String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
+                    localFailures.add(
+                            fail(filter.condition(), "filtering is unsupported for function" + plural + " {}",
+                                    Expressions.names(unsupported)));
+                }
             }
         }
     }

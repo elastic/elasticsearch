@@ -1,6 +1,8 @@
 ---
 setup:
   - skip:
+      version: " - 7.9.99"
+      reason:  TODO temporary version skip while we wait for backport to 7.x of search_after properties
       features: headers
   - do:
       cluster.health:

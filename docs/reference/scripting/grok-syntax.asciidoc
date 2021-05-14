@@ -1,0 +1,73 @@
+[[grok]]
+=== Grokking grok
+Grok is a regular expression dialect that supports aliased expressions that you
+can reuse. Grok works really well with syslog logs, Apache and other webserver
+logs, mysql logs, and in general, any log format that is generally written for
+humans and not computer consumption.
+
+Because grok sits on top of regular expressions, any regular expressions are
+valid in grok. The regular expression library is Oniguruma, and you can see the
+full supported regexp syntax
+https://github.com/kkos/oniguruma/blob/master/doc/RE[on the Oniguruma site].
+
+Grok uses this regular expression language to allow naming existing patterns
+and combining them into more complex patterns that match your fields.
+
+[[grok-syntax]]
+==== Grok syntax
+The syntax for reusing a grok pattern comes in three forms:
+
+* `%{SYNTAX}`
+* `%{SYNTAX:SEMANTIC}`
+* `%{SYNTAX:SEMANTIC:TYPE}`
+
+`SYNTAX`::
+The name of the pattern that will match your text. For example, `NUMBER` and
+`IP` are both patterns that are provided within the default patterns set. The
+`NUMBER` pattern matches data like `3.44`, and the `IP` pattern matches data
+like `55.3.244.1`. 
+
+`SEMANTIC`::
+The identifier you give to the piece of text being matched. For  example, `3.44`
+could be the duration of an event, so you might call it `duration`. The string
+`55.3.244.1` might identify the `client` making a request.
+
+`TYPE`::
+The data type you want to cast your named field. `int`, `long`, `double`,
+`float` and `boolean` are supported types.
+
+For example, let's say you have message data that looks like this:
+
+[source,txt]
+----
+3.44 55.3.244.1
+----
+
+You know that the first value is a number, followed by an IP address. You can
+match this text by using the following grok expression:
+
+[source,txt]
+----
+%{NUMBER:duration} %{IP:client}
+----
+
+[[grok-patterns]]
+==== Grok patterns
+The {elastic-stack} ships with numerous https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/grok-patterns[predefined grok patterns] that simplify working with grok.
+
+For example, if you're working with Apache log data, you can use the
+`%{COMMONAPACHELOG}` syntax, which understands the structure of Apache logs. A
+sample document might look like this:
+
+[source,txt]
+----
+{"timestamp":"2020-04-30T14:30:17-05:00","message":"40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+----
+
+To extract the IP address from the `message` field, write a Painless script
+that incorporates the `%{COMMONAPACHELOG}` syntax. You can test your script
+using the {painless}/painless-execute-api.html#painless-execute-runtime-field-context[field contexts] of the Painless
+execute API, or by creating a runtime field that includes the script.
+
+TIP: If you need help building grok patterns to match your data, use the {kib} 
+{kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool.

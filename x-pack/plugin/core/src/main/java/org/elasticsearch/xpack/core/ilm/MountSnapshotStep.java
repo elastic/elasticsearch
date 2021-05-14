@@ -105,10 +105,10 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+        // if we are mounting a searchable snapshot in the hot phase, then the index should be pinned to the hot nodes
         if (TimeseriesLifecycleType.HOT_PHASE.equals(this.getKey().getPhase())) {
             settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_HOT);
         }
-
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(mountedIndexName,
             snapshotRepository, snapshotName, indexName, settingsBuilder.build(),
             // we captured the index metadata when we took the snapshot. the index likely had the ILM execution state in the metadata.

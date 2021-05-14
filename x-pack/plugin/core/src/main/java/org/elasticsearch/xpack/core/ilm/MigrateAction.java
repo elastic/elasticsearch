@@ -100,7 +100,6 @@ public class MigrateAction implements LifecycleAction {
             StepKey migrationKey = new StepKey(phase, NAME, NAME);
             StepKey migrationRoutedKey = new StepKey(phase, NAME, DataTierMigrationRoutedStep.NAME);
 
-            Settings.Builder migrationSettings = Settings.builder();
             String targetTier = "data_" + phase;
             assert DataTier.validTierName(targetTier) : "invalid data tier name:" + targetTier;
 
@@ -117,9 +116,10 @@ public class MigrateAction implements LifecycleAction {
                     // don't skip the migrate action as the index is not mounted as searchable snapshot or we're in the frozen phase
                     return false;
                 });
-            migrationSettings.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(targetTier));
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
-                migrationSettings.build());
+                Settings.builder()
+                    .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(targetTier))
+                    .build());
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
             return List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
         } else {

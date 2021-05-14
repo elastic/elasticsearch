@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.security.authc.service;
 
 public final class ServiceAccountSettings {
 
-    public static final String REALM_TYPE = "service_account";
-    public static final String REALM_NAME = "service_account";
+    public static final String REALM_TYPE = "_service_account";
+    public static final String REALM_NAME = "_service_account";
     public static final String TOKEN_NAME_FIELD = "_token_name";
 
     private ServiceAccountSettings() {}

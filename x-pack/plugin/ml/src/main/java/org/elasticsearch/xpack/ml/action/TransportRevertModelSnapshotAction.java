@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -83,8 +84,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                 request.getSnapshotId(), jobId, request.getDeleteInterveningResults());
 
-        // 4. Revert the state
-        ActionListener<Boolean> configMappingUpdateListener = ActionListener.wrap(
+        // 5. Revert the state
+        ActionListener<Boolean> annotationsIndexUpdateListener = ActionListener.wrap(
             r -> {
                 PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 JobState jobState = MlTasks.getJobState(jobId, tasks);
@@ -113,6 +114,13 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                     jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
                 }, listener::onFailure);
             },
+            listener::onFailure
+        );
+
+        // 4. Ensure the annotations index mappings are up to date
+        ActionListener<Boolean> configMappingUpdateListener = ActionListener.wrap(
+            r -> AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, state, request.masterNodeTimeout(),
+                annotationsIndexUpdateListener),
             listener::onFailure
         );
 

@@ -1179,7 +1179,7 @@ supports aliased expressions that you can reuse. See <<grok-basics,Grok basics>>
 
 The script matches on the `%{COMMONAPACHELOG}` log pattern, which understands
 the structure of Apache logs. If the pattern matches, the script emits the
-value matching IP address. If the pattern doesn't match
+value of the matching IP address. If the pattern doesn't match
 (`clientip != null`), the script just returns the field value without crashing.
 
 [source,console]

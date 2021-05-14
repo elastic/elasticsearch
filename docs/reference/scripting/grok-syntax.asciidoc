@@ -1,25 +1,23 @@
 [[grok]]
 === Grokking grok
-Grok is a regular expression dialect that supports aliased expressions that you
-can reuse. Grok works really well with syslog logs, Apache and other webserver
-logs, mysql logs, and in general, any log format that is generally written for
-humans and not computer consumption.
+Grok is a regular expression dialect that supports reusable aliased expressions. Grok works really well with syslog logs, Apache and other webserver
+logs, mysql logs, and generally any log format that is written for humans and
+not computer consumption.
 
-Because grok sits on top of regular expressions, any regular expressions are
-valid in grok. The regular expression library is Oniguruma, and you can see the
-full supported regexp syntax
-https://github.com/kkos/oniguruma/blob/master/doc/RE[on the Oniguruma site].
-
-Grok uses this regular expression language to allow naming existing patterns
-and combining them into more complex patterns that match your fields.
+Grok sits on top of the https://github.com/kkos/oniguruma/blob/master/doc/RE[Oniguruma] regular expression library, so any regular expressions are
+valid in grok. Grok uses this regular expression language to allow naming
+existing patterns and combining them into more complex patterns that match your
+fields.
 
 [[grok-syntax]]
-==== Grok syntax
-The syntax for reusing a grok pattern comes in three forms:
+==== Grok patterns
+The {stack} ships with numerous https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/grok-patterns[predefined grok patterns] that simplify working with grok. The syntax for reusing grok patterns
+takes one of the following forms:
 
-* `%{SYNTAX}`
-* `%{SYNTAX:SEMANTIC}`
-* `%{SYNTAX:SEMANTIC:TYPE}`
+[%autowidth]
+|===
+|`%{SYNTAX}` | `%{SYNTAX:SEMANTIC}` |`%{SYNTAX:SEMANTIC:TYPE}`
+|===
 
 `SYNTAX`::
 The name of the pattern that will match your text. For example, `NUMBER` and
@@ -43,8 +41,8 @@ For example, let's say you have message data that looks like this:
 3.44 55.3.244.1
 ----
 
-You know that the first value is a number, followed by an IP address. You can
-match this text by using the following grok expression:
+The first value is a number, followed by what appears to be an IP address. You
+can match this text by using the following grok expression:
 
 [source,txt]
 ----
@@ -52,8 +50,15 @@ match this text by using the following grok expression:
 ----
 
 [[grok-patterns]]
-==== Grok patterns
-The {elastic-stack} ships with numerous https://github.com/elastic/elasticsearch/blob/master/libs/grok/src/main/resources/patterns/grok-patterns[predefined grok patterns] that simplify working with grok.
+==== Incorporate grok patterns
+You can incorporate predefined grok patterns into Painless scripts to extract
+data. To test your script, use either the {painless}/painless-execute-api.html[field contexts] of the Painless execute API or create a runtime field that
+includes the script. Runtime fields offer greater flexibility and accept
+multiple documents, but the Painless execute API is a great option if you don't
+have write access on a cluster where you're testing a script.
+
+TIP: If you need help building grok patterns to match your data, use the 
+{kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool in {kib}.
 
 For example, if you're working with Apache log data, you can use the
 `%{COMMONAPACHELOG}` syntax, which understands the structure of Apache logs. A
@@ -61,13 +66,132 @@ sample document might look like this:
 
 [source,txt]
 ----
-{"timestamp":"2020-04-30T14:30:17-05:00","message":"40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+"timestamp":"2020-04-30T14:30:17-05:00","message":"40.135.0.0 - - 
+[30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
 ----
 
-To extract the IP address from the `message` field, write a Painless script
-that incorporates the `%{COMMONAPACHELOG}` syntax. You can test your script
-using the {painless}/painless-execute-api.html#painless-execute-runtime-field-context[field contexts] of the Painless
-execute API, or by creating a runtime field that includes the script.
+To extract the IP address from the `message` field, you can write a Painless
+script that incorporates the `%{COMMONAPACHELOG}` syntax. You can test this
+script using the {painless}/painless-execute-api.html#painless-runtime-ip[`ip` field context] of the Painless execute API, but let's use a runtime field
+instead.
 
-TIP: If you need help building grok patterns to match your data, use the {kib} 
-{kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool.
+Based on the sample document, index the `@timestamp` and `message` fields. To 
+remain flexible, use `wildcard` as the field type for `message`:
+
+[source,console]
+----
+PUT /my-index-000001/
+{
+  "mappings": {
+    "properties": {
+      "@timestamp": {
+        "format": "strict_date_optional_time||epoch_second",
+        "type": "date"
+      },
+      "message": {
+        "type": "wildcard"
+      }
+    }
+  }
+}
+----
+
+Next, use the <<docs-bulk,bulk API>> to index some log data into
+`my-index-000001`.
+
+[source,console]
+----
+POST /my-index-000001/_bulk?refresh
+{"index":{}}
+{"timestamp":"2020-04-30T14:30:17-05:00","message":"40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{"index":{}}
+{"timestamp":"2020-04-30T14:30:53-05:00","message":"232.0.0.0 - - [30/Apr/2020:14:30:53 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{"index":{}}
+{"timestamp":"2020-04-30T14:31:12-05:00","message":"26.1.0.0 - - [30/Apr/2020:14:31:12 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{"index":{}}
+{"timestamp":"2020-04-30T14:31:19-05:00","message":"247.37.0.0 - - [30/Apr/2020:14:31:19 -0500] \"GET /french/splash_inet.html HTTP/1.0\" 200 3781"}
+{"index":{}}
+{"timestamp":"2020-04-30T14:31:22-05:00","message":"247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"}
+{"index":{}}
+{"timestamp":"2020-04-30T14:31:27-05:00","message":"252.0.0.0 - - [30/Apr/2020:14:31:27 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"}
+{"index":{}}
+{"timestamp":"2020-04-30T14:31:28-05:00","message":"not a valid apache log"}
+----
+// TEST[continued]
+
+Now you can define a runtime field in the mappings that includes your Painless
+script and grok pattern. If the pattern matches, the script emits the value of
+the matching IP address. If the pattern doesn't match (`clientip != null`), the
+script just returns the field value without crashing.
+
+[source,console]
+----
+PUT my-index-000001/_mappings
+{
+  "runtime": {
+    "http.clientip": {
+      "type": "ip",
+      "script": """
+        String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
+        if (clientip != null) emit(clientip);
+      """
+    }
+  }
+}
+----
+// TEST[continued]
+
+[[grok-pattern-results]]
+==== Return calculated results
+Using the `http.clientip` runtime field, you can define a simple query to run a
+search for a specific IP address and return all related fields. The <<search-fields,`fields`>> parameter on the `_search` API works for all fields,
+even those that weren't sent as part of the original `_source`:
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "http.clientip": "40.135.0.0"
+    }
+  },
+  "fields" : ["http.clientip"]
+}
+----
+// TEST[continued]
+// TEST[s/_search/_search\?filter_path=hits/]
+
+The response includes the specific IP address indicated in your search query.
+The grok pattern within the Painless script extracted this value from the
+`message` field at runtime. 
+
+[source,console-result]
+----
+{
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index-000001",
+        "_id" : "1iN2a3kBw4xTzEDqyYE0",
+        "_score" : 1.0,
+        "_source" : {
+          "timestamp" : "2020-04-30T14:30:17-05:00",
+          "message" : "40.135.0.0 - - [30/Apr/2020:14:30:17 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
+        },
+        "fields" : {
+          "http.clientip" : [
+            "40.135.0.0"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"_id" : "1iN2a3kBw4xTzEDqyYE0"/"_id": $body.hits.hits.0._id/]

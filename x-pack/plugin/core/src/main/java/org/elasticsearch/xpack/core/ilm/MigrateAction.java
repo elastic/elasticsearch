@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -107,9 +106,9 @@ public class MigrateAction implements LifecycleAction {
 
             BranchingStep conditionalSkipActionStep = new BranchingStep(preMigrateBranchingKey, migrationKey, nextStepKey,
                 (index, clusterState) -> {
-                    if (skipMigrateAction(clusterState.metadata().index(index))) {
-                        String policyName =
-                            LifecycleSettings.LIFECYCLE_NAME_SETTING.get(clusterState.metadata().index(index).getSettings());
+                    Settings indexSettings = clusterState.metadata().index(index).getSettings();
+                    if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(indexSettings)) {
+                        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
                         logger.debug("[{}] action is configured for index [{}] in policy [{}] which is already mounted as a searchable " +
                             "snapshot. skipping this action", MigrateAction.NAME, index.getName(), policyName);
                         return true;
@@ -126,10 +125,6 @@ public class MigrateAction implements LifecycleAction {
         } else {
             return List.of();
         }
-    }
-
-    private static boolean skipMigrateAction(IndexMetadata indexMetadata) {
-        return SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(indexMetadata.getSettings());
     }
 
     /**

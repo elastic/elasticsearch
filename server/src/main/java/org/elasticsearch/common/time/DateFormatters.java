@@ -1905,6 +1905,8 @@ public class DateFormatters {
                             .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))
                             .with(weekFields.weekOfWeekBasedYear(), accessor.get(weekFields.weekOfWeekBasedYear()))
                             .with(TemporalAdjusters.previousOrSame(weekFields.getFirstDayOfWeek()));
+        } else if (accessor.isSupported(MONTH_OF_YEAR) && accessor.isSupported(DAY_OF_MONTH)) {
+            return LocalDate.of(accessor.get(weekFields.weekBasedYear()), accessor.get(MONTH_OF_YEAR), accessor.get(DAY_OF_MONTH));
         } else {
             return LocalDate.ofEpochDay(0)
                             .with(weekFields.weekBasedYear(), accessor.get(weekFields.weekBasedYear()))

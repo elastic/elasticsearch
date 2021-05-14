@@ -16,6 +16,9 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.format.ResolverStyle;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
@@ -386,5 +389,14 @@ public class DateFormattersTests extends ESTestCase {
             Instant instant = Instant.from(formatter.parse("2019-05-06T14:52:37.123456789Z"));
             assertThat(instant.getNano(), is(123_456_789));
         }
+    }
+
+    public void testWeekBasedCalendarYear() {
+        DateTimeFormatter formatter = new DateTimeFormatterBuilder().appendPattern("YYYY-MM-dd").toFormatter(Locale.ROOT)
+            .withResolverStyle(ResolverStyle.STRICT);
+        assertThat(DateFormatters.from(formatter.parse("2019-12-31")) ,
+            equalTo(ZonedDateTime.of(2019,12,31, 0,0,0,0,ZoneOffset.UTC)));
+        assertThat(DateFormatters.from(formatter.parse("2021-04-27")) ,
+            equalTo(ZonedDateTime.of(2021,4,27, 0,0,0,0,ZoneOffset.UTC)));
     }
 }

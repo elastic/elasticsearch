@@ -141,7 +141,7 @@ Defaults to `false`.
 +
 An alias can have one write index at a time.
 +
-See <<aliases-write-index>> for an example.
+See <<write-index>> for an example.
 +
 [IMPORTANT]
 ====
@@ -413,7 +413,7 @@ GET /alias2/_search?q=user.id:kimchy&routing=2,3
 --------------------------------------------------
 // TEST[continued]
 
-[[aliases-write-index]]
+[[write-index]]
 ===== Write index
 
 It is possible to associate the index pointed to by an alias as the write index.

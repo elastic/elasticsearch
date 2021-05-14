@@ -75,7 +75,7 @@ rollup documents. When in this state, any subsequent cron interval triggers will
 be ignored because the job is already active with the prior trigger.
 - `abort` is a transient state, which is usually not witnessed by the user. It
 is used if the task needs to be shut down for some reason (job has been deleted,
-an unrecoverable error has been encountered, etc).  Shortly after the `abort`
+an unrecoverable error has been encountered, etc). Shortly after the `abort`
 state is set, the job will remove itself from the cluster.
 ====
 

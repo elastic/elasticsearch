@@ -48,6 +48,12 @@ SELECT salary, first_name, salary AS x, salary y FROM test_emp ORDER BY y LIMIT 
 
 constantWithLimit
 SELECT 3 FROM "test_emp" LIMIT 5;
+sameConstantsWithLimit
+SELECT 3, 3, 5 FROM "test_emp" LIMIT 5;
+sameConstantsWithLimitV2
+SELECT 5, 3, 3 FROM "test_emp" LIMIT 5;
+sameConstantsWithLimitV3
+SELECT 3, 5, 3, 3 FROM "test_emp" LIMIT 5;
 constantAndColumnWithLimit
 SELECT 3, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
 constantComparisonWithLimit

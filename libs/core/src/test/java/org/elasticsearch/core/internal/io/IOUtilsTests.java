@@ -213,11 +213,15 @@ public class IOUtilsTests extends ESTestCase {
 
     }
 
+    private void fsync(final Path path, final boolean isDir) throws IOException {
+        IOUtils.fsync(path, isDir, randomBoolean());
+    }
+
     public void testFsyncDirectory() throws Exception {
         final Path path = createTempDir().toRealPath();
         final Path subPath = path.resolve(randomAlphaOfLength(8));
         Files.createDirectories(subPath);
-        IOUtils.fsync(subPath, true);
+        fsync(subPath, true);
         // no exception
     }
 
@@ -246,16 +250,16 @@ public class IOUtilsTests extends ESTestCase {
         final Path wrapped = new FilterPath(path, fs);
         if (Constants.WINDOWS) {
             // no exception, we early return and do not even try to open the directory
-            IOUtils.fsync(wrapped, true);
+            fsync(wrapped, true);
         } else {
-            expectThrows(AccessDeniedException.class, () -> IOUtils.fsync(wrapped, true));
+            expectThrows(AccessDeniedException.class, () -> fsync(wrapped, true));
         }
     }
 
     public void testFsyncNonExistentDirectory() throws Exception {
         final Path dir = FilterPath.unwrap(createTempDir()).toRealPath();
         final Path nonExistentDir = dir.resolve("non-existent");
-        expectThrows(NoSuchFileException.class, () -> IOUtils.fsync(nonExistentDir, true));
+        expectThrows(NoSuchFileException.class, () -> fsync(nonExistentDir, true));
     }
 
     public void testFsyncFile() throws IOException {
@@ -266,7 +270,7 @@ public class IOUtilsTests extends ESTestCase {
         try (OutputStream o = Files.newOutputStream(file)) {
             o.write("0\n".getBytes(StandardCharsets.US_ASCII));
         }
-        IOUtils.fsync(file, false);
+        fsync(file, false);
         // no exception
     }
 

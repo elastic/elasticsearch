@@ -44,11 +44,11 @@ To target all data streams and indices in a cluster, use `_all` or `*`.
 ==== {api-query-parms-title}
 
 `only_managed`::
-  (Optional, boolean) Filters the returned indices to only indices that are managed by
+  (Optional, Boolean) Filters the returned indices to only indices that are managed by
   {ilm-init}.
 
 `only_errors`::
-  (Optional, boolean) Filters the returned indices to only indices that are managed by
+  (Optional, Boolean) Filters the returned indices to only indices that are managed by
   {ilm-init} and are in an error state, either due to an encountering an error while
   executing the policy, or attempting to use a policy that does not exist.
 

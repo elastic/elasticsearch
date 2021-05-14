@@ -6,8 +6,6 @@
 <titleabbrev>Pipe reference</titleabbrev>
 ++++
 
-beta::[]
-
 {es} supports the following <<eql-pipes,EQL pipes>>.
 
 [discrete]

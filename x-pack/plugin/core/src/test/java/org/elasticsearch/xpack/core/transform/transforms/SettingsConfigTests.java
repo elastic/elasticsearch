@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.transforms;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.watcher.watch.Payload.XContent;
 import org.junit.Before;
 
@@ -28,11 +30,15 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     private boolean lenient;
 
     public static SettingsConfig randomSettingsConfig() {
-        return new SettingsConfig(randomBoolean() ? null : randomIntBetween(10, 10_000), randomBoolean() ? null : randomFloat());
+        return new SettingsConfig(
+            randomBoolean() ? null : randomIntBetween(10, 10_000),
+            randomBoolean() ? null : randomFloat(),
+            randomBoolean() ? null : randomIntBetween(0, 1)
+        );
     }
 
     public static SettingsConfig randomNonEmptySettingsConfig() {
-        return new SettingsConfig(randomIntBetween(10, 10_000), randomFloat());
+        return new SettingsConfig(randomIntBetween(10, 10_000), randomFloat(), randomIntBetween(0, 1));
     }
 
     @Before
@@ -69,24 +75,30 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         assertThat(fromString("{\"docs_per_second\" : null}").getDocsPerSecond(), equalTo(-1F));
         assertNull(fromString("{}").getDocsPerSecond());
+
+        assertThat(fromString("{\"dates_as_epoch_millis\" : null}").getDatesAsEpochMillisForUpdate(), equalTo(-1));
+        assertNull(fromString("{}").getDatesAsEpochMillisForUpdate());
     }
 
     public void testUpdateUsingBuilder() throws IOException {
-        SettingsConfig config = fromString("{\"max_page_search_size\" : 10000, \"docs_per_second\" :42}");
+        SettingsConfig config = fromString("{\"max_page_search_size\" : 10000, \"docs_per_second\" :42, \"dates_as_epoch_millis\": true}");
 
         SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
         builder.update(fromString("{\"max_page_search_size\" : 100}"));
 
         assertThat(builder.build().getMaxPageSearchSize(), equalTo(100));
         assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
+        assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
 
         builder.update(fromString("{\"max_page_search_size\" : null}"));
         assertNull(builder.build().getMaxPageSearchSize());
         assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
+        assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
 
-        builder.update(fromString("{\"max_page_search_size\" : 77, \"docs_per_second\" :null}"));
+        builder.update(fromString("{\"max_page_search_size\" : 77, \"docs_per_second\" :null, \"dates_as_epoch_millis\": null}"));
         assertThat(builder.build().getMaxPageSearchSize(), equalTo(77));
         assertNull(builder.build().getDocsPerSecond());
+        assertNull(builder.build().getDatesAsEpochMillisForUpdate());
     }
 
     public void testOmmitDefaultsOnWriteParser() throws IOException {
@@ -108,6 +120,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
+
+        config = fromString("{\"dates_as_epoch_millis\" : null}");
+        assertThat(config.getDatesAsEpochMillisForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
     }
 
     public void testOmmitDefaultsOnWriteBuilder() throws IOException {
@@ -126,6 +144,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = new SettingsConfig.Builder().setRequestsPerSecond(null).build();
         assertThat(config.getDocsPerSecond(), equalTo(-1F));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = new SettingsConfig.Builder().setDatesAsEpochMillis(null).build();
+        assertThat(config.getDatesAsEpochMillisForUpdate(), equalTo(-1));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());

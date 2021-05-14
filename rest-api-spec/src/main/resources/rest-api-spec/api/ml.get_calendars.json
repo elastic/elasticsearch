@@ -1,0 +1,51 @@
+{
+  "ml.get_calendars":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-calendar.html",
+      "description":"Retrieves configuration information for calendars."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        },
+        {
+          "path":"/_ml/calendars/{calendar_id}",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to fetch"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "from":{
+        "type":"int",
+        "description":"skips a number of calendars"
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of calendars to get"
+      }
+    },
+    "body":{
+      "description":"The from and size parameters optionally sent in the body"
+    }
+  }
+}

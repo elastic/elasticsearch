@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
 
-import com.microsoft.azure.storage.LocationMode;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -32,6 +20,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -41,7 +30,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     private AzureRepository azureRepository(Settings settings) {
         Settings internalSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
             .put(settings)
             .build();
         final AzureRepository azureRepository = new AzureRepository(new RepositoryMetadata("foo", "azure", internalSettings),
@@ -58,7 +47,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
 
     public void testReadonlyDefaultAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
-            .put("readonly", true)
+            .put(READONLY_SETTING_KEY, true)
             .build()).isReadOnly(), is(true));
     }
 
@@ -71,35 +60,35 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     public void testReadonlyWithPrimaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY.name())
-            .put("readonly", true)
+            .put(READONLY_SETTING_KEY, true)
             .build()).isReadOnly(), is(true));
     }
 
     public void testReadonlyWithSecondaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
-            .put("readonly", true)
+            .put(READONLY_SETTING_KEY, true)
             .build()).isReadOnly(), is(true));
     }
 
     public void testReadonlyWithSecondaryOnlyAndReadonlyOff() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
-            .put("readonly", false)
+            .put(READONLY_SETTING_KEY, false)
             .build()).isReadOnly(), is(false));
     }
 
     public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOn() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
-            .put("readonly", true)
+            .put(READONLY_SETTING_KEY, true)
             .build()).isReadOnly(), is(true));
     }
 
     public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOff() {
         assertThat(azureRepository(Settings.builder()
             .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
-            .put("readonly", false)
+            .put(READONLY_SETTING_KEY, false)
             .build()).isReadOnly(), is(false));
     }
 

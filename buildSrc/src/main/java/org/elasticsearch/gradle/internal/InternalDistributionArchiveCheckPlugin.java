@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.internal;
@@ -22,7 +11,6 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
-import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.ArchiveOperations;
@@ -37,12 +25,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.gradle.util.Util.capitalize;
+import static org.elasticsearch.gradle.internal.util.Util.capitalize;
 
-public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
+public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
 
     private ArchiveOperations archiveOperations;
 
@@ -74,9 +63,12 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
         });
 
         String projectName = project.getName();
-        if (projectName.contains("oss") == false && (projectName.contains("zip") || projectName.contains("tar"))) {
-            project.getExtensions().add("licenseName", "Elastic License");
-            project.getExtensions().add("licenseUrl", project.getExtensions().getExtraProperties().get("elasticLicenseUrl"));
+        if (projectName.equalsIgnoreCase("integ-test-zip") == false && (projectName.contains("zip") || projectName.contains("tar"))) {
+            project.getExtensions()
+                .add(
+                    "projectLicenses",
+                    Map.of("Elastic License 2.0", project.getExtensions().getExtraProperties().get("elasticLicenseUrl"))
+                );
             TaskProvider<Task> checkMlCppNoticeTask = registerCheckMlCppNoticeTask(
                 project,
                 checkExtraction,
@@ -136,7 +128,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             task.doLast(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
-                    final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2018 Elasticsearch");
+                    final List<String> noticeLines = Arrays.asList("Elasticsearch", "Copyright 2009-2021 Elasticsearch");
                     final Path noticePath = checkExtraction.get()
                         .getDestinationDir()
                         .toPath()
@@ -155,9 +147,9 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
                 public void execute(Task task) {
                     String licenseFilename = null;
                     if (project.getName().contains("oss-") || project.getName().equals("integ-test-zip")) {
-                        licenseFilename = "APACHE-LICENSE-2.0.txt";
+                        licenseFilename = "SSPL-1.0+ELASTIC-LICENSE-2.0.txt";
                     } else {
-                        licenseFilename = "ELASTIC-LICENSE.txt";
+                        licenseFilename = "ELASTIC-LICENSE-2.0.txt";
                     }
                     final List<String> licenseLines;
                     try {

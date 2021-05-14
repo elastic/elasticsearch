@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -168,7 +171,9 @@ public class DataTierIT extends ESIntegTestCase {
         Template t = new Template(Settings.builder()
             .put(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE, DataTier.DATA_WARM)
             .build(), null, null);
-        ComposableIndexTemplate ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null, null);
+        ComposableIndexTemplate ct = new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList(index))
+            .template(t).build();
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
 
@@ -185,7 +190,8 @@ public class DataTierIT extends ESIntegTestCase {
         t = new Template(Settings.builder()
             .putNull(DataTierAllocationDecider.INDEX_ROUTING_PREFER)
             .build(), null, null);
-        ct = new ComposableIndexTemplate(Collections.singletonList(index), t, null, null, null, null, null, null);
+        ct = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(index))
+                 .template(t).build();
         client().execute(PutComposableIndexTemplateAction.INSTANCE,
             new PutComposableIndexTemplateAction.Request("template").indexTemplate(ct)).actionGet();
 
@@ -241,6 +247,55 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryByteCount, greaterThanOrEqualTo(1L));
         assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryByteCountMedian, greaterThanOrEqualTo(1L));
         assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryShardBytesMAD, greaterThanOrEqualTo(0L));
+    }
+
+    public void testTierFilteringIgnoredByFilterAllocationDecider() {
+        startContentOnlyNode();
+        startHotOnlyNode();
+
+        // Exclude all data_cold nodes
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_cold")
+                .build())
+            .get();
+
+        // Create an index, which should be excluded just fine, ignored by the FilterAllocationDecider
+        client().admin().indices().prepareCreate(index)
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0))
+            .setWaitForActiveShards(0)
+            .get();
+    }
+
+    public void testIllegalOnFrozen() {
+        startDataNode();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> createIndex(index, Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_FROZEN)
+                .build()));
+        assertThat(e.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
+
+        String initialTier = randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD);
+        createIndex(index, Settings.builder()
+            .put("index.number_of_shards", 1)
+            .put("index.number_of_replicas", 0)
+            .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, initialTier)
+            .build());
+
+        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> updatePreference(DataTier.DATA_FROZEN));
+        assertThat(e2.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
+
+        updatePreference(randomValueOtherThan(initialTier, () -> randomFrom(DataTier.DATA_HOT, DataTier.DATA_WARM, DataTier.DATA_COLD)));
+    }
+
+    private void updatePreference(String tier) {
+        client().admin().indices().updateSettings(new UpdateSettingsRequest(index)
+            .settings(Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))).actionGet();
     }
 
     private DataTiersFeatureSetUsage getUsage() {

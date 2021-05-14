@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm.history;
@@ -33,7 +34,7 @@ import static org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplate
 public class SnapshotHistoryStore {
     private static final Logger logger = LogManager.getLogger(SnapshotHistoryStore.class);
 
-    public static final String SLM_HISTORY_DATA_STREAM = "slm-history-" + INDEX_TEMPLATE_VERSION;
+    public static final String SLM_HISTORY_DATA_STREAM = ".slm-history-" + INDEX_TEMPLATE_VERSION;
 
     private final Client client;
     private final ClusterService clusterService;

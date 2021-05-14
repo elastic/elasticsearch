@@ -5,6 +5,10 @@
       "description":"Returns information about whether a document exists in an index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

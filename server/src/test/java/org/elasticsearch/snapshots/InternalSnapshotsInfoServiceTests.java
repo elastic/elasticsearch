@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
@@ -43,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -179,6 +169,20 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     public void testErroneousSnapshotShardSizes() throws Exception {
+        final int maxShardsToCreate = scaledRandomIntBetween(10, 500);
+
+        final PlainActionFuture<Void> waitForAllReroutesProcessed = new PlainActionFuture<>();
+        final CountDown reroutes = new CountDown(maxShardsToCreate);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            try {
+                listener.onResponse(clusterService.state());
+            } finally {
+                if (reroutes.countDown()) {
+                    waitForAllReroutesProcessed.onResponse(null);
+                }
+            }
+        };
+
         final InternalSnapshotsInfoService snapshotsInfoService =
             new InternalSnapshotsInfoService(Settings.builder()
                 .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10))
@@ -202,7 +206,6 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         };
         when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
 
-        final int maxShardsToCreate = scaledRandomIntBetween(10, 500);
         final Thread addSnapshotRestoreIndicesThread = new Thread(() -> {
             int remainingShards = maxShardsToCreate;
             while (remainingShards > 0) {
@@ -244,6 +247,10 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             assertThat(snapshotShardSizeInfo.getShardSize(shardRouting, defaultValue),
                 success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(defaultValue));
         }
+
+        waitForAllReroutesProcessed.get(60L, TimeUnit.SECONDS);
+        assertThat("Expecting all snapshot shard size fetches to provide a size", results.size(), equalTo(maxShardsToCreate));
+        assertTrue("Expecting all snapshot shard size fetches to execute a Reroute", reroutes.isCountedDown());
     }
 
     public void testNoLongerMaster() throws Exception {
@@ -410,7 +417,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
         final DiscoveryNode node = new DiscoveryNode("other", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+            DiscoveryNodeRole.roles(), Version.CURRENT);
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)

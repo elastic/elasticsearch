@@ -1,0 +1,66 @@
+{
+  "data_frame_transform_deprecated.get_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-transform.html",
+      "description":"Retrieves configuration information for transforms."
+    },
+    "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_frame/transforms/{transform_id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "description":"The id or comma delimited list of id expressions of the transforms to get, '_all' or '*' implies get all transforms"
+            }
+          },
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
+          }
+        },
+        {
+          "path":"/_data_frame/transforms",
+          "methods":[
+            "GET"
+          ],
+          "deprecated":{
+            "version":"7.5.0",
+            "description":"[_data_frame/transforms/] is deprecated, use [_transform/] in the future."
+          }
+        }
+      ]
+    },
+    "params":{
+      "from":{
+        "type":"int",
+        "required":false,
+        "description":"skips a number of transform configs, defaults to 0"
+      },
+      "size":{
+        "type":"int",
+        "required":false,
+        "description":"specifies a max number of transforms to get, defaults to 100"
+      },
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no transforms. (This includes `_all` string or when no transforms have been specified)"
+      },
+      "exclude_generated": {
+        "required": false,
+        "type": "boolean",
+        "default": false,
+        "description": "Omits generated fields. Allows transform configurations to be easily copied between clusters and within the same cluster"
+      }
+    }
+  }
+}

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.indexing;
@@ -56,7 +57,6 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private final AtomicReference<IndexerState> state;
     private final AtomicReference<JobPosition> position;
     private final ThreadPool threadPool;
-    private final String executorName;
 
     // throttling implementation
     private volatile float currentMaxDocsPerSecond;
@@ -69,27 +69,25 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      */
     class ScheduledRunnable {
         private final ThreadPool threadPool;
-        private final String executorName;
         private final Runnable command;
         private Scheduler.ScheduledCancellable scheduled;
 
-        ScheduledRunnable(ThreadPool threadPool, String executorName, TimeValue delay, Runnable command) {
+        ScheduledRunnable(ThreadPool threadPool, TimeValue delay, Runnable command) {
             this.threadPool = threadPool;
-            this.executorName = executorName;
 
             // with wrapping the command in RunOnce we ensure the command isn't executed twice, e.g. if the
             // future is already running and cancel returns true
             this.command = new RunOnce(command);
-            this.scheduled = threadPool.schedule(() -> { command.run(); }, delay, executorName);
+            this.scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
         }
 
         public void reschedule(TimeValue delay) {
             // note: cancel return true if the runnable is currently executing
             if (scheduled.cancel()) {
                 if (delay.duration() > 0) {
-                    scheduled = threadPool.schedule(() -> command.run(), delay, executorName);
+                    scheduled = threadPool.schedule(command::run, delay, ThreadPool.Names.GENERIC);
                 } else {
-                    threadPool.executor(executorName).execute(() -> command.run());
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(command::run);
                 }
             }
         }
@@ -98,13 +96,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     protected AsyncTwoPhaseIndexer(
         ThreadPool threadPool,
-        String executorName,
         AtomicReference<IndexerState> initialState,
         JobPosition initialPosition,
         JobStats jobStats
     ) {
         this.threadPool = threadPool;
-        this.executorName = executorName;
         this.state = initialState;
         this.position = new AtomicReference<>(initialPosition);
         this.stats = jobStats;
@@ -215,15 +211,15 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                 // fire off the search. Note this is async, the method will return from here
-                threadPool.executor(executorName).execute(() -> {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                     onStart(now, ActionListener.wrap(r -> {
                         assert r != null;
                         if (r) {
                             nextSearch();
                         } else {
                             onFinish(ActionListener.wrap(
-                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+                                onFinishResponse -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                                onFinishFailure -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
                         }
                     },
                     this::finishWithFailure));
@@ -272,8 +268,9 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      * complete a full cycle.
      */
     protected void runSearchImmediately() {
-        if (scheduledNextSearch != null) {
-            scheduledNextSearch.reschedule(TimeValue.ZERO);
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
+            runnable.reschedule(TimeValue.ZERO);
         }
     }
 
@@ -380,6 +377,12 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     protected abstract void onFinish(ActionListener<Void> listener);
 
     /**
+     * Called after onFinish or after onFailure and all the following steps - in particular state persistence - are completed.
+     */
+    protected void afterFinishOrFailure() {
+    }
+
+    /**
      * Called when the indexer is stopped. This is only called when the indexer is stopped
      * via {@link #stop()} as opposed to {@link #onFinish(ActionListener)} which is called
      * when the indexer's work is done.
@@ -396,18 +399,19 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private void finishWithSearchFailure(Exception exc) {
         stats.incrementSearchFailures();
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), () -> {});
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private void finishWithIndexingFailure(Exception exc) {
         stats.incrementIndexingFailures();
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), () -> {});
+        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
     }
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
         finishAndSetState();
+        afterFinishOrFailure();
     }
 
     private IndexerState finishAndSetState() {
@@ -478,8 +482,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 stats.markEndProcessing();
                 // execute finishing tasks
                 onFinish(ActionListener.wrap(
-                        r -> doSaveState(finishAndSetState(), position.get(), () -> {}),
-                        e -> doSaveState(finishAndSetState(), position.get(), () -> {})));
+                        r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
+                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)));
                 return;
             }
 
@@ -498,12 +502,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         logger.warn("Error while attempting to bulk index documents: {}", bulkResponse.buildFailureMessage());
                     }
                     stats.incrementNumOutputDocuments(bulkResponse.getItems().length);
-
-                    // check if indexer has been asked to stop, state {@link IndexerState#STOPPING}
-                    if (checkState(getState()) == false) {
-                        return;
-                    }
-
+                    // There is no reason to do a `checkState` here and prevent the indexer from continuing
+                    // As we have already indexed the documents, updated the stats, etc.
+                    // We do an another `checkState` in `onBulkResponse` which will stop the indexer if necessary
+                    // And, we will still be at our new position due to setting it here.
                     JobPosition newPosition = iterationResult.getPosition();
                     position.set(newPosition);
 
@@ -569,14 +571,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 );
                 scheduledNextSearch = new ScheduledRunnable(
                     threadPool,
-                    executorName,
                     executionDelay,
                     () -> triggerNextSearch(executionDelay.getNanos())
                 );
 
                 // corner case: if meanwhile stop() has been called or state persistence has been requested: fast forward, run search now
                 if (getState().equals(IndexerState.STOPPING) || triggerSaveState()) {
-                    scheduledNextSearch.reschedule(TimeValue.ZERO);
+                    runSearchImmediately();
                 }
                 return;
             }
@@ -610,7 +611,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
         case STOPPING:
             logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-            doSaveState(finishAndSetState(), getPosition(), () -> {});
+            doSaveState(finishAndSetState(), getPosition(), this::afterFinishOrFailure);
             return false;
 
         case STOPPED:
@@ -631,7 +632,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private synchronized void reQueueThrottledSearch() {
         currentMaxDocsPerSecond = getMaxDocsPerSecond();
 
-        if (scheduledNextSearch != null) {
+        ScheduledRunnable runnable = scheduledNextSearch;
+        if (runnable != null) {
             TimeValue executionDelay = calculateThrottlingDelay(
                 currentMaxDocsPerSecond,
                 lastDocCount,
@@ -644,7 +646,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 getJobId(),
                 executionDelay
             );
-            scheduledNextSearch.reschedule(executionDelay);
+            runnable.reschedule(executionDelay);
         }
     }
 

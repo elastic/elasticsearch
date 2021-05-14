@@ -43,9 +43,8 @@ Specify what happens when the watch condition is met.
 
 [[watch-definition-example]]
 
-For example, the following snippet shows a
-<<watcher-api-put-watch,put watch>> request that defines a watch that
-looks for log error events:
+For example, the following snippet shows a <<watcher-api-put-watch,create or
+update watch>> request that defines a watch that looks for log error events:
 
 [source,console]
 --------------------------------------------------
@@ -71,7 +70,7 @@ PUT _watcher/watch/log_errors
     }
   },
   "condition" : { <4>
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 5 }}
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 5 }}
   },
   "transform" : { <5>
     "search" : {
@@ -90,13 +89,13 @@ PUT _watcher/watch/log_errors
         "host" : "mylisteninghost",
         "port" : 9200,
         "path" : "/{{watch_id}}",
-        "body" : "Encountered {{ctx.payload.hits.total.value}} errors"
+        "body" : "Encountered {{ctx.payload.hits.total}} errors"
       }
     },
     "email_administrator" : {
       "email" : {
         "to" : "sys.admino@host.domain",
-        "subject" : "Encountered {{ctx.payload.hits.total.value}} errors",
+        "subject" : "Encountered {{ctx.payload.hits.total}} errors",
         "body" : "Too many error in the system, see attached data",
         "attachments" : {
           "attached_data" : {
@@ -144,7 +143,7 @@ bound to the watcher lifecycle runs. Even though all primaries and replicas are
 taken into account, when a watch is triggered, watcher also ensures, that each
 watch is only triggered on one of those shards. The more replica shards you
 add, the more distributed the watches can be executed. If you add or remove
-replicas, all watches need to be reloaded.  If a shard is relocated, the
+replicas, all watches need to be reloaded. If a shard is relocated, the
 primary and all replicas of this particular shard will reload.
 
 Because the watches are executed on the node, where the watch shards are, you can create
@@ -416,7 +415,7 @@ The formal object definition for a script would be:
 [[stored-templates-scripts]]
 ===== Stored templates and scripts
 
-If you <<modules-scripting-stored-scripts,store>>
+If you <<modules-scripting-using,store>>
 your templates and scripts, you can reference them by id.
 
 To reference a stored script or template, you use the formal object definition

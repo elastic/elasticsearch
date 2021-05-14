@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.client.indices;
 
@@ -36,6 +25,8 @@ public final class DataStream {
     private final String timeStampField;
     private final List<String> indices;
     private final long generation;
+    private final boolean hidden;
+    private final boolean system;
     ClusterHealthStatus dataStreamStatus;
     @Nullable
     String indexTemplate;
@@ -45,7 +36,8 @@ public final class DataStream {
     private final Map<String, Object> metadata;
 
     public DataStream(String name, String timeStampField, List<String> indices, long generation, ClusterHealthStatus dataStreamStatus,
-                      @Nullable String indexTemplate, @Nullable String ilmPolicyName, @Nullable  Map<String, Object> metadata) {
+                      @Nullable String indexTemplate, @Nullable String ilmPolicyName, @Nullable  Map<String, Object> metadata,
+                      boolean hidden, boolean system) {
         this.name = name;
         this.timeStampField = timeStampField;
         this.indices = indices;
@@ -54,6 +46,8 @@ public final class DataStream {
         this.indexTemplate = indexTemplate;
         this.ilmPolicyName = ilmPolicyName;
         this.metadata = metadata;
+        this.hidden = hidden;
+        this.system = system;
     }
 
     public String getName() {
@@ -88,6 +82,14 @@ public final class DataStream {
         return metadata;
     }
 
+    public boolean isHidden() {
+        return hidden;
+    }
+
+    public boolean isSystem() {
+        return system;
+    }
+
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -96,6 +98,8 @@ public final class DataStream {
     public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
     public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
     public static final ParseField METADATA_FIELD = new ParseField("_meta");
+    public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
+    public static final ParseField SYSTEM_FIELD = new ParseField("system");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream",
@@ -110,7 +114,10 @@ public final class DataStream {
             String indexTemplate = (String) args[5];
             String ilmPolicy = (String) args[6];
             Map<String, Object> metadata = (Map<String, Object>) args[7];
-            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy, metadata);
+            boolean hidden = args[8] != null && (boolean) args[8];
+            boolean system = args[9] != null && (boolean) args[9];
+            return new DataStream(dataStreamName, timeStampField, indices, generation, status, indexTemplate, ilmPolicy, metadata, hidden,
+                system);
         });
 
     static {
@@ -122,6 +129,8 @@ public final class DataStream {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_TEMPLATE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ILM_POLICY_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -138,6 +147,8 @@ public final class DataStream {
             timeStampField.equals(that.timeStampField) &&
             indices.equals(that.indices) &&
             dataStreamStatus == that.dataStreamStatus &&
+            hidden == that.hidden &&
+            system == that.system &&
             Objects.equals(indexTemplate, that.indexTemplate) &&
             Objects.equals(ilmPolicyName, that.ilmPolicyName) &&
             Objects.equals(metadata, that.metadata);
@@ -145,6 +156,7 @@ public final class DataStream {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timeStampField, indices, generation, dataStreamStatus, indexTemplate, ilmPolicyName, metadata);
+        return Objects.hash(name, timeStampField, indices, generation, dataStreamStatus, indexTemplate, ilmPolicyName, metadata, hidden,
+            system);
     }
 }

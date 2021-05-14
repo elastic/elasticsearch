@@ -6,11 +6,11 @@ dependencies {
   testImplementation project(':test:framework')
 }
 
-project.forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
 }
 
-tasks.named("dependencyLicenses").configure { it.enabled = false }
+tasks.named("dependencyLicenses").configure { enabled = false }
 
 tasks.register("buildZip", Zip) {
   dependsOn "jar"

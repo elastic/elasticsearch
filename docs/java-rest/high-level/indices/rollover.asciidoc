@@ -24,6 +24,7 @@ The new index argument is optional, and can be set to null
 <2> Condition on the age of the index
 <3> Condition on the number of documents in the index
 <4> Condition on the size of the index
+<5> Condition on the size of the largest primary shard of the index
 
 ==== Optional arguments
 The following arguments can optionally be provided:

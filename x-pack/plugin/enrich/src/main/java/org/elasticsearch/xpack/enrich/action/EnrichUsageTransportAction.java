@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSetUsage;
 
 public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
 
     @Inject
     public EnrichUsageTransportAction(
@@ -30,8 +29,7 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        XPackLicenseState licenseState
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             XPackUsageFeatureAction.ENRICH.name(),
@@ -41,7 +39,6 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
             actionFilters,
             indexNameExpressionResolver
         );
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -51,7 +48,6 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.ENRICH);
-        listener.onResponse(new XPackUsageFeatureResponse(new EnrichFeatureSetUsage(available)));
+        listener.onResponse(new XPackUsageFeatureResponse(new EnrichFeatureSetUsage()));
     }
 }

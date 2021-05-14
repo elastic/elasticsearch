@@ -19,6 +19,13 @@ indices.
 
 `GET /_cat/shards`
 
+[[cat-shards-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or index alias you retrieve.
 
 [[cat-shards-path-params]]
 ==== {api-path-parms-title}
@@ -273,8 +280,6 @@ Reason the shard is unassigned. Returned values are:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
@@ -378,7 +383,7 @@ my-index-000001 0 r INITIALIZING    0 14.3mb 192.168.56.30 bGG90GE
 ===== Example with reasons for unassigned shards
 
 The following request returns the `unassigned.reason` column, which indicates
-why a shard is unassigned. 
+why a shard is unassigned.
 
 
 [source,console]

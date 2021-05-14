@@ -1,56 +1,57 @@
-[[modules-http]]
-=== HTTP
-[[modules-http-description]]
-// tag::modules-http-description-tag[]
-The HTTP layer exposes {es}'s REST APIs over HTTP. Clients send HTTP requests
-to a node in the cluster which either handles it locally or else passes it on
-to other nodes for further processing using the <<modules-transport,Transport
-layer>>.
+[[http-settings]]
+==== Advanced HTTP settings
 
-When possible, consider using {wikipedia}/Keepalive#HTTP_Keepalive[HTTP keep
-alive] when connecting for better performance and try to get your favorite
-client not to do {wikipedia}/Chunked_transfer_encoding[HTTP chunking].
-// end::modules-http-description-tag[]
-
-[http-settings]
-==== HTTP settings
-
-The following settings can be configured for HTTP. These settings also use the common <<modules-network,network settings>>.
-
-`http.port`::
-(<<static-cluster-setting,Static>>)
-A bind port range. Defaults to `9200-9300`.
-
-`http.publish_port`::
-(<<static-cluster-setting,Static>>)
-The port that HTTP clients should use when
-communicating with this node. Useful when a cluster node is behind a
-proxy or firewall and the `http.port` is not directly addressable
-from the outside. Defaults to the actual port assigned via `http.port`.
-
-`http.bind_host`::
-(<<static-cluster-setting,Static>>)
-The host address to bind the HTTP service to. Defaults to `http.host` (if set) or `network.bind_host`.
-
-`http.publish_host`::
-(<<static-cluster-setting,Static>>)
-The host address to publish for HTTP clients to connect to. Defaults to `http.host` (if set) or `network.publish_host`.
+Use the following advanced settings to configure the HTTP interface
+independently of the <<transport-settings,transport interface>>. You can also
+configure both interfaces together using the <<common-network-settings,network settings>>.
 
 `http.host`::
 (<<static-cluster-setting,Static>>)
-Used to set the `http.bind_host` and the `http.publish_host`.
+Sets the address of this node for HTTP traffic. The node will bind to this
+address and will also use it as its HTTP publish address. Accepts an IP
+address, a hostname, or a <<network-interface-values,special value>>.
+Use this setting only if you require different configurations for the
+transport and HTTP interfaces.
++
+Defaults to the address given by `network.host`.
+
+`http.bind_host`::
+(<<static-cluster-setting,Static>>)
+The network address(es) to which the node should bind in order to listen for
+incoming HTTP connections. Accepts a list of IP addresses, hostnames, and
+<<network-interface-values,special values>>. Defaults to the address given by
+`http.host` or `network.bind_host`. Use this setting only if you require to
+bind to multiple addresses or to use different addresses for publishing and
+binding, and you also require different binding configurations for the
+transport and HTTP interfaces.
+
+`http.publish_host`::
+(<<static-cluster-setting,Static>>)
+The network address for HTTP clients to contact the node using sniffing.
+Accepts an IP address, a hostname, or a <<network-interface-values,special
+value>>. Defaults to the address given by `http.host` or
+`network.publish_host`. Use this setting only if you require to bind to
+multiple addresses or to use different addresses for publishing and binding,
+and you also require different binding configurations for the transport and
+HTTP interfaces.
+
+`http.publish_port`::
+(<<static-cluster-setting,Static>>)
+The port of the <<modules-network-binding-publishing,HTTP publish address>>.
+Configure this setting only if you need the publish port to be different from
+`http.port`. Defaults to the port assigned via `http.port`.
 
 `http.max_content_length`::
 (<<static-cluster-setting,Static>>)
-Maximum length of an HTTP request body. Defaults to `100MB`.
+Maximum size of an HTTP request body. Defaults to `100mb`.
 
 `http.max_initial_line_length`::
 (<<static-cluster-setting,Static>>)
-The max length of an HTTP URL. Defaults to `4KB`.
+Maximum size of an HTTP URL. Defaults to `4kb`.
 
 `http.max_header_size`::
 (<<static-cluster-setting,Static>>)
-The max size of allowed headers. Defaults to `8KB`.
+Maximum size of allowed headers. Defaults to `8kb`.
 
 [[http-compression]]
 // tag::http-compression-tag[]
@@ -186,32 +187,6 @@ Defaults to `network.tcp.send_buffer_size`.
 The size of the TCP receive buffer (specified with <<size-units,size units>>).
 Defaults to `network.tcp.receive_buffer_size`.
 
-[http-rest-request-tracer]
-==== REST request tracer
-
-The HTTP layer has a dedicated tracer logger which, when activated, logs incoming requests. The log can be dynamically activated
-by setting the level of the `org.elasticsearch.http.HttpTracer` logger to `TRACE`:
-
-[source,console]
---------------------------------------------------
-PUT _cluster/settings
-{
-   "transient" : {
-      "logger.org.elasticsearch.http.HttpTracer" : "TRACE"
-   }
-}
---------------------------------------------------
-
-You can also control which uris will be traced, using a set of include and exclude wildcard patterns. By default every request will be
-traced.
-
-[source,console]
---------------------------------------------------
-PUT _cluster/settings
-{
-   "transient" : {
-      "http.tracer.include" : "*",
-      "http.tracer.exclude" : ""
-   }
-}
---------------------------------------------------
+`http.client_stats.enabled`::
+(<<dynamic-cluster-setting,Dynamic>>)
+Enable or disable collection of HTTP client stats. Defaults to `true`.

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression;
 
@@ -16,7 +17,7 @@ import static java.util.Collections.emptyList;
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
  * In other words, an attribute represent a column in the results of a query.
- * 
+ *
  * In the statement {@code SELECT ABS(foo), A, B+C FROM ...} the three named
  * expressions {@code ABS(foo), A, B+C} get converted to attributes and the user can
  * only see Attributes.
@@ -113,6 +114,11 @@ public abstract class Attribute extends NamedExpression {
     @Override
     public boolean semanticEquals(Expression other) {
         return other instanceof Attribute ? id().equals(((Attribute) other).id()) : false;
+    }
+
+    @Override
+    protected Expression canonicalize() {
+        return clone(Source.EMPTY, name(), dataType(), qualifier, nullability, id(), synthetic());
     }
 
     @Override

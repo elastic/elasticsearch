@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
@@ -31,7 +20,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +35,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 String name,
                 int shardSize,
                 AggregatorFactories factories,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata,
                 ValuesSourceConfig valuesSourceConfig,
@@ -66,12 +54,12 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
 
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             (
                 String name,
                 int shardSize,
                 AggregatorFactories factories,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata,
                 ValuesSourceConfig valuesSourceConfig,
@@ -86,7 +74,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 if (execution == null) {
                     execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
-                if ((execution.needsGlobalOrdinals()) && (valuesSourceConfig.hasGlobalOrdinals() == false)) {
+                if ((execution.needsGlobalOrdinals()) && (valuesSourceConfig.hasOrdinals() == false)) {
                     execution = ExecutionMode.MAP;
                 }
                 return execution.create(name, factories, shardSize, maxDocsPerValue, valuesSourceConfig, context, parent, metadata);
@@ -94,37 +82,36 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
             true);
     }
 
+    private final DiversifiedAggregatorSupplier aggregatorSupplier;
     private final int shardSize;
     private final int maxDocsPerValue;
     private final String executionHint;
 
     DiversifiedAggregatorFactory(String name, ValuesSourceConfig config, int shardSize, int maxDocsPerValue,
                                  String executionHint, AggregationContext context, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata,
+                                 DiversifiedAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.shardSize = shardSize;
         this.maxDocsPerValue = maxDocsPerValue;
         this.executionHint = executionHint;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
+    protected Aggregator doCreateInternal(Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
 
-        return context.getValuesSourceRegistry()
-            .getAggregator(DiversifiedAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, shardSize, factories, searchContext, parent, metadata, config, maxDocsPerValue, executionHint);
+        return aggregatorSupplier.build(name, shardSize, factories, context,
+                                        parent, metadata, config, maxDocsPerValue, executionHint);
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         final UnmappedSampler aggregation = new UnmappedSampler(name, metadata);
 
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;

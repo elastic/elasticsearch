@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.qa.rest;
@@ -27,10 +28,12 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.FIELD_MULTI_VALUE_LENIENCY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FILTER_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.RUNTIME_MAPPINGS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
 
 public abstract class BaseRestSqlTestCase extends ESRestTestCase {
@@ -104,6 +107,16 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder fieldMultiValueLeniency(Boolean fieldMultiValueLeniency) {
+            request.append(field(FIELD_MULTI_VALUE_LENIENCY_NAME, fieldMultiValueLeniency));
+            return this;
+        }
+
+        public RequestObjectBuilder runtimeMappings(String runtimeMappings) {
+            request.append(field(RUNTIME_MAPPINGS_NAME, runtimeMappings));
+            return this;
+        }
+
         private static String field(String name, Object value) {
             if (value == null) {
                 return StringUtils.EMPTY;
@@ -115,7 +128,7 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
                     return StringUtils.EMPTY;
                 }
                 String lowerName = name.toLowerCase(Locale.ROOT);
-                if (lowerName.equals(PARAMS_NAME) || lowerName.equals(FILTER_NAME)) {
+                if (lowerName.equals(PARAMS_NAME) || lowerName.equals(FILTER_NAME) || lowerName.equals(RUNTIME_MAPPINGS_NAME)) {
                     field += value;
                 } else {
                     field += "\"" + value + "\"";

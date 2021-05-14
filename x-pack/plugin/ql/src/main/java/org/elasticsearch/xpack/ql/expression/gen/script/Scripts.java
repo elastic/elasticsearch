@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.ql.util.Check;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.LinkedHashMap;
@@ -33,19 +35,22 @@ public final class Scripts {
     public static final String INTERNAL_EQL_SCRIPT_UTILS = "InternalEqlScriptUtils";
     public static final String INTERNAL_SQL_SCRIPT_UTILS = "InternalSqlScriptUtils";
 
-    private Scripts() {}
+    private static final int PKG_LENGTH = "org.elasticsearch.xpack.".length();
+
+    private Scripts() {
+    }
 
     static final Map<Pattern, String> FORMATTING_PATTERNS = unmodifiableMap(Stream.of(
-            new SimpleEntry<>(DOC_VALUE, QL_SCRIPTS + ".docValue(doc,{})"),
-            new SimpleEntry<>(QL_SCRIPTS, INTERNAL_QL_SCRIPT_UTILS),
-            new SimpleEntry<>(EQL_SCRIPTS, INTERNAL_EQL_SCRIPT_UTILS),
-            new SimpleEntry<>(SQL_SCRIPTS, INTERNAL_SQL_SCRIPT_UTILS),
-            new SimpleEntry<>(PARAM, "params.%s"))
-            .collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new)));
+        new SimpleEntry<>(DOC_VALUE, QL_SCRIPTS + ".docValue(doc,{})"),
+        new SimpleEntry<>(QL_SCRIPTS, INTERNAL_QL_SCRIPT_UTILS),
+        new SimpleEntry<>(EQL_SCRIPTS, INTERNAL_EQL_SCRIPT_UTILS),
+        new SimpleEntry<>(SQL_SCRIPTS, INTERNAL_SQL_SCRIPT_UTILS),
+        new SimpleEntry<>(PARAM, "params.%s"))
+        .collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new)));
 
     /**
      * Expands common tokens inside the script:
-     * 
+     *
      * <pre>
      * {sql} -&gt; InternalSqlScriptUtils
      * doc[{}].value -&gt; InternalSqlScriptUtils.docValue(doc, {})
@@ -81,18 +86,25 @@ public final class Scripts {
     public static ScriptTemplate or(ScriptTemplate left, ScriptTemplate right) {
         return binaryMethod("{ql}", "or", left, right, DataTypes.BOOLEAN);
     }
-    
+
     public static ScriptTemplate binaryMethod(String prefix, String methodName, ScriptTemplate leftScript, ScriptTemplate rightScript,
             DataType dataType) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("%s.%s(%s,%s)"),
-                formatTemplate(prefix),
-                methodName,
-                leftScript.template(),
-                rightScript.template()),
-                paramsBuilder()
-                    .script(leftScript.params())
-                    .script(rightScript.params())
-                    .build(),
-                dataType);
+            formatTemplate(prefix),
+            methodName,
+            leftScript.template(),
+            rightScript.template()),
+            paramsBuilder()
+                .script(leftScript.params())
+                .script(rightScript.params())
+                .build(),
+            dataType);
+    }
+
+    public static String classPackageAsPrefix(Class<?> function) {
+        String prefix = function.getPackageName().substring(PKG_LENGTH);
+        int index = prefix.indexOf('.');
+        Check.isTrue(index > 0, "invalid package {}", prefix);
+        return "{" + prefix.substring(0, index) + "}";
     }
 }

@@ -1,0 +1,31 @@
+{
+  "indices.promote_data_stream":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
+      "description":"Promotes a data stream from a replicated data stream managed by CCR to a regular data stream"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_data_stream/_promote/{name}",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the data stream"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+    }
+  }
+}

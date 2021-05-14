@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.oidc;
 
@@ -363,7 +364,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             builder.loginHint(loginHint);
         }
         return new OpenIdConnectPrepareAuthenticationResponse(builder.build().toURI().toString(),
-            state.getValue(), nonce.getValue());
+            state.getValue(), nonce.getValue(), this.name());
     }
 
     public boolean isIssuerValid(String issuer) {

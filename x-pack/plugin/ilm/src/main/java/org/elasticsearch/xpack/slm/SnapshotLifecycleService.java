@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -14,7 +15,9 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -229,9 +232,23 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * @throws IllegalArgumentException if the repository does not exist
      */
     public static void validateRepositoryExists(final String repository, final ClusterState state) {
-        Optional.ofNullable((RepositoriesMetadata) state.metadata().custom(RepositoriesMetadata.TYPE))
-            .map(repoMeta -> repoMeta.repository(repository))
-            .orElseThrow(() -> new IllegalArgumentException("no such repository [" + repository + "]"));
+        if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
+            throw new IllegalArgumentException("no such repository [" + repository + "]");
+        }
+    }
+
+    /**
+     * Validates that the interval between snapshots is not smaller than the minimum interval
+     * (see {@link LifecycleSettings#SLM_MINIMUM_INTERVAL_SETTING})
+     * @throws IllegalArgumentException if the interval is less than the minimum
+     */
+    public static void validateMinimumInterval(final SnapshotLifecyclePolicy lifecycle, final ClusterState state) {
+        TimeValue minimum = LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING.get(state.metadata().settings());
+        TimeValue next = lifecycle.calculateNextInterval();
+        if (next.duration() > 0 && minimum.duration() > 0 && next.millis() < minimum.millis()) {
+            throw new IllegalArgumentException("invalid schedule [" + lifecycle.getSchedule() + "]: " +
+                "schedule would be too frequent, executing more than every [" + minimum.getStringRep() + "]");
+        }
     }
 
     @Override

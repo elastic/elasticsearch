@@ -16,10 +16,8 @@ Updates certain properties of an {anomaly-job}.
 [[ml-update-job-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
-
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-update-job-path-parms]]
 == {api-path-parms-title}
@@ -35,7 +33,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 The following properties can be updated after the job is created:
 
 `allow_lazy_open`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 +
 --
@@ -53,7 +51,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=analysis-limits]
 ====
 `model_memory_limit`:::
 (long or string) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 +
 --
 NOTE: You can update the `analysis_limits` only while the job is closed. The 
@@ -181,11 +179,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 [%collapsible%open]
 ====
 `annotations_enabled`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
 
 `enabled`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 
 `terms`:::
@@ -207,11 +205,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
 [%collapsible%open]
 ====
 `enabled`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
 
 `stop_on_warn`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
 ====
 //End per_partition_categorization

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
@@ -83,7 +72,7 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns <code>true</code> iff the routing tables (for all indices) have
+     * Returns <code>true</code> if the routing tables (for all indices) have
      * changed between the previous cluster state and the current cluster state.
      * Note that this is an object reference equality test, not an equals test.
      */
@@ -97,7 +86,7 @@ public class ClusterChangedEvent {
      */
     public boolean indexRoutingTableChanged(String index) {
         Objects.requireNonNull(index, "index must not be null");
-        if (!state.routingTable().hasIndex(index) && !previousState.routingTable().hasIndex(index)) {
+        if (state.routingTable().hasIndex(index) == false && previousState.routingTable().hasIndex(index) == false) {
             return false;
         }
         if (state.routingTable().hasIndex(index) && previousState.routingTable().hasIndex(index)) {
@@ -110,13 +99,13 @@ public class ClusterChangedEvent {
      * Returns the indices created in this event
      */
     public List<String> indicesCreated() {
-        if (!metadataChanged()) {
+        if (metadataChanged() == false) {
             return Collections.emptyList();
         }
         List<String> created = null;
         for (ObjectCursor<String> cursor : state.metadata().indices().keys()) {
             String index = cursor.value;
-            if (!previousState.metadata().hasIndex(index)) {
+            if (previousState.metadata().hasIndex(index) == false) {
                 if (created == null) {
                     created = new ArrayList<>();
                 }

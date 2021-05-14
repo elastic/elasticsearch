@@ -42,7 +42,7 @@ The primary shard follows this basic flow:
 . Execute the operation locally i.e. indexing or deleting the relevant document. This will also validate the content of fields
    and reject if needed (Example: a keyword value is too long for indexing in Lucene).
 . Forward the operation to each replica in the current in-sync copies set. If there are multiple replicas, this is done in parallel.
-. Once all replicas have successfully performed the operation and responded to the primary, the primary acknowledges the successful
+. Once all in-sync replicas have successfully performed the operation and responded to the primary, the primary acknowledges the successful
    completion of the request to the client.
 
 Each in-sync replica copy performs the indexing operation locally so that it has a copy. This stage of indexing is the
@@ -89,7 +89,7 @@ This is a valid scenario that can happen due to index configuration or simply
 because all the replicas have failed. In that case the primary is processing operations without any external validation,
 which may seem problematic. On the other hand, the primary cannot fail other shards on its own but request the master to do
 so on its behalf. This means that the master knows that the primary is the only single good copy. We are therefore guaranteed
-that the master will not promote any other (out-of-date) shard copy to be a  new primary and that any operation indexed
+that the master will not promote any other (out-of-date) shard copy to be a new primary and that any operation indexed
 into the primary will not be lost. Of course, since at that point we are running with only single copy of the data, physical hardware
 issues can cause data loss. See <<index-wait-for-active-shards>> for some mitigation options.
 ************
@@ -108,7 +108,8 @@ is as follows:
 . Resolve the read requests to the relevant shards. Note that since most searches will be sent to one or more indices,
    they typically need to read from multiple shards, each representing a different subset of the data.
 . Select an active copy of each relevant shard, from the shard replication group. This can be either the primary or
-   a replica. By default, Elasticsearch will simply round robin between the shard copies.
+   a replica. By default, {es} uses <<search-adaptive-replica,adaptive replica
+   selection>> to select the shard copies.
 . Send shard level read requests to the selected copies.
 . Combine the results and respond. Note that in the case of get by ID look up, only one shard is relevant and this step can be skipped.
 
@@ -164,7 +165,7 @@ Dirty reads:: An isolated primary can expose writes that will not be acknowledge
 [discrete]
 ==== The Tip of the Iceberg
 
-This document provides a high level overview of how Elasticsearch deals with data. Of course, there is much much more
+This document provides a high level overview of how Elasticsearch deals with data. Of course, there is much more
 going on under the hood. Things like primary terms, cluster state publishing, and master election all play a role in
 keeping this system behaving correctly. This document also doesn't cover known and important
 bugs (both closed and open). We recognize that https://github.com/elastic/elasticsearch/issues?q=label%3Aresiliency[GitHub is hard to keep up with].

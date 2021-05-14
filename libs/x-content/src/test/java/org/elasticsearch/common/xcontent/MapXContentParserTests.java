@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
@@ -91,7 +80,7 @@ public class MapXContentParserTests extends ESTestCase {
             try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
                 try (XContentParser mapParser = new MapXContentParser(
                     xContentRegistry(), LoggingDeprecationHandler.INSTANCE, map, xContentType)) {
-                    assertEquals(parser.contentType(), mapParser.contentType());
+                    assertEquals(parser.contentType(), mapParser.contentType().canonical());
                     XContentParser.Token token;
                     assertEquals(parser.currentToken(), mapParser.currentToken());
                     assertEquals(parser.currentName(), mapParser.currentName());
@@ -101,7 +90,8 @@ public class MapXContentParserTests extends ESTestCase {
                         assertEquals(token, mapToken);
                         assertEquals(parser.currentName(), mapParser.currentName());
                         if (token != null && (token.isValue() || token == XContentParser.Token.VALUE_NULL)) {
-                            if (xContentType != XContentType.YAML || token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                            if ((xContentType.canonical() != XContentType.YAML) ||
+                                token != XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                                 // YAML struggles with converting byte arrays into text, because it
                                 // does weird base64 decoding to the values. We don't do this
                                 // weirdness in the MapXContentParser, so don't try to stringify it.

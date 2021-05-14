@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
@@ -66,27 +67,27 @@ public class DatafeedManager {
     private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
     private final AutodetectProcessManager autodetectProcessManager;
+    private final DatafeedContextProvider datafeedContextProvider;
 
     public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
                            Supplier<Long> currentTimeSupplier, AnomalyDetectionAuditor auditor,
-                           AutodetectProcessManager autodetectProcessManager) {
+                           AutodetectProcessManager autodetectProcessManager, DatafeedContextProvider datafeedContextProvider) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.threadPool = threadPool;
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.auditor = Objects.requireNonNull(auditor);
         this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
-        this.autodetectProcessManager = autodetectProcessManager;
+        this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
+        this.datafeedContextProvider = Objects.requireNonNull(datafeedContextProvider);
         clusterService.addListener(taskRunner);
     }
 
     public void run(TransportStartDatafeedAction.DatafeedTask task, Consumer<Exception> finishHandler) {
-        String datafeedId = task.getDatafeedId();
-
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
                 datafeedJob -> {
                     String jobId = datafeedJob.getJobId();
-                    Holder holder = new Holder(task, datafeedId, datafeedJob,
+                    Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob,
                             new ProblemTracker(auditor, jobId), finishHandler);
                     runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
                     task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
@@ -99,16 +100,21 @@ public class DatafeedManager {
                         public void onFailure(Exception e) {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                                 // The task was stopped in the meantime, no need to do anything
-                                logger.info("[{}] Aborting as datafeed has been stopped", datafeedId);
+                                logger.info("[{}] Aborting as datafeed has been stopped", task.getDatafeedId());
                             } else {
                                 finishHandler.accept(e);
                             }
                         }
                     });
-                }, finishHandler::accept
+                }, finishHandler
         );
 
-        datafeedJobBuilder.build(datafeedId, task.getParentTaskId(), datafeedJobHandler);
+        ActionListener<DatafeedContext> datafeedContextListener = ActionListener.wrap(
+            datafeedContext -> datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler),
+            finishHandler
+        );
+
+        datafeedContextProvider.buildDatafeedContext(task.getDatafeedId(), datafeedContextListener);
     }
 
     public void stopDatafeed(TransportStartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
@@ -179,12 +185,12 @@ public class DatafeedManager {
                     if (endTime == null) {
                         next = e.nextDelayInMsSinceEpoch;
                     }
-                    holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
+                    holder.problemTracker.reportExtractionProblem(e);
                 } catch (DatafeedJob.AnalysisProblemException e) {
                     if (endTime == null) {
                         next = e.nextDelayInMsSinceEpoch;
                     }
-                    holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
+                    holder.problemTracker.reportAnalysisProblem(e);
                     if (e.shouldStop) {
                         holder.stop("lookback_analysis_error", TimeValue.timeValueSeconds(20), e);
                         return;
@@ -217,7 +223,7 @@ public class DatafeedManager {
     }
 
     void doDatafeedRealtime(long delayInMsSinceEpoch, String jobId, Holder holder) {
-        if (holder.isRunning() && !holder.isIsolated()) {
+        if (holder.isRunning() && holder.isIsolated() == false) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
             holder.cancellable = threadPool.schedule(new AbstractRunnable() {
@@ -236,10 +242,10 @@ public class DatafeedManager {
                         holder.problemTracker.reportNonEmptyDataCount();
                     } catch (DatafeedJob.ExtractionProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
+                        holder.problemTracker.reportExtractionProblem(e);
                     } catch (DatafeedJob.AnalysisProblemException e) {
                         nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
-                        holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
+                        holder.problemTracker.reportAnalysisProblem(e);
                         if (e.shouldStop) {
                             holder.stop("realtime_analysis_error", TimeValue.timeValueSeconds(20), e);
                             return;
@@ -411,7 +417,7 @@ public class DatafeedManager {
         private Long executeLookBack(long startTime, Long endTime) throws Exception {
             datafeedJobLock.lock();
             try {
-                if (isRunning() && !isIsolated()) {
+                if (isRunning() && isIsolated() == false) {
                     return datafeedJob.runLookBack(startTime, endTime);
                 } else {
                     return null;
@@ -424,7 +430,7 @@ public class DatafeedManager {
         private long executeRealTime() throws Exception {
             datafeedJobLock.lock();
             try {
-                if (isRunning() && !isIsolated()) {
+                if (isRunning() && isIsolated() == false) {
                     return datafeedJob.runRealtime();
                 } else {
                     return -1L;
@@ -467,7 +473,7 @@ public class DatafeedManager {
 
                                 @Override
                                 public void onResponse(CloseJobAction.Response response) {
-                                    if (!response.isClosed()) {
+                                    if (response.isClosed() == false) {
                                         logger.error("[{}] job close action was not acknowledged", getJobId());
                                     }
                                 }

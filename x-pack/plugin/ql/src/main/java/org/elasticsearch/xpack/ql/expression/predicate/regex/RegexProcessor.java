@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
@@ -14,7 +15,7 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class RegexProcessor implements Processor {
-    
+
     public static class RegexOperation {
 
         public static Boolean match(Object value, Pattern pattern) {
@@ -30,6 +31,10 @@ public class RegexProcessor implements Processor {
         }
 
         public static Boolean match(Object value, String pattern) {
+            return match(value, pattern, Boolean.FALSE);
+        }
+
+        public static Boolean match(Object value, String pattern, Boolean caseInsensitive) {
             if (pattern == null) {
                 return Boolean.TRUE;
             }
@@ -38,7 +43,11 @@ public class RegexProcessor implements Processor {
                 return null;
             }
 
-            return Pattern.compile(pattern).matcher(value.toString()).matches();
+            int flags = 0;
+            if (Boolean.TRUE.equals(caseInsensitive)) {
+                flags |= Pattern.CASE_INSENSITIVE;
+            }
+            return Pattern.compile(pattern, flags).matcher(value.toString()).matches();
         }
     }
 

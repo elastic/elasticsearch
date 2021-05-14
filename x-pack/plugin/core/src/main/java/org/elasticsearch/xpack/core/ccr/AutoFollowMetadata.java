@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ccr;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -275,12 +277,18 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             }
         }
 
-        public boolean match(String indexName) {
-            return match(leaderIndexPatterns, indexName);
+        public boolean match(IndexAbstraction indexAbstraction) {
+            return match(leaderIndexPatterns, indexAbstraction);
         }
 
-        public static boolean match(List<String> leaderIndexPatterns, String indexName) {
-            return Regex.simpleMatch(leaderIndexPatterns, indexName);
+        public static boolean match(List<String> leaderIndexPatterns, IndexAbstraction indexAbstraction) {
+            boolean matches = Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getName());
+            if (matches) {
+                return true;
+            } else {
+                return indexAbstraction.getParentDataStream() != null &&
+                    Regex.simpleMatch(leaderIndexPatterns, indexAbstraction.getParentDataStream().getName());
+            }
         }
 
         public String getRemoteCluster() {
@@ -340,7 +348,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
+            if (super.equals(o) == false) return false;
             AutoFollowPattern pattern = (AutoFollowPattern) o;
             return active == pattern.active &&
                 remoteCluster.equals(pattern.remoteCluster) &&

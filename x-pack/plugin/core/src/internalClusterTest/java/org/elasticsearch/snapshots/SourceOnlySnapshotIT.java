@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +20,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -41,6 +42,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,18 +59,22 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
-public class SourceOnlySnapshotIT extends ESIntegTestCase {
+public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> classes = new ArrayList<>(super.nodePlugins());
-        classes.add(MyPlugin.class);
-        return classes;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MyPlugin.class);
     }
 
     @Override
     protected boolean addMockInternalEngine() {
         return false;
+    }
+
+    @Override
+    public void setUp() throws Exception {
+        disableRepoConsistencyCheck("source only snapshot repository does not support consistency check");
+        super.setUp();
     }
 
     public static final class MyPlugin extends Plugin implements RepositoryPlugin, EnginePlugin {
@@ -86,9 +94,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            List<Setting<?>> settings = new ArrayList<>(super.getSettings());
-            settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
-            return settings;
+            return CollectionUtils.appendToCopy(super.getSettings(), SourceOnlySnapshotRepository.SOURCE_ONLY);
         }
     }
 
@@ -96,7 +102,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
         boolean useNested = randomBoolean();
-        IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, useNested);
+        IndexRequestBuilder[] builders = snapshotAndRestore(sourceIdx, requireRouting, useNested);
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(sourceIdx).clear().setDocs(true).get();
         long deleted = indicesStatsResponse.getTotal().docs.getDeleted();
         boolean sourceHadDeletions = deleted > 0; // we use indexRandom which might create holes ie. deleted docs
@@ -116,8 +122,8 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
             .setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
-            client().admin().indices().prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get();
+        assertAcked(client().admin().indices().prepareUpdateSettings(sourceIdx)
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get());
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
@@ -125,7 +131,7 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
     public void testSnapshotAndRestoreWithNested() throws Exception {
         final String sourceIdx = "test-idx";
         boolean requireRouting = randomBoolean();
-        IndexRequestBuilder[] builders = snashotAndRestore(sourceIdx, 1, true, requireRouting, true);
+        IndexRequestBuilder[] builders = snapshotAndRestore(sourceIdx, requireRouting, true);
         IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats().clear().setDocs(true).get();
         assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0L));
         assertHits(sourceIdx, builders.length, true);
@@ -141,13 +147,45 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
             .setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
-        client().admin().indices().prepareUpdateSettings(sourceIdx).setSettings(Settings.builder().put("index.number_of_replicas", 1))
-            .get();
+        assertAcked(client().admin().indices().prepareUpdateSettings(sourceIdx)
+                .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get());
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, true);
     }
 
-    private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
+    public void testSnapshotWithDanglingLocalSegment() throws Exception {
+        logger.info("-->  starting a master node and a data node");
+        internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+
+        final String repo = "test-repo";
+        createRepository(repo, "source",
+            Settings.builder().put("location", randomRepoPath()).put("delegate_type", "fs").put("compress", randomBoolean()));
+
+        final String indexName = "test-idx";
+        createIndex(indexName);
+        client().prepareIndex(indexName).setSource("foo", "bar").get();
+        assertSuccessful(startFullSnapshot(repo, "snapshot-1"));
+
+        client().prepareIndex(indexName).setSource("foo", "baz").get();
+        assertSuccessful(startFullSnapshot(repo, "snapshot-2"));
+
+        logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
+        Path snapshotShardPath = internalCluster().getInstance(IndicesService.class, dataNode).indexService(
+                clusterService().state().metadata().index(indexName).getIndex()).getShard(0).shardPath().getDataPath()
+                .resolve("_snapshot");
+        try (DirectoryStream<Path> localFiles = Files.newDirectoryStream(snapshotShardPath)) {
+            for (Path localFile : localFiles) {
+                if (randomBoolean()) {
+                    Files.delete(localFile);
+                }
+            }
+        }
+
+        assertSuccessful(startFullSnapshot(repo, "snapshot-3"));
+    }
+
+    private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
         MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ?
@@ -208,28 +246,20 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         }
     }
 
-    private IndexRequestBuilder[] snashotAndRestore(final String sourceIdx,
-                                                    final int numShards,
-                                                    final boolean minimal,
-                                                    final boolean requireRouting,
-                                                    final boolean useNested) throws InterruptedException, IOException {
+    private IndexRequestBuilder[] snapshotAndRestore(final String sourceIdx,
+                                                     final boolean requireRouting,
+                                                     final boolean useNested) throws InterruptedException, IOException {
         logger.info("-->  starting a master node and a data node");
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
 
-        final Client client = client();
         final String repo = "test-repo";
         final String snapshot = "test-snap";
 
-        logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository(repo).setType("source")
-            .setSettings(Settings.builder().put("location", randomRepoPath())
-                .put("delegate_type", "fs")
-                .put("restore_minimal", minimal)
-                .put("compress", randomBoolean())));
+        createRepository(repo, "source",
+                Settings.builder().put("location", randomRepoPath()).put("delegate_type", "fs").put("compress", randomBoolean()));
 
-        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, Settings.builder()
-            .put("number_of_shards", numShards).put("number_of_replicas", 0));
+        CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, indexSettingsNoReplicas(1));
         List<String> mappings = new ArrayList<>();
         if (requireRouting) {
             mappings.addAll(Arrays.asList("_routing", "required=true"));
@@ -264,20 +294,16 @@ public class SourceOnlySnapshotIT extends ESIntegTestCase {
         flushAndRefresh();
         assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")).get(), 1);
 
-        logger.info("--> snapshot the index");
-        CreateSnapshotResponse createResponse = client.admin().cluster()
-            .prepareCreateSnapshot(repo, snapshot)
-            .setWaitForCompletion(true).setIndices(sourceIdx).get();
-        assertEquals(SnapshotState.SUCCESS, createResponse.getSnapshotInfo().state());
+        createSnapshot(repo, snapshot, Collections.singletonList(sourceIdx));
 
         logger.info("--> delete index and stop the data node");
-        assertAcked(client.admin().indices().prepareDelete(sourceIdx).get());
+        assertAcked(client().admin().indices().prepareDelete(sourceIdx).get());
         internalCluster().stopRandomDataNode();
-        client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("1");
+        assertFalse(client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("1").get().isTimedOut());
 
         final String newDataNode = internalCluster().startDataOnlyNode();
         logger.info("--> start a new data node " + newDataNode);
-        client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("2");
+        assertFalse(client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("2").get().isTimedOut());
 
         logger.info("--> restore the index and ensure all shards are allocated");
         RestoreSnapshotResponse restoreResponse = client().admin().cluster()

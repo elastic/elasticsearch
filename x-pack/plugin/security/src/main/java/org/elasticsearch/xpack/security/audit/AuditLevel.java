@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.audit;
 
@@ -12,7 +13,6 @@ import java.util.Locale;
 
 public enum AuditLevel {
 
-    
     ANONYMOUS_ACCESS_DENIED,
     AUTHENTICATION_FAILED,
     REALM_AUTHENTICATION_FAILED,
@@ -22,6 +22,7 @@ public enum AuditLevel {
     CONNECTION_GRANTED,
     CONNECTION_DENIED,
     SYSTEM_ACCESS_GRANTED,
+    SECURITY_CONFIG_CHANGE,
     AUTHENTICATION_SUCCESS,
     RUN_AS_GRANTED,
     RUN_AS_DENIED;
@@ -60,6 +61,9 @@ public enum AuditLevel {
                     break;
                 case "system_access_granted":
                     enumSet.add(SYSTEM_ACCESS_GRANTED);
+                    break;
+                case "security_config_change":
+                    enumSet.add(SECURITY_CONFIG_CHANGE);
                     break;
                 case "authentication_success":
                     enumSet.add(AUTHENTICATION_SUCCESS);

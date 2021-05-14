@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.querydsl.agg;
 
@@ -31,11 +32,11 @@ public class GroupByDateHistogram extends GroupByKey {
     public GroupByDateHistogram(String id, ScriptTemplate script, long fixedInterval, ZoneId zoneId) {
         this(id, AggSource.of(script), null, fixedInterval, null, zoneId);
     }
-    
+
     public GroupByDateHistogram(String id, String fieldName, String calendarInterval, ZoneId zoneId) {
         this(id, AggSource.of(fieldName), null, -1L, calendarInterval, zoneId);
     }
-    
+
     public GroupByDateHistogram(String id, ScriptTemplate script, String calendarInterval, ZoneId zoneId) {
         this(id, AggSource.of(script), null, -1L, calendarInterval, zoneId);
     }

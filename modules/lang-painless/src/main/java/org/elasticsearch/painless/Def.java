@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -29,7 +18,6 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.math.BigInteger;
 import java.time.ZonedDateTime;
 import java.util.BitSet;
 import java.util.Collections;
@@ -94,7 +82,7 @@ public final class Def {
         static int getArrayLength(final Object[] array)  { return array.length; }
 
         static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
@@ -623,7 +611,7 @@ public final class Def {
         }
 
         static MethodHandle newIterator(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
@@ -761,8 +749,6 @@ public final class Def {
             return (float)value;
         } else if (value instanceof Double) {
             return (double)value;
-        } else if (value instanceof BigInteger) {
-            return ((BigInteger)value).doubleValue();
         } else {
             throw new ClassCastException("cannot implicitly cast " +
                     "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
@@ -895,8 +881,7 @@ public final class Def {
                 value instanceof Integer ||
                 value instanceof Long    ||
                 value instanceof Float   ||
-                value instanceof Double  ||
-                value instanceof BigInteger
+                value instanceof Double
         ) {
             return ((Number)value).doubleValue();
         } else {
@@ -1035,8 +1020,6 @@ public final class Def {
             return (double)(float)value;
         } else if (value instanceof Double) {
             return (Double) value;
-        } else if (value instanceof BigInteger) {
-            return ((BigInteger)value).doubleValue();
         } else {
             throw new ClassCastException("cannot implicitly cast " +
                     "def [" + PainlessLookupUtility.typeToUnboxedType(value.getClass()).getCanonicalName() + "] to " +
@@ -1183,8 +1166,7 @@ public final class Def {
                 value instanceof Integer ||
                 value instanceof Long    ||
                 value instanceof Float   ||
-                value instanceof Double  ||
-                value instanceof BigInteger
+                value instanceof Double
         ) {
             return ((Number)value).doubleValue();
         } else {
@@ -1276,7 +1258,7 @@ public final class Def {
         static int normalizeIndex(final Object[] array, final int index) { return index >= 0 ? index : index + array.length; }
 
         static MethodHandle arrayIndexNormalizer(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?

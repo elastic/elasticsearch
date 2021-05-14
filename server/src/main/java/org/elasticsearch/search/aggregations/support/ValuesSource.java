@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -46,31 +35,45 @@ import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithScript.BytesValues;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
-
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
 
 /**
- * Note on subclassing ValuesSources: Generally, direct subclasses of ValuesSource should also be abstract, representing types.  These
- * subclasses are free to add new methods specific to that type (e.g. {@link Numeric#isFloatingPoint()}).  Subclasses of these should, in
- * turn, be concrete and implement specific ways of reading the given values (e.g.  script and field based sources).  It is also possible
- * to see sub-sub-classes of ValuesSource that act as wrappers on other concrete values sources to add functionality, such as the
- * anonymous subclasses returned from  {@link MissingValues} or the GeoPoint to Numeric conversion logic in
- * {@link org.elasticsearch.search.aggregations.bucket.geogrid.CellIdSource}
+ * A unified interface to different ways of getting input data for
+ * {@link Aggregator}s like DocValues from Lucene or script output. The
+ * top level sub-classes define type-specific behavior, such as
+ * {@link ValuesSource.Numeric#isFloatingPoint()}. Second level subclasses are
+ * then specialized based on where they read values from, e.g. script or field
+ * cases. There are also adapter classes like {@link GeoTileCellIdSource} which do
+ * run-time conversion from one type to another, often dependent on a user
+ * specified parameter (precision in that case).
  */
 public abstract class ValuesSource {
 
     /**
-     * Get the current {@link BytesValues}.
+     * Get a byte array like view into the values. This is the "native" way
+     * to access {@link Bytes}-style values.
      */
     public abstract SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException;
 
+    /**
+     * Get a "has any values" view into the values. It'll try to pick the
+     * "most native" way to check if there are any values, but it builds its
+     * own view into the values so if you need any of the actual values its
+     * best to use something like {@link #bytesValues} or
+     * {@link Numeric#doubleValues} but if you <strong>just</strong>
+     * need to know if there are any values then use this.
+     */
     public abstract DocValueBits docsWithValue(LeafReaderContext context) throws IOException;
 
     /** Whether this values source needs scores. */
@@ -79,48 +82,30 @@ public abstract class ValuesSource {
     }
 
     /**
-     * Build a function prepares rounding values to be called many times.
+     * Build a function to prepare {@link Rounding}s.
      * <p>
      * This returns a {@linkplain Function} because auto date histogram will
      * need to call it many times over the course of running the aggregation.
+     * Other aggregations should feel free to call it once.
      */
     protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
 
     /**
-     * Check if this values source supports using global ordinals
+     * Check if this values source supports using global and segment ordinals.
+     * <p>
+     * If this returns {@code true} then it is safe to cast it to {@link ValuesSource.Bytes.WithOrdinals}.
      */
-    public boolean hasGlobalOrdinals() {
+    public boolean hasOrdinals() {
         return false;
     }
 
-    public static class Range extends ValuesSource {
-        private final RangeType rangeType;
-        protected final IndexFieldData<?> indexFieldData;
-
-        public Range(IndexFieldData<?> indexFieldData, RangeType rangeType) {
-            this.indexFieldData = indexFieldData;
-            this.rangeType = rangeType;
-        }
-
-        @Override
-        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
-            return indexFieldData.load(context).getBytesValues();
-        }
-
-        @Override
-        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-            final SortedBinaryDocValues bytes = bytesValues(context);
-            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
-        }
-
-        @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
-            // TODO lookup the min and max rounding when appropriate
-            return Rounding::prepareForUnknown;
-        }
-
-        public RangeType rangeType() { return rangeType; }
-    }
+    /**
+     * {@linkplain ValuesSource} for fields who's values are best thought of
+     * as byte arrays without any other meaning like {@code keyword} or
+     * {@code ip}. Aggregations that operate on these values presume only
+     * that {@link DocValueFormat#format(BytesRef)} will correctly convert
+     * the resulting {@link BytesRef} into something human readable.
+     */
     public abstract static class Bytes extends ValuesSource {
 
         @Override
@@ -134,6 +119,14 @@ public abstract class ValuesSource {
             throw new AggregationExecutionException("can't round a [BYTES]");
         }
 
+        /**
+         * Specialization of {@linkplain Bytes} who's underlying storage
+         * de-duplicates its bytes by storing them in a per-leaf sorted
+         * lookup table. Aggregations that are aware of these lookup tables
+         * can operate directly on the value's position in the table, know as
+         * the "ordinal". They can then later translate the ordinal into
+         * the {@link BytesRef} value.
+         */
         public abstract static class WithOrdinals extends Bytes {
 
             public static final WithOrdinals EMPTY = new WithOrdinals() {
@@ -166,11 +159,62 @@ public abstract class ValuesSource {
                 return org.elasticsearch.index.fielddata.FieldData.docsWithValue(ordinals);
             }
 
-            public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context)
-                    throws IOException;
+            /**
+             * Get a view into the leaf's ordinals and their {@link BytesRef} values.
+             * <p>
+             * Use {@link SortedSetDocValues#advanceExact}, {@link SortedSetDocValues#getValueCount},
+             * and {@link SortedSetDocValues#nextOrd} to fetch the ordinals. Use
+             * {@link SortedSetDocValues#lookupOrd} to convert form the ordinal
+             * number into the {@link BytesRef} value. Make sure to
+             * {@link BytesRef#deepCopyOf(BytesRef) copy} the result if you need
+             * to keep it.
+             * <p>
+             * Each leaf may have a different ordinal for the same byte array.
+             * Imagine, for example, an index where one leaf has the values
+             * {@code "a", "b", "d"} and another leaf has the values
+             * {@code "b", "c", "d"}. {@code "a"} has the ordinal {@code 0} in
+             * the first leaf and doesn't exist in the second leaf.
+             * {@code "b"} has the ordinal {@code 1} in the first leaf
+             * and {@code 0} in the second leaf. {@code "c"} doesn't exist in
+             * the first leaf and has the ordinal {@code 1} in the second leaf.
+             * And {@code "d"} gets the ordinal {@code 2} in both leaves.
+             * <p>
+             * If you have to compare the ordinals of values from different
+             * segments then you'd need to somehow merge them. {@link #globalOrdinalsValues}
+             * provides such a merging at the cost of longer startup times when
+             * the index has been modified.
+             */
+            public abstract SortedSetDocValues ordinalsValues(LeafReaderContext context) throws IOException;
 
-            public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
-                    throws IOException;
+            /**
+             * Get a "global" view into the leaf's ordinals. This can require
+             * construction of fairly large set of lookups in memory so prefer
+             * {@link #ordinalsValues} unless you need the global view.
+             * <p>
+             * This functions just like {@link #ordinalsValues} except that the
+             * ordinals that {@link SortedSetDocValues#nextOrd} and
+             * {@link SortedSetDocValues#lookupOrd(long)} operate on are "global"
+             * to all segments in the shard. They are ordinals into a lookup
+             * table containing all values on the shard.
+             * <p>
+             * Compare this to the example in the docs for {@link #ordinalsValues}.
+             * Imagine, again, an index where one leaf has the values
+             * {@code "a", "b", "d"} and another leaf has the values
+             * {@code "b", "c", "d"}. The global ordinal for {@code "a"} is {@code 0}.
+             * The global ordinal for {@code "b"} is {@code 1}. The global ordinal
+             * for {@code "c"} is {@code 2}. And the global ordinal for {@code "d"}
+             * is, you guessed it, {@code 3}.
+             * <p>
+             * This makes comparing the values from different segments much simpler.
+             * But it comes with a fairly high memory cost and a substantial
+             * performance hit when this method is first called after modifying the index.
+             * If the global ordinals lookup hasn't been built then this method's runtime
+             * is roughly proportional to the number of distinct values on the field.
+             * If there are very few distinct values then the runtime'll be dominated
+             * by factors related to the number of segments. But in that case it'll
+             * be fast enough that you won't usually care.
+             */
+            public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) throws IOException;
 
             /**
              * Whether this values source is able to provide a mapping between global and segment ordinals,
@@ -182,14 +226,26 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public boolean hasGlobalOrdinals() {
+            public boolean hasOrdinals() {
                 return true;
             }
 
-            /** Returns a mapping from segment ordinals to global ordinals. */
-            public abstract LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context)
-                    throws IOException;
+            /**
+             * Returns a mapping from segment ordinals to global ordinals. This
+             * allows you to post process segment ordinals into global ordinals
+             * which could save you a few lookups. Also, operating on segment
+             * ordinals is likely to produce a more "dense" list of, say, counts.
+             * <p>
+             * Anyone looking to use this strategy rather than looking up on the
+             * fly should benchmark well and update this documentation with what
+             * they learn.
+             */
+            public abstract LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException;
 
+            /**
+             * Get the maximum global ordinal. Requires {@link #globalOrdinalsValues}
+             * so see the note about its performance.
+             */
             public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
                 IndexReader indexReader = indexSearcher.getIndexReader();
                 if (indexReader.leaves().isEmpty()) {
@@ -348,6 +404,14 @@ public abstract class ValuesSource {
         }
     }
 
+    /**
+     * {@linkplain ValuesSource} for fields who's values are best thought of
+     * as numbers. Aggregations that operate on these values often may chose
+     * to operate on double precision floating point
+     * {@link Numeric#doubleValues values} or on 64 bit signed two's complement
+     * {@link Numeric#longValues values}. They'll do normal "number stuff"
+     * to those values like add, multiply, and compare them to other numbers.
+     */
     public abstract static class Numeric extends ValuesSource {
 
         public static final Numeric EMPTY = new Numeric() {
@@ -374,17 +438,44 @@ public abstract class ValuesSource {
 
         };
 
-        /** Whether the underlying data is floating-point or not. */
+        /**
+         * Are values of this field better represented as a double precision
+         * floating point numbers ({@code true}) or 64 bit signed
+         * numbers ({@code false})?
+         * <p>
+         * Aggregations may, if they feel it is important, use this to pick
+         * which of {@link #longValues} and {@link #doubleValues} is better for
+         * the field values. Most metric aggregations are quite happy to operate
+         * on floating point numbers all the time and never call this. Bucketing
+         * aggregations that want to enumerate all values
+         * (like {@link TermsAggregator}) will want to check this but bucketing
+         * aggregations that just compare values ({@link RangeAggregator}) are,
+         * like metric aggregators, fine ignoring it.
+         */
         public abstract boolean isFloatingPoint();
 
-        /** Get the current {@link SortedNumericDocValues}. */
+        /**
+         * Get a 64 bit signed view into the values in this leaf.
+         * <p>
+         * If the values have precision beyond the decimal point then they'll be
+         * <a href="https://docs.oracle.com/javase/specs/jls/se15/html/jls-5.html#jls-5.1.3">"narrowed"</a>
+         * but they'll accurately represent values up to {@link Long#MAX_VALUE}.
+         */
         public abstract SortedNumericDocValues longValues(LeafReaderContext context) throws IOException;
 
-        /** Get the current {@link SortedNumericDoubleValues}. */
+        /**
+         * Get a double precision floating point view into the values in this leaf.
+         * <p>
+         * These values will preserve any precision beyond the decimal point but
+         * are limited to {@code double}'s standard 53 bit mantissa. If the "native"
+         * field has values that can't be accurately represented in those 53 bits
+         * they'll be <a href="https://docs.oracle.com/javase/specs/jls/se15/html/jls-5.html#jls-5.1.2">"widened"</a>
+         */
         public abstract SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException;
 
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
+            // We try and pick the lowest overhead implementation.
             if (isFloatingPoint()) {
                 final SortedNumericDoubleValues values = doubleValues(context);
                 return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
@@ -566,9 +657,45 @@ public abstract class ValuesSource {
                 return script.needs_score();
             }
         }
-
     }
 
+    /**
+     * {@linkplain ValuesSource} for fields who's values are best thought of
+     * as ranges of numbers, dates, or IP addresses.
+     */
+    public static class Range extends ValuesSource {
+        private final RangeType rangeType;
+        protected final IndexFieldData<?> indexFieldData;
+
+        public Range(IndexFieldData<?> indexFieldData, RangeType rangeType) {
+            this.indexFieldData = indexFieldData;
+            this.rangeType = rangeType;
+        }
+
+        @Override
+        public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
+            return indexFieldData.load(context).getBytesValues();
+        }
+
+        @Override
+        public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
+            final SortedBinaryDocValues bytes = bytesValues(context);
+            return org.elasticsearch.index.fielddata.FieldData.docsWithValue(bytes);
+        }
+
+        @Override
+        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+            // TODO lookup the min and max rounding when appropriate
+            return Rounding::prepareForUnknown;
+        }
+
+        public RangeType rangeType() { return rangeType; }
+    }
+
+    /**
+     * {@linkplain ValuesSource} for fields who's values are best thought of
+     * as points on a globe.
+     */
     public abstract static class GeoPoint extends ValuesSource {
 
         public static final GeoPoint EMPTY = new GeoPoint() {

@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
+import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockPublishResultActionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -26,15 +28,15 @@ public class MultiHttpResourceTests extends ESTestCase {
 
     private final String owner = getClass().getSimpleName();
     private final RestClient client = mock(RestClient.class);
-    private final ActionListener<Boolean> listener = mockBooleanActionListener();
+    private final ActionListener<ResourcePublishResult> publishListener = mockPublishResultActionListener();
 
     public void testDoCheckAndPublish() {
         final List<MockHttpResource> allResources = successfulResources();
         final MultiHttpResource multiResource = new MultiHttpResource(owner, allResources);
 
-        multiResource.doCheckAndPublish(client, listener);
+        multiResource.doCheckAndPublish(client, publishListener);
 
-        verify(listener).onResponse(true);
+        verify(publishListener).onResponse(ResourcePublishResult.ready());
 
         for (final MockHttpResource resource : allResources) {
             assertSuccessfulResource(resource);
@@ -54,12 +56,12 @@ public class MultiHttpResourceTests extends ESTestCase {
 
         final MultiHttpResource multiResource = new MultiHttpResource(owner, allResources);
 
-        multiResource.doCheckAndPublish(client, listener);
+        multiResource.doCheckAndPublish(client, publishListener);
 
         if (check == null) {
-            verify(listener).onFailure(any(Exception.class));
+            verify(publishListener).onFailure(any(Exception.class));
         } else {
-            verify(listener).onResponse(false);
+            verify(publishListener).onResponse(new ResourcePublishResult(false));
         }
 
         boolean found = false;

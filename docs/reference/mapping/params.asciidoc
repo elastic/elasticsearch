@@ -49,8 +49,6 @@ include::params/eager-global-ordinals.asciidoc[]
 
 include::params/enabled.asciidoc[]
 
-include::params/fielddata.asciidoc[]
-
 include::params/format.asciidoc[]
 
 include::params/ignore-above.asciidoc[]

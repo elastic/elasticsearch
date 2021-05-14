@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.integration;
 
@@ -12,7 +13,6 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.Before;
@@ -46,7 +47,7 @@ import static org.hamcrest.Matchers.is;
 
 public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
-    protected static final SecureString USERS_PASSWD = new SecureString("passwd".toCharArray());
+    protected static final SecureString USERS_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     @Before
     public void waitForSecurityIndexWritable() throws Exception {
@@ -209,11 +210,6 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foo"), is(true));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobar"), is(true));
         assertThat(indicesShardsStoresResponse.getStoreStatuses().containsKey("foobarfoo"), is(true));
-
-        final UpgradeStatusResponse upgradeStatusResponse = client.admin().indices().prepareUpgradeStatus(randomFrom("*", "_all", "foo*"))
-                .get();
-        assertThat(upgradeStatusResponse.getIndices().size(), is(3));
-        assertThat(upgradeStatusResponse.getIndices().keySet(), containsInAnyOrder("foo", "foobar", "foobarfoo"));
 
         final IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats(randomFrom("*", "_all", "foo*")).get();
         assertThat(indicesStatsResponse.getIndices().size(), is(3));

@@ -21,5 +21,6 @@ To shut down Elasticsearch, kill the process ID recorded in the `pid` file:
 pkill -F pid
 --------------------------------------------
 
-NOTE: The startup scripts provided in the <<rpm,RPM>> and <<deb,Debian>>
-packages take care of starting and stopping the Elasticsearch process for you.
+NOTE: The {es} `.tar.gz` package does not include the `systemd` module. To
+manage {es} as a service, use the <<start-deb,Debian>> or <<start-rpm,RPM>>
+package instead.

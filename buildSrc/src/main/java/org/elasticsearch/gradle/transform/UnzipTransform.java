@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.transform;
@@ -22,6 +11,7 @@ package org.elasticsearch.gradle.transform;
 import org.apache.commons.io.IOUtils;
 import org.apache.tools.zip.ZipEntry;
 import org.apache.tools.zip.ZipFile;
+import org.gradle.api.artifacts.transform.TransformOutputs;
 import org.gradle.api.logging.Logging;
 
 import java.io.File;
@@ -35,7 +25,7 @@ import static org.elasticsearch.gradle.util.PermissionUtils.chmod;
 
 public abstract class UnzipTransform implements UnpackTransform {
 
-    public void unpack(File zipFile, File targetDir) throws IOException {
+    public void unpack(File zipFile, File targetDir, TransformOutputs outputs, boolean asFiletreeOutput) throws IOException {
         Logging.getLogger(UnzipTransform.class)
             .info("Unpacking " + zipFile.getName() + " using " + UnzipTransform.class.getSimpleName() + ".");
         Function<String, Path> pathModifier = pathResolver();
@@ -58,6 +48,9 @@ public abstract class UnzipTransform implements UnpackTransform {
                     IOUtils.copyLarge(zip.getInputStream(zipEntry), outputStream);
                 }
                 chmod(outputPath, zipEntry.getUnixMode());
+                if (asFiletreeOutput) {
+                    outputs.file(outputPath.toFile());
+                }
             }
         } finally {
             zip.close();

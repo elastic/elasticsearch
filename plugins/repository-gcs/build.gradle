@@ -1,11 +1,11 @@
 import java.nio.file.Files
 import java.security.KeyPair
 import java.security.KeyPairGenerator
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
-import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin
-import org.elasticsearch.gradle.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -13,25 +13,15 @@ import java.security.KeyPairGenerator
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact-base'
 
 esplugin {
   description 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
@@ -70,9 +60,18 @@ dependencies {
   testImplementation project(':test:fixtures:gcs-fixture')
 }
 
+testArtifacts {
+  registerTestArtifactFromSourceSet(sourceSets.internalClusterTest)
+}
+
+tasks.named("internalClusterTestJar").configure {
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
   }
 }
 
@@ -85,7 +84,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /proto-google.*/, to: 'proto-google'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
     'com.google.protobuf.UnsafeUtil',
@@ -221,6 +220,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
   apply plugin: 'elasticsearch.test.fixtures'
   testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture')
   testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-third-party')
+  testFixtures.useFixture(':test:fixtures:gcs-fixture', 'gcs-fixture-with-application-default-credentials')
 
 } else if (!gcsServiceAccount || !gcsBucket || !gcsBasePath) {
   throw new IllegalArgumentException("not all options specified to run tests against external GCS service are present")
@@ -233,22 +233,22 @@ def encodedCredentials = {
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
-task createServiceAccountFile() {
+tasks.register("createServiceAccountFile") {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(1024)
+    keyPairGenerator.initialize(2048)
     KeyPair keyPair = keyPairGenerator.generateKeyPair()
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
     serviceAccountFile.parentFile.mkdirs()
     serviceAccountFile.setText("{\n" +
-      '  "type": "service_account",\n' +
-      '  "project_id": "integration_test",\n' +
-      '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
-      '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
-      '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
-      '  "client_id": "123456789101112130594"\n' +
-      '}', 'UTF-8')
+            '  "type": "service_account",\n' +
+            '  "project_id": "integration_test",\n' +
+            '  "private_key_id": "' + UUID.randomUUID().toString() + '",\n' +
+            '  "private_key": "-----BEGIN PRIVATE KEY-----\\n' + encodedKey + '\\n-----END PRIVATE KEY-----\\n",\n' +
+            '  "client_email": "integration_test@appspot.gserviceaccount.com",\n' +
+            '  "client_id": "123456789101112130594"\n' +
+            '}', 'UTF-8')
   }
 }
 
@@ -257,17 +257,68 @@ Map<String, Object> expansions = [
   'base_path': gcsBasePath + "_integration_tests"
 ]
 
-processYamlRestTestResources {
+tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/GoogleCloudStorageThirdPartyTests.class'
 }
 
-final Closure testClustersConfiguration = {
+tasks.named("yamlRestTest").configure {
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
+}
+
+/*
+ * We only use a small amount of data in these tests, which means that the resumable upload path is not tested. We add
+ * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
+ */
+def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTestTask) {
+  dependsOn "bundlePlugin"
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
+
+  // We have to wait for configure the cluster here as it might not have been created otherwise yet.
+  testClusters {
+    largeBlobYamlRestTest {
+      plugin bundlePlugin.archiveFile
+
+      // force large blob uploads by setting the threshold small, forcing this code path to be tested
+      systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'
+    }
+  }
+}
+
+def gcsThirdPartyTest = tasks.register("gcsThirdPartyTest", Test) {
+  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
+  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
+  setClasspath(internalTestSourceSet.getRuntimeClasspath())
+  include '**/GoogleCloudStorageThirdPartyTests.class'
+  systemProperty 'tests.security.manager', false
+  systemProperty 'test.google.bucket', gcsBucket
+  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+    nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureAddress('gcs-fixture-third-party')}"
+    nonInputProperties.systemProperty 'test.google.tokenURI', "${-> fixtureAddress('gcs-fixture-third-party')}/o/oauth2/token"
+  }
+}
+
+testClusters.matching {
+  it.name == "yamlRestTest" ||
+  it.name == "largeBlobYamlRestTest" ||
+  it.name == "gcsThirdPartyTest" }.configureEach {
   keystore 'gcs.client.integration_test.credentials_file', serviceAccountFile, IGNORE_VALUE
 
   if (useFixture) {
@@ -279,56 +330,25 @@ final Closure testClustersConfiguration = {
   }
 }
 
-yamlRestTest {
-  if (useFixture) {
-    dependsOn createServiceAccountFile
-  }
-}
 
-testClusters {
-  all testClustersConfiguration
-}
-
-/*
- * We only use a small amount of data in these tests, which means that the resumable upload path is not tested. We add
- * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
- */
-task largeBlobYamlRestTest(type: RestIntegTestTask) {
-  dependsOn bundlePlugin
-  if (useFixture) {
-    dependsOn createServiceAccountFile
-  }
+// Application Default Credentials
+if (useFixture) {
+  tasks.register("yamlRestTestApplicationDefaultCredentials", RestIntegTestTask.class) {
+    dependsOn('bundlePlugin')
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
     SourceSet yamlRestTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
     setClasspath(yamlRestTestSourceSet.getRuntimeClasspath())
-}
+  }
+  tasks.named("check").configure { dependsOn("yamlRestTestApplicationDefaultCredentials") }
 
-check.dependsOn largeBlobYamlRestTest
-
-testClusters {
-  largeBlobYamlRestTest {
-    plugin bundlePlugin.archiveFile
-
-    // force large blob uploads by setting the threshold small, forcing this code path to be tested
-    systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'
+  testClusters.matching { it.name == "yamlRestTestApplicationDefaultCredentials" }.configureEach {
+    setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}" }, IGNORE_VALUE
+    plugin tasks.bundlePlugin.archiveFile
+    environment 'GCE_METADATA_HOST', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}".replace("http://", "") }, IGNORE_VALUE
   }
 }
 
-task gcsThirdPartyTest(type: Test) {
-  SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-  SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
-  setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
-  setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  include '**/GoogleCloudStorageThirdPartyTests.class'
-  systemProperty 'tests.security.manager', false
-  systemProperty 'test.google.bucket', gcsBucket
-  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
-  nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
-  if (useFixture) {
-    dependsOn createServiceAccountFile
-    nonInputProperties.systemProperty 'test.google.endpoint', "${-> fixtureAddress('gcs-fixture-third-party')}"
-    nonInputProperties.systemProperty 'test.google.tokenURI', "${-> fixtureAddress('gcs-fixture-third-party')}/o/oauth2/token"
-  }
+tasks.named("check").configure {
+  dependsOn(largeBlobYamlRestTest, gcsThirdPartyTest)
 }
-check.dependsOn(gcsThirdPartyTest)

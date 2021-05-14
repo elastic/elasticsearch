@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
@@ -25,4 +26,10 @@ public interface CoordinateEncoder {
 
     /** decode Y value */
     double decodeY(int y);
+
+    /** normalize X value */
+    double normalizeX(double x);
+
+    /** normalize Y value */
+    double normalizeY(double y);
 }

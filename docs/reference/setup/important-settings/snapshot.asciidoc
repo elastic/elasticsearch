@@ -1,0 +1,9 @@
+[[important-settings-backups]]
+[discrete]
+==== Cluster backups
+
+In a disaster, <<snapshot-restore,snapshots>> can prevent permanent data loss.
+<<snapshot-lifecycle-management,{slm-cap}>> is the easiest way to take regular
+backups of your cluster. For more information, see <<backup-cluster>>.
+
+include::../../snapshot-restore/index.asciidoc[tag=backup-warning]

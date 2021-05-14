@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
@@ -51,6 +52,7 @@ import static java.util.Map.entry;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
@@ -89,6 +91,10 @@ public class IndexActionTests extends ESTestCase {
         if (writeTimeout != null) {
             builder.field(IndexAction.Field.TIMEOUT.getPreferredName(), writeTimeout.millis());
         }
+        DocWriteRequest.OpType opType = randomBoolean() ? DocWriteRequest.OpType.fromId(randomFrom(new Byte[] { 0, 1 })) : null;
+        if (opType != null) {
+            builder.field(IndexAction.Field.OP_TYPE.getPreferredName(), opType.getLowercase());
+        }
         builder.endObject();
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
@@ -101,6 +107,9 @@ public class IndexActionTests extends ESTestCase {
         }
         if (timestampField != null) {
             assertThat(executable.action().executionTimeField, equalTo(timestampField));
+        }
+        if (opType != null) {
+            assertThat(executable.action().opType, equalTo(opType));
         }
         assertThat(executable.action().timeout, equalTo(writeTimeout));
     }
@@ -130,20 +139,47 @@ public class IndexActionTests extends ESTestCase {
                 .endObject());
     }
 
+    public void testOpTypeThatCannotBeParsed() throws Exception {
+        expectParseFailure(jsonBuilder()
+            .startObject()
+            .field(IndexAction.Field.OP_TYPE.getPreferredName(), randomAlphaOfLength(10))
+            .endObject(),
+            "failed to parse op_type value for field [op_type]");
+    }
+
+    public void testUnsupportedOpType() throws Exception {
+        expectParseFailure(jsonBuilder()
+            .startObject()
+            .field(IndexAction.Field.OP_TYPE.getPreferredName(),
+                randomFrom(DocWriteRequest.OpType.UPDATE.name(), DocWriteRequest.OpType.DELETE.name()))
+            .endObject(),
+            "op_type value for field [op_type] must be [index] or [create]");
+    }
+
+    private void expectParseFailure(XContentBuilder builder, String expectedMessage) throws Exception {
+        expectFailure(ElasticsearchParseException.class, builder, expectedMessage);
+    }
+
     private void expectParseFailure(XContentBuilder builder) throws Exception {
         expectFailure(ElasticsearchParseException.class, builder);
     }
 
     private void expectFailure(Class clazz, XContentBuilder builder) throws Exception {
+        expectFailure(clazz, builder, null);
+    }
+
+    private void expectFailure(Class clazz, XContentBuilder builder, String expectedMessage) throws Exception {
         IndexActionFactory actionParser = new IndexActionFactory(Settings.EMPTY, client);
         XContentParser parser = createParser(builder);
         parser.nextToken();
-        expectThrows(clazz, () ->
-                actionParser.parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(5), parser));
+        Throwable t = expectThrows(clazz, () -> actionParser.parseExecutable(randomAlphaOfLength(4), randomAlphaOfLength(5), parser));
+        if (expectedMessage != null) {
+            assertThat(t.getMessage(), containsString(expectedMessage));
+        }
     }
 
     public void testUsingParameterIdWithBulkOrIdFieldThrowsIllegalState() {
-        final IndexAction action = new IndexAction("test-index", "123", null, null, null, refreshPolicy);
+        final IndexAction action = new IndexAction("test-index", "123", null, null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
         final Map<String, Object> docWithId = Map.of(
@@ -191,7 +227,7 @@ public class IndexActionTests extends ESTestCase {
 
         final IndexAction action = new IndexAction(configureIndexDynamically ? null : "my_index",
                 configureIdDynamically ? null : "my_id",
-                null, null, null, refreshPolicy);
+                null, null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -211,7 +247,7 @@ public class IndexActionTests extends ESTestCase {
     }
 
     public void testThatIndexActionCanBeConfiguredWithDynamicIndexNameAndBulk() throws Exception {
-        final IndexAction action = new IndexAction(null, null, null, null, null, refreshPolicy);
+        final IndexAction action = new IndexAction(null, null, null, null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -239,7 +275,7 @@ public class IndexActionTests extends ESTestCase {
     public void testConfigureIndexInMapAndAction() {
         String fieldName = "_index";
         final IndexAction action = new IndexAction("my_index",
-                null,null, null, null, refreshPolicy);
+                null, null,null, null, null, refreshPolicy);
         final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 
@@ -258,8 +294,7 @@ public class IndexActionTests extends ESTestCase {
         String docId = randomAlphaOfLength(5);
         String timestampField = randomFrom("@timestamp", null);
 
-        IndexAction action = new IndexAction("test-index", docIdAsParam ? docId : null, timestampField, null, null,
-                refreshPolicy);
+        IndexAction action = new IndexAction("test-index", docIdAsParam ? docId : null, null, timestampField, null, null, refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
                 TimeValue.timeValueSeconds(30));
         ZonedDateTime executionTime = DateUtils.nowWithMillisResolution();
@@ -308,7 +343,7 @@ public class IndexActionTests extends ESTestCase {
     }
 
     public void testFailureResult() throws Exception {
-        IndexAction action = new IndexAction("test-index", null, "@timestamp", null, null, refreshPolicy);
+        IndexAction action = new IndexAction("test-index", null, null, "@timestamp", null, null, refreshPolicy);
         ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
                 TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
 

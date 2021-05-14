@@ -16,15 +16,15 @@ setup:
         refresh: true
         body:
           - '{ "index": {"_id": "1"}}'
-          - '{ "tag": "bump", "join_field": { "name": "parent" } }'
+          - '{ "tag": "bump", "subject": "surprises", "join_field": { "name": "parent" } }'
           - '{ "index": {"_id": "2"}}'
-          - '{ "tag": "jumble", "join_field": { "name": "parent" } }'
+          - '{ "tag": "jumble", "subject": "critters", "join_field": { "name": "parent" } }'
           - '{ "index": {"_id": "3", "routing": "1"}}'
-          - '{ "animal": "dog", "join_field": { "name": "child", "parent": "1" } }'
+          - '{ "animal": "dog", "sound": "woof", "join_field": { "name": "child", "parent": "1" } }'
           - '{ "index": {"_id": "4", "routing": "1"}}'
-          - '{ "animal": "cat", "join_field": { "name": "child", "parent": "1" } }'
+          - '{ "animal": "cat", "sound": "meow", "join_field": { "name": "child", "parent": "1" } }'
           - '{ "index": {"_id": "5", "routing": "2"}}'
-          - '{ "animal": "dog", "join_field": { "name": "child", "parent": "2" } }'
+          - '{ "animal": "dog", "sound": "yap", "join_field": { "name": "child", "parent": "2" } }'
           - '{ "index": {"_id": "6", "routing": "1"}}'
           - '{ "join_field": { "name": "grand_child", "parent": "5" } }'
 
@@ -68,7 +68,7 @@ children:
   - match: { aggregations.children.doc_count: 3 }
 
 ---
-children containing cardinality:
+children cardinality:
   - do:
       search:
         index: test
@@ -85,6 +85,34 @@ children containing cardinality:
   - match: { hits.total.value: 6 }
   - match: { aggregations.children.doc_count: 3 }
   - match: { aggregations.children.cardinality.value: 2 }
+
+---
+children terms terms:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            children:
+              children:
+                type: child
+              aggs:
+                animal:
+                  terms:
+                    collect_mode: breadth_first
+                    field: animal.keyword
+                  aggs:
+                    sound:
+                      terms:
+                        field: sound.keyword
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.children.doc_count: 3 }
+  - match: { aggregations.children.animal.buckets.0.key: dog }
+  - match: { aggregations.children.animal.buckets.0.sound.buckets.0.key: woof }
+  - match: { aggregations.children.animal.buckets.0.sound.buckets.1.key: yap }
+  - match: { aggregations.children.animal.buckets.1.key: cat }
+  - match: { aggregations.children.animal.buckets.1.sound.buckets.0.key: meow }
 
 ---
 parent:
@@ -117,3 +145,31 @@ parent cardinality:
                     field: tag.keyword
   - match: { hits.total.value: 6 }
   - match: { aggregations.parent.doc_count: 2 }
+  - match: { aggregations.parent.cardinality.value: 2 }
+
+---
+parent terms terms:
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            parent:
+              parent:
+                type: child
+              aggs:
+                tag:
+                  terms:
+                    collect_mode: breadth_first
+                    field: tag.keyword
+                  aggs:
+                    subject:
+                      terms:
+                        field: subject.keyword
+  - match: { hits.total.value: 6 }
+  - match: { aggregations.parent.doc_count: 2 }
+  - match: { aggregations.parent.tag.buckets.0.key: bump }
+  - match: { aggregations.parent.tag.buckets.0.subject.buckets.0.key: surprises }
+  - match: { aggregations.parent.tag.buckets.1.key: jumble }
+  - match: { aggregations.parent.tag.buckets.1.subject.buckets.0.key: critters }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
@@ -13,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -31,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -41,6 +42,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.Collection;
@@ -96,7 +98,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 final IndexMetadata indexMetadata = oldState.metadata().index(request.getFollowerIndex());
                 final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
                 final String remoteClusterName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
-                final Client remoteClient = client.getRemoteClusterClient(remoteClusterName);
+
                 final String leaderIndexName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
                 final String leaderIndexUuid = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
                 final Index leaderIndex = new Index(leaderIndexName, leaderIndexUuid);
@@ -107,11 +109,19 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                         leaderIndex);
                 final int numberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexMetadata.getSettings());
 
-                final GroupedActionListener<RetentionLeaseActions.Response> groupListener = new GroupedActionListener<>(
-                        new ActionListener<Collection<RetentionLeaseActions.Response>>() {
+                final Client remoteClient;
+                try {
+                    remoteClient = client.getRemoteClusterClient(remoteClusterName);
+                } catch (Exception e) {
+                    onLeaseRemovalFailure(indexMetadata.getIndex(), retentionLeaseId, e);
+                    return;
+                }
+
+                final GroupedActionListener<ActionResponse.Empty> groupListener = new GroupedActionListener<>(
+                        new ActionListener<>() {
 
                             @Override
-                            public void onResponse(final Collection<RetentionLeaseActions.Response> responses) {
+                            public void onResponse(final Collection<ActionResponse.Empty> responses) {
                                 logger.trace(
                                         "[{}] removed retention lease [{}] on all leader primary shards",
                                         indexMetadata.getIndex(),
@@ -121,16 +131,8 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
                             @Override
                             public void onFailure(final Exception e) {
-                                logger.warn(new ParameterizedMessage(
-                                        "[{}] failure while removing retention lease [{}] on leader primary shards",
-                                        indexMetadata.getIndex(),
-                                        retentionLeaseId),
-                                        e);
-                                final ElasticsearchException wrapper = new ElasticsearchException(e);
-                                wrapper.addMetadata("es.failed_to_remove_retention_leases", retentionLeaseId);
-                                listener.onFailure(wrapper);
+                                onLeaseRemovalFailure(indexMetadata.getIndex(), retentionLeaseId, e);
                             }
-
                         },
                         numberOfShards
                 );
@@ -153,12 +155,23 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 }
             }
 
+            private void onLeaseRemovalFailure(Index index, String retentionLeaseId, Exception e) {
+                logger.warn(new ParameterizedMessage(
+                                "[{}] failure while removing retention lease [{}] on leader primary shards",
+                                index,
+                                retentionLeaseId),
+                        e);
+                final ElasticsearchException wrapper = new ElasticsearchException(e);
+                wrapper.addMetadata("es.failed_to_remove_retention_leases", retentionLeaseId);
+                listener.onFailure(wrapper);
+            }
+
             private void removeRetentionLeaseForShard(
                     final ShardId followerShardId,
                     final ShardId leaderShardId,
                     final String retentionLeaseId,
                     final Client remoteClient,
-                    final ActionListener<RetentionLeaseActions.Response> listener) {
+                    final ActionListener<ActionResponse.Empty> listener) {
                 logger.trace("{} removing retention lease [{}] while unfollowing leader index", followerShardId, retentionLeaseId);
                 final ThreadContext threadContext = threadPool.getThreadContext();
                 try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
@@ -172,7 +185,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                     final ShardId followerShardId,
                     final String retentionLeaseId,
                     final ShardId leaderShardId,
-                    final ActionListener<RetentionLeaseActions.Response> listener,
+                    final ActionListener<ActionResponse.Empty> listener,
                     final Exception e) {
                 final Throwable cause = ExceptionsHelper.unwrapCause(e);
                 assert cause instanceof ElasticsearchSecurityException == false : e;
@@ -184,7 +197,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                             retentionLeaseId,
                             leaderShardId),
                             e);
-                    listener.onResponse(new RetentionLeaseActions.Response());
+                    listener.onResponse(ActionResponse.Empty.INSTANCE);
                 } else {
                     logger.warn(new ParameterizedMessage(
                             "{} failed to remove retention lease [{}] on {} while unfollowing",

@@ -1,30 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.internal.BuildPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
@@ -32,23 +21,30 @@ import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
 import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.internal.test.RestTestBasePlugin
+import org.elasticsearch.gradle.internal.InternalPluginBuildPlugin
+import org.elasticsearch.gradle.internal.InternalTestClustersPlugin
 
 plugins {
   id 'lifecycle-base'
   id 'elasticsearch.docker-support'
   id 'elasticsearch.global-build-info'
-  id "com.diffplug.spotless" version "5.6.1" apply false
+  id 'elasticsearch.build-scan'
+  id 'elasticsearch.build-complete'
+  id 'elasticsearch.jdk-download'
+  id 'elasticsearch.internal-distribution-download'
+  id 'elasticsearch.runtime-jdk-provision'
+  id 'elasticsearch.ide'
+  id 'elasticsearch.forbidden-dependencies'
+  id 'elasticsearch.formatting'
+  id 'elasticsearch.local-distribution'
+  id 'elasticsearch.fips'
+  id 'elasticsearch.internal-testclusters'
+  id 'elasticsearch.run'
+  id "com.diffplug.spotless" version "5.12.0" apply false
 }
 
-apply from: 'gradle/build-scan.gradle'
-apply from: 'gradle/build-complete.gradle'
-apply from: 'gradle/runtime-jdk-provision.gradle'
-apply from: 'gradle/ide.gradle'
-apply from: 'gradle/forbidden-dependencies.gradle'
-apply from: 'gradle/formatting.gradle'
-apply from: 'gradle/local-distribution.gradle'
-apply from: 'gradle/fips.gradle'
-apply from: 'gradle/run.gradle'
 
 // common maven publishing configuration
 allprojects {
@@ -63,12 +59,18 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 } else {
   licenseCommit = "v${version}"
 }
-String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE.txt"
+String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE-2.0.txt"
 
 subprojects {
-  // Default to the apache license
-  project.ext.licenseName = 'The Apache Software License, Version 2.0'
-  project.ext.licenseUrl = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+  // We disable this plugin for now till we shaked out the issues we see
+  // e.g. see https://github.com/elastic/elasticsearch/issues/72169
+  // apply plugin:'elasticsearch.internal-test-rerun'
+
+  // Default to the SSPL+Elastic dual license
+  project.ext.projectLicenses = [
+    'Server Side Public License, v 1': 'https://www.mongodb.com/licensing/server-side-public-license',
+    'Elastic License 2.0': elasticLicenseUrl
+  ]
 
   // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
   project.ext.elasticLicenseUrl = elasticLicenseUrl
@@ -83,10 +85,13 @@ subprojects {
             Node node = xml.asNode()
             node.appendNode('inceptionYear', '2009')
 
-            Node license = node.appendNode('licenses').appendNode('license')
-            license.appendNode('name', project.licenseName)
-            license.appendNode('url', project.licenseUrl)
-            license.appendNode('distribution', 'repo')
+            Node licensesNode = node.appendNode('licenses')
+            project.ext.projectLicenses.forEach { licenseName, licenseUrl ->
+              Node license = licensesNode.appendNode('license')
+              license.appendNode('name', licenseName)
+              license.appendNode('url', licenseUrl)
+              license.appendNode('distribution', 'repo')
+            }
 
             Node developer = node.appendNode('developers').appendNode('developer')
             developer.appendNode('name', 'Elastic')
@@ -104,9 +109,42 @@ subprojects {
   }
 
   plugins.withType(BuildPlugin).whenPluginAdded {
-    project.licenseFile = project.rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+    project.licenseFile = project.rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
     project.noticeFile = project.rootProject.file('NOTICE.txt')
   }
+
+  plugins.withType(InternalPluginBuildPlugin).whenPluginAdded {
+    project.dependencies {
+      compileOnly project(":server")
+      testImplementation project(":test:framework")
+    }
+  }
+
+  // Ultimately the RestTestBase Plugin should apply the InternalTestClusters Plugin itself instead of TestClusters
+  // but this requires major rework on the func test infrastructure.
+  // TODO: This will be addressed once we have https://github.com/elastic/elasticsearch/issues/71593 resolved
+  project.plugins.withType(RestTestBasePlugin) {
+    project.plugins.apply(InternalTestClustersPlugin)
+  }
+}
+
+/**
+ * This is a convenient method for declaring test artifact dependencies provided by the internal
+ * test artifact plugin. It replaces basically the longer dependency notation with explicit capability
+ * declaration like this:
+ *
+ * testImplementation(project(xpackModule('repositories-metering-api'))) {
+ *    capabilities {
+ *         requireCapability("org.elasticsearch.gradle:repositories-metering-api-test-artifacts")
+ *    }
+ * }
+ *
+ * */
+ext.testArtifact = { p, String name = "test" ->
+  def projectDependency = p.dependencies.create(p)
+  projectDependency.capabilities {
+    requireCapabilities("org.elasticsearch.gradle:${projectDependency.name}-${name}-artifacts")
+  };
 }
 
 tasks.register("updateCIBwcVersions") {
@@ -176,7 +214,18 @@ tasks.register("verifyVersions") {
  */
 
 boolean bwc_tests_enabled = true
-final String bwc_tests_disabled_issue = "" /* place a PR link here when committing bwc changes */
+// place a PR link here when committing bwc changes:
+String bwc_tests_disabled_issue = ""
+/*
+ * FIPS 140-2 behavior was fixed in 7.11.0. Before that there is no way to run elasticsearch in a
+ * JVM that is properly configured to be in fips mode with BCFIPS. For now we need to disable
+ * all bwc testing in fips mode.
+ */
+
+if ( BuildParams.inFipsJvm ) {
+  bwc_tests_enabled = false
+  bwc_tests_disabled_issue = "https://github.com/elastic/elasticsearch/issues/66772"
+}
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
@@ -258,7 +307,7 @@ allprojects {
         }
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
-      project.configurations.compile.dependencies
+      project.configurations.compileClasspath.dependencies
         .findAll()
         .toSorted(sortClosure)
         .each({ c -> depJavadocClosure(hasShadow, c) })
@@ -287,22 +336,17 @@ gradle.projectsEvaluated {
       // :test:framework:test cannot run before and after :server:test
       return
     }
-    if (tasks.findByPath('test') != null && tasks.findByPath('integTest') != null) {
-      integTest.mustRunAfter test
+    tasks.matching { it.name.equals('integTest')}.configureEach {integTestTask ->
+      integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
+
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
-        if (upstreamProject != null) {
-          if (project.path == upstreamProject.path) {
-            // TODO: distribution integ tests depend on themselves (!), fix that
-            return
-          }
+        if (project.path != upstreamProject?.path) {
           for (String taskName : ['test', 'integTest']) {
-            Task task = project.tasks.findByName(taskName)
-            Task upstreamTask = upstreamProject.tasks.findByName(taskName)
-            if (task != null && upstreamTask != null) {
-              task.shouldRunAfter(upstreamTask)
+            project.tasks.matching { it.name == taskName }.configureEach {task ->
+              task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
             }
           }
         }
@@ -323,13 +367,18 @@ allprojects {
   }
 
   plugins.withType(JavaBasePlugin) {
-    eclipse.classpath.defaultOutputDir = file('build-eclipse')
+    java.modularity.inferModulePath.set(false)
     eclipse.classpath.file.whenMerged { classpath ->
-      // give each source folder a unique corresponding output folder
+      /*
+       * give each source folder a unique corresponding output folder
+       * outside of the usual `build` folder. We can't put the build
+       * in the usual build folder because eclipse becomes *very* sad
+       * if we delete it. Which `gradlew clean` does all the time.
+       */
       int i = 0;
       classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
         i++;
-        folder.output = "build-eclipse/" + i
+        folder.output = 'out/eclipse/' + i
       }
 
       // Starting with Gradle 6.7 test dependencies are not exposed by eclipse
@@ -366,9 +415,9 @@ allprojects {
     prefix = prefix.replace(':', '_')
   }
   if (eclipse.project.name.startsWith(prefix)) {
-    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-header.txt')
+    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-2.0-header.txt')
   } else {
-    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/oss-license-header.txt')
+    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/sspl+elastic-license-header.txt')
   }
 
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
@@ -389,7 +438,7 @@ allprojects {
   tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
-wrapper {
+tasks.named("wrapper").configure {
   distributionType = 'ALL'
   doLast {
     final DistributionLocator locator = new DistributionLocator()
@@ -419,6 +468,9 @@ gradle.projectsEvaluated {
       maybeConfigure(project.tasks, 'dependenciesInfo') {
         it.enabled = false
       }
+      maybeConfigure(project.tasks, 'dependenciesGraph') {
+        it.enabled = false
+      }
     }
   }
   // Having the same group and name for distinct projects causes Gradle to consider them equal when resolving
@@ -439,7 +491,7 @@ gradle.projectsEvaluated {
 }
 
 allprojects {
-  tasks.register('resolveAllDependencies', org.elasticsearch.gradle.ResolveAllDependencies) {
+  tasks.register('resolveAllDependencies', org.elasticsearch.gradle.internal.ResolveAllDependencies) {
     configs = project.configurations
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
@@ -483,7 +535,15 @@ allprojects {
 subprojects {
   project.ext.disableTasks = { String... tasknames ->
     for (String taskname : tasknames) {
-      project.tasks.named(taskname).configure { onlyIf { false } }
+      project.tasks.named(taskname).configure { enabled = false }
+    }
+  }
+}
+
+subprojects { Project subproj ->
+  plugins.withType(TestClustersPlugin).whenPluginAdded {
+    testClusters.all {
+      systemProperty "ingest.geoip.downloader.enabled.default", "false"
     }
   }
 }

@@ -29,5 +29,6 @@ by using appropriate thresholds. If for instance we want to simulate `index.inde
 all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
 `index.indexing.slowlog.threshold.index.trace` to `-1` {es-pull}57591[#57591]
 
-
+Search::
+* Consistent treatment of numeric values for range query on date fields without `format` {es-pull}[#63692]
 

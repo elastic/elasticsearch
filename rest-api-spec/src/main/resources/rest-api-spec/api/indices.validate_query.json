@@ -5,6 +5,11 @@
       "description":"Allows a user to validate a potentially expensive query without executing it."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

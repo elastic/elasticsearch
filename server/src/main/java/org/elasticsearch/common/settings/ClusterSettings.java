@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.settings;
 
@@ -108,6 +97,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
+import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ProxyConnectionStrategy;
@@ -231,6 +221,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING,
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
             SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
@@ -240,11 +232,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             DestructiveOperations.REQUIRES_NAME_SETTING,
             NoMasterBlockService.NO_MASTER_BLOCK_SETTING,
             GatewayService.EXPECTED_DATA_NODES_SETTING,
-            GatewayService.EXPECTED_MASTER_NODES_SETTING,
-            GatewayService.EXPECTED_NODES_SETTING,
             GatewayService.RECOVER_AFTER_DATA_NODES_SETTING,
-            GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING,
-            GatewayService.RECOVER_AFTER_NODES_SETTING,
             GatewayService.RECOVER_AFTER_TIME_SETTING,
             PersistedClusterStateService.SLOW_WRITE_LOGGING_THRESHOLD,
             NetworkModule.HTTP_DEFAULT_TYPE_SETTING,
@@ -284,6 +272,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HttpTransportSettings.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
             HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE,
             HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE,
+            HttpTransportSettings.SETTING_HTTP_CLIENT_STATS_ENABLED,
             HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING,
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -441,7 +430,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             PluginsService.MANDATORY_SETTING,
             BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
             BootstrapSettings.MEMORY_LOCK_SETTING,
-            BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
             BootstrapSettings.CTRLHANDLER_SETTING,
             KeyStoreWrapper.SEED_SETTING,
             IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
@@ -454,6 +442,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             ResourceWatcherService.RELOAD_INTERVAL_MEDIUM,
             ResourceWatcherService.RELOAD_INTERVAL_LOW,
             SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
+            SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING,
             ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
             FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
             Node.BREAKER_TYPE_KEY,
@@ -484,10 +473,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
             HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
             HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
             SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
+            RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
-            IndexingPressure.MAX_INDEXING_BYTES);
+            IndexingPressure.MAX_INDEXING_BYTES,
+            ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

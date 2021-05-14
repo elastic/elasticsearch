@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -25,18 +28,22 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
+import org.elasticsearch.xpack.core.ml.utils.RuntimeMappingsValidator;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.core.ml.utils.XContentObjectTransformer;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,9 +54,25 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SORT;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_BE_TOP_LEVEL_AND_ALONE;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_HAVE_SINGLE_DATE_SOURCE;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.INVALID_ID;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.getMessage;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 /**
@@ -61,6 +84,8 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * values.
  */
 public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
+
+    private static final Version RUNTIME_MAPPINGS_INTRODUCED = Version.V_7_11_0;
 
     public static final int DEFAULT_SCROLL_SIZE = 1000;
 
@@ -111,11 +136,19 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
         Collection<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
         if (aggregatorFactories.isEmpty()) {
-            throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+            throw ExceptionsHelper.badRequestException(DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
         }
 
+        Builder.checkForOnlySingleTopLevelCompositeAggAndValidate(aggregations.getAggregatorFactories());
         AggregationBuilder histogramAggregation = ExtractorUtils.getHistogramAggregation(aggregatorFactories);
+        if (histogramAggregation instanceof CompositeAggregationBuilder
+            && aggregations.getPipelineAggregatorFactories().isEmpty() == false) {
+            throw ExceptionsHelper.badRequestException(
+                "when using composite aggregations, top level pipeline aggregations are not supported"
+            );
+        }
         Builder.checkNoMoreHistogramAggregations(histogramAggregation.getSubAggregations());
+        Builder.checkNoMoreCompositeAggregations(histogramAggregation.getSubAggregations());
         Builder.checkHistogramAggregationHasChildMaxTimeAgg(histogramAggregation);
         Builder.checkHistogramIntervalIsPositive(histogramAggregation);
     }
@@ -133,7 +166,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         parser.declareString((builder, val) ->
             builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
         parser.declareObject(Builder::setQueryProvider,
-            (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT),
+            (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, DATAFEED_CONFIG_QUERY_BAD_FORMAT),
             QUERY);
         parser.declareObject(Builder::setAggregationsSafe,
             (p, c) -> AggProvider.fromXContent(p, ignoreUnknownFields),
@@ -165,6 +198,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         parser.declareObject(Builder::setIndicesOptions,
             (p, c) -> IndicesOptions.fromMap(p.map(), SearchRequest.DEFAULT_INDICES_OPTIONS),
             INDICES_OPTIONS);
+        parser.declareObject(Builder::setRuntimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         return parser;
     }
 
@@ -191,11 +225,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final DelayedDataCheckConfig delayedDataCheckConfig;
     private final Integer maxEmptySearches;
     private final IndicesOptions indicesOptions;
+    private final Map<String, Object> runtimeMappings;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices,
                            QueryProvider queryProvider, AggProvider aggProvider, List<SearchSourceBuilder.ScriptField> scriptFields,
                            Integer scrollSize, ChunkingConfig chunkingConfig, Map<String, String> headers,
-                           DelayedDataCheckConfig delayedDataCheckConfig, Integer maxEmptySearches, IndicesOptions indicesOptions) {
+                           DelayedDataCheckConfig delayedDataCheckConfig, Integer maxEmptySearches, IndicesOptions indicesOptions,
+                           Map<String, Object> runtimeMappings) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -210,6 +246,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.delayedDataCheckConfig = delayedDataCheckConfig;
         this.maxEmptySearches = maxEmptySearches;
         this.indicesOptions = ExceptionsHelper.requireNonNull(indicesOptions, INDICES_OPTIONS);
+        this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
     }
 
     public DatafeedConfig(StreamInput in) throws IOException {
@@ -238,6 +275,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
         maxEmptySearches = in.readOptionalVInt();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        runtimeMappings = in.readMap();
     }
 
     /**
@@ -278,6 +316,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return scrollSize;
     }
 
+    public Optional<Tuple<Version, String>> minRequiredClusterVersion() {
+        return runtimeMappings.isEmpty() ?
+            Optional.empty() :
+            Optional.of(Tuple.tuple(RUNTIME_MAPPINGS_INTRODUCED, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));
+    }
+
     /**
      * Get the fully parsed query from the semi-parsed stored {@code Map<String, Object>}
      *
@@ -302,7 +346,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (exception.getCause() instanceof IllegalArgumentException) {
                 exception = (Exception)exception.getCause();
             }
-            throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT, exception);
+            throw ExceptionsHelper.badRequestException(DATAFEED_CONFIG_QUERY_BAD_FORMAT, exception);
         }
     }
 
@@ -350,7 +394,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (exception.getCause() instanceof IllegalArgumentException) {
                 exception = (Exception)exception.getCause();
             }
-            throw ExceptionsHelper.badRequestException(Messages.DATAFEED_CONFIG_AGG_BAD_FORMAT, exception);
+            throw ExceptionsHelper.badRequestException(DATAFEED_CONFIG_AGG_BAD_FORMAT, exception);
         }
     }
 
@@ -381,6 +425,21 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
      */
     public long getHistogramIntervalMillis(NamedXContentRegistry namedXContentRegistry) {
         return ExtractorUtils.getHistogramIntervalMillis(getParsedAggregations(namedXContentRegistry));
+    }
+
+    /**
+     * Indicates if the datafeed is using composite aggs.
+     * @param namedXContentRegistry XContent registry to transform the lazily parsed aggregations
+     * @return If the datafeed utilizes composite aggs or not
+     */
+    public boolean hasCompositeAgg(NamedXContentRegistry namedXContentRegistry) {
+        if (hasAggregations() == false) {
+            return false;
+        }
+        AggregationBuilder maybeComposite = ExtractorUtils.getHistogramAggregation(
+            getParsedAggregations(namedXContentRegistry).getAggregatorFactories()
+        );
+        return maybeComposite instanceof CompositeAggregationBuilder;
     }
 
     /**
@@ -422,6 +481,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         return indicesOptions;
     }
 
+    public Map<String, Object> getRuntimeMappings() {
+        return runtimeMappings;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
@@ -452,6 +515,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         out.writeOptionalWriteable(delayedDataCheckConfig);
         out.writeOptionalVInt(maxEmptySearches);
         indicesOptions.writeIndicesOptions(out);
+        out.writeMap(runtimeMappings);
     }
 
     @Override
@@ -464,6 +528,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
             if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                assertNoAuthorizationHeader(headers);
                 builder.field(HEADERS.getPreferredName(), headers);
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());
@@ -510,6 +575,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (maxEmptySearches != null) {
             builder.field(MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
         }
+        if (runtimeMappings.isEmpty() == false) {
+            builder.field(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
+        }
         builder.endObject();
         return builder;
     }
@@ -524,9 +592,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         if (aggProvider == null || aggProvider.getParsedAggs() == null) {
             return ChunkingConfig.newAuto();
         } else {
-            long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(aggProvider.getParsedAggs());
+            AggregationBuilder histogram = ExtractorUtils.getHistogramAggregation(aggProvider.getParsedAggs().getAggregatorFactories());
+            if (histogram instanceof CompositeAggregationBuilder) {
+                // Allow composite aggs to handle the underlying chunking and searching
+                return ChunkingConfig.newOff();
+            }
+            long histogramIntervalMillis = ExtractorUtils.getHistogramIntervalMillis(histogram);
             if (histogramIntervalMillis <= 0) {
-                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                throw ExceptionsHelper.badRequestException(DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
             }
             return ChunkingConfig.newManual(TimeValue.timeValueMillis(DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis));
         }
@@ -562,13 +635,14 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.headers, that.headers)
                 && Objects.equals(this.delayedDataCheckConfig, that.delayedDataCheckConfig)
                 && Objects.equals(this.maxEmptySearches, that.maxEmptySearches)
-                && Objects.equals(this.indicesOptions, that.indicesOptions);
+                && Objects.equals(this.indicesOptions, that.indicesOptions)
+                && Objects.equals(this.runtimeMappings, that.runtimeMappings);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(id, jobId, frequency, queryDelay, indices, queryProvider, scrollSize, aggProvider, scriptFields, chunkingConfig,
-                headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
+                headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions, runtimeMappings);
     }
 
     @Override
@@ -639,6 +713,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
         private IndicesOptions indicesOptions;
+        private Map<String, Object> runtimeMappings = Collections.emptyMap();
 
         public Builder() { }
 
@@ -663,6 +738,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.delayedDataCheckConfig = config.getDelayedDataCheckConfig();
             this.maxEmptySearches = config.getMaxEmptySearches();
             this.indicesOptions = config.indicesOptions;
+            this.runtimeMappings = new HashMap<>(config.runtimeMappings);
         }
 
         public Builder setId(String datafeedId) {
@@ -677,6 +753,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         public Builder setJobId(String jobId) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             return this;
+        }
+
+        public String getJobId() {
+            return jobId;
         }
 
         public Builder setHeaders(Map<String, String> headers) {
@@ -742,10 +822,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         public Builder setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
-            List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>();
-            for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
-                sorted.add(scriptField);
-            }
+            List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>(scriptFields);
             sorted.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             this.scriptFields = sorted;
             return this;
@@ -753,8 +830,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         public Builder setScrollSize(int scrollSize) {
             if (scrollSize < 0) {
-                String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
-                        DatafeedConfig.SCROLL_SIZE.getPreferredName(), scrollSize);
+                String msg = getMessage(DATAFEED_CONFIG_INVALID_OPTION_VALUE, DatafeedConfig.SCROLL_SIZE.getPreferredName(), scrollSize);
                 throw ExceptionsHelper.badRequestException(msg);
             }
             this.scrollSize = scrollSize;
@@ -775,8 +851,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (maxEmptySearches == -1) {
                 this.maxEmptySearches = null;
             } else if (maxEmptySearches <= 0) {
-                String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
-                    DatafeedConfig.MAX_EMPTY_SEARCHES.getPreferredName(), maxEmptySearches);
+                String msg = getMessage(
+                    DATAFEED_CONFIG_INVALID_OPTION_VALUE,
+                    DatafeedConfig.MAX_EMPTY_SEARCHES.getPreferredName(),
+                    maxEmptySearches
+                );
                 throw ExceptionsHelper.badRequestException(msg);
             } else {
                 this.maxEmptySearches = maxEmptySearches;
@@ -793,17 +872,24 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return this.indicesOptions;
         }
 
+        public Builder setRuntimeMappings(Map<String, Object> runtimeMappings) {
+            this.runtimeMappings = ExceptionsHelper.requireNonNull(runtimeMappings,
+                SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName());
+            return this;
+        }
+
         public DatafeedConfig build() {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
-            if (!MlStrings.isValidId(id)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
+            if (MlStrings.isValidId(id) == false) {
+                throw ExceptionsHelper.badRequestException(getMessage(INVALID_ID, ID.getPreferredName(), id));
             }
             if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
 
             validateScriptFields();
+            RuntimeMappingsValidator.validate(runtimeMappings);
             setDefaultChunkingConfig();
 
             setDefaultQueryDelay();
@@ -811,23 +897,22 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
             }
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, queryProvider, aggProvider, scriptFields, scrollSize,
-                    chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions);
+                    chunkingConfig, headers, delayedDataCheckConfig, maxEmptySearches, indicesOptions, runtimeMappings);
         }
 
         void validateScriptFields() {
             if (aggProvider == null) {
                 return;
             }
-            if (scriptFields != null && !scriptFields.isEmpty()) {
-                throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+            if (scriptFields != null && scriptFields.isEmpty() == false) {
+                throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }
         }
 
         private static void checkNoMoreHistogramAggregations(Collection<AggregationBuilder> aggregations) {
             for (AggregationBuilder agg : aggregations) {
                 if (ExtractorUtils.isHistogram(agg)) {
-                    throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);
+                    throw ExceptionsHelper.badRequestException(DATAFEED_AGGREGATIONS_MAX_ONE_DATE_HISTOGRAM);
                 }
                 checkNoMoreHistogramAggregations(agg.getSubAggregations());
             }
@@ -836,7 +921,13 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         static void checkHistogramAggregationHasChildMaxTimeAgg(AggregationBuilder histogramAggregation) {
             String timeField = null;
             if (histogramAggregation instanceof ValuesSourceAggregationBuilder) {
-                timeField = ((ValuesSourceAggregationBuilder) histogramAggregation).field();
+                timeField = ((ValuesSourceAggregationBuilder<?>) histogramAggregation).field();
+            }
+            if (histogramAggregation instanceof CompositeAggregationBuilder) {
+                DateHistogramValuesSourceBuilder valueSource = ExtractorUtils.getDateHistogramValuesSource(
+                    (CompositeAggregationBuilder) histogramAggregation
+                );
+                timeField = valueSource.field();
             }
 
             for (AggregationBuilder agg : histogramAggregation.getSubAggregations()) {
@@ -848,17 +939,86 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 }
             }
 
-            throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION, timeField));
+            throw ExceptionsHelper.badRequestException(getMessage(DATAFEED_DATA_HISTOGRAM_MUST_HAVE_NESTED_MAX_AGGREGATION, timeField));
         }
 
         private static void checkHistogramIntervalIsPositive(AggregationBuilder histogramAggregation) {
             long interval = ExtractorUtils.getHistogramIntervalMillis(histogramAggregation);
             if (interval <= 0) {
-                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                throw ExceptionsHelper.badRequestException(DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
             }
         }
 
+        static void validateCompositeAggregationSources(CompositeAggregationBuilder histogramAggregation) {
+            boolean hasDateValueSource = false;
+            DateHistogramValuesSourceBuilder foundBuilder = null;
+            for (CompositeValuesSourceBuilder<?> valueSource : histogramAggregation.sources()) {
+                if (valueSource instanceof DateHistogramValuesSourceBuilder) {
+                    if (hasDateValueSource) {
+                        throw ExceptionsHelper.badRequestException(
+                            getMessage(
+                                DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_HAVE_SINGLE_DATE_SOURCE,
+                                histogramAggregation.getName()
+                            )
+                        );
+                    }
+                    hasDateValueSource = true;
+                    foundBuilder = (DateHistogramValuesSourceBuilder) valueSource;
+                }
+            }
+            if (foundBuilder == null) {
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(
+                        DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_HAVE_SINGLE_DATE_SOURCE,
+                        histogramAggregation.getName()
+                    )
+                );
+            }
+            if (foundBuilder.missingBucket()) {
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(
+                        DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SOURCE_MISSING_BUCKET,
+                        histogramAggregation.getName(),
+                        foundBuilder.name()
+                    )
+                );
+            }
+            if (foundBuilder.order() != SortOrder.ASC) {
+                throw ExceptionsHelper.badRequestException(
+                    getMessage(
+                        DATAFEED_AGGREGATIONS_COMPOSITE_AGG_DATE_HISTOGRAM_SORT,
+                        histogramAggregation.getName(),
+                        foundBuilder.name()
+                    )
+                );
+            }
+        }
+
+        private static void checkForOnlySingleTopLevelCompositeAggAndValidate(Collection<AggregationBuilder> aggregationBuilders) {
+            Optional<AggregationBuilder> maybeComposite = aggregationBuilders.stream()
+                .filter(agg -> agg instanceof CompositeAggregationBuilder)
+                .findFirst();
+            if (maybeComposite.isEmpty() == false) {
+                CompositeAggregationBuilder composite = (CompositeAggregationBuilder) maybeComposite.get();
+                if (aggregationBuilders.size() > 1) {
+                    throw ExceptionsHelper.badRequestException(
+                        getMessage(DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_BE_TOP_LEVEL_AND_ALONE, composite.getName())
+                    );
+                }
+                validateCompositeAggregationSources(composite);
+            }
+        }
+
+        private static void checkNoMoreCompositeAggregations(Collection<AggregationBuilder> aggregations) {
+            for (AggregationBuilder agg : aggregations) {
+                if (agg instanceof CompositeAggregationBuilder) {
+                    throw ExceptionsHelper.badRequestException(
+                        getMessage(DATAFEED_AGGREGATIONS_COMPOSITE_AGG_MUST_BE_TOP_LEVEL_AND_ALONE, agg.getName())
+                    );
+                }
+                checkNoMoreCompositeAggregations(agg.getSubAggregations());
+            }
+        }
         private void setDefaultChunkingConfig() {
             if (chunkingConfig == null) {
                 chunkingConfig = defaultChunkingConfig(aggProvider);
@@ -872,7 +1032,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         }
 
         private static ElasticsearchException invalidOptionValue(String fieldName, Object value) {
-            String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, fieldName, value);
+            String msg = getMessage(DATAFEED_CONFIG_INVALID_OPTION_VALUE, fieldName, value);
             throw ExceptionsHelper.badRequestException(msg);
         }
     }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.async;
@@ -35,11 +36,6 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
         this.originHeaders = originHeaders;
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();
         this.completionListeners = new ArrayList<>();
-    }
-
-    @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
     }
 
     @Override

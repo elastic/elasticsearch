@@ -1,7 +1,7 @@
 [[indices-aliases]]
-=== Bulk index alias API
+=== Aliases API
 ++++
-<titleabbrev>Bulk index alias</titleabbrev>
+<titleabbrev>Aliases</titleabbrev>
 ++++
 
 Adds and removes multiple index aliases in a single request. Also deletes

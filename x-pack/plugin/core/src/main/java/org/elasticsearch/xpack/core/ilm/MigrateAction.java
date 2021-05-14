@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -123,7 +122,7 @@ public class MigrateAction implements LifecycleAction {
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
                 migrationSettings.build());
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
-            return Arrays.asList(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
+            return List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
         } else {
             return List.of();
         }

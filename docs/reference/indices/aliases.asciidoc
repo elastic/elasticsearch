@@ -1,7 +1,7 @@
 [[indices-aliases]]
-=== Bulk index alias API
+=== Aliases API
 ++++
-<titleabbrev>Bulk index alias</titleabbrev>
+<titleabbrev>Aliases</titleabbrev>
 ++++
 
 Adds and removes multiple index aliases in a single request. Also deletes
@@ -141,7 +141,7 @@ Defaults to `false`.
 +
 An alias can have one write index at a time.
 +
-See <<aliases-write-index>> for an example.
+See <<write-index>> for an example.
 +
 [IMPORTANT]
 ====
@@ -151,7 +151,7 @@ until an additional index is referenced. At that point, there will be no write i
 writes will be rejected.
 ====
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 +
 See <<aliases-routing>> for an example.
 
@@ -427,7 +427,7 @@ GET /alias2/_search?q=user.id:kimchy&routing=2,3
 --------------------------------------------------
 // TEST[continued]
 
-[[aliases-write-index]]
+[[write-index]]
 ===== Write index
 
 It is possible to associate the index pointed to by an alias as the write index.

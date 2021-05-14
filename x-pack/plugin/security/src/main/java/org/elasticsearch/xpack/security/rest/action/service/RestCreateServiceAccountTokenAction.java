@@ -11,12 +11,14 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -48,7 +50,7 @@ public class RestCreateServiceAccountTokenAction extends SecurityBaseRestHandler
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String tokenName = request.param("name");
         if (Strings.isNullOrEmpty(tokenName)) {
-            tokenName = UUIDs.base64UUID();
+            tokenName = new String(Hasher.SHA256.hash(new SecureString(UUIDs.base64UUID().toCharArray())));
         }
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
                 request.param("namespace"), request.param("service"), tokenName);

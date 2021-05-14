@@ -2,12 +2,12 @@
 [[alias]]
 = Aliases
 
-An alias is a secondary name for a group of data streams or indices. Most
-{es} APIs accept an alias in place of a data stream or index name.
+An alias is a secondary name for a group of data streams or indices. Most {es}
+APIs accept an alias in place of a data stream or index name.
 
-You can change the data streams or indices for an alias at any time. If you use
-{es} for a custom application, aliases let you change the targets of
-your requests without modifying your app's code.
+You can change the data streams or indices of an alias at any time. If you use
+aliases in your application, you can reindex your data with no downtime or
+changes to your app's code.
 
 [discrete]
 [[alias-types]]
@@ -26,8 +26,8 @@ data stream's backing index to an index alias.
 === Add an alias
 
 To add an existing data stream or index to an alias, use the
-<<indices-aliases,aliases API>>'s `add` action. If the alias doesn't exist,
-the action creates it.
+<<indices-aliases,aliases API>>'s `add` action. If the alias doesn't exist, the
+request creates it.
 
 [source,console]
 ----
@@ -88,14 +88,15 @@ POST _aliases
 // TEST[continued]
 
 [discrete]
-[[multiple-alias-actions]]
-=== Multiple alias actions
+[[multiple-actions]]
+=== Multiple actions
 
-You can perform multiple actions in a single atomic operation.
+You can use the aliases API to perform multiple actions in a single atomic
+operation.
 
 For example, the `logs` alias points to a single data stream. The following
-request swaps the stream for the alias. During this swap, `logs` will never
-point to both streams at the same time.
+request swaps the stream for the alias. During this swap, the `logs` alias has
+no downtime and will never point to both streams at the same time.
 
 [source,console]
 ----
@@ -142,8 +143,14 @@ PUT _component_template/my-aliases
 # Index template with index aliases
 PUT _index_template/my-index-template
 {
-  "index_patterns": ["my-index-*"],
-  "composed_of": [ "my-aliases", "my-mappings", "my-settings" ],
+  "index_patterns": [
+    "my-index-*"
+  ],
+  "composed_of": [
+    "my-aliases",
+    "my-mappings",
+    "my-settings"
+  ],
   "template": {
     "aliases": {
       "yet-another-alias": {}
@@ -151,7 +158,7 @@ PUT _index_template/my-index-template
   }
 }
 ----
-// TEST[s/, "my-mappings", "my-settings"//]
+// TEST[s/,\n    "my-mappings",\n    "my-settings"//]
 // TEST[teardown:data_stream_cleanup]
 
 You can also specify index aliases in <<indices-create-index,create index API>>
@@ -231,10 +238,11 @@ POST _aliases
 
 TIP: We recommend using data streams to store append-only time series data. If
 you frequently update or delete existing time series data, use an index alias
-with a write index instead. See <<manage-time-series-data-without-data-streams>>.
+with a write index instead. See
+<<manage-time-series-data-without-data-streams>>.
 
 If an alias points to multiple indices with no write index, the alias will
 reject write requests. If an alias points to one index and `is_write_index` is
 not set, that index will automatically act as the write index. Data stream
 aliases do not support `is_write_index`.
- 
+

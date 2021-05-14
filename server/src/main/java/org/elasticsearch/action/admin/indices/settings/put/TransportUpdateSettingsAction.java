@@ -159,12 +159,12 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     }
 
     /**
-     * Checks that if the request is trying to apply settings changes to any system indices, then the settings' values match those
-     * that the system index's descriptor expects.
+     * Checks that the request isn't trying to add the "hidden" setting to a system
+     * index
      *
      * @param concreteIndices the indices being updated
      * @param request the update request
-     * @return a mapping from system index pattern to the settings whose values would be overridden. Empty if there are no violations.
+     * @return a list of system indexes that this request would set to hidden
      */
     private List<String> checkForHidingSystemIndex(Index[] concreteIndices, UpdateSettingsRequest request) {
         // Requests that a cluster generates itself are permitted to have a difference in settings

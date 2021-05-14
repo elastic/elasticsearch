@@ -179,15 +179,16 @@ PUT %3Cmy-index-%7Bnow%2Fd%7D-000001%3E
 [[view-aliases]]
 === View aliases
 
-To get a list of your cluster's aliases, use the <<cat-alias,cat aliases API>>.
+To get a list of your cluster's aliases, use the <<indices-get-alias,get alias API>>
+with an `_all` argument.
 
 [source,console]
 ----
-GET _cat/aliases?v=true
+GET _alias/_all
 ----
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
 
-To view the data streams or indices an alias points to, use the
-<<indices-get-alias,get alias API>>.
+Specify an alias after `_alias` to view its data streams or indices.
 
 [source,console]
 ----
@@ -196,8 +197,7 @@ GET _alias/logs
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
 // TEST[catch:missing]
 
-To view the aliases for a data stream or index, specify the stream or index name
-in the get alias API's request path.
+Specify a data stream or index before `_alias` to view its aliases.
 
 [source,console]
 ----

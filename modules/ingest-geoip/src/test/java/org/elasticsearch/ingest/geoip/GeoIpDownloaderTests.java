@@ -13,6 +13,12 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest.OpType;
+import org.elasticsearch.action.admin.indices.flush.FlushAction;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -140,11 +146,29 @@ public class GeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testIndexChunksNoData() throws IOException {
+        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
+            assertArrayEquals(new String[] {GeoIpDownloader.DATABASES_INDEX}, request.indices());
+            flushResponseActionListener.onResponse(mock(FlushResponse.class));
+        });
+        client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
+            assertArrayEquals(new String[] {GeoIpDownloader.DATABASES_INDEX}, request.indices());
+            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
+        });
+
         InputStream empty = new ByteArrayInputStream(new byte[0]);
         assertEquals(0, geoIpDownloader.indexChunks("test", empty, 0, "d41d8cd98f00b204e9800998ecf8427e", 0));
     }
 
     public void testIndexChunksMd5Mismatch() {
+        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
+            assertArrayEquals(new String[] {GeoIpDownloader.DATABASES_INDEX}, request.indices());
+            flushResponseActionListener.onResponse(mock(FlushResponse.class));
+        });
+        client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
+            assertArrayEquals(new String[] {GeoIpDownloader.DATABASES_INDEX}, request.indices());
+            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
+        });
+
         IOException exception = expectThrows(IOException.class, () -> geoIpDownloader.indexChunks("test",
             new ByteArrayInputStream(new byte[0]), 0, "123123", 0));
         assertEquals("md5 checksum mismatch, expected [123123], actual [d41d8cd98f00b204e9800998ecf8427e]", exception.getMessage());
@@ -173,6 +197,14 @@ public class GeoIpDownloaderTests extends ESTestCase {
             assertArrayEquals(chunksData[chunk], (byte[]) source.get("data"));
             assertEquals(chunk + 15, source.get("chunk"));
             listener.onResponse(mock(IndexResponse.class));
+        });
+        client.addHandler(FlushAction.INSTANCE, (FlushRequest request, ActionListener<FlushResponse> flushResponseActionListener) -> {
+            assertArrayEquals(new String[] {GeoIpDownloader.DATABASES_INDEX}, request.indices());
+            flushResponseActionListener.onResponse(mock(FlushResponse.class));
+        });
+        client.addHandler(RefreshAction.INSTANCE, (RefreshRequest request, ActionListener<RefreshResponse> flushResponseActionListener) -> {
+            assertArrayEquals(new String[] {GeoIpDownloader.DATABASES_INDEX}, request.indices());
+            flushResponseActionListener.onResponse(mock(RefreshResponse.class));
         });
 
         InputStream big = new ByteArrayInputStream(bigArray);

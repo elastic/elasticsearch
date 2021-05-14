@@ -14,7 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -32,11 +32,11 @@ public class ServiceAccountService {
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
 
-    private final ServiceAccountsTokenStore serviceAccountsTokenStore;
+    private final ServiceAccountTokenStore serviceAccountTokenStore;
     private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
-    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore, HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
-        this.serviceAccountsTokenStore = serviceAccountsTokenStore;
+    public ServiceAccountService(ServiceAccountTokenStore serviceAccountTokenStore, HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
+        this.serviceAccountTokenStore = serviceAccountTokenStore;
         this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
@@ -78,9 +78,9 @@ public class ServiceAccountService {
         }
     }
 
-    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountTokensResponse> listener) {
-        serviceAccountsTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
-            listener.onResponse(new GetServiceAccountTokensResponse(accountId.asPrincipal(), nodeName, tokenInfos));
+    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountCredentialsResponse> listener) {
+        serviceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
+            listener.onResponse(new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), nodeName, tokenInfos));
         }, listener::onFailure));
     }
 
@@ -101,7 +101,7 @@ public class ServiceAccountService {
                 return;
             }
 
-            serviceAccountsTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
+            serviceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
                 if (success) {
                     listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
                 } else {

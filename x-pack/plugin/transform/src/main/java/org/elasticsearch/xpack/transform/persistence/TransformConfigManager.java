@@ -123,13 +123,13 @@ public interface TransformConfigManager {
      *
      * @param transformIdsExpression The id expression. Can be _all, *, or comma delimited list of simple regex strings
      * @param pageParams             The paging params
-     * @param foundIdsListener       The listener on signal on success or failure
+     * @param foundConfigsListener   The listener on signal on success or failure
      */
     void expandTransformIds(
         String transformIdsExpression,
         PageParams pageParams,
         boolean allowNoMatch,
-        ActionListener<Tuple<Long, List<String>>> foundIdsListener
+        ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     );
 
     /**

@@ -20,6 +20,7 @@ import java.util.Objects;
  */
 public class DeprecationRestHandler implements RestHandler {
 
+    public static final String DEPRECATED_ROUTE_KEY = "deprecated_route";
     private final RestHandler handler;
     private final String deprecationMessage;
     private final DeprecationLogger deprecationLogger;
@@ -54,9 +55,9 @@ public class DeprecationRestHandler implements RestHandler {
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (compatibleVersionWarning == false) {
-            deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_route", deprecationMessage);
+            deprecationLogger.deprecate(DeprecationCategory.API, DEPRECATED_ROUTE_KEY, deprecationMessage);
         } else {
-            deprecationLogger.compatibleApiWarning("deprecated_route", deprecationMessage);
+            deprecationLogger.compatibleApiWarning(DEPRECATED_ROUTE_KEY, deprecationMessage);
         }
 
         handler.handleRequest(request, channel, client);

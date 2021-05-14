@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -33,11 +32,7 @@ public class TransformFeatureSetUsage extends Usage {
     public TransformFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
         this.transformCountByState = in.readMap(StreamInput::readString, StreamInput::readLong);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: V_7_13_0
-            this.transformCountByFeature = in.readMap(StreamInput::readString, StreamInput::readLong);
-        } else {
-            this.transformCountByFeature = Collections.emptyMap();
-        }
+        this.transformCountByFeature = in.readMap(StreamInput::readString, StreamInput::readLong);
         this.accumulatedStats = new TransformIndexerStats(in);
     }
 
@@ -59,9 +54,7 @@ public class TransformFeatureSetUsage extends Usage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeMap(transformCountByState, StreamOutput::writeString, StreamOutput::writeLong);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {  // TODO: V_7_13_0
-            out.writeMap(transformCountByFeature, StreamOutput::writeString, StreamOutput::writeLong);
-        }
+        out.writeMap(transformCountByFeature, StreamOutput::writeString, StreamOutput::writeLong);
         accumulatedStats.writeTo(out);
     }
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -64,11 +63,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         this.lastFailure = in.readOptionalWriteable(SnapshotInvocationRecord::new);
         this.snapshotInProgress = in.readOptionalWriteable(SnapshotInProgress::new);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.policyStats = new SnapshotLifecycleStats.SnapshotPolicyStats(in);
-        } else {
-            this.policyStats = new SnapshotLifecycleStats.SnapshotPolicyStats(this.policy.getId());
-        }
+        this.policyStats = new SnapshotLifecycleStats.SnapshotPolicyStats(in);
     }
 
     // For testing
@@ -122,9 +117,7 @@ public class SnapshotLifecyclePolicyItem implements ToXContentFragment, Writeabl
         out.writeOptionalWriteable(lastSuccess);
         out.writeOptionalWriteable(lastFailure);
         out.writeOptionalWriteable(snapshotInProgress);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.policyStats.writeTo(out);
-        }
+        policyStats.writeTo(out);
     }
 
     @Override

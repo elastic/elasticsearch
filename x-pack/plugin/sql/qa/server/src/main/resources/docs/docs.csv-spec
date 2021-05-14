@@ -676,9 +676,9 @@ SELECT gender AS g, ROUND((MIN(salary) / 100)) AS salary FROM emp GROUP BY gende
 
        g       |    salary     
 ---------------+---------------
-null           |253            
-F              |260            
-M              |259        
+null           |253
+F              |259
+M              |259
 // end::groupByAndAggExpression
 ;
 

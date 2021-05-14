@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
+import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask
 
 plugins {
   id 'base'

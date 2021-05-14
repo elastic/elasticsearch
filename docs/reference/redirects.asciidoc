@@ -1373,24 +1373,6 @@ See <<constant-keyword-field-type>>.
 
 See <<wildcard-field-type>>.
 
-[role="exclude",id="searchable-snapshots-api-clear-cache"]
-=== Clear cache API
-
-We have removed documentation for this API. This a low-level API used to clear
-the searchable snapshot cache. We plan to remove or drastically change this API
-as part of a future release.
-
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-
-[role="exclude",id="searchable-snapshots-api-stats"]
-=== Searchable snapshot statistics API
-
-We have removed documentation for this API. This a low-level API used to get
-information about searchable snapshot indices. We plan to remove or drastically
-change this API as part of a future release.
-
-For other searchable snapshot APIs, see <<searchable-snapshots-apis>>.
-
 [role="exclude",id="searchable-snapshots-repository-stats"]
 === Searchable snapshot repository statistics API
 
@@ -1513,3 +1495,62 @@ See <<put-enrich-policy-api>>.
 === Rollup API
 
 See <<rollup-apis>>.
+
+[role="exclude",id="getting-started-install"]
+=== Get {es} up and running
+
+See <<run-elasticsearch>>.
+
+[role="exclude",id="getting-started-index"]
+=== Index some documents
+
+See <<add-data>>.
+
+[role="exclude",id="getting-started-search"]
+=== Start searching
+
+See <<qs-search-data>>.
+
+[role="exclude",id="getting-started-aggregations"]
+=== Analyze results with aggregations
+
+See <<getting-started>>.
+
+[role="exclude",id="getting-started-next-steps"]
+=== Where to go from here
+
+See <<getting-started>>.
+
+[role="exclude",id="jvm-options"]
+=== Settng JVM options
+
+See <<set-jvm-options>>.
+
+[role="exclude",id="terms-enum"]
+=== Terms enum API
+
+See <<search-terms-enum>>.
+
+[role="exclude",id="frozen-indices"]
+=== Frozen indices
+
+// tag::frozen-index-redirect[]
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
+
+For API documentation, see <<freeze-index-api>> and <<unfreeze-index-api>>.
+// end::frozen-index-redirect[]
+
+[role="exclude",id="best_practices"]
+=== Best practices for frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="searching_a_frozen_index"]
+=== Searching a frozen index
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="monitoring_frozen_indices"]
+=== Monitoring frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]

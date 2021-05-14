@@ -58,6 +58,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         return List.of(new ConstantKeywordMapperPlugin());
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo"));
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -171,5 +176,10 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "constant_keyword").field("value", randomAlphaOfLengthBetween(1, 10));
+    }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;   // null is an error for constant keyword
     }
 }

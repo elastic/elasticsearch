@@ -178,7 +178,7 @@ public class NativeUsersStore {
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
         final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
         if (frozenSecurityIndex.isAvailable() == false) {
-            if (frozenSecurityIndex.indexExists()) {
+            if (frozenSecurityIndex.indexExists() == false) {
                 logger.trace("could not retrieve user [{}] because security index does not exist", user);
             } else {
                 logger.error("security index is unavailable. short circuiting retrieval of user [{}]", user);
@@ -191,15 +191,24 @@ public class NativeUsersStore {
                             new ActionListener<GetResponse>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
+                                    logger.trace(
+                                        "user [{}] is doc [{}] in index [{}] with primTerm [{}] and seqNo [{}]",
+                                        user,
+                                        response.getId(),
+                                        response.getIndex(),
+                                        response.getPrimaryTerm(),
+                                        response.getSeqNo()
+                                    );
                                     listener.onResponse(transformUser(response.getId(), response.getSource()));
                                 }
 
                                 @Override
                                 public void onFailure(Exception t) {
                                     if (t instanceof IndexNotFoundException) {
-                                        logger.trace(
-                                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                                        "could not retrieve user [{}] because security index does not exist", user), t);
+                                        logger.trace(new ParameterizedMessage(
+                                                "could not retrieve user [{}] because security index does not exist",
+                                                user),
+                                            t);
                                     } else {
                                         logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
                                     }
@@ -451,12 +460,25 @@ public class NativeUsersStore {
      */
     void verifyPassword(String username, final SecureString password, ActionListener<AuthenticationResult> listener) {
         getUserAndPassword(username, ActionListener.wrap((userAndPassword) -> {
-            if (userAndPassword == null || userAndPassword.passwordHash() == null) {
+            if (userAndPassword == null) {
+                logger.trace(
+                    "user [{}] does not exist in index [{}], cannot authenticate against the native realm",
+                    username,
+                    securityIndex.aliasName()
+                );
                 listener.onResponse(AuthenticationResult.notHandled());
-            } else if (userAndPassword.verifyPassword(password)) {
-                listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
+            } else if (userAndPassword.passwordHash() == null) {
+                logger.debug("user [{}] in index [{}] does not have a password, cannot authenticate", username, securityIndex.aliasName());
+                listener.onResponse(AuthenticationResult.notHandled());
             } else {
-                listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                if (userAndPassword.verifyPassword(password)) {
+                    logger.trace(
+                        "successfully authenticated user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
+                    listener.onResponse(AuthenticationResult.success(userAndPassword.user()));
+                } else {
+                    logger.trace("password mismatch for user [{}] (security index [{}])", userAndPassword, securityIndex.aliasName());
+                    listener.onResponse(AuthenticationResult.unsuccessful("Password authentication failed for " + username, null));
+                }
             }
         }, listener::onFailure));
     }

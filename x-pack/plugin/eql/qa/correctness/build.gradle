@@ -1,10 +1,10 @@
 apply plugin: 'elasticsearch.java-rest-test'
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 tasks.named("test").configure { enabled = false }
 
 import org.elasticsearch.gradle.testclusters.RunTask
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 dependencies {
   javaRestTestImplementation project(':test:framework')

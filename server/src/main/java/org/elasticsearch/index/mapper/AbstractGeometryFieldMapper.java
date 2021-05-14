@@ -89,7 +89,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         @Override
-        public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
 
             if (parsesArrayValue) {
@@ -116,13 +116,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> ignoreZValue;
-    private final Parser<T> parser;
+    private final Parser<? extends T> parser;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                           Map<String, NamedAnalyzer> indexAnalyzers,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
-                                          Parser<T> parser) {
+                                          Parser<? extends T> parser) {
         super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
@@ -132,8 +132,22 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
-                                          Parser<T> parser) {
+                                          Parser<? extends T> parser) {
         this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
+    }
+
+    protected AbstractGeometryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Parser<? extends T> parser,
+        String onScriptError
+    ) {
+        super(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, true, onScriptError);
+        this.ignoreMalformed = new Explicit<>(false, true);
+        this.ignoreZValue = new Explicit<>(false, true);
+        this.parser = parser;
     }
 
     @Override
@@ -155,16 +169,19 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     @Override
     public final void parse(ParseContext context) throws IOException {
-      parser.parse(context.parser(), v -> index(context, v), e -> {
-          if (ignoreMalformed()) {
-              context.addIgnoredField(fieldType().name());
-          } else {
-              throw new MapperParsingException(
-                  "Failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]",
-                  e
-              );
-          }
-      });
+        if (hasScript) {
+            throw new MapperParsingException("failed to parse field [" + fieldType().name() + "] of type + " + contentType() + "]",
+                new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter"));
+        }
+        parser.parse(context.parser(), v -> index(context, v), e -> {
+            if (ignoreMalformed()) {
+                context.addIgnoredField(fieldType().name());
+            } else {
+                throw new MapperParsingException(
+                    "failed to parse field [" + fieldType().name() + "] of type [" + contentType() + "]", e
+                );
+            }
+        });
     }
 
     public boolean ignoreMalformed() {

@@ -16,22 +16,6 @@ import org.gradle.testkit.runner.TaskOutcome
 
 class InternalDistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
-    def "plugin application fails on non internal build"() {
-        given:
-        buildFile.text = """
-            plugins {
-             id 'elasticsearch.internal-distribution-download'
-            }
-        """
-
-        when:
-        def result = gradleRunner("tasks").buildAndFail()
-
-        then:
-        assertOutputContains(result.output, "Plugin 'elasticsearch.internal-distribution-download' is not supported. " +
-            "Use 'elasticsearch.distribution-download' plugin instead")
-    }
-
     def "resolves current version from local build"() {
         given:
         internalBuild()

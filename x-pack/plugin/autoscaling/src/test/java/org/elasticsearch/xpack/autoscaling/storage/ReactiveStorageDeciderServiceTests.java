@@ -179,7 +179,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ImmutableOpenMap.Builder<String, Long> shardSizeBuilder,
         long expected
     ) {
-        ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null);
+        ClusterInfo info = new ClusterInfo(null, null, shardSizeBuilder.build(), null, null, null);
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
@@ -343,7 +343,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (shardsWithSizes.isEmpty() == false) {
             shardSizeBuilder.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
         }
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSizeBuilder.build(), null, null);
+        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSizeBuilder.build(), null, null, null);
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,

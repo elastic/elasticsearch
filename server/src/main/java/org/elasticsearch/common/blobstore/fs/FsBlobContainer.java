@@ -16,6 +16,7 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -35,10 +36,8 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -158,8 +157,29 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        IOUtils.rm(blobNames.stream().map(path::resolve).toArray(Path[]::new));
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        IOException ioe = null;
+        long suppressedExceptions = 0;
+        while (blobNames.hasNext()) {
+            try {
+                IOUtils.rm(path.resolve(blobNames.next()));
+            } catch (IOException e) {
+                // track up to 10 delete exceptions and try to continue deleting on exceptions
+                if (ioe == null) {
+                    ioe = e;
+                } else if (ioe.getSuppressed().length < 10) {
+                    ioe.addSuppressed(e);
+                } else {
+                    ++suppressedExceptions;
+                }
+            }
+        }
+        if (ioe != null) {
+            if (suppressedExceptions > 0) {
+                ioe.addSuppressed(new IOException("Failed to delete files, suppressed [" + suppressedExceptions + "] failures"));
+            }
+            throw ioe;
+        }
     }
 
     @Override
@@ -202,7 +222,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
             writeToPath(inputStream, file, blobSize);
         }
         IOUtils.fsync(path, true);
@@ -217,7 +237,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw faee;
             }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
             writeToPath(bytes, file);
         }
         IOUtils.fsync(path, true);
@@ -232,7 +252,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(tempBlob));
+                deleteBlobsIgnoringIfNotExists(Iterators.single(tempBlob));
             } catch (IOException e) {
                 ex.addSuppressed(e);
             }
@@ -268,14 +288,14 @@ public class FsBlobContainer extends AbstractBlobContainer {
             if (failIfAlreadyExists) {
                 throw new FileAlreadyExistsException("blob [" + targetBlobPath + "] already exists, cannot overwrite");
             } else {
-                deleteBlobsIgnoringIfNotExists(Collections.singletonList(targetBlobName));
+                deleteBlobsIgnoringIfNotExists(Iterators.single(targetBlobName));
             }
         }
         Files.move(sourceBlobPath, targetBlobPath, StandardCopyOption.ATOMIC_MOVE);
     }
 
     public static String tempBlobName(final String blobName) {
-        return "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
+        return TEMP_FILE_PREFIX + blobName + "-" + UUIDs.randomBase64UUID();
     }
 
     /**

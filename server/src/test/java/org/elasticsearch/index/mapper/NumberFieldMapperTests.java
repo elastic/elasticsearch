@@ -14,7 +14,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -262,7 +261,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             return (T) LongFieldScript.PARSE_FROM_SOURCE;
         }
         if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DateFieldScript.PARSE_FROM_SOURCE;
+            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
         }
         throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
     }

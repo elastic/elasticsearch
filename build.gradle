@@ -489,9 +489,15 @@ allprojects {
   }
 }
 
+
 tasks.register("precommit") {
   dependsOn gradle.includedBuild('build-tools').task(':precommit')
   dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
+}
+
+tasks.named("checkPart1").configure {
+//  dependsOn gradle.includedBuild('build-tools').task(':checkPart1')
+  dependsOn gradle.includedBuild('build-tools-internal').task(':checkPart1')
 }
 
 subprojects {

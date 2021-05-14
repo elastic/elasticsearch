@@ -275,8 +275,13 @@ tasks.register("integTest", Test) {
   classpath = sourceSets.integTest.runtimeClasspath
   useJUnitPlatform()
 }
+
+tasks.named("check").configure { dependsOn("integTest") }
+
+tasks.register("checkPart1") {
+  dependsOn 'check'
+}
 // @TODO: Ignore for now for default builds as this would trigger integTest during each build startup
-// tasks.named("check").configure { dependsOn("integTest") }
 //
 //  // for now we hardcode the tests for our build to use the gradle jvm.
 //  tasks.withType(Test).configureEach {

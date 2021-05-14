@@ -28,7 +28,6 @@ import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
-import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -40,7 +39,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -516,45 +514,4 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertThat(hotIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
             is("data_hot"));
     }
-
-    public void testSearchableSnapshotActionOverridesMigrateAction() throws Exception {
-        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
-        createPolicy(client(), policy,
-            new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
-                SearchableSnapshotAction.NAME, new SearchableSnapshotAction(
-                    snapshotRepo, randomBoolean()))
-            ),
-            new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME, new MigrateAction(true))),
-            null, null, null
-        );
-
-        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
-            new Template(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
-                .build(), null, null)
-        );
-
-        indexDocument(client(), dataStream, true);
-        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStream, 1L);
-        Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
-        // the searchable snapshot is allocated to the hot tier
-        assertThat(indexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_hot"));
-
-        // rollover the data stream so searchable_snapshot can complete
-        rolloverMaxOneDocCondition(client(), dataStream);
-
-        final String restoredIndex = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + firstGenIndex;
-        assertBusy(() -> {
-            logger.info("--> waiting for [{}] to exist...", restoredIndex);
-            assertTrue(indexExists(restoredIndex));
-        }, 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("warm").getKey())),
-            30, TimeUnit.SECONDS);
-
-        Map<String, Object> warmIndexSettings = getIndexSettingsAsMap(restoredIndex);
-        // the searchable snapshot continues on the to warm tier and onward
-        assertThat(warmIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
-    }
-
 }

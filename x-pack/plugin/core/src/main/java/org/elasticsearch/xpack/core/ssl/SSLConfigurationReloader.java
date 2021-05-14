@@ -18,7 +18,6 @@ import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
 import javax.net.ssl.SSLContext;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessControlException;
 import java.util.ArrayList;
@@ -27,7 +26,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -86,8 +84,7 @@ public final class SSLConfigurationReloader {
                                       ResourceWatcherService resourceWatcherService, Collection<SSLConfiguration> sslConfigurations) {
         Map<Path, List<SSLConfiguration>> pathToConfigurationsMap = new HashMap<>();
         for (SSLConfiguration sslConfiguration : sslConfigurations) {
-            List<Path> filesToMonitor = sslConfiguration.filesToMonitor(environment);
-            ensureAccessToFiles(filesToMonitor, environment);
+            final List<Path> filesToMonitor = sslConfiguration.filesToMonitor(environment);
             for (Path directory : directoriesToMonitor(filesToMonitor)) {
                 pathToConfigurationsMap.compute(directory, (path, list) -> {
                     if (list == null) {
@@ -99,39 +96,16 @@ public final class SSLConfigurationReloader {
             }
         }
 
-        for (Entry<Path, List<SSLConfiguration>> entry : pathToConfigurationsMap.entrySet()) {
-            ChangeListener changeListener = new ChangeListener(environment, List.copyOf(entry.getValue()), reloadConsumer);
-            FileWatcher fileWatcher = new FileWatcher(entry.getKey());
+        pathToConfigurationsMap.forEach((path, configurations) -> {
+            ChangeListener changeListener = new ChangeListener(environment, List.copyOf(configurations), reloadConsumer);
+            FileWatcher fileWatcher = new FileWatcher(path);
             fileWatcher.addListener(changeListener);
             try {
                 resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-            } catch (IOException e) {
-                logger.error("failed to start watching directory [{}] for ssl configurations [{}]", entry.getKey(), sslConfigurations);
+            } catch (IOException | AccessControlException e) {
+                logger.error("failed to start watching directory [{}] for ssl configurations [{}] - {}", path, configurations, e);
             }
-        }
-    }
-
-    /**
-     * Ensures that files are accessible for read operations
-     */
-    private static void ensureAccessToFiles(List<Path> filePaths, Environment environment) {
-        for (Path path : filePaths) {
-            try {
-                if (Files.notExists(path)) {
-                    throw new ElasticsearchException(
-                        "failed to get access to ssl configuration - file [{}] does not exist", path.toAbsolutePath());
-                } else if (!Files.isReadable(path)) {
-                    throw new ElasticsearchException(
-                        "failed to get access to ssl configuration - not permitted to read file [{}]", path.toAbsolutePath());
-                }
-            } catch (AccessControlException e) {
-                throw new ElasticsearchException(
-                    "failed to get access to ssl configuration - access to read file [{}] is blocked;" +
-                        " SSL resources should be placed in the [{}] directory", e, path, environment.configFile());
-            } catch (SecurityException e) {
-                throw new ElasticsearchException("failed to get access to ssl configuration", e);
-            }
-        }
+        });
     }
 
     /**

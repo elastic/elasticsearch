@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
@@ -53,6 +54,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.AccessControlException;
 import java.security.AccessController;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -63,6 +65,7 @@ import java.security.PrivilegedExceptionAction;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -504,9 +507,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     }
 
     /**
-     * Tests the initiation of ssl configuration file watchers when there is an exception. An exception is caused by a missing file
+     * Tests that the reloader doesn't throw an exception if a file is configured to be outside of the config/ directory.
+     * These errors are handled correctly by the
      */
-    public void testAccessToSslConfigurationException() throws Exception {
+    public void testReadingOutsideConfigDirectoryDoesntFail() throws Exception {
         Path tempDir = createTempDir();
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Settings settings = baseKeystoreSettings(tempDir, null)
@@ -516,14 +520,11 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(settings);
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
-        try {
-            new SSLConfigurationReloader(env, null, resourceWatcherService, SSLService.getSSLConfigurations(settings).values());
-        } catch (Exception e) {
-            exceptionRef.set(e);
-        }
-
-        assertNotNull(exceptionRef.get());
-        assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to get access to ssl configuration")));
+        final ResourceWatcherService mockResourceWatcher = Mockito.mock(ResourceWatcherService.class);
+        Mockito.when(mockResourceWatcher.add(Mockito.any(), Mockito.any())).thenThrow(new AccessControlException("access denied in test"));
+        final Collection<SSLConfiguration> configurations = SSLService.getSSLConfigurations(settings).values();
+        final SSLConfigurationReloader reloader = new SSLConfigurationReloader(env, null, mockResourceWatcher, configurations);
+        assertNotNull(reloader);
     }
 
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {

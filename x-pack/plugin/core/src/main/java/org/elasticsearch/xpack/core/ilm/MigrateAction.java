@@ -106,6 +106,8 @@ public class MigrateAction implements LifecycleAction {
             BranchingStep conditionalSkipActionStep = new BranchingStep(preMigrateBranchingKey, migrationKey, nextStepKey,
                 (index, clusterState) -> {
                     Settings indexSettings = clusterState.metadata().index(index).getSettings();
+
+                    // partially mounted indices will already have data_frozen, and we don't want to change that if they do
                     if (SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(indexSettings)) {
                         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
                         logger.debug("[{}] action in policy [{}] is configured for index [{}] which is a partially mounted index. skipping this action",
@@ -113,7 +115,6 @@ public class MigrateAction implements LifecycleAction {
                         return true;
                     }
 
-                    // don't skip the migrate action as the index is not mounted as searchable snapshot or we're in the frozen phase
                     return false;
                 });
             UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,

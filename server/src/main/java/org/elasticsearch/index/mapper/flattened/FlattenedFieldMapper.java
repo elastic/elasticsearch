@@ -9,14 +9,27 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.ImpactsEnum;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermState;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -241,6 +254,35 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
         }
+        
+        @Override
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+
+            Automaton a = Automata.makeString(key + FlattenedFieldParser.SEPARATOR);
+            if (caseInsensitive) {
+                a = Operations.concatenate(a, AutomatonQueries.caseInsensitivePrefix(string));
+            } else {
+                a = Operations.concatenate(a, Automata.makeString(string));
+                a = Operations.concatenate(a, Automata.makeAnyString());                
+            }
+            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+
+            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            if (searchAfter != null) {
+                BytesRef searchAfterWithFieldName = new BytesRef(key + FlattenedFieldParser.SEPARATOR + searchAfter);
+                TermsEnum seekedEnum = terms.intersect(automaton, searchAfterWithFieldName);
+                return new TranslatingTermsEnum(seekedEnum);
+            } else { 
+                return new TranslatingTermsEnum(automaton.getTermsEnum(terms));
+            }
+        }        
 
         @Override
         public BytesRef indexedValueForSearch(Object value) {
@@ -269,6 +311,95 @@ public final class FlattenedFieldMapper extends FieldMapper {
             }
             return SourceValueFetcher.identity(rootName + "." + key, context, format);
         }
+    }
+    
+    
+    // Wraps a raw Lucene TermsEnum to strip values of fieldnames
+    static class TranslatingTermsEnum extends TermsEnum {
+        TermsEnum delegate;
+
+        TranslatingTermsEnum(TermsEnum delegate) {
+            this.delegate = delegate;
+        }
+        
+        @Override
+        public BytesRef next() throws IOException {
+            // Strip the term of the fieldname value
+            BytesRef result = delegate.next();
+            if (result != null) {
+                result = FlattenedFieldParser.extractValue(result);
+            }
+            return result;
+        }
+
+        @Override
+        public BytesRef term() throws IOException {
+            // Strip the term of the fieldname value
+            BytesRef result = delegate.term();
+            if (result != null) {
+                result = FlattenedFieldParser.extractValue(result);
+            }
+            return result;
+        }
+        
+
+        @Override
+        public int docFreq() throws IOException {
+            return delegate.docFreq();
+        }         
+
+        //===============  All other TermsEnum methods not supported =================
+        
+        @Override
+        public AttributeSource attributes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean seekExact(BytesRef text) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public SeekStatus seekCeil(BytesRef text) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void seekExact(long ord) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void seekExact(BytesRef term, TermState state) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long ord() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long totalTermFreq() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ImpactsEnum impacts(int flags) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TermState termState() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+       
     }
 
     /**

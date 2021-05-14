@@ -12,27 +12,20 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 
-public class InferenceProcessorIT extends ESRestTestCase {
-    private static final Set<String> NOT_DELETED_TRAINED_MODELS = Collections.singleton("lang_ident_model_1");
+public class InferenceProcessorIT extends InferenceTestCase {
 
     private static final String MODEL_ID = "a-perfect-regression-model";
-    private final Set<String> createdPipelines = new HashSet<>();
 
     @Before
     public void enableLogging() throws IOException {
@@ -43,72 +36,19 @@ public class InferenceProcessorIT extends ESRestTestCase {
         assertThat(client().performRequest(setTrace).getStatusLine().getStatusCode(), equalTo(200));
     }
 
-    @SuppressWarnings("unchecked")
-    @After
-    public void cleanup() throws Exception {
-        for (String createdPipeline : createdPipelines) {
-            deletePipeline(createdPipeline);
-        }
-        createdPipelines.clear();
-        waitForStats();
-        final Request getTrainedModels = new Request("GET", "/_ml/trained_models");
-        getTrainedModels.addParameter("size", "10000");
-        final Response trainedModelsResponse = adminClient().performRequest(getTrainedModels);
-        final List<Map<String, Object>> models = (List<Map<String, Object>>) XContentMapValues.extractValue(
-            "trained_model_configs",
-            ESRestTestCase.entityAsMap(trainedModelsResponse)
-        );
-        if (models == null || models.isEmpty()) {
-            return;
-        }
-        for (Map<String, Object> model : models) {
-            String modelId = (String) model.get("model_id");
-            if (NOT_DELETED_TRAINED_MODELS.contains(modelId)) {
-                continue;
-            }
-            adminClient().performRequest(new Request("DELETE", "/_ml/trained_models/" + modelId));
-        }
-    }
-
     private void putModelAlias(String modelAlias, String newModel) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + newModel + "/model_aliases/" + modelAlias + "?reassign=true");
         client().performRequest(request);
     }
 
-    private void putRegressionModel() throws IOException {
-        Request model = new Request("PUT", "_ml/trained_models/" + MODEL_ID);
-        model.setJsonEntity(
-            "  {\n" +
-                "    \"description\": \"empty model for tests\",\n" +
-                "    \"tags\": [\"regression\", \"tag1\"],\n" +
-                "    \"input\": {\"field_names\": [\"field1\", \"field2\"]},\n" +
-                "    \"inference_config\": { \"regression\": {\"results_field\": \"my_regression\"}},\n" +
-                "    \"definition\": {\n" +
-                "       \"preprocessors\": [],\n" +
-                "       \"trained_model\": {\n" +
-                "          \"tree\": {\n" +
-                "             \"feature_names\": [\"field1\", \"field2\"],\n" +
-                "             \"tree_structure\": [\n" +
-                "                {\"node_index\": 0, \"leaf_value\": 42}\n" +
-                "             ],\n" +
-                "             \"target_type\": \"regression\"\n" +
-                "          }\n" +
-                "       }\n" +
-                "    }\n" +
-                "  }"
-        );
-
-        assertThat(client().performRequest(model).getStatusLine().getStatusCode(), equalTo(200));
-    }
-
     @SuppressWarnings("unchecked")
     public void testCreateAndDeletePipelineWithInferenceProcessor() throws Exception {
-        putRegressionModel();
+        putRegressionModel(MODEL_ID);
         String pipelineId = "regression-model-pipeline";
         createdPipelines.add(pipelineId);
         putPipeline(MODEL_ID, pipelineId);
 
-        Map<String, Object> statsAsMap = getStats();
+        Map<String, Object> statsAsMap = getStats(MODEL_ID);
         List<Integer> pipelineCount =
             (List<Integer>)XContentMapValues.extractValue("trained_model_stats.pipeline_count", statsAsMap);
         assertThat(pipelineCount.get(0), equalTo(1));
@@ -130,7 +70,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> updatedStatsMap = null;
             try {
-                updatedStatsMap = getStats();
+                updatedStatsMap = getStats(MODEL_ID);
             } catch (ResponseException e) {
                 // the search may fail because the index is not ready yet in which case retry
                 if (e.getMessage().contains("search_phase_execution_exception")) {
@@ -154,7 +94,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCreateAndDeletePipelineWithInferenceProcessorByName() throws Exception {
-        putRegressionModel();
+        putRegressionModel(MODEL_ID);
 
         putModelAlias("regression_first", MODEL_ID);
         putModelAlias("regression_second", MODEL_ID);
@@ -163,7 +103,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
         createdPipelines.add("second_pipeline");
         putPipeline("regression_second", "second_pipeline");
 
-        Map<String, Object> statsAsMap = getStats();
+        Map<String, Object> statsAsMap = getStats(MODEL_ID);
         List<Integer> pipelineCount =
             (List<Integer>)XContentMapValues.extractValue("trained_model_stats.pipeline_count", statsAsMap);
         assertThat(pipelineCount.get(0), equalTo(2));
@@ -188,7 +128,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> updatedStatsMap = null;
             try {
-                updatedStatsMap = getStats();
+                updatedStatsMap = getStats(MODEL_ID);
             } catch (ResponseException e) {
                 // the search may fail because the index is not ready yet in which case retry
                 if (e.getMessage().contains("search_phase_execution_exception")) {
@@ -211,7 +151,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
     }
 
     public void testDeleteModelWhileAliasReferencedByPipeline() throws Exception {
-        putRegressionModel();
+        putRegressionModel(MODEL_ID);
         putModelAlias("regression_first", MODEL_ID);
         createdPipelines.add("first_pipeline");
         putPipeline("regression_first", "first_pipeline");
@@ -227,7 +167,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
     }
 
     public void testDeleteModelAliasWhileAliasReferencedByPipeline() throws Exception {
-        putRegressionModel();
+        putRegressionModel(MODEL_ID);
         putModelAlias("regression_to_delete", MODEL_ID);
         createdPipelines.add("first_pipeline");
         putPipeline("regression_to_delete", "first_pipeline");
@@ -248,7 +188,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
     }
 
     public void testDeleteModelWhileReferencedByPipeline() throws Exception {
-        putRegressionModel();
+        putRegressionModel(MODEL_ID);
         createdPipelines.add("first_pipeline");
         putPipeline(MODEL_ID, "first_pipeline");
         Exception ex = expectThrows(Exception.class,
@@ -264,7 +204,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCreateProcessorWithDeprecatedFields() throws Exception {
-        putRegressionModel();
+        putRegressionModel(MODEL_ID);
 
         createdPipelines.add("regression-model-deprecated-pipeline");
         Request putPipeline = new Request("PUT", "_ingest/pipeline/regression-model-deprecated-pipeline");
@@ -296,7 +236,7 @@ public class InferenceProcessorIT extends ESRestTestCase {
         assertBusy(() -> {
             Map<String, Object> updatedStatsMap = null;
             try {
-                updatedStatsMap = getStats();
+                updatedStatsMap = getStats(MODEL_ID);
             } catch (ResponseException e) {
                 // the search may fail because the index is not ready yet in which case retry
                 if (e.getMessage().contains("search_phase_execution_exception")) {
@@ -346,42 +286,4 @@ public class InferenceProcessorIT extends ESRestTestCase {
         assertThat(client().performRequest(putPipeline).getStatusLine().getStatusCode(), equalTo(200));
     }
 
-    private void deletePipeline(String pipelineId) throws IOException {
-        try {
-            Request deletePipeline = new Request("DELETE", "_ingest/pipeline/" + pipelineId);
-            assertThat(client().performRequest(deletePipeline).getStatusLine().getStatusCode(), equalTo(200));
-        } catch (ResponseException ex) {
-            if (ex.getResponse().getStatusLine().getStatusCode() != 404) {
-                throw ex;
-            }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void waitForStats() throws Exception {
-        assertBusy(() -> {
-            Map<String, Object> updatedStatsMap = null;
-            try {
-                ensureGreen(".ml-stats-*");
-                updatedStatsMap = getStats();
-            } catch (ResponseException e) {
-                // the search may fail because the index is not ready yet in which case retry
-                if (e.getMessage().contains("search_phase_execution_exception")) {
-                    fail("search failed- retry");
-                } else {
-                    throw e;
-                }
-            }
-
-            List<Map<String, Object>> inferenceStats =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("trained_model_stats.inference_stats", updatedStatsMap);
-            assertNotNull(inferenceStats);
-        });
-    }
-
-    private Map<String, Object> getStats() throws IOException {
-        Request getStats = new Request("GET", "_ml/trained_models/" + MODEL_ID + "/_stats");
-        Response statsResponse = client().performRequest(getStats);
-        return entityAsMap(statsResponse);
-    }
 }

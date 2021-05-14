@@ -21,7 +21,9 @@ source, and add parameters that are passed into the script:
 
 `source`, `id`::
 
-    The script itself, which you specify as `source` for an inline script or `id` for a stored script. Use the `_scripts` endpoint to retrieve a stored script. For example, you can create or delete a <<script-stored-scripts,stored script>> by calling `POST _scripts/{id}` and `DELETE _scripts/{id}`.
+    The script itself, which you specify as `source` for an inline script or
+    `id` for a stored script. Use the <<stored-script-apis,stored script APIs>>
+    to create and manage stored scripts.
 
 `params`::
 
@@ -202,19 +204,19 @@ when you're creating <<runtime-mapping-fields,runtime fields>>.
 [discrete]
 [[script-stored-scripts]]
 === Store and retrieve scripts
-You can store and retrieve scripts from the cluster state using the `_scripts`
-endpoint. Using stored scripts can help to reduce compilation time and make
-searches faster. Use the `{id}` path element in `_scripts/{id}` to refer to a
-stored script.
+You can store and retrieve scripts from the cluster state using the
+<<stored-script-apis,stored script APIs>>. Stored scripts reduce compilation
+time and make searches faster.
 
 NOTE: Unlike regular scripts, stored scripts require that you specify a script
 language using the `lang` parameter.
 
-For example, let's create a stored script in the cluster named
-`calculate-score`:
+To create a script, use the <<create-stored-script-api,create stored script
+API>>. For example, the following request creates a stored script named
+`calculate-score`.
 
 [source,console]
------------------------------------
+----
 POST _scripts/calculate-score
 {
   "script": {
@@ -222,15 +224,15 @@ POST _scripts/calculate-score
     "source": "Math.log(_score * 2) + params['my_modifier']"
   }
 }
------------------------------------
-// TEST[setup:my_index]
+----
 
-You can retrieve that script by using the `_scripts` endpoint:
+You can retrieve that script by using the <<get-stored-script-api,get stored
+script API>>.
 
 [source,console]
------------------------------------
+----
 GET _scripts/calculate-score
------------------------------------
+----
 // TEST[continued]
 
 To use the stored script in a query, include the script `id` in the `script`
@@ -257,11 +259,12 @@ GET my-index-000001/_search
   }
 }
 ----
+// TEST[setup:my_index]
 // TEST[continued]
 <1> `id` of the stored script
 
-To delete a stored script, submit a delete request to the `_scripts` endpoint
-and specify the stored script `id`:
+To delete a stored script, submit a <<delete-stored-script-api,delete stored
+script API>> request.
 
 [source,console]
 ----

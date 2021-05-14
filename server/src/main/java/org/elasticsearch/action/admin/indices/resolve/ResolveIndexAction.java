@@ -558,10 +558,9 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             index.getParentDataStream() == null ? null : index.getParentDataStream().getName()));
                         break;
                     case ALIAS:
-                        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
-                        String[] indexNames = alias.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
+                        String[] indexNames = ia.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
                         Arrays.sort(indexNames);
-                        aliases.add(new ResolvedAlias(alias.getName(), indexNames));
+                        aliases.add(new ResolvedAlias(ia.getName(), indexNames));
                         break;
                     case DATA_STREAM:
                         IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) ia;

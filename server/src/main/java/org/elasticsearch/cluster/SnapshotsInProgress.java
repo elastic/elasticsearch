@@ -539,14 +539,14 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
             this.partial = partial;
-            this.indices = indices;
-            this.dataStreams = dataStreams;
+            this.indices = Map.copyOf(indices);
+            this.dataStreams = List.copyOf(dataStreams);
             this.featureStates = Collections.unmodifiableList(featureStates);
             this.startTime = startTime;
             this.shards = shards;
             this.repositoryStateId = repositoryStateId;
             this.failure = failure;
-            this.userMetadata = userMetadata;
+            this.userMetadata = userMetadata == null ? null : Map.copyOf(userMetadata);
             this.version = version;
             this.source = source;
             if (source == null) {

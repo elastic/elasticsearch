@@ -300,9 +300,9 @@ class S3Repository extends MeteredBlobStoreRepository {
     private static BlobPath buildBasePath(RepositoryMetadata metadata) {
         final String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
-            return new BlobPath().add(basePath);
+            return BlobPath.EMPTY.add(basePath);
         } else {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         }
     }
 

@@ -47,9 +47,8 @@ string parameter:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-NOTE: Single index APIs, such as the <<docs>> and
-<<indices-aliases,single-index `alias` APIs>>, do not support multi-target
-syntax.
+NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
+not support multi-target syntax.
 
 [[hidden-indices]]
 ==== Hidden data streams and indices

@@ -36,9 +36,9 @@ tasks.register('configureIdeCheckstyle') {
   group = 'ide'
   description = 'Generated a suitable checkstyle config for IDEs'
 
-  String checkstyleConfig = 'buildSrc/src/main/resources/checkstyle.xml'
-  String checkstyleSuppressions = 'buildSrc/src/main/resources/checkstyle_suppressions.xml'
-  String checkstyleIdeFragment = 'buildSrc/src/main/resources/checkstyle_ide_fragment.xml'
+  String checkstyleConfig = 'build-tools-internal/src/main/resources/checkstyle.xml'
+  String checkstyleSuppressions = 'build-tools-internal/src/main/resources/checkstyle_suppressions.xml'
+  String checkstyleIdeFragment = 'build-tools-internal/src/main/resources/checkstyle_ide_fragment.xml'
   String checkstyleIdeConfig = "$rootDir/checkstyle_ide.xml"
 
   inputs.files(file(checkstyleConfig), file(checkstyleIdeFragment))

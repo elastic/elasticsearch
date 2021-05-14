@@ -7,19 +7,17 @@
  */
 
 import org.gradle.internal.jvm.Jvm
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
 
 plugins {
   id 'java-gradle-plugin'
   id 'groovy-gradle-plugin'
   id 'groovy'
   id 'java-test-fixtures'
+  id 'elasticsearch.internal-licenseheaders'
 }
 
 group = 'org.elasticsearch.gradle'
-
-/*****************************************************************************
- *         Propagating version.properties to the rest of the build           *
- *****************************************************************************/
 
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
@@ -75,10 +73,6 @@ gradlePlugin {
     internalDistributionDownload {
       id = 'elasticsearch.internal-distribution-download'
       implementationClass = 'org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin'
-    }
-    internalLicenseheaders {
-      id = 'elasticsearch.internal-licenseheaders'
-      implementationClass = 'org.elasticsearch.gradle.internal.precommit.LicenseHeadersPrecommitPlugin'
     }
     internalPlugin {
       id = 'elasticsearch.internal-es-plugin'
@@ -171,7 +165,7 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 
-def minRuntimeJava = JavaVersion.toVersion(file('../buildSrc/src/main/resources/minimumRuntimeVersion').text)
+def minRuntimeJava = JavaVersion.toVersion(file('src/main/resources/minimumRuntimeVersion').text)
 targetCompatibility = minRuntimeJava
 sourceCompatibility = minRuntimeJava
 
@@ -186,6 +180,10 @@ tasks.withType(JavaCompile).configureEach {
   options.encoding = 'UTF-8'
 }
 
+tasks.named('licenseHeaders').configure {
+  // ignore gradle generated binary script plugins
+  excludes << "Elasticsearch*Plugin.java"
+}
 /*****************************************************************************
  *                    Dependencies used by the entire build                  *
  *****************************************************************************/
@@ -287,52 +285,3 @@ tasks.register("integTest", Test) {
 //    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.internal.info.BuildParams.defaultParallel.toString()) as Integer
 //  }
 //
-
-
-// Define this here because we need it early.
-class VersionPropertiesLoader {
-  static Properties loadBuildSrcVersion(File input) throws IOException {
-    Properties props = new Properties();
-    InputStream is = new FileInputStream(input)
-    try {
-      props.load(is)
-    } finally {
-      is.close()
-    }
-    loadBuildSrcVersion(props, System.getProperties())
-    return props
-  }
-
-  protected static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
-    String elasticsearch = loadedProps.getProperty("elasticsearch")
-    if (elasticsearch == null) {
-      throw new IllegalStateException("Elasticsearch version is missing from properties.")
-    }
-    if (elasticsearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
-      throw new IllegalStateException(
-        "Expected elasticsearch version to be numbers only of the form  X.Y.Z but it was: " +
-          elasticsearch
-      )
-    }
-    String qualifier = systemProperties.getProperty("build.version_qualifier", "")
-    if (qualifier.isEmpty() == false) {
-      if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
-        throw new IllegalStateException("Invalid qualifier: " + qualifier)
-      }
-      elasticsearch += "-" + qualifier
-    }
-    final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
-    switch (buildSnapshotSystemProperty) {
-      case "true":
-        elasticsearch += "-SNAPSHOT"
-        break;
-      case "false":
-        // do nothing
-        break;
-      default:
-        throw new IllegalArgumentException(
-          "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
-    }
-    loadedProps.put("elasticsearch", elasticsearch)
-  }
-}

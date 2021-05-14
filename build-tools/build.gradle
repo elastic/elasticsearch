@@ -5,25 +5,28 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
 
 plugins {
     id 'java-gradle-plugin'
     id 'groovy'
     id 'java-test-fixtures'
     id 'elasticsearch.publish'
+    id 'elasticsearch.internal-licenseheaders'
 }
 
-group = "org.elasticsearch"
+description = "The elasticsearch build tools"
 
 // we update the version property to reflect if we are building a snapshot or a release build
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
-Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../buildSrc/version.properties'))
-version = props.getProperty("elasticsearch")
-
-def minRuntimeJava = JavaVersion.toVersion(file('../buildSrc/src/main/resources/minimumRuntimeVersion').text)
+Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../build-tools-internal/version.properties'))
+def minRuntimeJava = JavaVersion.toVersion(file('../build-tools-internal/src/main/resources/minimumRuntimeVersion').text)
 
 allprojects {
+    group = "org.elasticsearch"
+    version = props.getProperty("elasticsearch")
+
     apply plugin:'java'
     targetCompatibility = minRuntimeJava
     sourceCompatibility = minRuntimeJava
@@ -105,8 +108,8 @@ dependencies {
 
     runtimeOnly project(":reaper")
 
-    testFixturesApi "junit:junit:4.12"
-    testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.7.7"
+    testFixturesApi "junit:junit:${props.getProperty('junit')}"
+    testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('junit')}"
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
 
@@ -213,52 +216,3 @@ tasks.named("check").configure { dependsOn("integTest") }
 //      }
 //    }
 //  }
-
-
-// Define this here because we need it early.
-class VersionPropertiesLoader {
-    static Properties loadBuildSrcVersion(File input) throws IOException {
-        Properties props = new Properties();
-        InputStream is = new FileInputStream(input)
-        try {
-            props.load(is)
-        } finally {
-            is.close()
-        }
-        loadBuildSrcVersion(props, System.getProperties())
-        return props
-    }
-
-    protected static void loadBuildSrcVersion(Properties loadedProps, Properties systemProperties) {
-        String elasticsearch = loadedProps.getProperty("elasticsearch")
-        if (elasticsearch == null) {
-            throw new IllegalStateException("Elasticsearch version is missing from properties.")
-        }
-        if (elasticsearch.matches("[0-9]+\\.[0-9]+\\.[0-9]+") == false) {
-            throw new IllegalStateException(
-                    "Expected elasticsearch version to be numbers only of the form  X.Y.Z but it was: " +
-                            elasticsearch
-            )
-        }
-        String qualifier = systemProperties.getProperty("build.version_qualifier", "")
-        if (qualifier.isEmpty() == false) {
-            if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
-                throw new IllegalStateException("Invalid qualifier: " + qualifier)
-            }
-            elasticsearch += "-" + qualifier
-        }
-        final String buildSnapshotSystemProperty = systemProperties.getProperty("build.snapshot", "true");
-        switch (buildSnapshotSystemProperty) {
-            case "true":
-                elasticsearch += "-SNAPSHOT"
-                break;
-            case "false":
-                // do nothing
-                break;
-            default:
-                throw new IllegalArgumentException(
-                        "build.snapshot was set to [" + buildSnapshotSystemProperty + "] but can only be unset or [true|false]");
-        }
-        loadedProps.put("elasticsearch", elasticsearch)
-    }
-}

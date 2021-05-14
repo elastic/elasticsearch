@@ -14,7 +14,7 @@ plugins {
 
 group = "org.elasticsearch"
 
-def minRuntimeJava = JavaVersion.toVersion(file('../buildSrc/src/main/resources/minimumRuntimeVersion').text)
+def minRuntimeJava = JavaVersion.toVersion(file('../build-tools-internal/src/main/resources/minimumRuntimeVersion').text)
 targetCompatibility = minRuntimeJava
 sourceCompatibility = minRuntimeJava
 
@@ -23,9 +23,17 @@ gradlePlugin {
     // with the java-gradle-plugin
     automatedPublishing = false
     plugins {
+        internalLicenseheaders {
+            id = 'elasticsearch.internal-licenseheaders'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin'
+        }
         publish {
             id = 'elasticsearch.publish'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.PublishPlugin'
+        }
+        licensing {
+            id = 'elasticsearch.licensing'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.LicensingPlugin'
         }
     }
 }
@@ -38,4 +46,5 @@ repositories {
 dependencies {
     api 'org.apache.maven:maven-model:3.6.2'
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
+    api 'org.apache.rat:apache-rat:0.11'
 }

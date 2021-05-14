@@ -59,54 +59,11 @@ if (VersionProperties.elasticsearch.toString().endsWith('-SNAPSHOT')) {
 } else {
   licenseCommit = "v${version}"
 }
-String elasticLicenseUrl = "https://raw.githubusercontent.com/elastic/elasticsearch/${licenseCommit}/licenses/ELASTIC-LICENSE-2.0.txt"
 
 subprojects {
   // We disable this plugin for now till we shaked out the issues we see
   // e.g. see https://github.com/elastic/elasticsearch/issues/72169
   // apply plugin:'elasticsearch.internal-test-rerun'
-
-  // Default to the SSPL+Elastic dual license
-  project.ext.projectLicenses = [
-    'Server Side Public License, v 1': 'https://www.mongodb.com/licensing/server-side-public-license',
-    'Elastic License 2.0': elasticLicenseUrl
-  ]
-
-  // But stick the Elastic license url in project.ext so we can get it if we need to switch to it
-  project.ext.elasticLicenseUrl = elasticLicenseUrl
-
-  // we only use maven publish to add tasks for pom generation
-  plugins.withType(MavenPublishPlugin).whenPluginAdded {
-    publishing {
-      publications {
-        // add license information to generated poms
-        all {
-          pom.withXml { XmlProvider xml ->
-            Node node = xml.asNode()
-            node.appendNode('inceptionYear', '2009')
-
-            Node licensesNode = node.appendNode('licenses')
-            project.ext.projectLicenses.forEach { licenseName, licenseUrl ->
-              Node license = licensesNode.appendNode('license')
-              license.appendNode('name', licenseName)
-              license.appendNode('url', licenseUrl)
-              license.appendNode('distribution', 'repo')
-            }
-
-            Node developer = node.appendNode('developers').appendNode('developer')
-            developer.appendNode('name', 'Elastic')
-            developer.appendNode('url', 'https://www.elastic.co')
-          }
-        }
-      }
-      repositories {
-        maven {
-          name = 'test'
-          url = "${rootProject.buildDir}/local-test-repo"
-        }
-      }
-    }
-  }
 
   plugins.withType(BuildPlugin).whenPluginAdded {
     project.licenseFile = project.rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
@@ -415,9 +372,9 @@ allprojects {
     prefix = prefix.replace(':', '_')
   }
   if (eclipse.project.name.startsWith(prefix)) {
-    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/elastic-license-2.0-header.txt')
+    licenseHeaderFile = new File(project.rootDir, 'build-tools-internal/src/main/resources/license-headers/elastic-license-2.0-header.txt')
   } else {
-    licenseHeaderFile = new File(project.rootDir, 'buildSrc/src/main/resources/license-headers/sspl+elastic-license-header.txt')
+    licenseHeaderFile = new File(project.rootDir, 'build-tools-internal/src/main/resources/license-headers/sspl+elastic-license-header.txt')
   }
 
   String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
@@ -425,7 +382,7 @@ allprojects {
   tasks.register('copyEclipseSettings', Copy) {
     mustRunAfter 'wipeEclipseSettings'
     // TODO: "package this up" for external builds
-    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
+    from new File(project.rootDir, 'build-tools-internal/src/main/resources/eclipse.settings')
     into '.settings'
     filter { it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader) }
   }
@@ -530,6 +487,11 @@ allprojects {
       checkPart1.configure { dependsOn 'check' }
     }
   }
+}
+
+tasks.register("precommit") {
+  dependsOn gradle.includedBuild('build-tools').task(':precommit')
+  dependsOn gradle.includedBuild('build-tools-internal').task(':precommit')
 }
 
 subprojects {

@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -42,6 +43,7 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
     @Override
     public void apply(Project project) {
         project.getPlugins().apply(BasePlugin.class);
+        project.getPlugins().apply(LicensingPlugin.class);
         String buildTaskName = calculateBuildTask(project.getName());
         TaskProvider<Task> buildDistTask = project.getParent().getTasks().named(buildTaskName);
         DistributionArchiveCheckExtension distributionArchiveCheckExtension = project.getExtensions()

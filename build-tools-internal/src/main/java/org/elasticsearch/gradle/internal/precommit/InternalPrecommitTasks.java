@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin;
 import org.gradle.api.Project;
 
 /**

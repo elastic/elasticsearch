@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.conventions;
+package org.elasticsearch.gradle.internal.conventions.precommit;
 
-import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.publish.PublishingExtension;

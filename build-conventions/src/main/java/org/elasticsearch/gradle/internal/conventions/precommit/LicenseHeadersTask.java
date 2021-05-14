@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal.precommit;
+package org.elasticsearch.gradle.internal.conventions.precommit;
 
 import org.apache.rat.Defaults;
 import org.apache.rat.ReportConfiguration;

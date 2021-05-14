@@ -147,6 +147,8 @@ public class TransportCreateEnrollmentTokenActionTests extends ESTestCase {
     }
 
     public void testDoExecute()  throws IOException {
+        assumeFalse("NodeEnrollment is not supported on FIPS because it requires a KeyStore", inFipsJvm());
+
         final CreateEnrollmentTokenRequest request = new CreateEnrollmentTokenRequest();
         final PlainActionFuture<CreateEnrollmentTokenResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);

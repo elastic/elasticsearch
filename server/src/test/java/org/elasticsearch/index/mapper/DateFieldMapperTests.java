@@ -134,9 +134,11 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     public void testIgnoreMalformed() throws IOException {
         testIgnoreMalformedForValue("2016-03-99",
-                "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]","strict_date_optional_time||epoch_millis");
+            "failed to parse date field [2016-03-99] with format [strict_date_optional_time||epoch_millis]",
+            "strict_date_optional_time||epoch_millis");
         testIgnoreMalformedForValue("-2147483648",
-                "failed to parse date field [-2147483648] with format [strict_date_optional_time||epoch_millis]","strict_date_optional_time||epoch_millis");
+            "failed to parse date field [-2147483648] with format [strict_date_optional_time||epoch_millis]",
+            "strict_date_optional_time||epoch_millis");
         testIgnoreMalformedForValue("-522000000", "long overflow", "date_optional_time");
     }
 

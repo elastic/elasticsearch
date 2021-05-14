@@ -175,7 +175,7 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
         return new Authentication(
             new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
                 Map.of("_elastic_service_account", true), true),
-            new Authentication.RealmRef("service_account", "service_account", nodeName),
+            new Authentication.RealmRef("_service_account", "_service_account", nodeName),
             null, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of("_token_name", tokenName)
         );
     }

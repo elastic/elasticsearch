@@ -295,7 +295,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     public static String tempBlobName(final String blobName) {
-        return "pending-" + blobName + "-" + UUIDs.randomBase64UUID();
+        return TEMP_FILE_PREFIX + blobName + "-" + UUIDs.randomBase64UUID();
     }
 
     /**

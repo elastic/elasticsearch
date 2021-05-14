@@ -132,5 +132,7 @@ public abstract class AbstractFieldScript {
         }
     }
 
-    public abstract void execute();
+    public void execute() {
+        emitFromSource();
+    }
 }

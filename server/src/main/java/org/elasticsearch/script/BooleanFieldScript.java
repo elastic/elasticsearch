@@ -15,23 +15,12 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public abstract class BooleanFieldScript extends AbstractFieldScript {
+public class BooleanFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("boolean_field", Factory.class);
 
     public static final BooleanFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (BooleanFieldScript.LeafFactory) ctx -> new BooleanFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            emitFromSource();
-        }
-    };
+        = (field, params, lookup) -> (BooleanFieldScript.LeafFactory) ctx -> new BooleanFieldScript(field, params, lookup, ctx);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

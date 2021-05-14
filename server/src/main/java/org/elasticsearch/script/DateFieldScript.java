@@ -15,23 +15,11 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class DateFieldScript extends AbstractLongFieldScript {
+public class DateFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date_field", Factory.class);
 
-    public static final DateFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup, formatter) -> (DateFieldScript.LeafFactory) ctx -> new DateFieldScript
-        (
-            field,
-            params,
-            lookup,
-            formatter,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            emitFromSource();
-        }
-    };
+    public static final DateFieldScript.Factory PARSE_FROM_SOURCE = (field, params, lookup, formatter) ->
+        (DateFieldScript.LeafFactory) ctx -> new DateFieldScript(field, params, lookup, formatter, ctx);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

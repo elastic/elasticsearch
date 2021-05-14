@@ -28,23 +28,11 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
  * Script producing geo points. Similarly to what {@link LatLonDocValuesField} does,
  * it encodes the points as a long value.
  */
-public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
+public class GeoPointFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("geo_point_field", Factory.class);
 
     public static final GeoPointFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (GeoPointFieldScript.LeafFactory) ctx -> new GeoPointFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-
-        @Override
-        public void execute() {
-            emitFromSource();
-        }
-    };
+        = (field, params, lookup) -> (GeoPointFieldScript.LeafFactory) ctx -> new GeoPointFieldScript(field, params, lookup, ctx);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
-public abstract class StringFieldScript extends AbstractFieldScript {
+public class StringFieldScript extends AbstractFieldScript {
     /**
      * The maximum number of chars a script should be allowed to emit.
      */
@@ -26,18 +26,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("keyword_field", Factory.class);
 
     public static final StringFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (StringFieldScript.LeafFactory) ctx -> new StringFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            emitFromSource();
-        }
-    };
+        = (field, params, lookup) -> (StringFieldScript.LeafFactory) ctx -> new StringFieldScript(field, params, lookup, ctx);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

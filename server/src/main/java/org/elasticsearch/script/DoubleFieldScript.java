@@ -15,22 +15,11 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Map;
 import java.util.function.DoubleConsumer;
 
-public abstract class DoubleFieldScript extends AbstractFieldScript {
+public class DoubleFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_field", Factory.class);
 
     public static final DoubleFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (DoubleFieldScript.LeafFactory) ctx -> new DoubleFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            emitFromSource();
-        }
-    };
+        = (field, params, lookup) -> (DoubleFieldScript.LeafFactory) ctx -> new DoubleFieldScript(field, params, lookup, ctx);
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

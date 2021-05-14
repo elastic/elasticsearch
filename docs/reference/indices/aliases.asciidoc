@@ -427,7 +427,7 @@ GET /alias2/_search?q=user.id:kimchy&routing=2,3
 --------------------------------------------------
 // TEST[continued]
 
-[[write-index]]
+[[aliases-write-index]]
 ===== Write index
 
 It is possible to associate the index pointed to by an alias as the write index.

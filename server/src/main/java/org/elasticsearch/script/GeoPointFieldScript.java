@@ -13,8 +13,10 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -59,19 +61,26 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     }
 
     @Override
+    protected List<Object> extractFromSource(String path) {
+        Object value = XContentMapValues.extractValue(path, leafSearchLookup.source().source());
+        if (value instanceof List<?>) {
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) value;
+            return list;
+        }
+        return Collections.singletonList(value);
+    }
+
+    @Override
     protected void emitFromObject(Object value) {
         try {
-            if (value instanceof List<?>) {
-                List<?> values = (List<?>) value;
-                if (values.size() > 0 && values.get(0) instanceof Number) {
-                    parsePoint(value);
-                } else {
-                    for (Object point : values) {
-                        parsePoint(point);
-                    }
-                }
-            } else {
+            List<?> values = (List<?>) value;
+            if (values.size() > 0 && values.get(0) instanceof Number) {
                 parsePoint(value);
+            } else {
+                for (Object point : values) {
+                    parsePoint(point);
+                }
             }
         } catch (Exception e) {
             // ignore

@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.function.IntConsumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestFleetSearchAction extends BaseRestHandler {
 
@@ -34,7 +35,7 @@ public class RestFleetSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/{index}/_fleet/_search"));
+        return List.of(new Route(GET, "/{index}/_fleet/_search"), new Route(POST, "/{index}/_fleet/_search"));
     }
 
     @Override

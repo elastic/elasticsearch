@@ -167,7 +167,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     public boolean addOrNotify(long seqNo, ActionListener<Void> listener) {
-        assert seqNo > SequenceNumbers.NO_OPS_PERFORMED;
+        assert seqNo >= SequenceNumbers.NO_OPS_PERFORMED;
         if (seqNo <= lastRefreshedSeqNo) {
             listener.onResponse(null);
             return true;

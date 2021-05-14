@@ -15,6 +15,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -126,6 +127,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -390,20 +392,48 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
-            final Executor executor = getExecutor(shard);
+            final String executorName = getExecutorName(shard);
+            final Executor executor = threadPool.executor(executorName);
 
-            // TODO: Do here
-            shard.addRefreshListener(request.afterRefreshedSeqNo(), new ActionListener<>() {
+            final AtomicBoolean isDone = new AtomicBoolean(false);
+            final ActionListener<Void> readyListener = new ActionListener<>() {
+
                 @Override
                 public void onResponse(Void unused) {
-                    runAsync(executor, () -> executeQueryPhase(orig, task), l);
+                    if (isDone.compareAndSet(false, true)) {
+                        runAsync(executor, () -> executeQueryPhase(orig, task), l);
+                    }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    if (isDone.compareAndSet(false, true)) {
+                        listener.onFailure(e);
+                    }
                 }
-            });
+            };
+
+            shard.addRefreshListener(request.afterRefreshedSeqNo(), readyListener);
+
+            // If a refresh is not needed, the listener will completed synchronously and there is not need for a timeout.
+            if (isDone.get() == false) {
+                SearchSourceBuilder source = request.source();
+                final TimeValue timeout;
+                if (source == null) {
+                    timeout = defaultSearchTimeout;
+                } else {
+                    timeout = source.timeout() == null ? defaultSearchTimeout : source.timeout();
+                }
+                if (NO_TIMEOUT.equals(timeout) == false) {
+                    threadPool.schedule(() ->
+                            readyListener.onFailure(
+                                new ElasticsearchTimeoutException(
+                                    "Wait for seq_no [{}] refreshed timed out [{}]",
+                                    request.afterRefreshedSeqNo(),
+                                    timeout)
+                            ), timeout, executorName);
+                }
+            }
         }));
     }
 
@@ -530,7 +560,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
-    private Executor getExecutor(IndexShard indexShard) {
+    private String getExecutorName(IndexShard indexShard) {
         assert indexShard != null;
         final String executorName;
         if (indexShard.isSystem()) {
@@ -540,6 +570,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } else {
             executorName = Names.SEARCH;
         }
+        return executorName;
+    }
+
+    private Executor getExecutor(IndexShard indexShard) {
+        String executorName = getExecutorName(indexShard);
         return threadPool.executor(executorName);
     }
 

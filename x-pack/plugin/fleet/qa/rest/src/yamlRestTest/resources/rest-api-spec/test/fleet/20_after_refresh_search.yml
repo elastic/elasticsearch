@@ -1,0 +1,56 @@
+setup:
+  - do:
+      indices.create:
+        index: test-timeout
+        body:
+          settings:
+            number_of_shards: "2"
+
+  - do:
+      indices.create:
+        index: test-after-refresh
+        body:
+          settings:
+            number_of_shards: "1"
+
+  - do:
+      index:
+        index: test-timeout
+        body: { }
+
+  - do:
+      index:
+        index:  test-after-refresh
+        body:   { }
+
+  - do:
+      index:
+        index: test-after-refresh
+        body: { }
+
+  - do:
+      indices.refresh: {}
+
+---
+"Execute successful after refresh search":
+  - do:
+      fleet.search:
+        index: "test-after-refresh"
+        after_checkpoints_refreshed: [1]
+        body: { query: { match_all: {} } }
+
+  - match: { _shards.successful: 1 }
+  - match: { hits.total.value: 2 }
+
+---
+"After refresh timeout":
+  - do:
+      fleet.search:
+        index: "test-timeout"
+        after_checkpoints_refreshed: [0,0]
+        timeout: "50ms"
+        body: { query: { match_all: { } } }
+
+  - match: { _shards.successful: 1 }
+  - match: { _shards.failed: 1 }
+  - match: { hits.total.value: 1 }

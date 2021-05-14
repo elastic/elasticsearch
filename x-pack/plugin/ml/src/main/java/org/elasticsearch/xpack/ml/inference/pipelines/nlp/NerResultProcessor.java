@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
 
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
@@ -39,28 +38,10 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
         // and -5 for "astic". Averaging after softmax would produce a prediction
         // of maybe (1 + 0) / 2 = 0.5 while before softmax it'd be exp(10 - 5) / normalization
         // which could easily be close to 1.
-        double[][] normalizedScores = convertToProbabilitesBySoftMax(pyTorchResult.getInferenceResult());
+        double[][] normalizedScores = NlpHelpers.convertToProbabilitesBySoftMax(pyTorchResult.getInferenceResult());
         List<TaggedToken> taggedTokens = tagTokens(normalizedScores);
         List<EntityGroup> entities = groupTaggedTokens(taggedTokens);
         return new NerResult(entities);
-    }
-
-    static double[][] convertToProbabilitesBySoftMax(double[][] scores) {
-        double[][] probabilities = new double[scores.length][scores[0].length];
-        double[] sum = new double[scores.length];
-        for (int i = 0; i < scores.length; i++) {
-            double maxScore = MovingFunctions.max(scores[i]);
-            for (int j = 0; j < scores[i].length; j++) {
-                probabilities[i][j] = Math.exp(scores[i][j] - maxScore);
-                sum[i] += probabilities[i][j];
-            }
-        }
-        for (int i = 0; i < scores.length; i++) {
-            for (int j = 0; j < scores[i].length; j++) {
-                probabilities[i][j] /= sum[i];
-            }
-        }
-        return probabilities;
     }
 
     /**
@@ -98,7 +79,7 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
             for (int i = 0; i < avgScores.length; i++) {
                 avgScores[i] /= endTokenIndex - startTokenIndex + 1;
             }
-            int maxScoreIndex = argmax(avgScores);
+            int maxScoreIndex = NlpHelpers.argmax(avgScores);
             double score = avgScores[maxScoreIndex];
             taggedTokens.add(new TaggedToken(word.toString(), IobTag.values()[maxScoreIndex], score));
             startTokenIndex = endTokenIndex + 1;
@@ -147,16 +128,6 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
         }
 
         return entities;
-    }
-
-    private static int argmax(double[] arr) {
-        int maxIndex = 0;
-        for (int i = 1; i < arr.length; i++) {
-            if (arr[i] > arr[maxIndex]) {
-                maxIndex = i;
-            }
-        }
-        return maxIndex;
     }
 
     private static class TaggedToken {

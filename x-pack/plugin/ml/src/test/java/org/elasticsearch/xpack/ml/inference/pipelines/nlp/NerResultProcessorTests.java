@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
 
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
@@ -17,17 +16,14 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class NerResultProcessorTests extends ESTestCase {
 
     public void testProcessResults_GivenNoTokens() {
-        NerResultProcessor processor = new NerResultProcessor(new TokenizationResult(Collections.emptyList(), new int[0], new int[0]));
+        NerResultProcessor processor = createProcessor(Collections.emptyList(), "");
         NerResult result = (NerResult) processor.processResult(new PyTorchResult("test", null, null));
         assertThat(result.getEntityGroups(), is(empty()));
     }
@@ -51,47 +47,6 @@ public class NerResultProcessorTests extends ESTestCase {
         assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION));
         assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
         assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION));
-    }
-
-    public void testConvertToProbabilitiesBySoftMax_GivenConcreteExample() {
-        double[][] scores = {
-            { 0.1, 0.2, 3},
-            { 6, 0.2, 0.1}
-        };
-
-        double[][] probabilities = NerResultProcessor.convertToProbabilitesBySoftMax(scores);
-
-        assertThat(probabilities[0][0], closeTo(0.04931133, 0.00000001));
-        assertThat(probabilities[0][1], closeTo(0.05449744, 0.00000001));
-        assertThat(probabilities[0][2], closeTo(0.89619123, 0.00000001));
-        assertThat(probabilities[1][0], closeTo(0.99426607, 0.00000001));
-        assertThat(probabilities[1][1], closeTo(0.00301019, 0.00000001));
-        assertThat(probabilities[1][2], closeTo(0.00272374, 0.00000001));
-    }
-
-    public void testConvertToProbabilitiesBySoftMax_GivenRandom() {
-        double[][] scores = new double[100][100];
-        for (int i = 0; i < scores.length; i++) {
-            for (int j = 0; j < scores[i].length; j++) {
-                scores[i][j] = randomDoubleBetween(-10, 10, true);
-            }
-        }
-
-        double[][] probabilities = NerResultProcessor.convertToProbabilitesBySoftMax(scores);
-
-        // Assert invariants that
-        //   1. each row sums to 1
-        //   2. all values are in [0-1]
-        assertThat(probabilities.length, equalTo(scores.length));
-        for (int i = 0; i < probabilities.length; i++) {
-            assertThat(probabilities[i].length, equalTo(scores[i].length));
-            double rowSum = MovingFunctions.sum(probabilities[i]);
-            assertThat(rowSum, closeTo(1.0, 0.01));
-            for (int j = 0; j < probabilities[i].length; j++) {
-                assertThat(probabilities[i][j], greaterThanOrEqualTo(0.0));
-                assertThat(probabilities[i][j], lessThanOrEqualTo(1.0));
-            }
-        }
     }
 
     private static NerResultProcessor createProcessor(List<String> vocab, String input){

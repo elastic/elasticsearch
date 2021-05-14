@@ -57,6 +57,8 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         GeoPointFieldScript newInstance(LeafReaderContext ctx);
     }
 
+    private final GeoPoint scratch = new GeoPoint();
+
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
@@ -110,7 +112,6 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
 
     private void emitPoint(Object point) {
         if (point != null) {
-            final GeoPoint scratch = new GeoPoint();
             try {
                 GeoUtils.parseGeoPoint(point, scratch, true);
             } catch(Exception e) {

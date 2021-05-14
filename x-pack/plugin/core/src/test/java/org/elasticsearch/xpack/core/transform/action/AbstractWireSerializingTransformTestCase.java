@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
@@ -18,7 +19,9 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
+import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.junit.Before;
 
@@ -40,7 +43,14 @@ public abstract class AbstractWireSerializingTransformTestCase<T extends Writeab
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(), TimeSyncConfig::new)
+            new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME.getPreferredName(), TimeSyncConfig::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                RetentionPolicyConfig.class,
+                TransformField.TIME.getPreferredName(),
+                TimeRetentionPolicyConfig::new
+            )
         );
 
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();

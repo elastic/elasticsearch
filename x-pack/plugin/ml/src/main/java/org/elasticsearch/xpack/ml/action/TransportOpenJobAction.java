@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
@@ -111,7 +112,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             ActionListener<NodeAcknowledgedResponse> clearJobFinishTime = ActionListener.wrap(
                 response -> {
                     if (response.isAcknowledged()) {
-                        clearJobFinishedTime(response, state, jobParams.getJobId(), listener);
+                        clearJobFinishedTime(response, state, jobParams.getJobId(), request.masterNodeTimeout(), listener);
                     } else {
                         listener.onResponse(response);
                     }
@@ -201,6 +202,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     private void clearJobFinishedTime(NodeAcknowledgedResponse response,
                                       ClusterState clusterState,
                                       String jobId,
+                                      TimeValue masterNodeTimeout,
                                       ActionListener<NodeAcknowledgedResponse> listener) {
         final JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
         ActionListener<Job> clearedTimeListener = ActionListener.wrap(
@@ -224,6 +226,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             MlConfigIndex::mapping,
             client,
             clusterState,
+            masterNodeTimeout,
             mappingsUpdatedListener);
     }
 

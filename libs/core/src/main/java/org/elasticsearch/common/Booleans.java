@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common;
@@ -79,7 +68,7 @@ public final class Booleans {
         }
         int strLen = str.length();
         for (int i = 0; i < strLen; i++) {
-            if (!Character.isWhitespace(str.charAt(i))) {
+            if (Character.isWhitespace(str.charAt(i)) == false) {
                 return true;
             }
         }
@@ -128,7 +117,16 @@ public final class Booleans {
         if (value == null) {
             return defaultValue;
         }
-        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+        switch (value) {
+            case "false":
+            case "0":
+            case "off":
+            case "no":
+                return false;
+
+            default:
+                return true;
+        }
     }
 
     /**
@@ -159,14 +157,14 @@ public final class Booleans {
             return text[offset] != '0';
         }
         if (length == 2) {
-            return !(text[offset] == 'n' && text[offset + 1] == 'o');
+            return (text[offset] == 'n' && text[offset + 1] == 'o') == false;
         }
         if (length == 3) {
-            return !(text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f');
+            return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f') == false;
         }
         if (length == 5) {
-            return !(text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' &&
-                text[offset + 4] == 'e');
+            return (text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' &&
+                text[offset + 4] == 'e') == false;
         }
         return true;
     }

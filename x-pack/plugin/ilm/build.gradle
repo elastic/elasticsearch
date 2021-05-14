@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -12,9 +12,13 @@ esplugin {
 archivesBaseName = 'x-pack-ilm'
 
 dependencies {
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('data-streams'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(path: xpackModule('data-streams'))
 }
 
 addQaCheckDependencies()
+
+tasks.named("test").configure {
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+}

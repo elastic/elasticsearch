@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
@@ -58,7 +59,7 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final XContent xContent = builder.contentType().xContent();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            try (XContentBuilder filteredBuilder = new XContentBuilder(xContent, out, filters)) {
+            try (XContentBuilder filteredBuilder = new XContentBuilder(builder.contentType(), out, filters)) {
                 super.toXContent(filteredBuilder, params);
             }
             try (InputStream stream = out.bytes().streamInput();

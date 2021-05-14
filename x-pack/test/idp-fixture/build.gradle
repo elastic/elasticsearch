@@ -1,10 +1,11 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.Architecture
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 
-task copyKeystore(type: Sync) {
+tasks.register("copyKeystore", Sync) {
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   into "${buildDir}/certs"
@@ -16,16 +17,15 @@ task copyKeystore(type: Sync) {
 
 elasticsearch_distributions {
   docker {
-    type = 'docker'
+    type = DOCKER
     architecture = Architecture.current()
-    flavor = System.getProperty('tests.distribution', 'default')
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
 }
 
-preProcessFixture {
-  dependsOn copyKeystore, elasticsearch_distributions.docker
+tasks.named("preProcessFixture").configure {
+  dependsOn "copyKeystore", elasticsearch_distributions.docker
   doLast {
     File file = file("${buildDir}/logs/node1")
     file.mkdirs()

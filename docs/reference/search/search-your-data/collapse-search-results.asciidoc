@@ -74,7 +74,7 @@ GET /my-index-000001/_search
 
 See <<inner-hits, inner hits>> for the complete list of supported options and the format of the response.
 
-It is also possible to request multiple `inner_hits` for each collapsed hit.  This can be useful when you want to get
+It is also possible to request multiple `inner_hits` for each collapsed hit. This can be useful when you want to get
 multiple representations of the collapsed hits.
 
 [source,console]
@@ -111,7 +111,7 @@ GET /my-index-000001/_search
 <3> return the three most recent HTTP responses for the user
 
 The expansion of the group is done by sending an additional query for each
-`inner_hit` request for each collapsed hit returned in the response.  This can significantly slow things down
+`inner_hit` request for each collapsed hit returned in the response. This can significantly slow things down
 if you have too many groups and/or `inner_hit` requests.
 
 The `max_concurrent_group_searches` request parameter can be used to control

@@ -10,20 +10,6 @@ recover the cluster state and the cluster's data.
 
 NOTE: These settings only take effect on a full cluster restart.
 
-`gateway.expected_nodes`::
-(<<static-cluster-setting,Static>>)
-deprecated:[7.7.0, This setting will be removed in 8.0. Use `gateway.expected_data_nodes` instead.]
-Number of data or master nodes expected in the cluster.
-Recovery of local shards begins when the expected number of
-nodes join the cluster. Defaults to `0`.
-
-`gateway.expected_master_nodes`::
-(<<static-cluster-setting,Static>>)
-deprecated:[7.7.0, This setting will be removed in 8.0. Use `gateway.expected_data_nodes` instead.]
-Number of master nodes expected in the cluster.
-Recovery of local shards begins when the expected number of
-master nodes join the cluster. Defaults to `0`.
-
 `gateway.expected_data_nodes`::
 (<<static-cluster-setting,Static>>)
 Number of data nodes expected in the cluster.
@@ -34,24 +20,23 @@ data nodes join the cluster. Defaults to `0`.
 (<<static-cluster-setting,Static>>)
 If the expected number of nodes is not achieved, the recovery process waits
 for the configured amount of time before trying to recover.
-Defaults to `5m` if one of the `expected_nodes` settings is configured.
+Defaults to `5m`.
 +
 Once the `recover_after_time` duration has timed out, recovery will start
-as long as the following conditions are met:
-
-`gateway.recover_after_nodes`::
-(<<static-cluster-setting,Static>>)
-deprecated:[7.7.0, This setting will be removed in 8.0. Use `gateway.recover_after_data_nodes` instead.]
-Recover as long as this many data or master nodes have joined the cluster.
-
-`gateway.recover_after_master_nodes`::
-(<<static-cluster-setting,Static>>)
-deprecated:[7.7.0, This setting will be removed in 8.0. Use `gateway.recover_after_data_nodes` instead.]
-Recover as long as this many master nodes have joined the cluster.
+as long as the following condition is met:
 
 `gateway.recover_after_data_nodes`::
 (<<static-cluster-setting,Static>>)
 Recover as long as this many data nodes have joined the cluster.
+
+These settings can be configured in `elasticsearch.yml` as follows:
+
+[source,yaml]
+--------------------------------------------------
+gateway.expected_data_nodes: 3
+gateway.recover_after_time: 600s
+gateway.recover_after_data_nodes: 3
+--------------------------------------------------
 
 [[dangling-indices]]
 ==== Dangling indices

@@ -2,8 +2,9 @@
 
 #
 # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License;
-# you may not use this file except in compliance with the Elastic License.
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0; you may not use this file except in compliance with the Elastic License
+# 2.0.
 #
 
 set -e
@@ -16,6 +17,7 @@ TAB_SDK_TAG="tdvt-2.1.9"
 MY_NAME="Packager for Elastic's Tableau connector to Elasticsearch"
 MY_FILE=$(basename $0)
 MY_WORKSPACE=$(realpath ${PACKAGE_WORKSPACE:-build})
+MY_OUT_DIR=$MY_WORKSPACE/distributions
 MY_TOP_DIR=$(dirname $(realpath $0))
 SRC_DIR=connector
 
@@ -57,8 +59,9 @@ function package() {
     rm -rfv $MY_WORKSPACE/$SRC_DIR
     cp -rv $MY_TOP_DIR/$SRC_DIR $MY_WORKSPACE
 
-    # patch version tag in manifest file, filtering out any -SNAPSHOT
-    echo -e "cd //connector-plugin/@version\nset ${TACO_VERSION%-*}\nsave" |\
+    # patch plugin-version tag in manifest file, filtering out any -SNAPSHOT
+    echo \
+    -e "cd //connector-plugin/@plugin-version\nset ${TACO_VERSION%-*}\nsave" |\
         xmllint --shell $MY_WORKSPACE/$SRC_DIR/manifest.xml
 
     # check out TDVT SDK
@@ -80,14 +83,16 @@ function package() {
 
     # finally, create the connector
     python -m connector_packager.package $MY_WORKSPACE/$SRC_DIR
-    cp -f packaged-connector/$OUT_TACO $MY_WORKSPACE/$ES_TACO
+    mkdir -p $MY_OUT_DIR
+    cp -f packaged-connector/$OUT_TACO $MY_OUT_DIR/$ES_TACO
 
-    log "TACO packaged under: $MY_WORKSPACE/$ES_TACO"
+    log "TACO packaged under: $MY_OUT_DIR/$ES_TACO"
 }
 
 function sha() {
-    cd $MY_WORKSPACE
+    cd $MY_OUT_DIR
     sha512sum $ES_TACO > $ES_TACO.sha512
+    echo $(cat $ES_TACO.sha512)
 }
 
 # Vars:
@@ -199,7 +204,7 @@ function read_cmd_params() {
 }
 
 function sign() {
-    for taco in $(ls -t $MY_WORKSPACE/*.taco 2>/dev/null); do
+    for taco in $(ls -t $MY_OUT_DIR/*.taco 2>/dev/null); do
         jarsigner $taco $SIGN_PARAMS
         jarsigner -verify -verbose -certs $taco
 
@@ -208,7 +213,7 @@ function sign() {
     done
 
     if [ -z $taco ]; then
-        die "No connector to sign found under: $MY_WORKSPACE/" \
+        die "No connector to sign found under: $MY_OUT_DIR/" \
             "\nCall 'assemble' first."
     fi
 

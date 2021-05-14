@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -287,10 +289,10 @@ class IndexLifecycleRunner {
         if (currentStep instanceof AsyncActionStep) {
             logger.debug("[{}] running policy with async action step [{}]", index, currentStep.getKey());
             ((AsyncActionStep) currentStep).performAction(indexMetadata, currentState,
-                new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()), new AsyncActionStep.Listener() {
+                new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext()), new ActionListener<>() {
 
                     @Override
-                    public void onResponse(boolean complete) {
+                    public void onResponse(Boolean complete) {
                         logger.trace("cs-change-async-action-callback, [{}], current-step: {}", index, currentStep.getKey());
                         if (complete) {
                             if (((AsyncActionStep) currentStep).indexSurvives()) {

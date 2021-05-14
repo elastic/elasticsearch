@@ -79,9 +79,13 @@ used for its modifiers:
   considered tests anyway but this is useful for explicitly documenting the
   reason why the test shouldn't be run.
   * `// TEST[setup:name]`: Run some setup code before running the snippet. This
-  is useful for creating and populating indexes used in the snippet. The setup
-  code is defined in `docs/build.gradle`. See `// TESTSETUP` below for a
-  similar feature.
+  is useful for creating and populating indexes used in the snippet. The `name`
+  is split on `,` and looked up in the `setups` defined in `docs/build.gradle`.
+  See `// TESTSETUP` below for a similar feature.
+  * `// TEST[teardown:name]`: Run some teardown code after the snippet.
+  This is useful for performing hidden cleanup, such as deleting index templates. The
+  `name` is split on `,` and looked up in the `teardowns` defined in
+  `docs/build.gradle`. See `// TESTSETUP` below for a similar feature.
   * `// TEST[warning:some warning]`: Expect the response to include a `Warning`
   header. If the response doesn't include a `Warning` header with the exact
   text then the test fails. If the response includes `Warning` headers that

@@ -1,0 +1,40 @@
+{
+  "ml.start_data_frame_analytics":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/start-dfanalytics.html",
+      "description":"Starts a data frame analytics job."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/data_frame/analytics/{id}/_start",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the data frame analytics to start"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until the task has started. Defaults to 20 seconds"
+      }
+    },
+    "body":{
+      "description":"The start data frame analytics parameters"
+    }
+  }
+}

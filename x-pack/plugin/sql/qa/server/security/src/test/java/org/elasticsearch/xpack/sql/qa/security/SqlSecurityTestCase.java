@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
@@ -483,7 +484,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject();
         {
-            user.field("password", "testpass");
+            user.field("password", "test-user-password");
             user.field("roles", role);
         }
         user.endObject();

@@ -18,12 +18,8 @@ Retrieves {anomaly-job} results for one or more categories.
 [[ml-get-category-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. You also
-need `read` index privilege on the index that stores the results. The
-`machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See <<security-privileges>>, <<built-in-roles>>, and
-{ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 [[ml-get-category-desc]]
 == {api-description-title}

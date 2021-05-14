@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.AbstractDiffable;
@@ -96,11 +96,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         this.schedule = in.readString();
         this.repository = in.readString();
         this.configuration = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        } else {
-            this.retentionPolicy = SnapshotRetentionConfiguration.EMPTY;
-        }
+        this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
     }
 
     public String getId() {
@@ -262,9 +258,7 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
         out.writeString(this.schedule);
         out.writeString(this.repository);
         out.writeMap(this.configuration);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeOptionalWriteable(this.retentionPolicy);
-        }
+        out.writeOptionalWriteable(this.retentionPolicy);
     }
 
     @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
@@ -29,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.util.Arrays;
@@ -85,6 +87,7 @@ public final class MlIndexAndAlias {
                                                       IndexNameExpressionResolver resolver,
                                                       String indexPatternPrefix,
                                                       String alias,
+                                                      TimeValue masterNodeTimeout,
                                                       ActionListener<Boolean> finalListener) {
 
         final ActionListener<Boolean> loggingListener = ActionListener.wrap(
@@ -103,7 +106,7 @@ public final class MlIndexAndAlias {
         ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
             created -> {
                 if (created) {
-                    waitForShardsReady(client, alias, loggingListener);
+                    waitForShardsReady(client, alias, masterNodeTimeout, loggingListener);
                 } else {
                     loggingListener.onResponse(false);
                 }
@@ -116,7 +119,7 @@ public final class MlIndexAndAlias {
         // The initial index name must be suitable for rollover functionality.
         String firstConcreteIndex = indexPatternPrefix + "-000001";
         String[] concreteIndexNames =
-            resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandOpen(), indexPattern);
+            resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
         Optional<IndexMetadata> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
             ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().findFirst()
             : Optional.empty();
@@ -161,11 +164,56 @@ public final class MlIndexAndAlias {
         loggingListener.onResponse(false);
     }
 
-    private static void waitForShardsReady(Client client, String index, ActionListener<Boolean> listener) {
+    public static void createSystemIndexIfNecessary(Client client,
+                                                    ClusterState clusterState,
+                                                    SystemIndexDescriptor descriptor,
+                                                    TimeValue masterNodeTimeout,
+                                                    ActionListener<Boolean> finalListener) {
+
+        final String primaryIndex = descriptor.getPrimaryIndex();
+
+        // The check for existence of the index is against the cluster state, so very cheap
+        if (hasIndex(clusterState, primaryIndex)) {
+            finalListener.onResponse(true);
+            return;
+        }
+
+        ActionListener<Boolean> indexCreatedListener = ActionListener.wrap(
+            created -> {
+                if (created) {
+                    waitForShardsReady(client, primaryIndex, masterNodeTimeout, finalListener);
+                } else {
+                    finalListener.onResponse(false);
+                }
+            },
+            e -> {
+                if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                    finalListener.onResponse(true);
+                } else {
+                    finalListener.onFailure(e);
+                }
+            }
+        );
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest(primaryIndex);
+        createIndexRequest.settings(descriptor.getSettings());
+        createIndexRequest.mapping(descriptor.getMappings());
+        createIndexRequest.origin(ML_ORIGIN);
+        createIndexRequest.masterNodeTimeout(masterNodeTimeout);
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, createIndexRequest,
+            ActionListener.<CreateIndexResponse>wrap(
+                r -> indexCreatedListener.onResponse(r.isAcknowledged()),
+                indexCreatedListener::onFailure
+            ), client.admin().indices()::create);
+    }
+
+    private static void waitForShardsReady(Client client, String index, TimeValue masterNodeTimeout, ActionListener<Boolean> listener) {
         ClusterHealthRequest healthRequest = Requests.clusterHealthRequest(index)
             .waitForYellowStatus()
             .waitForNoRelocatingShards(true)
-            .waitForNoInitializingShards(true);
+            .waitForNoInitializingShards(true)
+            .masterNodeTimeout(masterNodeTimeout);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
@@ -197,11 +245,17 @@ public final class MlIndexAndAlias {
             ActionListener.<CreateIndexResponse>wrap(
                 createIndexResponse -> listener.onResponse(true),
                 createIndexFailure -> {
-                    // If it was created between our last check, and this request being handled, we should add the alias
-                    // Adding an alias that already exists is idempotent. So, no need to double check if the alias exists
-                    // as well.
                     if (ExceptionsHelper.unwrapCause(createIndexFailure) instanceof ResourceAlreadyExistsException) {
-                        updateWriteAlias(client, alias, null, index, listener);
+                        // If it was created between our last check and this request being handled, we should add the alias
+                        // if we were asked to add it on creation.  Adding an alias that already exists is idempotent. So
+                        // no need to double check if the alias exists as well.  But if we weren't asked to add the alias
+                        // on creation then we should leave it up to the caller to decide what to do next (some call sites
+                        // already have more advanced alias update logic in their success handlers).
+                        if (addAlias) {
+                            updateWriteAlias(client, alias, null, index, listener);
+                        } else {
+                            listener.onResponse(true);
+                        }
                     } else {
                         listener.onFailure(createIndexFailure);
                     }
@@ -307,5 +361,9 @@ public final class MlIndexAndAlias {
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().getTemplates().containsKey(templateName);
+    }
+
+    public static boolean hasIndex(ClusterState state, String index) {
+        return state.getMetadata().getIndicesLookup().containsKey(index);
     }
 }

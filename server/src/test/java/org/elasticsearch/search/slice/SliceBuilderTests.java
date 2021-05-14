@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.slice;
@@ -45,7 +34,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -104,13 +93,13 @@ public class SliceBuilderTests extends ESTestCase {
             new ShardId("index", "index", 0), shardIndex, numShards, null, 0f, System.currentTimeMillis(), null);
     }
 
-    private QueryShardContext createShardContext(Version indexVersionCreated, IndexReader reader,
-                                                 String fieldName, DocValuesType dvType) {
+    private SearchExecutionContext createShardContext(Version indexVersionCreated, IndexReader reader,
+                                                      String fieldName, DocValuesType dvType) {
         MappedFieldType fieldType = new MappedFieldType(fieldName, true, false, dvType != null,
             TextSearchInfo.NONE, Collections.emptyMap()) {
 
             @Override
-            public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 
@@ -120,15 +109,15 @@ public class SliceBuilderTests extends ESTestCase {
             }
 
             @Override
-            public Query termQuery(Object value, @Nullable QueryShardContext context) {
+            public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
                 return null;
             }
 
-            public Query existsQuery(QueryShardContext context) {
+            public Query existsQuery(SearchExecutionContext context) {
                 return null;
             }
         };
-        QueryShardContext context = mock(QueryShardContext.class);
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
         when(context.getFieldType(fieldName)).thenReturn(fieldType);
         when(context.getIndexReader()).thenReturn(reader);
         IndexSettings indexSettings = createIndexSettings(indexVersionCreated);
@@ -195,7 +184,7 @@ public class SliceBuilderTests extends ESTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context =
+            SearchExecutionContext context =
                 createShardContext(Version.CURRENT, reader, "_id", null);
             SliceBuilder builder = new SliceBuilder(5, 10);
             Query query = builder.toFilter(createRequest(0, 1), context);
@@ -215,7 +204,7 @@ public class SliceBuilderTests extends ESTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context =
+            SearchExecutionContext context =
                 createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
             Query query = builder.toFilter(createRequest(0, 1), context);
@@ -298,7 +287,7 @@ public class SliceBuilderTests extends ESTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.CURRENT, reader, "field", null);
+            SearchExecutionContext context = createShardContext(Version.CURRENT, reader, "field", null);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
                 () -> builder.toFilter(createRequest(0, 1), context));

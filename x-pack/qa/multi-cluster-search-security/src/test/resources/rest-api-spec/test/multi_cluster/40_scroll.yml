@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "x_cluster_role" ]
             }
   - do:  # Remote indices only CCS does not require any privileges on the local cluster
@@ -36,7 +36,7 @@ teardown:
 "Scroll on the mixed cluster":
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
@@ -59,7 +59,7 @@ teardown:
   - match: {hits.hits.3._source.filter_field: 0 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       scroll:
         rest_total_hits_as_int: true
         body: { "scroll_id": "$scroll_id", "scroll": "1m"}
@@ -71,7 +71,7 @@ teardown:
   - match: {hits.hits.1._source.filter_field: 1 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       scroll:
         rest_total_hits_as_int: true
         scroll_id: $scroll_id
@@ -81,14 +81,14 @@ teardown:
   - length: {hits.hits:      0    }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       clear_scroll:
         scroll_id: $scroll_id
 
 ---
 "Steal Scroll ID on the mixed cluster":
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: my_remote_cluster:test_index
@@ -117,7 +117,7 @@ teardown:
         body: { "scroll_id": "$scroll_id", "scroll": "1m"}
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       catch: missing
       clear_scroll:
         scroll_id: $scroll_id

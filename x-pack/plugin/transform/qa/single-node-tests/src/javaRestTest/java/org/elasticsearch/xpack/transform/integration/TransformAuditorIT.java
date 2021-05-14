@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.integration;
@@ -43,6 +44,8 @@ public class TransformAuditorIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -51,8 +54,6 @@ public class TransformAuditorIT extends TransformRestTestCase {
 
         createReviewsIndex();
         indicesCreated = true;
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
     }
 
     @SuppressWarnings("unchecked")

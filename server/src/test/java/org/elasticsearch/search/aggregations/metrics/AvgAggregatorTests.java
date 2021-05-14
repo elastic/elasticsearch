@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -25,6 +14,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
@@ -254,9 +244,19 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.DOUBLE);
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(),
             iw -> {
+                List<List<IndexableField>> docs = new ArrayList<>();
                 for (double value : values) {
-                    iw.addDocument(singleton(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
+                    docs.add(List.of(new NumericDocValuesField("number", NumericUtils.doubleToSortableLong(value))));
                 }
+                /*
+                 * Use add documents to force us to collect from a single segment
+                 * so we don't break the collection across the shrads. We can't do
+                 * *that* because we don't bring back the compensations for the sum
+                 * back in the shard results. If we don't bring back the compensations
+                 * errors can creep in. Not big errors, but big enough to upset this
+                 * test.
+                 */
+                iw.addDocuments(docs);
             },
             avg -> assertEquals(expected, avg.getValue(), delta),
             fieldType
@@ -287,6 +287,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -531,6 +532,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();
         assertNotNull(terms);
@@ -604,6 +606,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -650,6 +653,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         InternalAvg avg = (InternalAvg) aggregator.buildAggregation(0L);
 
@@ -668,6 +672,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
 
         avg = (InternalAvg) aggregator.buildAggregation(0L);
 

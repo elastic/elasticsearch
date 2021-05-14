@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.common.CheckedFunction;
@@ -48,6 +36,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.QueryToFilterAdapter;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
@@ -88,7 +77,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
      * wasn't particularly rigorous. We had a performance test that collected
      * 123 buckets with an average of 900 documents per bucket that jumped
      * from 35ms to 90ms. I figure that 5000 is fairly close to where the break
-     * even point is. 
+     * even point is.
      */
     public static final double DOCS_PER_RANGE_TO_USE_FILTERS = 5000;
     /**
@@ -118,7 +107,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
          * <strong>must</strong> call this know that consumers prefer
          * {@code from} and {@code to} parameters if they are non-null
          * and finite. Otherwise they parse from {@code fromrStr} and
-         * {@code toStr}. 
+         * {@code toStr}.
          */
         public Range(String key, Double from, String fromAsStr, Double to, String toAsStr) {
             this.key = key;
@@ -313,7 +302,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * Looks like it'd be more expensive to use the filter-by-filter
              * aggregator. Oh well. Snapshot the the filter-by-filter
              * aggregator's debug information if we're profiling bececause it
-             * is useful even if the aggregator isn't. 
+             * is useful even if the aggregator isn't.
              */
             if (context.profiling()) {
                 filtersDebug = new HashMap<>();
@@ -356,22 +345,23 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (averageDocsPerRange < DOCS_PER_RANGE_TO_USE_FILTERS) {
             return null;
         }
-        // TODO bail here for runtime fields. We should check the cost estimates on the Scorer.
         if (valuesSourceConfig.fieldType() instanceof DateFieldType
             && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
             // We don't generate sensible Queries for nanoseconds.
             return null;
         }
+        if (false == FiltersAggregator.canUseFilterByFilter(parent, null)) {
+            return null;
+        }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
-        String[] keys = new String[ranges.length];
-        Query[] filters = new Query[ranges.length];
+        List<QueryToFilterAdapter<?>> filters = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
             /*
              * If the bounds on the ranges are too high then the `double`s
              * that we work with will round differently in the native range
              * aggregator than in the filters aggregator. So we can't use
              * the filters. That is, if the input data type is a `long` in
-             * the first place. If it isn't then 
+             * the first place. If it isn't then
              */
             if (wholeNumbersOnly && ranges[i].from != Double.NEGATIVE_INFINITY && Math.abs(ranges[i].from) > MAX_ACCURATE_BOUND) {
                 return null;
@@ -379,7 +369,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
             if (wholeNumbersOnly && ranges[i].to != Double.POSITIVE_INFINITY && Math.abs(ranges[i].to) > MAX_ACCURATE_BOUND) {
                 return null;
             }
-            keys[i] = Integer.toString(i);
             /*
              * Use the native format on the field rather than the one provided
              * on the valuesSourceConfig because the format on the field is what
@@ -391,31 +380,23 @@ public abstract class RangeAggregator extends BucketsAggregator {
             RangeQueryBuilder builder = new RangeQueryBuilder(valuesSourceConfig.fieldType().name());
             builder.from(ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from)).includeLower(true);
             builder.to(ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to)).includeUpper(false);
-            filters[i] = context.buildQuery(builder);
-        }
-        FiltersAggregator.FilterByFilter delegate = FiltersAggregator.buildFilterOrderOrNull(
-            name,
-            factories,
-            keys,
-            filters,
-            false,
-            null,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
-        if (delegate == null) {
-            return null;
+            filters.add(QueryToFilterAdapter.build(context.searcher(), Integer.toString(i), context.buildQuery(builder)));
         }
         RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
             parent,
             factories,
             subAggregators -> {
-                if (subAggregators.countAggregators() > 0) {
-                    throw new IllegalStateException("didn't expect to have a delegate if there are child aggs");
-                }
-                return delegate;
+                return FiltersAggregator.buildFilterByFilter(
+                    name,
+                    subAggregators,
+                    filters,
+                    false,
+                    null,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata
+                );
             },
             valuesSourceConfig.format(),
             ranges,
@@ -423,6 +404,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
             rangeFactory,
             averageDocsPerRange
         );
+        if (fromFilters.scoreMode().needsScores()) {
+            /*
+             * Filter by filter won't produce the correct results if the
+             * sub-aggregators need scores because we're not careful with how
+             * we merge filters. Right now we have to build the whole
+             * aggregation in order to know if it'll need scores or not.
+             */
+            // TODO make filter by filter produce the correct result or skip this in canUseFilterbyFilter
+            return null;
+        }
         return fromFilters;
     }
 
@@ -754,7 +745,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    private static class FromFilters<B extends InternalRange.Bucket> extends AdaptingAggregator {
+    static class FromFilters<B extends InternalRange.Bucket> extends AdaptingAggregator {
         private final DocValueFormat format;
         private final Range[] ranges;
         private final boolean keyed;

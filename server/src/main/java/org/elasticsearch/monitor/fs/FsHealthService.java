@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.fs;
@@ -41,7 +30,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -152,43 +140,38 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         }
 
         private void monitorFSHealth() {
-            Set<Path> currentUnhealthyPaths = null;
-            Path[] paths = null;
+            Path path;
             try {
-                paths = nodeEnv.nodeDataPaths();
+                path = nodeEnv.nodeDataPath();
             } catch (IllegalStateException e) {
                 logger.error("health check failed", e);
                 brokenLock = true;
                 return;
             }
 
-            for (Path path : paths) {
-                long executionStartTime = currentTimeMillisSupplier.getAsLong();
-                try {
-                    if (Files.exists(path)) {
-                        Path tempDataPath = path.resolve(TEMP_FILE_NAME);
-                        Files.deleteIfExists(tempDataPath);
-                        try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
-                            os.write(byteToWrite);
-                            IOUtils.fsync(tempDataPath, false);
-                        }
-                        Files.delete(tempDataPath);
-                        final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
-                        if (elapsedTime > slowPathLoggingThreshold.millis()) {
-                            logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
-                                path, elapsedTime, slowPathLoggingThreshold);
-                        }
-                    }
-                } catch (Exception ex) {
-                    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
-                    if (currentUnhealthyPaths == null) {
-                        currentUnhealthyPaths = new HashSet<>(1);
-                    }
-                    currentUnhealthyPaths.add(path);
-                }
-            }
-            unhealthyPaths = currentUnhealthyPaths;
             brokenLock = false;
+            long executionStartTime = currentTimeMillisSupplier.getAsLong();
+            try {
+                if (Files.exists(path)) {
+                    Path tempDataPath = path.resolve(TEMP_FILE_NAME);
+                    Files.deleteIfExists(tempDataPath);
+                    try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
+                        os.write(byteToWrite);
+                        IOUtils.fsync(tempDataPath, false);
+                    }
+                    Files.delete(tempDataPath);
+                    final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
+                    if (elapsedTime > slowPathLoggingThreshold.millis()) {
+                        logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
+                            path, elapsedTime, slowPathLoggingThreshold);
+                    }
+                }
+            } catch (Exception ex) {
+                logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+                unhealthyPaths = Set.of(path);
+                return;
+            }
+            unhealthyPaths = null;
         }
     }
 }

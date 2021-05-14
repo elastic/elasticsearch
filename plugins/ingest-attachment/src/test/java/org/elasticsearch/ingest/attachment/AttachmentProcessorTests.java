@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.ingest.attachment;
@@ -349,7 +338,6 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66086")
     public void testIndexedCharsWithResourceName() throws Exception {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 100,
@@ -375,7 +363,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         attachmentData = parseDocument("text-cjk-euc-jp.txt", processor, Collections.singletonMap("max_length", 100), true);
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、\n我が黍を食らう無かれ！"));
+        assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、" + System.lineSeparator() + "我が黍を食らう無かれ！"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_type").toString(), containsString("charset=EUC-JP"));
         assertThat(attachmentData.get("content_length"), is(100L));

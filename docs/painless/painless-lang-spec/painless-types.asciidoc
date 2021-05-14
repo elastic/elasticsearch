@@ -23,53 +23,38 @@ type). Use the <<field-access-operator, field access operator>> or
 <<method-call-operator, method call operator>> on a primitive type value to
 force evaluation as its corresponding reference type value.
 
-The following primitive types are available:
+The following primitive types are available. The corresponding reference type
+is listed in parentheses. For example, `Byte` is the reference type for the
+`byte` primitive type:
 
-[horizontal]
-`byte`::
-8-bit, signed, two's complement integer
-* range: [`-128`, `127`]
-* default value: `0`
-* reference type: `Byte`
+[[available-primitive-types]]
+.**Available primitive types**
+[%collapsible%open]
+====
+`byte` (`Byte`)::
+    8-bit, signed, two's complement integer. Range: [`-128`, `127`]. Default: `0`.
 
-`short`::
-16-bit, signed, two's complement integer
-* range: [`-32768`, `32767`]
-* default value: `0`
-* reference type: `Short`
+`short` (`Short`)::
+    16-bit, signed, two's complement integer. Range: [`-32768`, `32767`]. Default: `0`.
 
-`char`::
-16-bit, unsigned, Unicode character
-* range: [`0`, `65535`]
-* default value: `0` or `\u0000`
-* reference type: `Character`
+`char` (`Character`)::
+    16-bit, unsigned, Unicode character. Range: [`0`, `65535`]. Default: `0` or `\u0000`.
 
-`int`::
-32-bit, signed, two's complement integer
-* range: [`-2^31`, `2^31-1`]
-* default value: `0`
-* reference type: `Integer`
+`int` (`Integer`)::
+    32-bit, signed, two's complement integer. Range: [`-2^31`, `2^31-1`]. Default: `0`.
 
-`long`::
-64-bit, signed, two's complement integer
-* range: [`-2^63`, `2^63-1`]
-* default value: `0`
-* reference type: `Long`
+`long` (`Long`)::
+    64-bit, signed, two's complement integer. Range: [`-2^63`, `2^63-1`]. Default: `0`.
 
-`float`::
-32-bit, signed, single-precision, IEEE 754 floating point number
-* default value: `0.0`
-* reference type: `Float`
+`float (`Float`)`::
+    32-bit, signed, single-precision, IEEE 754 floating point number. Default `0.0`.
 
-`double`::
-64-bit, signed, double-precision, IEEE 754 floating point number
-* default value: `0.0`
-* reference type: `Double`
+`double` (`Double`)::
+    64-bit, signed, double-precision, IEEE 754 floating point number. Default: `0.0`.
 
-`boolean`::
-logical quantity with two possible values of `true` and `false`
-* default value: `false`
-* reference type: `Boolean`
+`boolean` (`Boolean`)::
+    logical quantity with two possible values of `true` and `false`. Default: `false`.
+====
 
 *Examples*
 
@@ -274,7 +259,7 @@ during operations.
 Declare a `def` type <<painless-variables, variable>> or access a `def` type
 member field (from a reference type instance), and assign it any type of value
 for evaluation during later operations. The default value for a newly-declared
-`def` type variable is `null`.  A `def` type variable or method/function
+`def` type variable is `null`. A `def` type variable or method/function
 parameter can change the type it represents during the compilation and
 evaluation of a script.
 
@@ -415,7 +400,7 @@ range `[2, d]` where `d >= 2`, each element within each dimension in the range
 `[1, d-1]` is also an array type. The element type of each dimension, `n`, is an
 array type with the number of dimensions equal to `d-n`. For example, consider
 `int[][][]` with 3 dimensions. Each element in the 3rd dimension, `d-3`, is the
-primitive type `int`.  Each element in the 2nd dimension, `d-2`, is the array
+primitive type `int`. Each element in the 2nd dimension, `d-2`, is the array
 type `int[]`. And each element in the 1st dimension, `d-1` is the array type
 `int[][]`.
 

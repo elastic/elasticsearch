@@ -1,7 +1,14 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.java-rest-test'
 
 testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

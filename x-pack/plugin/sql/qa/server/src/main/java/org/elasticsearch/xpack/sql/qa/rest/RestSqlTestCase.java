@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.rest;
 
@@ -44,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
@@ -316,27 +318,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
-    public void testSelectDistinctFails() throws Exception {
-        index("{\"name\":\"test\"}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT DISTINCT name FROM test"),
-            containsString("line 1:8: SELECT DISTINCT is not yet supported")
-        );
-    }
-
     public void testSelectGroupByAllFails() throws Exception {
         index("{\"foo\":1}", "{\"foo\":2}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT foo FROM test GROUP BY ALL foo"),
             containsString("line 1:32: GROUP BY ALL is not supported")
-        );
-    }
-
-    public void testSelectWhereExistsFails() throws Exception {
-        index("{\"foo\":1}", "{\"foo\":2}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT foo FROM test WHERE EXISTS (SELECT * FROM test t WHERE t.foo = test.foo)", randomBoolean()),
-            containsString("line 1:28: EXISTS is not yet supported")
         );
     }
 
@@ -417,6 +403,50 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
     }
 
+    public void testCountAndCountDistinct() throws IOException {
+        String mode = randomMode();
+        index(
+            "test",
+            "{\"gender\":\"m\", \"langs\": 1}",
+            "{\"gender\":\"m\", \"langs\": 1}",
+            "{\"gender\":\"m\", \"langs\": 2}",
+            "{\"gender\":\"m\", \"langs\": 3}",
+            "{\"gender\":\"m\", \"langs\": 3}",
+            "{\"gender\":\"f\", \"langs\": 1}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 2}",
+            "{\"gender\":\"f\", \"langs\": 3}",
+            "{\"gender\":\"f\", \"langs\": 3}"
+        );
+
+        Map<String, Object> expected = new HashMap<>();
+        boolean columnar = randomBoolean();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "gender", "text", JDBCType.VARCHAR, Integer.MAX_VALUE),
+                columnInfo(mode, "cnt", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "cnt_dist", "long", JDBCType.BIGINT, 20)
+            )
+        );
+        if (columnar) {
+            expected.put("values", Arrays.asList(Arrays.asList("f", "m"), Arrays.asList(6, 5), Arrays.asList(3, 3)));
+        } else {
+            expected.put("rows", Arrays.asList(Arrays.asList("f", 6, 3), Arrays.asList("m", 5, 3)));
+        }
+
+        Map<String, Object> response = runSql(
+            mode,
+            "SELECT gender, COUNT(langs) AS cnt, COUNT(DISTINCT langs) AS cnt_dist " + "FROM test GROUP BY gender ORDER BY gender",
+            columnar
+        );
+
+        String cursor = (String) response.remove("cursor");
+        assertNotNull(cursor);
+        assertResponse(expected, response);
+    }
+
     @Override
     public void testSelectScoreSubField() throws Exception {
         index("{\"foo\":1}");
@@ -427,20 +457,11 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     @Override
-    public void testSelectScoreInScalar() throws Exception {
-        index("{\"foo\":1}");
-        expectBadRequest(
-            () -> runSql(randomMode(), "SELECT SIN(SCORE()) FROM test"),
-            containsString("line 1:12: [SCORE()] cannot be an argument to a function")
-        );
-    }
-
-    @Override
     public void testHardLimitForSortOnAggregate() throws Exception {
         index("{\"a\": 1, \"b\": 2}");
         expectBadRequest(
             () -> runSql(randomMode(), "SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000"),
-            containsString("The maximum LIMIT for aggregate sorting is [65535], received [120000]")
+            containsString("The maximum LIMIT for aggregate sorting is [65536], received [120000]")
         );
     }
 
@@ -462,7 +483,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         );
         expectBadRequest(() -> {
             client().performRequest(request);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("Invalid use of [columnar] argument: cannot be used in combination with txt, csv or tsv formats"));
     }
 
@@ -474,8 +495,92 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         request.setEntity(new StringEntity(query("SELECT * FROM test").mode(mode).columnar(true).toString(), ContentType.APPLICATION_JSON));
         expectBadRequest(() -> {
             client().performRequest(request);
-            return Collections.emptyMap();
+            return emptyMap();
         }, containsString("unknown field [columnar]"));
+    }
+
+    public void testValidateRuntimeMappingsInSqlQuery() throws IOException {
+        testValidateRuntimeMappingsInQuery(SQL_QUERY_REST_ENDPOINT);
+
+        String mode = randomMode();
+        Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        index("{\"test\":true}", "{\"test\":false}");
+        String runtimeMappings = "{\"bool_as_long\": {\"type\":\"long\", \"script\": {\"source\":\"if(doc['test'].value == true) emit(1);"
+            + "else emit(0);\"}}}";
+        request.setEntity(
+            new StringEntity(
+                query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        Map<String, Object> expected = new HashMap<>();
+        expected.put(
+            "columns",
+            Arrays.asList(
+                columnInfo(mode, "bool_as_long", "long", JDBCType.BIGINT, 20),
+                columnInfo(mode, "test", "boolean", JDBCType.BOOLEAN, 1)
+            )
+        );
+        expected.put("rows", Arrays.asList(Arrays.asList(1, true), Arrays.asList(0, false)));
+        assertResponse(
+            expected,
+            runSql(
+                new StringEntity(
+                    query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                    ContentType.APPLICATION_JSON
+                ),
+                StringUtils.EMPTY,
+                mode
+            )
+        );
+    }
+
+    public void testValidateRuntimeMappingsInTranslateQuery() throws IOException {
+        testValidateRuntimeMappingsInQuery(SQL_TRANSLATE_REST_ENDPOINT);
+
+        index("{\"test\":true}", "{\"test\":false}");
+        String runtimeMappings = "{\"bool_as_long\": {\"type\":\"long\", \"script\": {\"source\":\"if(doc['test'].value == true) emit(1);"
+            + "else emit(0);\"}}}";
+        Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").runtimeMappings(runtimeMappings).toString());
+        assertEquals(response.get("size"), 1000);
+        assertFalse((Boolean) response.get("_source"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> source = (List<Map<String, Object>>) response.get("fields");
+        assertEquals(Arrays.asList(singletonMap("field", "bool_as_long"), singletonMap("field", "test")), source);
+
+        assertNull(response.get("query"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> sort = (List<Map<String, Object>>) response.get("sort");
+        assertEquals(singletonList(singletonMap("_doc", singletonMap("order", "asc"))), sort);
+    }
+
+    private static void testValidateRuntimeMappingsInQuery(String queryTypeEndpoint) {
+        String mode = randomMode();
+        String runtimeMappings = "{\"address\": {\"script\": \"return\"}}";
+        Request request = new Request("POST", queryTypeEndpoint);
+        request.setEntity(
+            new StringEntity(
+                query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        expectBadRequest(() -> {
+            client().performRequest(request);
+            return emptyMap();
+        }, containsString("No type specified for runtime field [address]"));
+
+        runtimeMappings = "{\"address\": [{\"script\": \"return\"}]}";
+        request.setEntity(
+            new StringEntity(
+                query("SELECT * FROM test").mode(mode).runtimeMappings(runtimeMappings).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        expectBadRequest(() -> {
+            client().performRequest(request);
+            return emptyMap();
+        }, containsString("Expected map for runtime field [address] definition but got [String]"));
     }
 
     public static void expectBadRequest(CheckedSupplier<Map<String, Object>, Exception> code, Matcher<String> errorMessageMatcher) {
@@ -627,11 +732,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").toString());
         assertEquals(1000, response.get("size"));
+        assertFalse((Boolean) response.get("_source"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> source = (Map<String, Object>) response.get("_source");
-        assertNotNull(source);
-        assertEquals(emptyList(), source.get("excludes"));
-        assertEquals(singletonList("test"), source.get("includes"));
+        List<Map<String, Object>> source = (List<Map<String, Object>>) response.get("fields");
+        assertEquals(singletonList(singletonMap("field", "test")), source);
     }
 
     public void testBasicQueryWithFilter() throws IOException {
@@ -698,11 +802,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Map<String, Object> response = runTranslateSql(query("SELECT * FROM test").filter("{\"match\": {\"test\": \"foo\"}}").toString());
 
         assertEquals(response.get("size"), 1000);
+        assertFalse((Boolean) response.get("_source"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> source = (Map<String, Object>) response.get("_source");
-        assertNotNull(source);
-        assertEquals(emptyList(), source.get("excludes"));
-        assertEquals(singletonList("test"), source.get("includes"));
+        List<Map<String, Object>> source = (List<Map<String, Object>>) response.get("fields");
+        assertEquals(singletonList(singletonMap("field", "test")), source);
 
         @SuppressWarnings("unchecked")
         Map<String, Object> query = (Map<String, Object>) response.get("query");
@@ -739,7 +842,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         assertEquals(response.get("size"), 0);
         assertEquals(false, response.get("_source"));
-        assertEquals("_none_", response.get("stored_fields"));
+        assertNull(response.get("stored_fields"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> aggregations = (Map<String, Object>) response.get("aggregations");
@@ -883,6 +986,35 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         executeQueryWithNextPage("text/csv; header=present", "text,number,sum\r\n", "%s,%d,%d\r\n");
     }
 
+    public void testCSVWithDelimiterParameter() throws IOException {
+        String format = randomFrom("txt", "tsv", "json", "yaml", "smile", "cbor");
+        String query = "SELECT * FROM test";
+        index("{\"foo\":1}");
+
+        Request badRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT);
+        badRequest.addParameter("format", format);
+        badRequest.addParameter("delimiter", ";");
+        badRequest.setEntity(
+            new StringEntity(
+                query(query).mode(randomValueOtherThan(Mode.JDBC.toString(), BaseRestSqlTestCase::randomMode)).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        expectBadRequest(() -> {
+            client().performRequest(badRequest);
+            return emptyMap();
+        }, containsString("request [/_sql] contains unrecognized parameter: [delimiter]"));
+
+        Request csvRequest = new Request("POST", SQL_QUERY_REST_ENDPOINT + "?format=csv&delimiter=%3B");
+        csvRequest.setEntity(
+            new StringEntity(
+                query(query).mode(randomValueOtherThan(Mode.JDBC.toString(), BaseRestSqlTestCase::randomMode)).toString(),
+                ContentType.APPLICATION_JSON
+            )
+        );
+        assertOK(client().performRequest(csvRequest));
+    }
+
     public void testQueryInTSV() throws IOException {
         index(
             "{\"name\":" + toJson("first") + ", \"number\" : 1 }",
@@ -901,6 +1033,55 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
     public void testNextPageTSV() throws IOException {
         executeQueryWithNextPage("text/tab-separated-values", "text\tnumber\tsum\n", "%s\t%d\t%d\n");
+    }
+
+    public void testBinaryFieldFiltering() throws IOException {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "long").endObject();
+                createIndex.startObject("binary").field("type", "binary").field("doc_values", true).endObject();
+            }
+            createIndex.endObject();
+        }
+        createIndex.endObject().endObject();
+
+        Request request = new Request("PUT", "/test_binary");
+        request.setJsonEntity(Strings.toString(createIndex));
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        long nonNullId = randomLong();
+        long nullId = randomLong();
+        StringBuilder bulk = new StringBuilder();
+        bulk.append("{").append(toJson("index")).append(":{}}\n");
+        bulk.append("{");
+        {
+            bulk.append(toJson("id")).append(":").append(nonNullId);
+            bulk.append(",");
+            bulk.append(toJson("binary")).append(":").append(toJson("U29tZSBiaW5hcnkgYmxvYg=="));
+        }
+        bulk.append("}\n");
+        bulk.append("{").append(toJson("index")).append(":{}}\n");
+        bulk.append("{");
+        {
+            bulk.append(toJson("id")).append(":").append(nullId);
+        }
+        bulk.append("}\n");
+
+        request = new Request("PUT", "/test_binary/_bulk?refresh=true");
+        request.setJsonEntity(bulk.toString());
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        String mode = randomMode();
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo(mode, "id", "long", JDBCType.BIGINT, 20)));
+        expected.put("rows", singletonList(singletonList(nonNullId)));
+        assertResponse(expected, runSql(mode, "SELECT id FROM test_binary WHERE binary IS NOT NULL", false));
+
+        expected.put("rows", singletonList(singletonList(nullId)));
+        assertResponse(expected, runSql(mode, "SELECT id FROM test_binary WHERE binary IS NULL", false));
     }
 
     private void executeQueryWithNextPage(String format, String expectedHeader, String expectedLineFormat) throws IOException {

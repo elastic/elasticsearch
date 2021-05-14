@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.inference.ingest;
 
@@ -156,7 +157,12 @@ public class InferenceProcessor extends AbstractProcessor {
             throw new ElasticsearchStatusException("Unexpected empty inference response", RestStatus.INTERNAL_SERVER_ERROR);
         }
         assert response.getInferenceResults().size() == 1;
-        InferenceResults.writeResult(response.getInferenceResults().get(0), ingestDocument, targetField, modelId);
+        InferenceResults.writeResult(
+            response.getInferenceResults().get(0),
+            ingestDocument,
+            targetField,
+            response.getModelId() != null ? response.getModelId() : modelId
+        );
     }
 
     @Override
@@ -192,15 +198,17 @@ public class InferenceProcessor extends AbstractProcessor {
         @Override
         public void accept(ClusterState state) {
             minNodeVersion = state.nodes().getMinNodeVersion();
+            currentInferenceProcessors = countNumberInferenceProcessors(state);
+        }
+
+        public static int countNumberInferenceProcessors(ClusterState state) {
             Metadata metadata = state.getMetadata();
             if (metadata == null) {
-                currentInferenceProcessors = 0;
-                return;
+                return 0;
             }
             IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
             if (ingestMetadata == null) {
-                currentInferenceProcessors = 0;
-                return;
+                return 0;
             }
 
             int count = 0;
@@ -213,14 +221,14 @@ public class InferenceProcessor extends AbstractProcessor {
                             count += numInferenceProcessors(entry.getKey(), entry.getValue());
                         }
                     }
-                // We cannot throw any exception here. It might break other pipelines.
+                    // We cannot throw any exception here. It might break other pipelines.
                 } catch (Exception ex) {
                     logger.debug(
                         () -> new ParameterizedMessage("failed gathering processors for pipeline [{}]", configuration.getId()),
                         ex);
                 }
             }
-            currentInferenceProcessors = count;
+            return count;
         }
 
         @SuppressWarnings("unchecked")
@@ -293,7 +301,7 @@ public class InferenceProcessor extends AbstractProcessor {
                 fieldMap = ConfigurationUtils.readOptionalMap(TYPE, tag, config, FIELD_MAPPINGS);
                 //TODO Remove in 8.x
                 if (fieldMap != null) {
-                    LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
+                    LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, FIELD_MAPPINGS, FIELD_MAP);
                 }
             }
             if (fieldMap == null) {

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -13,12 +14,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -26,20 +24,15 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigUpdate;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
-import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
@@ -354,7 +347,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, emptyList(), false),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, false),
             new PersistentTasksCustomMetadata.Assignment("node", "test assignment"));
         builder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
@@ -366,12 +359,4 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             .build();
     }
 
-    @Override
-    public NamedXContentRegistry xContentRegistry() {
-        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
-        return new NamedXContentRegistry(namedXContent);
-    }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.upgrades;
 
@@ -37,7 +38,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     @Before
     public void waitForTemplates() throws Exception {
         try {
-            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V660_TEMPLATES);
+            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
         } catch (AssertionError e) {
             throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
         }
@@ -85,6 +86,16 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
 
     @Override
     protected boolean preserveDataStreamsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
         return true;
     }
 

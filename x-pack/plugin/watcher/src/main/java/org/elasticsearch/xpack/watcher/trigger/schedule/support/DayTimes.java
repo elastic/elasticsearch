@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
@@ -101,13 +102,13 @@ public class DayTimes implements Times {
 
     public void validate() {
         for (int i = 0; i < hour.length; i++) {
-            if (!validHour(hour[i])) {
+            if (validHour(hour[i]) == false) {
                 throw illegalArgument("invalid time [{}]. invalid time hour value [{}]. time hours must be between 0 and 23 incl.",
                         this, hour[i]);
             }
         }
         for (int i = 0; i < minute.length; i++) {
-            if (!validMinute(minute[i])) {
+            if (validMinute(minute[i]) == false) {
                 throw illegalArgument("invalid time [{}]. invalid time minute value [{}]. time minutes must be between 0 and 59 incl.",
                         this, minute[i]);
             }
@@ -170,8 +171,8 @@ public class DayTimes implements Times {
 
         DayTimes time = (DayTimes) o;
 
-        if (!Arrays.equals(hour, time.hour)) return false;
-        if (!Arrays.equals(minute, time.minute)) return false;
+        if (Arrays.equals(hour, time.hour) == false) return false;
+        if (Arrays.equals(minute, time.minute) == false) return false;
 
         return true;
     }
@@ -233,7 +234,7 @@ public class DayTimes implements Times {
         switch (token) {
             case VALUE_NUMBER:
                 int hour = parser.intValue();
-                if (!DayTimes.validHour(hour)) {
+                if (DayTimes.validHour(hour) == false) {
                     throw new ElasticsearchParseException("invalid time hour value [{}] (possible values may be between 0 and 23 incl.)",
                             hour);
                 }
@@ -243,7 +244,7 @@ public class DayTimes implements Times {
                 String value = parser.text();
                 try {
                     hour = Integer.valueOf(value);
-                    if (!DayTimes.validHour(hour)) {
+                    if (DayTimes.validHour(hour) == false) {
                         String msg = "invalid time hour value [{}] (possible values may be between 0 and 23 incl.)";
                         throw new ElasticsearchParseException(msg, hour);
                     }
@@ -261,7 +262,7 @@ public class DayTimes implements Times {
         switch (token) {
             case VALUE_NUMBER:
                 int minute = parser.intValue();
-                if (!DayTimes.validMinute(minute)) {
+                if (DayTimes.validMinute(minute) == false) {
                     throw new ElasticsearchParseException("invalid time minute value [{}] (possible values may be between 0 and 59 incl.)",
                             minute);
                 }
@@ -271,7 +272,7 @@ public class DayTimes implements Times {
                 String value = parser.text();
                 try {
                     minute = Integer.valueOf(value);
-                    if (!DayTimes.validMinute(minute)) {
+                    if (DayTimes.validMinute(minute) == false) {
                         throw new ElasticsearchParseException("invalid time minute value [{}] (possible values may be between 0 and 59 " +
                                 "incl.)", minute);
                     }

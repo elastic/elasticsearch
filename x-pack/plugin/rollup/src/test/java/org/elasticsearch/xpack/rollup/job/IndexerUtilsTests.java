@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
@@ -106,6 +107,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
         CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
@@ -166,6 +168,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
         CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
@@ -218,6 +221,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
         CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
@@ -277,6 +281,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
         CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
@@ -460,6 +465,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, valueFieldType, metricFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
         CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();
@@ -530,6 +536,7 @@ public class IndexerUtilsTests extends AggregatorTestCase {
         Aggregator aggregator = createAggregator(compositeBuilder, indexSearcher, timestampFieldType, valueFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        aggregator.postCollection();
         CompositeAggregation composite = (CompositeAggregation) aggregator.buildTopLevel();
         indexReader.close();
         directory.close();

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.filter;
 
@@ -49,6 +50,8 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
             assertEquals("index1", indices[0]);
         }
 
+        // the "*,-*" pattern is specially handled because it makes a destructive action non-destructive
+        assertAcked(client().admin().indices().prepareDelete("*", "-*"));
         assertAcked(client().admin().indices().prepareDelete("index1"));
     }
 
@@ -113,6 +116,10 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
                     () -> client().admin().indices().prepareOpen("_all").get());
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
+
+        // the "*,-*" pattern is specially handled because it makes a destructive action non-destructive
+        assertAcked(client().admin().indices().prepareClose("*", "-*"));
+        assertAcked(client().admin().indices().prepareOpen("*", "-*"));
 
         createIndex("index1");
         assertAcked(client().admin().indices().prepareClose("index1"));

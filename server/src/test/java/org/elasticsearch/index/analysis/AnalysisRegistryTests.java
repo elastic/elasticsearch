@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.analysis;
@@ -31,6 +20,7 @@ import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -324,7 +314,8 @@ public class AnalysisRegistryTests extends ESTestCase {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
-                        deprecationLogger.deprecate("deprecated_token_filter", "Using deprecated token filter [deprecated]");
+                        deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "deprecated_token_filter",
+                            "Using deprecated token filter [deprecated]");
                     }
                     return tokenStream;
                 }
@@ -352,7 +343,8 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecate("unused_token_filter", "Using deprecated token filter [unused]");
+                    deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "unused_token_filter",
+                        "Using deprecated token filter [unused]");
                     return tokenStream;
                 }
             }
@@ -365,7 +357,8 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecate("deprecated_normalizer", "Using deprecated token filter [deprecated_normalizer]");
+                    deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "deprecated_normalizer",
+                        "Using deprecated token filter [deprecated_normalizer]");
                     return tokenStream;
                 }
 

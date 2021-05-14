@@ -149,7 +149,7 @@ aggregation and the Slack action:
 |======
 | Name                          |Required | Description
 
-| `message.from`                | no      | The sender name to display in the  Slack message.
+| `message.from`                | no      | The sender name to display in the Slack message.
                                     Overrides the incoming webhook's configured name.
 
 | `message.to`                  | yes     | The channels and users you want to send the message

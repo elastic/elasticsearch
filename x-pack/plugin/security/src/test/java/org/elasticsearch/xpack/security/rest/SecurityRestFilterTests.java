@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest;
 
 import com.nimbusds.jose.util.StandardCharset;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -142,6 +144,9 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestRequest request = mock(RestRequest.class);
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         filter.handleRequest(request, channel, null);
+        assertWarnings("Elasticsearch built-in security features are not enabled. Without authentication, your cluster " +
+            "could be accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+            Version.CURRENT.minor + "/security-minimal-setup.html to enable security.");
         verify(restHandler).handleRequest(request, channel, null);
         verifyZeroInteractions(channel, authcService);
     }
@@ -165,7 +170,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     private void testProcessAuthenticationFailed(Exception authnException, RestStatus expectedRestStatus, boolean errorTrace,
                                                  boolean detailedErrorsEnabled, boolean traceExists) throws Exception {
         RestRequest request;
-        if (errorTrace != !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT || randomBoolean()) {
+        if (errorTrace != ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false || randomBoolean()) {
             request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                     .withParams(Map.of("error_trace", Boolean.toString(errorTrace))).build();
         } else {

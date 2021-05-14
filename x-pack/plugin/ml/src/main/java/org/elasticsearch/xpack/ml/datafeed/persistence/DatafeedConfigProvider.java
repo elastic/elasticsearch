@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.datafeed.persistence;
 
@@ -51,7 +52,6 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
@@ -77,7 +77,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
  * datafeed configuration document
  *
  * The number of datafeeds returned in a search it limited to
- * {@link AnomalyDetectorsIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
+ * {@link MlConfigIndex#CONFIG_INDEX_MAX_RESULTS_WINDOW}.
  * In most cases we expect 10s or 100s of datafeeds to be defined and
  * a search for all datafeeds should return all.
  */
@@ -221,21 +221,14 @@ public class DatafeedConfigProvider {
     public void deleteDatafeedConfig(String datafeedId,  ActionListener<DeleteResponse> actionListener) {
         DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
-            @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    actionListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
-                    return;
-                }
-                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-                actionListener.onResponse(deleteResponse);
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener.delegateFailure((l, deleteResponse) -> {
+            if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                l.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                return;
             }
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        });
+            assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+            l.onResponse(deleteResponse);
+        }));
     }
 
     /**
@@ -258,14 +251,13 @@ public class DatafeedConfigProvider {
                                      ActionListener<DatafeedConfig> updatedConfigListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedConfigListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    updatedConfigListener.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
+                    delegate.onFailure(ExceptionsHelper.missingDatafeedException(datafeedId));
                     return;
                 }
-                final long version = getResponse.getVersion();
                 final long seqNo = getResponse.getSeqNo();
                 final long primaryTerm = getResponse.getPrimaryTerm();
                 BytesReference source = getResponse.getSourceAsBytesRef();
@@ -273,7 +265,7 @@ public class DatafeedConfigProvider {
                 try {
                     configBuilder = parseLenientlyFromSource(source);
                 } catch (IOException e) {
-                    updatedConfigListener.onFailure(
+                    delegate.onFailure(
                             new ElasticsearchParseException("Failed to parse datafeed config [" + datafeedId + "]", e));
                     return;
                 }
@@ -282,28 +274,16 @@ public class DatafeedConfigProvider {
                 try {
                     updatedConfig = update.apply(configBuilder.build(), headers);
                 } catch (Exception e) {
-                    updatedConfigListener.onFailure(e);
+                    delegate.onFailure(e);
                     return;
                 }
 
-                ActionListener<Boolean> validatedListener = ActionListener.wrap(
-                        ok -> {
-                            indexUpdatedConfig(updatedConfig, seqNo, primaryTerm, ActionListener.wrap(
-                                    indexResponse -> {
-                                        assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
-                                        updatedConfigListener.onResponse(updatedConfig);
-                                    },
-                                    updatedConfigListener::onFailure));
-                        },
-                        updatedConfigListener::onFailure
-                );
-
+                ActionListener<Boolean> validatedListener = ActionListener.wrap(ok -> indexUpdatedConfig(updatedConfig, seqNo, primaryTerm,
+                        ActionListener.wrap(indexResponse -> {
+                            assert indexResponse.getResult() == DocWriteResponse.Result.UPDATED;
+                            delegate.onResponse(updatedConfig);
+                        }, delegate::onFailure)), delegate::onFailure);
                 validator.accept(updatedConfig, validatedListener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                updatedConfigListener.onFailure(e);
             }
         });
     }
@@ -368,7 +348,7 @@ public class DatafeedConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);
@@ -420,7 +400,7 @@ public class DatafeedConfigProvider {
         SearchRequest searchRequest = client.prepareSearch(MlConfigIndex.indexName())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSource(sourceBuilder)
-                .setSize(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                .setSize(MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
                 .request();
 
         ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(tokens, allowNoMatch);

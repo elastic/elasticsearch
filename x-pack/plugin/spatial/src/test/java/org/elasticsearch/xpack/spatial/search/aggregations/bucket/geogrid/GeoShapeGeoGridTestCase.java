@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
@@ -190,9 +191,9 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
 
             GeoShapeValues.GeoShapeValue value = geoShapeValue(p);
             GeoRelation tileRelation =  value.relate(pointTile);
-            boolean intersectsBounds = boundsTop >= pointTile.getMinY() && boundsBottom <= pointTile.getMaxY()
-                && (boundsEastLeft <= pointTile.getMaxX() && boundsEastRight >= pointTile.getMinX()
-                || (crossesDateline && boundsWestLeft <= pointTile.getMaxX() && boundsWestRight >= pointTile.getMinX()));
+            boolean intersectsBounds = boundsTop > pointTile.getMinY() && boundsBottom < pointTile.getMaxY()
+                && (boundsEastLeft < pointTile.getMaxX() && boundsEastRight > pointTile.getMinX()
+                || (crossesDateline && boundsWestLeft < pointTile.getMaxX() && boundsWestRight > pointTile.getMinX()));
             if (tileRelation != GeoRelation.QUERY_DISJOINT && intersectsBounds) {
                 numDocsWithin += 1;
             }
@@ -297,6 +298,8 @@ public abstract class GeoShapeGeoGridTestCase<T extends InternalGeoGridBucket<T>
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
         indexSearcher.search(query, aggregator);
+        aggregator.postCollection();
+
         verify.accept((InternalGeoGrid<T>) aggregator.buildTopLevel());
 
         indexReader.close();

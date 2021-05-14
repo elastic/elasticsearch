@@ -12,6 +12,11 @@ Returns configured remote cluster information.
 
 `GET /_remote/info`
 
+[[cluster-remote-info-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-remote-info-api-desc]]
 ==== {api-description-title}

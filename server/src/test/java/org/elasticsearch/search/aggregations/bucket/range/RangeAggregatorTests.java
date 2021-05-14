@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.range;
@@ -39,20 +28,28 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 
 public class RangeAggregatorTests extends AggregatorTestCase {
@@ -143,6 +140,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
                 true,
                 false,
                 null,
+                Collections.emptyMap(),
                 null
             )
         );
@@ -157,7 +155,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
-            null
+            null,
+            Collections.emptyMap()
         );
 
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -180,7 +179,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     public void testDateFieldNanosecondResolution() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, null, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -203,7 +202,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
     public void  testMissingDateWithDateNanosField() throws IOException {
         DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(DATE_FIELD_NAME, true, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, DateFieldMapper.Resolution.NANOSECONDS, null, null, Collections.emptyMap());
 
         // These values should work because aggs scale nanosecond up to millisecond always.
         long milli1 = ZonedDateTime.of(2015, 11, 13, 16, 14, 34, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -236,6 +235,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             true,
             false,
             null,
+            Collections.emptyMap(),
             null
         );
 
@@ -416,6 +416,45 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER));
     }
 
+    /**
+     * If the top level query is a runtime field we should still use
+     * {@link RangeAggregator.FromFilters} because we expect it'll still be faster
+     * that the normal aggregator, even though running the script for the runtime
+     * field is quite a bit more expensive than a regular query. The thing is, we
+     * won't be executing the script more times than we would if it were just at
+     * the top level.
+     */
+    public void testRuntimeFieldTopLevelQueryStillOptimized() throws IOException {
+        long totalDocs = (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 4;
+        SearchLookup lookup = new SearchLookup(s -> null, (ft, l) -> null);
+        StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript("dummy", Map.of(), lookup, ctx) {
+            @Override
+            public void execute() {
+                emit("cat");
+            }
+        };
+        Query query = new StringScriptFieldTermQuery(new Script("dummy"), scriptFactory, "dummy", "cat", false);
+        debugTestCase(new RangeAggregationBuilder("r").field(NUMBER_FIELD_NAME).addRange(0, 1).addRange(1, 2).addRange(2, 3), query, iw -> {
+            for (int d = 0; d < totalDocs; d++) {
+                iw.addDocument(List.of(new IntPoint(NUMBER_FIELD_NAME, 0), new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 0)));
+            }
+        }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+            assertThat(
+                r.getBuckets().stream().map(InternalRange.Bucket::getKey).collect(toList()),
+                equalTo(List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
+            );
+            assertThat(
+                r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),
+                equalTo(List.of(totalDocs, 0L, 0L))
+            );
+            assertThat(impl, equalTo(RangeAggregator.FromFilters.class));
+            Map<?, ?> topLevelDebug = (Map<?, ?>) debug.get("r");
+            Map<?, ?> delegateDebug = (Map<?, ?>) topLevelDebug.get("delegate_debug");
+            assertThat(delegateDebug, hasEntry("estimated_cost", totalDocs));
+            assertThat(delegateDebug, hasEntry("max_cost", totalDocs));
+        }, new NumberFieldMapper.NumberFieldType(NUMBER_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER));
+    }
+
     private void testCase(Query query,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalRange<? extends InternalRange.Bucket, ? extends InternalRange>> verify) throws IOException {
@@ -427,6 +466,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             true,
             false,
             null,
+            Collections.emptyMap(),
             null
         );
         RangeAggregationBuilder aggregationBuilder = new RangeAggregationBuilder("test_range_agg");

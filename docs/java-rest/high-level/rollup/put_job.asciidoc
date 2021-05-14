@@ -1,15 +1,15 @@
 [role="xpack"]
 [[java-rest-high-x-pack-rollup-put-job]]
-=== Put Rollup Job API
+=== Create or update rollup job API
 
 experimental::[]
 
-The Put Rollup Job API can be used to create a new Rollup job
-in the cluster. The API accepts a `PutRollupJobRequest` object
+Creates a new Rollup job or updates an existing one.
+The API accepts a `PutRollupJobRequest` object
 as a request and returns a `PutRollupJobResponse`.
 
 [[java-rest-high-x-pack-rollup-put-rollup-job-request]]
-==== Put Rollup Job Request
+==== Request
 
 A `PutRollupJobRequest` requires the following argument:
 
@@ -126,7 +126,7 @@ include-tagged::{doc-tests}/RollupDocumentationIT.java[x-pack-rollup-put-rollup-
 [[java-rest-high-x-pack-rollup-put-rollup-job-execution]]
 ==== Execution
 
-The Put Rollup Job API can be executed through a `RollupClient`
+The API can be called through a `RollupClient`
 instance. Such instance can be retrieved from a `RestHighLevelClient`
 using the `rollup()` method:
 

@@ -184,7 +184,7 @@ public class Key<T> {
         if (o == this) {
             return true;
         }
-        if (!(o instanceof Key<?>)) {
+        if ((o instanceof Key<?>) == false) {
             return false;
         }
         Key<?> other = (Key<?>) o;
@@ -364,7 +364,7 @@ public class Key<T> {
 
     private static void ensureRetainedAtRuntime(
             Class<? extends Annotation> annotationType) {
-        if (!Annotations.isRetainedAtRuntime(annotationType)) {
+        if (Annotations.isRetainedAtRuntime(annotationType) == false) {
             throw new IllegalArgumentException(
                     annotationType.getName() + " is not retained at runtime. Please annotate it with @Retention(RUNTIME)."
             );
@@ -373,7 +373,7 @@ public class Key<T> {
 
     private static void ensureIsBindingAnnotation(
             Class<? extends Annotation> annotationType) {
-        if (!isBindingAnnotation(annotationType)) {
+        if (isBindingAnnotation(annotationType) == false) {
             throw new IllegalArgumentException(
                     annotationType.getName() + " is not a binding annotation. Please annotate it with @BindingAnnotation."
             );
@@ -440,7 +440,7 @@ public class Key<T> {
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof AnnotationInstanceStrategy)) {
+            if ((o instanceof AnnotationInstanceStrategy) == false) {
                 return false;
             }
 
@@ -494,7 +494,7 @@ public class Key<T> {
 
         @Override
         public boolean equals(Object o) {
-            if (!(o instanceof AnnotationTypeStrategy)) {
+            if ((o instanceof AnnotationTypeStrategy) == false) {
                 return false;
             }
 

@@ -41,6 +41,11 @@
         "description":"Return help information",
         "default":false
       },
+      "include_bootstrap":{
+        "type":"boolean",
+        "description":"Include bootstrap plugins in the response",
+        "default":false
+      },
       "s":{
         "type":"list",
         "description":"Comma-separated list of column names or column aliases to sort by"

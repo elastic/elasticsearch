@@ -6,8 +6,8 @@ An alias is a secondary name for a group of data streams or indices. Most {es}
 APIs accept an alias in place of a data stream or index name.
 
 You can change the data streams or indices of an alias at any time. If you use
-aliases in your application, you can reindex your data with no downtime or
-changes to your app's code.
+aliases in your application's {es} requests, you can reindex data with no
+downtime or changes to your app's code.
 
 [discrete]
 [[alias-types]]
@@ -96,7 +96,7 @@ operation.
 
 For example, the `logs` alias points to a single data stream. The following
 request swaps the stream for the alias. During this swap, the `logs` alias has
-no downtime and will never point to both streams at the same time.
+no downtime and never points to both streams at the same time.
 
 [source,console]
 ----
@@ -241,8 +241,87 @@ you frequently update or delete existing time series data, use an index alias
 with a write index instead. See
 <<manage-time-series-data-without-data-streams>>.
 
-If an alias points to multiple indices with no write index, the alias will
-reject write requests. If an alias points to one index and `is_write_index` is
-not set, that index will automatically act as the write index. Data stream
-aliases do not support `is_write_index`.
+If an alias points to multiple indices with no write index, the alias rejects
+write requests. If an alias points to one index and `is_write_index` is not set,
+the index automatically acts as the write index. Data stream aliases do not
+support `is_write_index`.
 
+[discrete]
+[[filter-alias]]
+=== Filter an alias
+
+The `filter` option uses <<query-dsl,Query DSL>> to limit the documents an alias
+can access. Data stream aliases do not support `filter`.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "my-index-2099.05.07-000002",
+        "alias": "my-alias",
+        "is_write_index": true,
+        "filter": {
+          "range": {
+            "@timestamp": {
+              "gte": "now-1d/d",
+              "lt": "now/d"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my-index-2099.05.07-000002\n/]
+
+[discrete]
+[[alias-routing]]
+=== Routing
+
+Use the `routing` option to <<mapping-routing-field,route>> requests for an
+alias to a specific shard. This lets you take advantage of
+<<shard-request-cache,shard caches>> and speed up requests. Data stream aliases
+do not support routing options.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "my-index-2099.05.06-000001",
+        "alias": "my-alias",
+        "routing": "1"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my-index-2099.05.06-000001\n/]
+
+Use the `index_routing` and `search_routing` to use different routing values for
+indexing and search. If specified, these options overwrite the `routing` value
+for their respective operations.
+
+[source,console]
+----
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "my-index-2099.05.06-000001",
+        "alias": "my-alias",
+        "search_routing": "1",
+        "index_routing": "2"
+      }
+    }
+  ]
+}
+----
+// TEST[s/^/PUT my-index-2099.05.06-000001\n/]

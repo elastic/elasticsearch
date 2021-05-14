@@ -65,6 +65,8 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDoExecute() throws Exception {
+        assumeFalse("NodeEnrollment is not supported on FIPS because it requires a KeyStore", inFipsJvm());
+
         final Environment env = mock(Environment.class);
         Path tempDir = createTempDir();
         Path httpCaPath = tempDir.resolve("httpCa.p12");

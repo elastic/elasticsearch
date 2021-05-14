@@ -553,7 +553,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             30, TimeUnit.SECONDS);
 
         Map<String, Object> warmIndexSettings = getIndexSettingsAsMap(restoredIndex);
-        // // the searchable snapshot continues on the to warm tier and onward
+        // the searchable snapshot continues on the to warm tier and onward
         assertThat(warmIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
     }
 

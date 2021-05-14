@@ -17,6 +17,20 @@ import java.util.Map;
 public abstract class LongFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("long_field", Factory.class);
 
+    public static final LongFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (LongFieldScript.LeafFactory) ctx -> new LongFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
+
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 

@@ -108,12 +108,8 @@ public abstract class AbstractFieldScript {
 
     protected abstract void emitFromObject(Object v);
 
-    public final void emitFromSource() {
-        emitObjectValues(extractFromSource(fieldName));
-    }
-
-    private void emitObjectValues(List<Object> values) {
-        for (Object v : values) {
+    protected final void emitFromSource() {
+        for (Object v : extractFromSource(fieldName)) {
             emitFromObject(v);
         }
     }

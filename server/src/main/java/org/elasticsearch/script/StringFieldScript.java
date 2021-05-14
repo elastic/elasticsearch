@@ -25,6 +25,20 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("keyword_field", Factory.class);
 
+    public static final StringFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (StringFieldScript.LeafFactory) ctx -> new StringFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
+
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 

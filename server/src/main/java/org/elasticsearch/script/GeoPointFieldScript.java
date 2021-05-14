@@ -31,6 +31,21 @@ import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("geo_point_field", Factory.class);
 
+    public static final GeoPointFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (GeoPointFieldScript.LeafFactory) ctx -> new GeoPointFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
+
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
 

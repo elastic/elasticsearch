@@ -44,23 +44,8 @@ import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
-    static final DateFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup, formatter) -> (DateFieldScript.LeafFactory) ctx -> new DateFieldScript
-        (
-            field,
-            params,
-            lookup,
-            formatter,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            emitFromSource();
-        }
-    };
-
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, DateFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
+        new Builder<>(name, DateFieldScript.CONTEXT, DateFieldScript.PARSE_FROM_SOURCE) {
             private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
                 "format",
                 true,
@@ -105,7 +90,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     private final DateMathParser dateMathParser;
 
     public DateScriptFieldType(String name, DateFormatter dateTimeFormatter) {
-        this(name, PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, params) -> {
+        this(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, params) -> {
             if (DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern().equals(dateTimeFormatter.pattern()) == false) {
                 builder.field("format", dateTimeFormatter.pattern());
             }

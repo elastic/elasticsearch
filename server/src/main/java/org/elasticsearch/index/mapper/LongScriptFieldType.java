@@ -34,28 +34,8 @@ import java.util.function.Supplier;
 
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
 
-    static final LongFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (LongFieldScript.LeafFactory) ctx -> new LongFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                try {
-                    emit(NumberFieldMapper.NumberType.objectToLong(v, true));
-                } catch (Exception e) {
-                    // ignore;
-                }
-            }
-        }
-    };
-
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, LongFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
+        new Builder<>(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(LongFieldScript.Factory scriptFactory) {
                 return new LongScriptFieldType(name, scriptFactory, getScript(), meta(), this);
@@ -63,7 +43,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         });
 
     public LongScriptFieldType(String name) {
-        this(name, PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+        this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
     LongScriptFieldType(

@@ -21,7 +21,7 @@ must meet the following conditions:
 
 * The index name must match the pattern '^.*-\\d+$', for example (`my-index-000001`).
 * The `index.lifecycle.rollover_alias` must be configured as the alias to roll over.
-* The index must be the <<aliases-write-index,write index>> for the alias.
+* The index must be the <<write-index,write index>> for the alias.
 
 For example, if `my-index-000001` has the alias `my_data`,
 the following settings must be configured.

@@ -440,10 +440,12 @@ public abstract class MappedFieldType {
      * @param caseInsensitive if matches should be case insensitive
      * @param string the partially complete word the user has typed (can be empty)
      * @param queryShardContext the shard context
+     * @param searchAfter - usually null. If supplied the TermsEnum result must be positioned after the provided term (used for pagination)
      * @return null or an enumeration of matching terms and their doc frequencies
      * @throws IOException Errors accessing data
      */
-    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext) throws IOException {
+    public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+        throws IOException {
         return null;
     }
 }

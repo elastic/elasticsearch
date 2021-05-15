@@ -78,20 +78,29 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         this.threadPool.set(threadPool);
         return Collections.emptyList();
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, UsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, VotingOnlyNodeFeatureSet.UsageInfoAction.class));
+        return Arrays.asList(
+            new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, UsageTransportAction.class),
+            new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, VotingOnlyNodeFeatureSet.UsageInfoAction.class)
+        );
     }
 
     @Override
@@ -121,9 +130,15 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     static class VotingOnlyNodeElectionStrategy extends ElectionStrategy {
 
         @Override
-        public boolean satisfiesAdditionalQuorumConstraints(DiscoveryNode localNode, long localCurrentTerm, long localAcceptedTerm,
-                                                            long localAcceptedVersion, VotingConfiguration lastCommittedConfiguration,
-                                                            VotingConfiguration lastAcceptedConfiguration, VoteCollection joinVotes) {
+        public boolean satisfiesAdditionalQuorumConstraints(
+            DiscoveryNode localNode,
+            long localCurrentTerm,
+            long localAcceptedTerm,
+            long localAcceptedVersion,
+            VotingConfiguration lastCommittedConfiguration,
+            VotingConfiguration lastAcceptedConfiguration,
+            VoteCollection joinVotes
+        ) {
             // if local node is voting only, have additional checks on election quorum definition
             if (isVotingOnlyNode(localNode)) {
                 // if all votes are from voting only nodes, do not elect as master (no need to transfer state)
@@ -133,15 +148,15 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                 // if there's a vote from a full master node with same state (i.e. last accepted term and version match), then that node
                 // should become master instead, so we should stand down. There are two exceptional cases, however:
                 // 1) if we are in term 0. In that case, we allow electing the voting-only node to avoid poisonous situations where only
-                //    voting-only nodes are bootstrapped.
+                // voting-only nodes are bootstrapped.
                 // 2) if there is another full master node with an older state. In that case, we ensure that
-                //    satisfiesAdditionalQuorumConstraints cannot go from true to false when adding new joinVotes in the same election.
-                //    As voting-only nodes only broadcast the state to the full master nodes, eventually all of them will have caught up
-                //    and there should not be any remaining full master nodes with older state, effectively disabling election of
-                //    voting-only nodes.
-                if (joinVotes.getJoins().stream().anyMatch(fullMasterWithSameState(localAcceptedTerm, localAcceptedVersion)) &&
-                    localAcceptedTerm > 0 &&
-                    joinVotes.getJoins().stream().noneMatch(fullMasterWithOlderState(localAcceptedTerm, localAcceptedVersion))) {
+                // satisfiesAdditionalQuorumConstraints cannot go from true to false when adding new joinVotes in the same election.
+                // As voting-only nodes only broadcast the state to the full master nodes, eventually all of them will have caught up
+                // and there should not be any remaining full master nodes with older state, effectively disabling election of
+                // voting-only nodes.
+                if (joinVotes.getJoins().stream().anyMatch(fullMasterWithSameState(localAcceptedTerm, localAcceptedVersion))
+                    && localAcceptedTerm > 0
+                    && joinVotes.getJoins().stream().noneMatch(fullMasterWithOlderState(localAcceptedTerm, localAcceptedVersion))) {
                     return false;
                 }
             }
@@ -149,15 +164,15 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         }
 
         private static Predicate<Join> fullMasterWithSameState(long localAcceptedTerm, long localAcceptedVersion) {
-            return join -> isFullMasterNode(join.getSourceNode()) &&
-                join.getLastAcceptedTerm() == localAcceptedTerm &&
-                join.getLastAcceptedVersion() == localAcceptedVersion;
+            return join -> isFullMasterNode(join.getSourceNode())
+                && join.getLastAcceptedTerm() == localAcceptedTerm
+                && join.getLastAcceptedVersion() == localAcceptedVersion;
         }
 
         private static Predicate<Join> fullMasterWithOlderState(long localAcceptedTerm, long localAcceptedVersion) {
-            return join -> isFullMasterNode(join.getSourceNode()) &&
-                (join.getLastAcceptedTerm() < localAcceptedTerm ||
-                    (join.getLastAcceptedTerm() == localAcceptedTerm && join.getLastAcceptedVersion() < localAcceptedVersion));
+            return join -> isFullMasterNode(join.getSourceNode())
+                && (join.getLastAcceptedTerm() < localAcceptedTerm
+                    || (join.getLastAcceptedTerm() == localAcceptedTerm && join.getLastAcceptedVersion() < localAcceptedVersion));
         }
     }
 
@@ -171,16 +186,26 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
         }
 
         @Override
-        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
-                                                              TransportRequestOptions options, TransportResponseHandler<T> handler) {
+        public <T extends TransportResponse> void sendRequest(
+            Transport.Connection connection,
+            String action,
+            TransportRequest request,
+            TransportRequestOptions options,
+            TransportResponseHandler<T> handler
+        ) {
             if (action.equals(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME)) {
                 final DiscoveryNode destinationNode = connection.getNode();
                 if (isFullMasterNode(destinationNode)) {
                     sender.sendRequest(connection, action, request, options, new TransportResponseHandler<>() {
                         @Override
                         public void handleResponse(TransportResponse response) {
-                            handler.handleException(new TransportException(new ElasticsearchException(
-                                "ignoring successful publish response used purely for state transfer: " + response)));
+                            handler.handleException(
+                                new TransportException(
+                                    new ElasticsearchException(
+                                        "ignoring successful publish response used purely for state transfer: " + response
+                                    )
+                                )
+                            );
                         }
 
                         @Override
@@ -199,8 +224,15 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
                         }
                     });
                 } else {
-                    threadPoolSupplier.get().generic().execute(() -> handler.handleException(new TransportException(
-                        new ElasticsearchException("voting-only node skipping publication to " + destinationNode))));
+                    threadPoolSupplier.get()
+                        .generic()
+                        .execute(
+                            () -> handler.handleException(
+                                new TransportException(
+                                    new ElasticsearchException("voting-only node skipping publication to " + destinationNode)
+                                )
+                            )
+                        );
                 }
             } else {
                 sender.sendRequest(connection, action, request, options, handler);

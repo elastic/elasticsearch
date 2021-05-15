@@ -89,7 +89,7 @@ public class BlobStoreFormatTests extends ESTestCase {
 
     public void testBlobStoreOperations() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
 
         // Write blobs in different formats
@@ -106,7 +106,7 @@ public class BlobStoreFormatTests extends ESTestCase {
 
     public void testCompressionIsApplied() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         StringBuilder veryRedundantText = new StringBuilder();
         for (int i = 0; i < randomIntBetween(100, 300); i++) {
             veryRedundantText.append("Blah ");
@@ -122,7 +122,7 @@ public class BlobStoreFormatTests extends ESTestCase {
 
     public void testBlobCorruption() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         String testString = randomAlphaOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);

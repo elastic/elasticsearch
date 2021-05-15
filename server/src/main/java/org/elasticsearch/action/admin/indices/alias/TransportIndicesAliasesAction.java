@@ -89,6 +89,27 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
         // Resolve all the AliasActions into AliasAction instances and gather all the aliases
         Set<String> aliases = new HashSet<>();
         for (AliasActions action : actions) {
+            List<String> concreteDataStreams =
+                indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), action.indices());
+            if (concreteDataStreams.size() != 0) {
+                switch (action.actionType()) {
+                    case ADD:
+                        for (String dataStreamName : concreteDataStreams) {
+                            finalActions.add(new AliasAction.AddDataStreamAlias(action.aliases()[0], dataStreamName));
+                        }
+                        break;
+                    case REMOVE:
+                        for (String dataStreamName : concreteDataStreams) {
+                            finalActions.add(
+                                new AliasAction.RemoveDataStreamAlias(action.aliases()[0], dataStreamName, action.mustExist()));
+                        }
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unsupported action [" + action.actionType() + "]");
+                }
+                continue;
+            }
+
             final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), false,
                 action.indices());
             for (Index concreteIndex : concreteIndices) {

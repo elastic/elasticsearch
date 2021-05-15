@@ -660,13 +660,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     protected abstract SearchPhase getNextPhase(SearchPhaseResults<Result> results, SearchPhaseContext context);
 
-
     private final class PendingExecutions {
         private final BlockingQueue<SearchShardIterator> pendingQueue;
         private final int maxConcurrentRequestsPerNode;
         private final ConcurrentHashMap<String, Semaphore> requestPermits;
 
-        private Thread executingThread;
         private final Semaphore executionLock = new Semaphore(1);
         private final AtomicInteger responses = new AtomicInteger(0);
 
@@ -694,12 +692,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 Objects.requireNonNull(requestPermit, "request permit must not be null");
                 requestPermit.release();
             }
-            if (Thread.currentThread() != executingThread) {
-                start();
-            } else {
-                assert executionLock.availablePermits() == 0;
-                responses.incrementAndGet();
-            }
+            start(); // execute pending shards
         }
 
         /**
@@ -714,7 +707,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
 
         void start() {
-            assert Thread.currentThread() != executingThread;
             final boolean promised = executionLock.tryAcquire();
             responses.incrementAndGet();
             // There's a risk that the executing thread and a responding thread both stop executing shard requests.
@@ -735,28 +727,24 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
 
         private void executeShardRequests() {
+            assert ThreadPool.assertMethodNeverCalledMoreNTimes("executeShardRequests", 2);
             assert executionLock.availablePermits() == 0;
-            executingThread = Thread.currentThread();
-            try {
-                final Iterator<SearchShardIterator> queueIt = pendingQueue.iterator();
-                while (queueIt.hasNext()) {
-                    final SearchShardIterator shardRoutings = queueIt.next();
-                    assert shardRoutings.skip() == false;
-                    assert shardItIndexMap.containsKey(shardRoutings);
-                    final int shardIndex = shardItIndexMap.get(shardRoutings);
-                    final SearchShardTarget shard = shardRoutings.current();
-                    if (requestPermits != null && shard != null) {
-                        assert shard.getNodeId() != null;
-                        if (requestPermits.computeIfAbsent(shard.getNodeId(),
-                            n -> new Semaphore(maxConcurrentRequestsPerNode)).tryAcquire() == false) {
-                            continue;
-                        }
+            final Iterator<SearchShardIterator> queueIt = pendingQueue.iterator();
+            while (queueIt.hasNext()) {
+                final SearchShardIterator shardRoutings = queueIt.next();
+                assert shardRoutings.skip() == false;
+                assert shardItIndexMap.containsKey(shardRoutings);
+                final int shardIndex = shardItIndexMap.get(shardRoutings);
+                final SearchShardTarget shard = shardRoutings.current();
+                if (requestPermits != null && shard != null) {
+                    assert shard.getNodeId() != null;
+                    if (requestPermits.computeIfAbsent(shard.getNodeId(),
+                        n -> new Semaphore(maxConcurrentRequestsPerNode)).tryAcquire() == false) {
+                        continue;
                     }
-                    queueIt.remove();
-                    performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
                 }
-            } finally {
-                executingThread = null;
+                queueIt.remove();
+                performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
             }
         }
     }

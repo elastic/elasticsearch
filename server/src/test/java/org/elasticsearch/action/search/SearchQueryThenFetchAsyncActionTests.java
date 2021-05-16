@@ -521,10 +521,14 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
 
+        // Sets after `responseAllowedLatch` and `requestThrottledLatch` are unlatched
         AtomicBoolean disconnected = new AtomicBoolean();
 
-        CountDownLatch sentRequestsLatch = new CountDownLatch(maxConcurrentShardRequests);
-        CountDownLatch allowResponsesLatch = new CountDownLatch(1);
+        // Unlatches after `requestThrottledLatch` is unlatched and `disconnected` is set
+        CountDownLatch responseAllowedLatch = new CountDownLatch(1);
+
+        // Unlatches when the number of blocking requests equals to maxConcurrentShardRequests
+        CountDownLatch requestThrottledLatch = new CountDownLatch(maxConcurrentShardRequests);
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
 
@@ -558,8 +562,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 } else {
                     new Thread(() -> {
                         try {
-                            sentRequestsLatch.countDown();
-                            assertTrue(allowResponsesLatch.await(2, TimeUnit.MINUTES));
+                            requestThrottledLatch.countDown();
+                            assertTrue(responseAllowedLatch.await(2, TimeUnit.MINUTES));
                         } catch (InterruptedException e) {
                             throw new AssertionError(e);
                         }
@@ -594,9 +598,9 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         };
         try {
             action.start();
-            assertTrue(sentRequestsLatch.await(1, TimeUnit.MINUTES));
+            assertTrue(requestThrottledLatch.await(1, TimeUnit.MINUTES));
             disconnected.set(true);
-            allowResponsesLatch.countDown();
+            responseAllowedLatch.countDown();
             try {
                 assertNull(searchFuture.actionGet(5, TimeUnit.MINUTES)); // lots of shards
             } catch (Exception e) {

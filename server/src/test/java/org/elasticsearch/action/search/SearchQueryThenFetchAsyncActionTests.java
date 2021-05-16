@@ -16,6 +16,7 @@ import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -23,12 +24,14 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -42,6 +45,8 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -50,12 +55,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.VersionUtils.allVersions;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -485,5 +492,118 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         };
         Exception e = expectThrows(VersionMismatchException.class, () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener));
         assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
+    }
+
+    /**
+     * If we fail to send a search request then the search listener will be notified on the same thread.
+     * And if we execute outstanding shard search requests using that thread, we would deeply recurse
+     * and hit a stack overflow exception. This test ensures that we handle that situation correctly by
+     * not to execute outstanding requests if we are responded on the same thread as the caller.
+     */
+    public void testLotsOfShards() throws Exception {
+        final TransportSearchAction.SearchTimeProvider timeProvider =
+            new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
+        Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
+        DiscoveryNode primaryNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT);
+        lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
+        int numShards = 60000;
+        int maxConcurrentShardRequests = randomIntBetween(1, 20);
+        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter("idx",
+            new OriginalIndices(new String[]{"idx"}, SearchRequest.DEFAULT_INDICES_OPTIONS),
+            numShards, randomBoolean(), primaryNode, null);
+        final SearchRequest searchRequest = new SearchRequest();
+        searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        searchRequest.allowPartialSearchResults(true);
+        SearchPhaseController controller = new SearchPhaseController(
+            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+        SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
+        QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
+            shardsIter.size(), exc -> {});
+
+        AtomicBoolean disconnected = new AtomicBoolean();
+
+        CountDownLatch sentRequestsLatch = new CountDownLatch(maxConcurrentShardRequests);
+        CountDownLatch allowResponsesLatch = new CountDownLatch(1);
+
+        SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
+
+            private void notifyFailure(long a1, long a2, long a3, long a4, long a5, long a6, long a7, long a8, long a9,
+                                       Transport.Connection connection, SearchActionListener<SearchPhaseResult> listener) {
+                listener.onFailure(new NodeClosedException(connection.getNode()));
+                assertThat(a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9, greaterThan(0L));
+            }
+
+            private void notifyResponse(long a1, long a2, long a3, long a4, long a5, long a6, long a7, long a8, long a9,
+                                        Transport.Connection connection,  ShardSearchRequest request,
+                                        SearchActionListener<SearchPhaseResult> listener) {
+                QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
+                    new SearchShardTarget("node1", request.shardId(), null, OriginalIndices.NONE), null);
+                listener.onResponse(queryResult);
+                assertThat(a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9, greaterThan(0L));
+            }
+
+            @Override
+            public void sendExecuteQuery(Transport.Connection connection, ShardSearchRequest request,
+                                         SearchTask task, SearchActionListener<SearchPhaseResult> listener) {
+                if (disconnected.get()) {
+                    // Use more space in stack to make stack overflow happens quickly.
+                    long a1 = 1, a2 = 2, a3 = 3, a4 = 4, a5 = 5, a6 = 6, a7 = 7, a8 = 8, a9 = 9;
+                    long b1 = 1, b2 = 2, b3 = 3, b4 = 4, b5 = 5, b6 = 6, b7 = 7, b8 = 8, b9 = 9;
+                    if (randomBoolean()) {
+                        notifyFailure(a1, a2, a3, a4, a5, a6, a7, a8, a9, connection, listener);
+                    } else {
+                        notifyResponse(b1, b2, b3, b4, b5, b6, b7, b8, b9, connection, request, listener);
+                    }
+                } else {
+                    new Thread(() -> {
+                        try {
+                            sentRequestsLatch.countDown();
+                            assertTrue(allowResponsesLatch.await(2, TimeUnit.MINUTES));
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                        if (randomBoolean()) {
+                            listener.onFailure(new CircuitBreakingException("test", CircuitBreaker.Durability.TRANSIENT));
+                        } else {
+                            QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("N/A", 123),
+                                new SearchShardTarget("node1", request.shardId(), null, OriginalIndices.NONE), null);
+                            listener.onResponse(queryResult);
+                        }
+                    }).start();
+                }
+            }
+        };
+        ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        PlainActionFuture<SearchResponse> searchFuture = new PlainActionFuture<>();
+        SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
+            searchTransportService, (clusterAlias, node) -> lookup.get(node),
+            Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
+            Collections.emptyMap(), controller, testThreadPool.executor(ThreadPool.Names.SEARCH),
+            resultConsumer, searchRequest, searchFuture, shardsIter, timeProvider, null,
+            task, SearchResponse.Clusters.EMPTY) {
+            @Override
+            protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                return new SearchPhase("test") {
+                    @Override
+                    public void run() {
+                        searchFuture.onResponse(null);
+                    }
+                };
+            }
+        };
+        try {
+            action.start();
+            assertTrue(sentRequestsLatch.await(1, TimeUnit.MINUTES));
+            disconnected.set(true);
+            allowResponsesLatch.countDown();
+            try {
+                assertNull(searchFuture.actionGet(5, TimeUnit.MINUTES)); // lots of shards
+            } catch (Exception e) {
+                assertThat(e, instanceOf(SearchPhaseExecutionException.class));
+            }
+        } finally {
+            testThreadPool.shutdown();
+        }
     }
 }

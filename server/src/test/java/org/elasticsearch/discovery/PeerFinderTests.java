@@ -8,6 +8,8 @@
 
 package org.elasticsearch.discovery;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -17,10 +19,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.node.DiscoveryNodes.Builder;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.PeerFinder.TransportAddressConnector;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
 import org.elasticsearch.test.transport.StubbableConnectionManager;
@@ -55,6 +60,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.discovery.PeerFinder.REQUEST_PEERS_ACTION_NAME;
+import static org.elasticsearch.discovery.PeerFinder.VERBOSITY_INCREASE_TIMEOUT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
@@ -74,13 +80,13 @@ public class PeerFinderTests extends ESTestCase {
     private List<TransportAddress> providedAddresses;
     private long addressResolveDelay; // -1 means address resolution fails
 
-    private Set<DiscoveryNode> disconnectedNodes = new HashSet<>();
-    private Set<DiscoveryNode> connectedNodes = new HashSet<>();
+    private final Set<DiscoveryNode> disconnectedNodes = new HashSet<>();
+    private final Set<DiscoveryNode> connectedNodes = new HashSet<>();
     private DiscoveryNodes lastAcceptedNodes;
     private TransportService transportService;
     private Iterable<DiscoveryNode> foundPeersFromNotification;
 
-    private static long CONNECTION_TIMEOUT_MILLIS = 30000;
+    private static final long CONNECTION_TIMEOUT_MILLIS = 30000;
 
     class MockTransportAddressConnector implements TransportAddressConnector {
         final Map<TransportAddress, DiscoveryNode> reachableNodes = new HashMap<>();
@@ -732,6 +738,48 @@ public class PeerFinderTests extends ESTestCase {
         runAllRunnableTasks();
 
         assertFoundPeers(nodeToFind, otherNode);
+    }
+
+    @TestLogging(reason = "testing logging at levels DEBUG and above", value="org.elasticsearch.discovery:DEBUG")
+    public void testLogsWarningsIfActiveForLongEnough() throws IllegalAccessException {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.unreachableAddresses.add(otherNode.getAddress());
+
+        peerFinder.activate(lastAcceptedNodes);
+        final long endTime
+                = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
+
+        MockLogAppender appender = new MockLogAppender();
+        try {
+            appender.start();
+            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                    "connection failed",
+                    "org.elasticsearch.discovery.PeerFinder",
+                    Level.DEBUG,
+                    "*connection failed*"));
+
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+            appender.assertAllExpectationsMatched();
+
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                    "connection failed",
+                    "org.elasticsearch.discovery.PeerFinder",
+                    Level.WARN,
+                    "*connection failed: cannot connect to*"));
+            while (deterministicTaskQueue.getCurrentTimeMillis() <= endTime) {
+                deterministicTaskQueue.advanceTime();
+                runAllRunnableTasks();
+            }
+            appender.assertAllExpectationsMatched();
+
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
+            appender.stop();
+        }
     }
 
     public void testReconnectsToDisconnectedNodes() {

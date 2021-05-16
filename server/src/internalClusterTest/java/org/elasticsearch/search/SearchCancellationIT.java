@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -52,6 +53,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -179,6 +181,57 @@ public class SearchCancellationIT extends ESIntegTestCase {
         logger.info("Segments {}", Strings.toString(client().admin().indices().prepareSegments("test").get()));
         ensureSearchWasCancelled(searchResponse);
     }
+
+    public void testCancellationDuringAggregation() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        ActionFuture<SearchResponse> searchResponse = client()
+            .prepareSearch("test")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                new ScriptedMetricAggregationBuilder("test_agg")
+                    .initScript(
+                        new Script(
+                            ScriptType.INLINE,
+                            "mockscript",
+                            SCRIPT_NAME,
+                            Collections.emptyMap()
+                        )
+                    )
+                    .mapScript(
+                        new Script(
+                            ScriptType.INLINE,
+                            "mockscript",
+                            SCRIPT_NAME,
+                            Collections.emptyMap()
+                        )
+                    )
+                    .combineScript(
+                        new Script(
+                            ScriptType.INLINE,
+                            "mockscript",
+                            SCRIPT_NAME,
+                            Collections.emptyMap()
+                        )
+                    )
+                    .reduceScript(
+                        new Script(
+                            ScriptType.INLINE,
+                            "mockscript",
+                            SCRIPT_NAME,
+                            Collections.emptyMap()
+                        )
+                    )
+            )
+            .execute();
+
+        awaitForBlock(plugins);
+        cancelSearch(SearchAction.NAME);
+        disableBlocks(plugins);
+        ensureSearchWasCancelled(searchResponse);
+    }
+
 
     public void testCancellationOfScrollSearches() throws Exception {
 

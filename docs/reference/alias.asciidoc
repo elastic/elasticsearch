@@ -284,7 +284,7 @@ POST _aliases
 
 Use the `routing` option to <<mapping-routing-field,route>> requests for an
 alias to a specific shard. This lets you take advantage of
-<<shard-request-cache,shard caches>> and speed up requests. Data stream aliases
+<<shard-request-cache,shard caches>> to speed up searches. Data stream aliases
 do not support routing options.
 
 [source,console]

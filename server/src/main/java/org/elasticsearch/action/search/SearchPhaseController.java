@@ -66,6 +66,8 @@ public final class SearchPhaseController {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
+    private SearchTask searchTask;
+
     public SearchPhaseController(NamedWriteableRegistry namedWriteableRegistry,
             Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -465,7 +467,7 @@ public final class SearchPhaseController {
             reducedSuggest = new Suggest(Suggest.reduce(groupedSuggestions));
             reducedCompletionSuggestions = reducedSuggest.filter(CompletionSuggestion.class);
         }
-        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs);
+        final InternalAggregations aggregations = reduceAggs(aggReduceContextBuilder, performFinalReduce, bufferedAggs, searchTask);
         final SearchProfileShardResults shardResults = profileResults.isEmpty() ? null : new SearchProfileShardResults(profileResults);
         final SortedTopDocs sortedTopDocs = sortDocs(isScrollRequest, bufferedTopDocs, from, size, reducedCompletionSuggestions);
         final TotalHits totalHits = topDocsStats.getTotalHits();
@@ -476,9 +478,11 @@ public final class SearchPhaseController {
 
     private static InternalAggregations reduceAggs(InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
                                                    boolean performFinalReduce,
-                                                   List<InternalAggregations> toReduce) {
-        return toReduce.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce,
-            performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction());
+                                                   List<InternalAggregations> toReduce, SearchTask searchTask) {
+        ReduceContext reduceContext = performFinalReduce ? aggReduceContextBuilder.forFinalReduction() : aggReduceContextBuilder.forPartialReduction();
+        reduceContext.setSearchTask(searchTask);
+
+        return toReduce.isEmpty() ? null : InternalAggregations.topLevelReduce(toReduce, reduceContext);
     }
 
     /**
@@ -599,6 +603,10 @@ public final class SearchPhaseController {
                                                    Consumer<Exception> onPartialMergeFailure) {
         return new QueryPhaseResultConsumer(request, executor, circuitBreaker,
             this,  listener, namedWriteableRegistry, numShards, onPartialMergeFailure);
+    }
+
+    void setSearchTask(SearchTask searchTask) {
+        this.searchTask = searchTask;
     }
 
     static final class TopDocsStats {

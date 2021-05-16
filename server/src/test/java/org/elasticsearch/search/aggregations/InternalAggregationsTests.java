@@ -9,7 +9,6 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -123,10 +122,6 @@ public class InternalAggregationsTests extends ESTestCase {
         SearchTask mockedSearchTask = mock(SearchTask.class);
         when(mockedSearchTask.isCancelled()).thenReturn(true);
 
-        // Mock a SearchRequest that contains the cancelled SearchTask
-        SearchRequest mockedSearchRequest = mock(SearchRequest.class);
-        when(mockedSearchRequest.getSearchTask()).thenReturn(mockedSearchTask);
-
         InternalAggregation.ReduceContextBuilder reduceContextBuilder = new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
@@ -140,7 +135,7 @@ public class InternalAggregationsTests extends ESTestCase {
         };
 
         InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forPartialReduction();
-        reduceContext.setSearchRequest(mockedSearchRequest);
+        reduceContext.setSearchTask(mockedSearchTask);
         reduceContext.consumeBucketsAndMaybeBreak(1);
     }
 

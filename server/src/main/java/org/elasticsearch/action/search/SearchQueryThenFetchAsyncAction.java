@@ -53,6 +53,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         this.topDocsSize = getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
+        this.searchPhaseController.setSearchTask(task);
         this.progressListener = task.getProgressListener();
 
         // register the release of the query consumer to free up the circuit breaker memory

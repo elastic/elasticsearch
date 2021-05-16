@@ -1319,19 +1319,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService,
-                    () -> requestToPipelineTree(request));
-                reduceContext.setSearchRequest(request);
-                return reduceContext;
+                return InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService,
+                        () -> requestToPipelineTree(request));
             }
 
             @Override
             public ReduceContext forFinalReduction() {
                 PipelineTree pipelineTree = requestToPipelineTree(request);
-                InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-                    bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree);
-                reduceContext.setSearchRequest(request);
-                return reduceContext;
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                        bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree);
             }
         };
     }

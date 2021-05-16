@@ -523,10 +523,8 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
         // Sets after `responseAllowedLatch` and `requestThrottledLatch` are unlatched
         AtomicBoolean disconnected = new AtomicBoolean();
-
         // Unlatches after `requestThrottledLatch` is unlatched and `disconnected` is set
         CountDownLatch responseAllowedLatch = new CountDownLatch(1);
-
         // Unlatches when the number of blocking requests equals to maxConcurrentShardRequests
         CountDownLatch requestThrottledLatch = new CountDownLatch(maxConcurrentShardRequests);
 

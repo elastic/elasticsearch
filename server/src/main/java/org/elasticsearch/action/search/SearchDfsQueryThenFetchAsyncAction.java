@@ -46,7 +46,6 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
                 request.getMaxConcurrentShardRequests(), clusters);
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.searchPhaseController = searchPhaseController;
-        this.searchPhaseController.setSearchTask(task);
         SearchProgressListener progressListener = task.getProgressListener();
         SearchSourceBuilder sourceBuilder = request.source();
         progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),

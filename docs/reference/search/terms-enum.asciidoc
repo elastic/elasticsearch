@@ -72,8 +72,9 @@ Which field to match
 
 [[terms-enum-string-param]]
 `string`::
-(Mandatory, string)
-The string to match at the start of indexed terms
+(Optional, string)
+The string to match at the start of indexed terms. If not provided, all terms in the field
+are considered.
 
 [[terms-enum-size-param]]
 `size`::

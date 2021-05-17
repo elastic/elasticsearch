@@ -10,6 +10,7 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -740,8 +741,47 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(nodeToFind, otherNode);
     }
 
-    @TestLogging(reason = "testing logging at levels DEBUG and above", value="org.elasticsearch.discovery:DEBUG")
+    @TestLogging(reason = "testing logging at WARN level", value="org.elasticsearch.discovery:WARN")
     public void testLogsWarningsIfActiveForLongEnough() throws IllegalAccessException {
+        final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
+
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.unreachableAddresses.add(otherNode.getAddress());
+
+        peerFinder.activate(lastAcceptedNodes);
+        final long endTime
+                = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY).millis();
+
+        MockLogAppender appender = new MockLogAppender();
+        try {
+            appender.start();
+            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
+
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                    "connection failed",
+                    "org.elasticsearch.discovery.PeerFinder",
+                    Level.WARN,
+                    "address [" + otherNode.getAddress() + "]* connection failed: cannot connect to*")
+            {
+                @Override
+                public boolean innerMatch(LogEvent event) {
+                    return event.getThrown() == null; // no stack trace at this log level
+                }
+            });
+            while (deterministicTaskQueue.getCurrentTimeMillis() <= endTime) {
+                deterministicTaskQueue.advanceTime();
+                runAllRunnableTasks();
+            }
+            appender.assertAllExpectationsMatched();
+
+        } finally {
+            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.discovery.PeerFinder"), appender);
+            appender.stop();
+        }
+    }
+
+    @TestLogging(reason = "testing logging at DEBUG level", value="org.elasticsearch.discovery:DEBUG")
+    public void testLogsStackTraceInConnectionFailedMessages() throws IllegalAccessException {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
 
         providedAddresses.add(otherNode.getAddress());
@@ -759,7 +799,12 @@ public class PeerFinderTests extends ESTestCase {
                     "connection failed",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.DEBUG,
-                    "*connection failed*"));
+                    "address [" + otherNode.getAddress() + "]* connection failed*") {
+                @Override
+                public boolean innerMatch(LogEvent event) {
+                    return event.getThrown() instanceof IOException && event.getThrown().getMessage().startsWith("cannot connect to");
+                }
+            });
 
             deterministicTaskQueue.advanceTime();
             runAllRunnableTasks();
@@ -769,7 +814,13 @@ public class PeerFinderTests extends ESTestCase {
                     "connection failed",
                     "org.elasticsearch.discovery.PeerFinder",
                     Level.WARN,
-                    "*connection failed: cannot connect to*"));
+                    "address [" + otherNode.getAddress() + "]* connection failed*")
+            {
+                @Override
+                public boolean innerMatch(LogEvent event) {
+                    return event.getThrown() instanceof IOException && event.getThrown().getMessage().startsWith("cannot connect to");
+                }
+            });
             while (deterministicTaskQueue.getCurrentTimeMillis() <= endTime) {
                 deterministicTaskQueue.advanceTime();
                 runAllRunnableTasks();

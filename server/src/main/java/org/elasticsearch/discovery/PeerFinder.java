@@ -372,16 +372,21 @@ public abstract class PeerFinder {
                 @Override
                 public void onFailure(Exception e) {
                     if (verboseFailureLogging) {
-                        final StringBuilder messageBuilder = new StringBuilder();
-                        Throwable cause = e;
-                        while (cause != null && messageBuilder.length() <= 1024) {
-                            messageBuilder.append(": ").append(cause.getMessage());
-                            cause = cause.getCause();
+                        if (logger.isDebugEnabled()) {
+                            // log message at level WARN, but since DEBUG logging is enabled we include the full stack trace
+                            logger.warn(new ParameterizedMessage("{} connection failed", Peer.this), e);
+                        } else {
+                            final StringBuilder messageBuilder = new StringBuilder();
+                            Throwable cause = e;
+                            while (cause != null && messageBuilder.length() <= 1024) {
+                                messageBuilder.append(": ").append(cause.getMessage());
+                                cause = cause.getCause();
+                            }
+                            final String message = messageBuilder.length() < 1024
+                                    ? messageBuilder.toString()
+                                    : (messageBuilder.substring(0, 1023) + "...");
+                            logger.warn("{} connection failed{}", Peer.this, message);
                         }
-                        final String message = messageBuilder.length() < 1024
-                                ? messageBuilder.toString()
-                                : (messageBuilder.substring(0, 1023) + "...");
-                        logger.warn("{} connection failed{}", Peer.this, message);
                     } else {
                         logger.debug(new ParameterizedMessage("{} connection failed", Peer.this), e);
                     }

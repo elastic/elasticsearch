@@ -21,17 +21,18 @@ import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformer;
+import org.elasticsearch.gradle.internal.test.rest.transform.do_.ReplaceKeyInDo;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.elasticsearch.gradle.internal.test.rest.transform.length.ReplaceKeyInLength;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.AddMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.RemoveMatch;
+import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceValueInMatch;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsFalse;
 import org.elasticsearch.gradle.internal.test.rest.transform.text.ReplaceIsTrue;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectAllowedWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.InjectWarnings;
 import org.elasticsearch.gradle.internal.test.rest.transform.warnings.RemoveWarnings;
-import org.elasticsearch.gradle.internal.test.rest.transform.match.ReplaceKeyInMatch;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileSystemOperations;
@@ -116,6 +117,16 @@ public class RestCompatTestTransformTask extends DefaultTask {
      */
     public void replaceValueInMatch(String subKey, Object value, String testName) {
         transformations.add(new ReplaceValueInMatch(subKey, MAPPER.convertValue(value, JsonNode.class), testName));
+    }
+
+    /**
+     * A transformation to replace the key in a do section.
+     * @see ReplaceKeyInDo
+     * @param oldKeyName   the key name directly under do to replace.
+     * @param newKeyName   the new key name directly under do.
+     */
+    public void replaceKeyInDo(String oldKeyName, String newKeyName) {
+        transformations.add(new ReplaceKeyInDo(oldKeyName, newKeyName, null));
     }
 
     /**

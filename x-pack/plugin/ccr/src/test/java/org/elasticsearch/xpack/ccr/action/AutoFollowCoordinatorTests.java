@@ -2086,7 +2086,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
 
         ClusterState remoteState = null;
-        final int nbLeaderIndices = randomIntBetween(1, 15);
+        final int nbLeaderIndices = randomIntBetween(0, 15);
         for (int i = 0; i < nbLeaderIndices; i++) {
             String indexName = "docs-" + i;
             if (remoteState == null) {
@@ -2141,10 +2141,16 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
+        AutoFollowMetadata autoFollowMetadata = lastModifiedClusterState.get().metadata().custom(AutoFollowMetadata.TYPE);
+        final List<String> autoFollowedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(pattern);
+        assertThat(autoFollowedIndices.size(), equalTo(nbLeaderIndices));
+
         for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
-            boolean followed = index.value.getIndex().getName().startsWith("docs-excluded") == false;
+            final Index remoteIndex = index.value.getIndex();
+            boolean followed = remoteIndex.getName().startsWith("docs-excluded") == false;
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(followed));
             assertThat(followedIndices.contains(index.key), is(followed));
+            assertThat(autoFollowedIndices.contains(remoteIndex.getUUID()), equalTo(followed));
         }
     }
 

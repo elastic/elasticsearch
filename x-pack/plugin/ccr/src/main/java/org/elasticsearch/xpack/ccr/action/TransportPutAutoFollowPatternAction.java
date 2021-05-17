@@ -142,10 +142,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         followedLeaderIndices.put(request.getName(), followedIndexUUIDs);
         // Mark existing leader indices as already auto followed:
         if (previousPattern != null) {
-            if (request.getLeaderIndexExclusionPatterns().equals(previousPattern.getLeaderIndexExclusionPatterns()) == false) {
-                throw new IllegalArgumentException("Updating the leader index exclusion patterns is not allowed");
-            }
-
             markExistingIndicesAsAutoFollowedForNewPatterns(request.getLeaderIndexPatterns(),
                 request.getLeaderIndexExclusionPatterns(),
                 remoteClusterState.metadata(),

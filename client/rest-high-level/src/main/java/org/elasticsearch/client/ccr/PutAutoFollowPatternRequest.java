@@ -75,7 +75,9 @@ public final class PutAutoFollowPatternRequest extends FollowConfig implements V
         builder.startObject();
         builder.field(PutFollowRequest.REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
         builder.field(LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
-        builder.field(LEADER_EXCLUSION_PATTERNS_FIELD.getPreferredName(), leaderIndexExclusionPatterns);
+        if (leaderIndexExclusionPatterns.isEmpty() == false) {
+            builder.field(LEADER_EXCLUSION_PATTERNS_FIELD.getPreferredName(), leaderIndexExclusionPatterns);
+        }
         if (followIndexNamePattern != null) {
             builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
         }

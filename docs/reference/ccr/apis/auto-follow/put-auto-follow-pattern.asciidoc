@@ -22,7 +22,7 @@ PUT /_ccr/auto_follow/<auto_follow_pattern_name>
   ],
   "leader_index_exclusion_patterns":
   [
-    "leader_index_exclusion_pattern>"
+    "<leader_index_exclusion_pattern>"
   ],
   "follow_index_pattern" : "<follow_index_pattern>"
 }
@@ -78,8 +78,9 @@ indices.
   in the remote cluster specified by the `remote_cluster` field.
 
 `leader_index_exclusion_patterns`::
-  (Optional, array) An array of simple index patterns to avoid following
-  indices in the remote cluster specified by the `remote_cluster` field.
+  (Optional, array) An array of simple index patterns that can be used to exclude indices
+  from being auto-followed. Indices in the remote cluster whose names are matching one or
+  more `leader_index_patterns` and one or more `leader_index_exclusion_patterns` won't be followed.
 
 `follow_index_pattern`::
   (Optional, string) The name of follower index. The template `{{leader_index}}`

@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class CCRIT extends ESRestHighLevelClientTestCase {
 
@@ -257,6 +258,11 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             execute(putAutoFollowPatternRequest, ccrClient::putAutoFollowPattern, ccrClient::putAutoFollowPatternAsync);
         assertThat(putAutoFollowPatternResponse.isAcknowledged(), is(true));
 
+        CreateIndexRequest createExcludedIndexRequest = new CreateIndexRequest("logs-excluded");
+        CreateIndexResponse createExcludedIndexResponse =
+            highLevelClient().indices().create(createExcludedIndexRequest, RequestOptions.DEFAULT);
+        assertThat(createExcludedIndexResponse.isAcknowledged(), is(true));
+
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs-20200101");
         CreateIndexResponse response = highLevelClient().indices().create(createIndexRequest, RequestOptions.DEFAULT);
         assertThat(response.isAcknowledged(), is(true));
@@ -266,24 +272,12 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
             CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
             assertThat(ccrStatsResponse.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
             assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
+            assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-excluded"), nullValue());
         });
         assertThat(indexExists("copy-logs-20200101"), is(true));
         assertThat(
             getIndexSettingsAsMap("copy-logs-20200101"),
             hasEntry("index.number_of_replicas", Integer.toString(followerNumberOfReplicas)));
-
-        CreateIndexRequest createExcludedIndexRequest = new CreateIndexRequest("logs-excluded");
-        CreateIndexResponse createExcludedIndexResponse =
-            highLevelClient().indices().create(createExcludedIndexRequest, RequestOptions.DEFAULT);
-        assertThat(createExcludedIndexResponse.isAcknowledged(), is(true));
-
-        assertBusy(() -> {
-            CcrStatsRequest ccrStatsRequest = new CcrStatsRequest();
-            CcrStatsResponse ccrStatsResponse = execute(ccrStatsRequest, ccrClient::getCcrStats, ccrClient::getCcrStatsAsync);
-            assertThat(ccrStatsResponse.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(), equalTo(1L));
-            assertThat(ccrStatsResponse.getIndicesFollowStats().getShardFollowStats("copy-logs-20200101"), notNullValue());
-        });
-
         assertThat(indexExists("copy-logs-excluded"), is(false));
 
         GetAutoFollowPatternRequest getAutoFollowPatternRequest =

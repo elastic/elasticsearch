@@ -49,7 +49,11 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
-        request.setLeaderIndexExclusionPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
+        if (randomBoolean()) {
+            request.setLeaderIndexExclusionPatterns(
+                Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 20), false))
+            );
+        }
         ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }
@@ -64,7 +68,11 @@ public class PutAutoFollowPatternRequestTests extends AbstractSerializingTestCas
         if (randomBoolean()) {
             request.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }
-        request.setLeaderIndexExclusionPatterns(Arrays.asList(generateRandomStringArray(4, 4, false)));
+        if (randomBoolean()) {
+            request.setLeaderIndexExclusionPatterns(
+                Arrays.asList(generateRandomStringArray(randomIntBetween(1, 10), randomIntBetween(1, 20), false))
+            );
+        }
         ResumeFollowActionRequestTests.generateFollowParameters(request.getParameters());
         return request;
     }

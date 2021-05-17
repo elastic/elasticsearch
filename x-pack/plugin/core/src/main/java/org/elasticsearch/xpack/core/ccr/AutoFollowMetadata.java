@@ -250,7 +250,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
                 maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize, maxRetryDelay, pollTimeout);
             this.remoteCluster = remoteCluster;
             this.leaderIndexPatterns = leaderIndexPatterns;
-            this.leaderIndexExclusionPatterns = leaderIndexExclusionPatterns;
+            this.leaderIndexExclusionPatterns = Objects.requireNonNull(leaderIndexExclusionPatterns);
             this.followIndexPattern = followIndexPattern;
             this.settings = Objects.requireNonNull(settings);
             this.active = active;

@@ -542,12 +542,6 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
     }
 
-    public void testUpdatingExclusionPatternsIsNotAllowed() {
-        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"}, Collections.singletonList("logs-2018*"));
-        expectThrows(IllegalArgumentException.class, () ->
-            putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"}, List.of("logs-2018*", "new-entry")));
-    }
-
     private void putAutoFollowPatterns(String name, String[] patterns) {
         putAutoFollowPatterns(name, patterns, Collections.emptyList());
     }

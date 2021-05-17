@@ -94,6 +94,7 @@ Defaults to `false`.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+[role="child_attributes"]
 [[simulate-template-api-request-body]]
 ==== {api-request-body-title}
 
@@ -163,7 +164,8 @@ The settings, mappings, and aliases that would be applied to matching indices.
 .Properties of `template`
 [%collapsible%open]
 ====
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
+`aliases`::
+(object) Aliases and related options.
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 

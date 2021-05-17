@@ -18,24 +18,15 @@ the response only includes ongoing shard recoveries.
 Defaults to `false`.
 end::active-only[]
 
-tag::index-alias[]
-Comma-separated list or wildcard expression of index alias names
-used to limit the request.
-end::index-alias[]
+tag::alias[]
+Comma-separated list of aliases. Supports wildcards (`*`).
+end::alias[]
 
 tag::aliases[]
 `aliases`::
-(Optional, <<indices-aliases,alias object>>) <<indices-aliases,Index aliases>>
-which include the index. Index alias names support <<date-math-index-names,date
-math>>.
+(Optional, object) Aliases to add. Index alias names support
+<<date-math-index-names,date math>>.
 end::aliases[]
-
-tag::target-index-aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>)
-<<indices-aliases,Index aliases>> which include the target index. Index alias
-names support <<date-math-index-names,date math>>.
-end::target-index-aliases[]
 
 tag::allow-no-indices[]
 `allow_no_indices`::

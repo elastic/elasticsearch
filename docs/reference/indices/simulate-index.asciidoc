@@ -89,9 +89,9 @@ The settings, mappings, and aliases that would be applied to the index.
 .Properties of `template`
 [%collapsible%open]
 ====
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
-+
-Response includes an empty object if no aliases would be applied. 
+`aliases`::
+(object) Aliases and related options. If no aliases apply, the response includes
+an empty object. 
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 +

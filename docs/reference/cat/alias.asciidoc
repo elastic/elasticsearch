@@ -27,8 +27,9 @@ for any alias you retrieve.
 
 `<alias>`::
 (Optional, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
-
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=alias]
++
+To match all aliases, omit this parameter or use `*`.
 
 [[cat-alias-api-query-params]]
 ==== {api-query-parms-title}

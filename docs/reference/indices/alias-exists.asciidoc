@@ -36,7 +36,7 @@ for the index alias. If you specify an index, you must also have
 
 `<alias>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=alias]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 

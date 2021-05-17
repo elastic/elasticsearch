@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.test.ESTestCase;
@@ -57,20 +58,9 @@ public class BlobStoreFormatTests extends ESTestCase {
             }
             if (token == XContentParser.Token.START_OBJECT) {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token != XContentParser.Token.FIELD_NAME) {
-                        throw new ElasticsearchParseException("unexpected token [{}]", token);
-                    }
-                    String currentFieldName = parser.currentName();
-                    token = parser.nextToken();
-                    if (token.isValue()) {
-                        if ("text" .equals(currentFieldName)) {
-                            text = parser.text();
-                        } else {
-                            throw new ElasticsearchParseException("unexpected field [{}]", currentFieldName);
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("unexpected token [{}]", token);
-                    }
+                    XContentParserUtils.ensureFieldName(parser, token, "text");
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
+                    text = parser.text();
                 }
             }
             if (text == null) {
@@ -92,15 +82,16 @@ public class BlobStoreFormatTests extends ESTestCase {
         ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
 
         // Write blobs in different formats
-        checksumSMILE.write(new BlobObj("checksum smile"), blobContainer, "check-smile", false, MockBigArrays.NON_RECYCLING_INSTANCE);
-        checksumSMILE.write(new BlobObj("checksum smile compressed"), blobContainer, "check-smile-comp", true,
+        final String randomText = randomAlphaOfLengthBetween(0, 1024 * 8 * 3);
+        final String normalText = "checksum smile: " + randomText;
+        checksumSMILE.write(new BlobObj(normalText), blobContainer, "check-smile", false, MockBigArrays.NON_RECYCLING_INSTANCE);
+        final String compresedText = "checksum smile compressed: " + randomText;
+        checksumSMILE.write(new BlobObj(compresedText), blobContainer, "check-smile-comp", true,
                 MockBigArrays.NON_RECYCLING_INSTANCE);
 
         // Assert that all checksum blobs can be read
-        assertEquals(checksumSMILE.read(blobContainer, "check-smile", xContentRegistry()).getText(),
-                "checksum smile");
-        assertEquals(checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry()
-        ).getText(), "checksum smile compressed");
+        assertEquals(normalText, checksumSMILE.read(blobContainer, "check-smile", xContentRegistry()).getText());
+        assertEquals(compresedText, checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry()).getText());
     }
 
     public void testCompressionIsApplied() throws IOException {

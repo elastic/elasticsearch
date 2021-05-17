@@ -285,7 +285,7 @@ teardown:
       reason:  TODO remove this skip after PR 73144 is backported to 7.x
 
   - do:
-      termsenum:
+      terms_enum:
         index:  test_k
         body:  {"field": "foo"}
   - length: {terms: 1}

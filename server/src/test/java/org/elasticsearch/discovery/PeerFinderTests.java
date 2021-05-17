@@ -741,7 +741,7 @@ public class PeerFinderTests extends ESTestCase {
         assertFoundPeers(nodeToFind, otherNode);
     }
 
-    @TestLogging(reason = "testing logging at WARN level", value="org.elasticsearch.discovery:WARN")
+    @TestLogging(reason = "testing logging at WARN level", value = "org.elasticsearch.discovery:WARN")
     public void testLogsWarningsIfActiveForLongEnough() throws IllegalAccessException {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
 
@@ -780,7 +780,7 @@ public class PeerFinderTests extends ESTestCase {
         }
     }
 
-    @TestLogging(reason = "testing logging at DEBUG level", value="org.elasticsearch.discovery:DEBUG")
+    @TestLogging(reason = "testing logging at DEBUG level", value = "org.elasticsearch.discovery:DEBUG")
     public void testLogsStackTraceInConnectionFailedMessages() throws IllegalAccessException {
         final DiscoveryNode otherNode = newDiscoveryNode("node-from-hosts-list");
 

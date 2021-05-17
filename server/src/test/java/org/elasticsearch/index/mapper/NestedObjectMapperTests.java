@@ -594,36 +594,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         merge(mapperService, MergeReason.MAPPING_RECOVERY, mapping.apply("_doc"));
     }
 
-    public void testParentObjectMapperAreNested() throws Exception {
-        MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("comments");
-            {
-                b.field("type", "nested");
-                b.startObject("properties");
-                {
-                    b.startObject("messages").field("type", "nested").endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        assertFalse(mapperService.documentMapper().mappers().hasNonNestedParent("comments.messages"));
-
-        mapperService = createMapperService(mapping(b -> {
-            b.startObject("comments");
-            {
-                b.field("type", "object");
-                b.startObject("properties");
-                {
-                    b.startObject("messages").field("type", "nested").endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        assertTrue(mapperService.documentMapper().mappers().hasNonNestedParent("comments.messages"));
-    }
-
     public void testLimitNestedDocsDefaultSettings() throws Exception {
         Settings settings = Settings.builder().build();
         DocumentMapper docMapper

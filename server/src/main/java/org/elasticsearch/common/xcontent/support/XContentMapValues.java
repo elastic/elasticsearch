@@ -122,13 +122,14 @@ public class XContentMapValues {
     }
 
     /**
-     * For the provided nested path, return its value in the xContent map.
+     * For the provided nested path, return its source maps from the parent xContent map.
      *
      * @param nestedPath the nested field value's path in the map.
+     * @param map        the parent source map
      *
-     * @return the list associated with the path in the map or {@code null} if the path does not exits.
+     * @return a list of source maps or {@code null} if the path does not exist.
      */
-    public static List<?> extractNestedValue(String nestedPath, Map<?, ?> map) {
+    public static List<Map<?, ?>> extractNestedSource(String nestedPath, Map<?, ?> map) {
         Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
         List<?> nestedParsedSource = null;
         if (extractedValue != null) {
@@ -143,7 +144,26 @@ public class XContentMapValues {
                 throw new IllegalStateException("extracted source isn't an object or an array");
             }
         }
-        return nestedParsedSource;
+        if (nestedParsedSource == null) {
+            return null;
+        }
+        // In some circumstances, we can end up with arrays of arrays of nested objects.  A nested
+        // source should always be a Map, so we iterate down through the arrays to pull out the
+        // leaf maps
+        List<Map<?, ?>> flattenedSource = new ArrayList<>();
+        extractObjects(nestedParsedSource, flattenedSource);
+        return flattenedSource;
+    }
+
+    private static void extractObjects(List<?> source, List<Map<?, ?>> extracted) {
+        for (Object object : source) {
+            if (object instanceof Map) {
+                extracted.add((Map<?, ?>) object);
+            }
+            else if (object instanceof List) {
+                extractObjects((List<?>) object, extracted);
+            }
+        }
     }
 
     /**

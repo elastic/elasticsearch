@@ -192,8 +192,8 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
-      indices.get_alias:
-        name: easy*
+      indices.get:
+        index: easy*
 
   - match: {easy-index.aliases.easy-alias: {}}
   - is_false: easy-data-stream1

@@ -279,6 +279,13 @@ teardown:
   - length: {terms: 0}
 
 ---
+"Test null search string allowed":
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo"}
+  - length: {terms: 1}
+---
 "Test search after keyword field":
   - do:
       terms_enum:

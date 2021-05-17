@@ -2263,7 +2263,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             } else {
                 INSTANCE.printTestMessage("cleaning up after");
                 INSTANCE.afterInternal(true);
-                checkStaticState(true);
+                checkStaticState();
             }
         } finally {
             SUITE_SEED = null;

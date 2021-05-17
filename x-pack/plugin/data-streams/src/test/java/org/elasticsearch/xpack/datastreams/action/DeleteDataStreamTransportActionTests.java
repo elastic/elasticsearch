@@ -120,7 +120,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             false,
             partial,
             SnapshotsInProgress.State.SUCCESS,
-            Collections.emptyList(),
+            Collections.emptyMap(),
             Collections.singletonList(dataStreamName),
             Collections.emptyList(),
             0,

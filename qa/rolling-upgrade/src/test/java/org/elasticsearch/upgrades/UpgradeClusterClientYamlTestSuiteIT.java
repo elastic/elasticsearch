@@ -11,6 +11,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -18,6 +19,13 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 @TimeoutSuite(millis = 5 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
+
+    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
+
+    @Override
+    protected Version overwriteEsVersion(Version esVersionFromApi) {
+        return UPGRADE_FROM_VERSION;
+    }
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

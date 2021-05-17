@@ -56,8 +56,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -238,12 +236,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
     private void startNewShards(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
             final Snapshot snapshot = entry.snapshot();
-            final Map<String, IndexId> indicesMap =
-                entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
             for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
                 final ShardId shardId = shardEntry.getKey();
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
-                final IndexId indexId = indicesMap.get(shardId.getIndexName());
+                final IndexId indexId = entry.indices().get(shardId.getIndexName());
                 assert indexId != null;
                 assert SnapshotsService.useShardGenerations(entry.version()) ||
                         ShardGenerations.fixShardGeneration(snapshotStatus.generation()) == null :

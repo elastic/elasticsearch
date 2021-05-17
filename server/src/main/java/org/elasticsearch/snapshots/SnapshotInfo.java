@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -39,7 +38,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.snapshots.SnapshotsService.FEATURE_STATES_VERSION;
 
@@ -357,7 +355,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public SnapshotInfo(SnapshotsInProgress.Entry entry) {
         this(
                 entry.snapshot().getSnapshotId(),
-                entry.indices().stream().map(IndexId::getName).collect(Collectors.toList()),
+                Collections.unmodifiableList(new ArrayList<>(entry.indices().keySet())),
                 entry.dataStreams(),
                 entry.featureStates(),
                 null,

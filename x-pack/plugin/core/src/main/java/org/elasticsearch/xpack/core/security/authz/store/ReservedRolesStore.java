@@ -37,6 +37,8 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
+    public static final String LEGACY_ALERTS_INDEX = ".siem-signals*";
+    public static final String ALERTS_INDEX = ".alerts*";
 
     public static final RoleDescriptor SUPERUSER_ROLE_DESCRIPTOR = new RoleDescriptor("superuser",
             new String[] { "all" },
@@ -172,6 +174,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet*")
                                     .privileges("all").build(),
+                                // Legacy "Alerts as data" index. Kibana user will create this index.
+                                // Kibana user will read / write to these indices
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(ReservedRolesStore.LEGACY_ALERTS_INDEX)
+                                    .privileges("all").build(),
+                                // "Alerts as data" index. Kibana user will create this index.
+                                // Kibana user will read / write to these indices
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(ReservedRolesStore.ALERTS_INDEX)
+                                    .privileges("all").build()
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
@@ -209,9 +221,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             // APM Server under fleet (data streams)
                             RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*")
                             .privileges("read", "view_index_metadata").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm-*")
+                            .privileges("read", "view_index_metadata").build(),
                             RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm.*")
                             .privileges("read", "view_index_metadata").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices("metrics-apm-*")
+                            .privileges("read", "view_index_metadata").build(),
                             RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm.*")
+                            .privileges("read", "view_index_metadata").build(),
+                            RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*")
                             .privileges("read", "view_index_metadata").build(),
 
                             // Machine Learning indices. Only needed for legacy reasons

@@ -631,10 +631,14 @@ public class AuthorizationServiceTests extends ESTestCase {
                     "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*"),
                 "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*")
             };
-            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(
-                indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, TimeValue.timeValueMinutes(randomLongBetween(1, 10)),
-                randomAlphaOfLength(5), randomAlphaOfLength(5)
-            );
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indices)
+                .keepAlive(TimeValue.timeValueMinutes(randomLongBetween(1, 10)));
+            if (randomBoolean()) {
+                openPointInTimeRequest.routing(randomAlphaOfLength(5));
+            }
+            if (randomBoolean()) {
+                openPointInTimeRequest.preference(randomAlphaOfLength(5));
+            }
             if (hasLocalIndices) {
                 assertThrowsAuthorizationException(
                     () -> authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest),
@@ -683,6 +687,40 @@ public class AuthorizationServiceTests extends ESTestCase {
                 " with roles [non-existent-role],")));
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
+        verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testServiceAccountDenial() {
+        Tuple<String, TransportRequest> tuple = randomFrom(asList(
+            new Tuple<>(SearchAction.NAME, new SearchRequest()),
+            new Tuple<>(SqlQueryAction.NAME, new SqlQueryRequest())));
+        String action = tuple.v1();
+        TransportRequest request = tuple.v2();
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        mockEmptyMetadata();
+
+        final User serviceUser = new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
+        final Authentication authentication = new Authentication(serviceUser,
+            new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8)),
+            null,
+            Version.CURRENT,
+            Authentication.AuthenticationType.TOKEN,
+            org.elasticsearch.common.collect.Map.of());
+        Mockito.reset(rolesStore);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<Role> listener = (ActionListener<Role>) invocationOnMock.getArguments()[2];
+            listener.onResponse(Role.EMPTY);
+            return null;
+        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), any(ActionListener.class));
+
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+            () -> authorize(authentication, action, request));
+        assertThat(securityException, throwableWithMessage(containsString(
+            "[" + action + "] is unauthorized" +
+                " for user [" + serviceUser.principal() + "],")));
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }

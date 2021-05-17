@@ -22,6 +22,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
+
 /**
  * A (mostly) immutable snapshot of the current mapping of an index with
  * access to everything we need for the search phase.
@@ -35,17 +37,10 @@ public final class MappingLookup {
     }
 
     /**
-     * A lookup representing an empty mapping.
+     * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
+     * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = new MappingLookup(
-        Mapping.EMPTY,
-        org.elasticsearch.common.collect.List.of(),
-        org.elasticsearch.common.collect.List.of(),
-        org.elasticsearch.common.collect.List.of(),
-        null,
-        null,
-        null
-    );
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, emptyList(), emptyList(), emptyList());
 
     private final CacheKey cacheKey = new CacheKey();
 
@@ -57,15 +52,15 @@ public final class MappingLookup {
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
-    private final DocumentParser documentParser;
     private final Mapping mapping;
-    private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
 
-    public static MappingLookup fromMapping(Mapping mapping,
-                                            DocumentParser documentParser,
-                                            IndexSettings indexSettings,
-                                            IndexAnalyzers indexAnalyzers) {
+    /**
+     * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
+     *
+     * @param mapping the mapping source
+     * @return the newly created lookup instance
+     */
+    public static MappingLookup fromMapping(Mapping mapping) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -81,11 +76,7 @@ public final class MappingLookup {
             mapping,
             newFieldMappers,
             newObjectMappers,
-            newFieldAliasMappers,
-            documentParser,
-            indexSettings,
-            indexAnalyzers
-        );
+            newFieldAliasMappers);
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
@@ -106,17 +97,32 @@ public final class MappingLookup {
         }
     }
 
-    public MappingLookup(Mapping mapping,
+    /**
+     * Creates a new {@link MappingLookup} instance given the provided mappers and mapping.
+     * Note that the provided mappings are not re-parsed but only exposed as-is. No consistency is enforced between
+     * the provided mappings and set of mappers.
+     * This is a commodity method to be used in tests, or whenever no mappings are defined for an index.
+     * When creating a MappingLookup through this method, its exposed functionalities are limited as it does not
+     * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
+     *
+     * @param mapping the mapping
+     * @param mappers the field mappers
+     * @param objectMappers the object mappers
+     * @param aliasMappers the field alias mappers
+     * @return the newly created lookup instance
+     */
+    public static MappingLookup fromMappers(Mapping mapping,
+                                            Collection<FieldMapper> mappers,
+                                            Collection<ObjectMapper> objectMappers,
+                                            Collection<FieldAliasMapper> aliasMappers) {
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers);
+    }
+
+    private MappingLookup(Mapping mapping,
                          Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
-                         Collection<FieldAliasMapper> aliasMappers,
-                         DocumentParser documentParser,
-                         IndexSettings indexSettings,
-                         IndexAnalyzers indexAnalyzers) {
+                         Collection<FieldAliasMapper> aliasMappers) {
         this.mapping = mapping;
-        this.indexSettings = indexSettings;
-        this.indexAnalyzers = indexAnalyzers;
-        this.documentParser = documentParser;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
@@ -156,7 +162,7 @@ public final class MappingLookup {
         this.fieldTypeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, mapping.getRoot().runtimeFields());
         this.indexTimeLookup = indexTimeScriptMappers.isEmpty()
             ? null
-            : new FieldTypeLookup(mapping.type(), mappers, aliasMappers, Collections.emptyList());
+            : new FieldTypeLookup(mapping.type(), mappers, aliasMappers, emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -195,13 +201,6 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
-    }
-
-    /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> fieldTypes() {
-        return fieldTypeLookup.get();
     }
 
     void checkLimits(IndexSettings settings) {
@@ -292,8 +291,35 @@ public final class MappingLookup {
         return field.substring(0, lastDot);
     }
 
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return fieldTypesLookup().simpleMatchToFullName(pattern);
+    /**
+     * Returns a set of field names that match a regex-like pattern
+     *
+     * All field names in the returned set are guaranteed to resolve to a field
+     *
+     * @param pattern the pattern to match field names against
+     */
+    public Set<String> getMatchingFieldNames(String pattern) {
+        return fieldTypeLookup.getMatchingFieldNames(pattern);
+    }
+
+    /**
+     * Returns all the mapped field types that match a pattern
+     *
+     * Note that if a field is aliased and both its actual name and its alias
+     * match the pattern, the returned collection will contain the field type
+     * twice.
+     *
+     * @param pattern the pattern to match field names against
+     */
+    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+        return fieldTypeLookup.getMatchingFieldTypes(pattern);
+    }
+
+    /**
+     * @return all mapped field types
+     */
+    public Collection<MappedFieldType> getAllFieldTypes() {
+        return fieldTypeLookup.getMatchingFieldTypes("*");
     }
 
     /**
@@ -319,10 +345,11 @@ public final class MappingLookup {
         return fieldTypesLookup().sourcePaths(field);
     }
 
-    public ParsedDocument parseDocument(SourceToParse source) {
-        return documentParser.parseDocument(source, this);
-    }
-
+    /**
+     * Returns true if the index has mappings. An index does not have mappings only if it was created
+     * without providing mappings explicitly, and no documents have yet been indexed in it.
+     * @return true if the current index has mappings, false otherwise
+     */
     public boolean hasMappings() {
         return this != EMPTY;
     }
@@ -343,16 +370,12 @@ public final class MappingLookup {
         return mapping.type();
     }
 
-    Mapping getMapping() {
+    /**
+     * Returns the mapping source that this lookup originated from
+     * @return the mapping source
+     */
+    public Mapping getMapping() {
         return mapping;
-    }
-
-    IndexSettings getIndexSettings() {
-        return indexSettings;
-    }
-
-    IndexAnalyzers getIndexAnalyzers() {
-        return indexAnalyzers;
     }
 
     /**

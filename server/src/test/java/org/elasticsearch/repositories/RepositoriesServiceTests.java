@@ -341,7 +341,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public BlobPath basePath() {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         }
     }
 
@@ -371,7 +371,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public BlobPath basePath() {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         }
     }
 }

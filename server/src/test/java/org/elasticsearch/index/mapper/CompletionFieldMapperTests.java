@@ -75,6 +75,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "standard"));
         checker.registerConflictCheck("preserve_separators", b -> b.field("preserve_separators", false));
@@ -106,11 +111,6 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         analyzers.put("standard", new NamedAnalyzer("standard", AnalyzerScope.INDEX, new StandardAnalyzer()));
         analyzers.put("simple", new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer()));
         return new IndexAnalyzers(analyzers, Collections.emptyMap(), Collections.emptyMap());
-    }
-
-    @Override
-    protected boolean allowsStore() {
-        return false;
     }
 
     public void testDefaultConfiguration() throws IOException {

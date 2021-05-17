@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -65,7 +66,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -124,6 +124,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -381,7 +382,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void after() throws Exception {
-        checkStaticState(false);
+        checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
         // methods failed, in which case threadContext might not have been
@@ -552,11 +553,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
-    protected static void checkStaticState(boolean afterClass) throws Exception {
+    protected static void checkStaticState() throws Exception {
         LeakTracker.INSTANCE.reportLeak();
-        if (afterClass) {
-            MockPageCacheRecycler.ensureAllPagesAreReleased();
-        }
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us
@@ -880,6 +878,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
+    public static <K, V> Map<K, V> randomMap(int minListSize, int maxListSize, Supplier<Tuple<K, V>> valueConstructor) {
+        final int size = randomIntBetween(minListSize, maxListSize);
+        Map<K, V> list = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            Tuple<K, V> entry = valueConstructor.get();
+            list.put(entry.v1(), entry.v2());
+        }
+        return list;
+    }
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 

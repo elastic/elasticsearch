@@ -15,10 +15,14 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamsRestIT extends ESRestTestCase {
 
@@ -41,10 +45,10 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
-        assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
-        assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.template", dataStreams));
-        assertEquals(Collections.singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
-        assertEquals(Collections.singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
+        assertEquals(singletonList("hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        assertEquals(singletonList("hidden"), XContentMapValues.extractValue("data_streams.template", dataStreams));
+        assertEquals(singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
+        assertEquals(singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
 
         Request searchRequest = new Request("GET", "/hidd*/_search");
         response = client().performRequest(searchRequest);
@@ -71,10 +75,10 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request getDataStreamsRequest = new Request("GET", "/_data_stream?expand_wildcards=hidden");
         Response response = client().performRequest(getDataStreamsRequest);
         Map<String, Object> dataStreams = entityAsMap(response);
-        assertEquals(Collections.singletonList(".hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
-        assertEquals(Collections.singletonList("hidden"), XContentMapValues.extractValue("data_streams.template", dataStreams));
-        assertEquals(Collections.singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
-        assertEquals(Collections.singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
+        assertEquals(singletonList(".hidden"), XContentMapValues.extractValue("data_streams.name", dataStreams));
+        assertEquals(singletonList("hidden"), XContentMapValues.extractValue("data_streams.template", dataStreams));
+        assertEquals(singletonList(1), XContentMapValues.extractValue("data_streams.generation", dataStreams));
+        assertEquals(singletonList(true), XContentMapValues.extractValue("data_streams.hidden", dataStreams));
 
         Request searchRequest = new Request("GET", "/.hidd*/_search");
         response = client().performRequest(searchRequest);
@@ -88,5 +92,109 @@ public class DataStreamsRestIT extends ESRestTestCase {
         putComposableIndexTemplateRequest.setJsonEntity(body);
         Exception e = expectThrows(ResponseException.class, () -> client().performRequest(putComposableIndexTemplateRequest));
         assertThat(e.getMessage(), containsString("template [my-template] has alias and data stream definitions"));
+    }
+
+    public void testDataStreamAliases() throws Exception {
+        // Create a template
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\"logs-*\"], \"data_stream\": {}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/logs-myapp1/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        createDocRequest = new Request("POST", "/logs-myapp2/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        // Add logs-myapp1 -> logs & logs-myapp2 -> logs
+        Request updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity("{\"actions\":[{\"add\":{\"index\":\"logs-myapp1\",\"alias\":\"logs\"}}," +
+            "{\"add\":{\"index\":\"logs-myapp2\",\"alias\":\"logs\"}}]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        Request getAliasesRequest = new Request("GET", "/_aliases");
+        Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertThat(getAliasesResponse.keySet(), containsInAnyOrder("logs-myapp1", "logs-myapp2"));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+
+        Request searchRequest = new Request("GET", "/logs/_search");
+        Map<String, Object> searchResponse = entityAsMap(client().performRequest(searchRequest));
+        assertEquals(2, XContentMapValues.extractValue("hits.total.value", searchResponse));
+
+        // Remove logs-myapp1 -> logs & logs-myapp2 -> logs
+        updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity("{\"actions\":[{\"remove\":{\"index\":\"logs-myapp1\",\"alias\":\"logs\"}}," +
+            "{\"remove\":{\"index\":\"logs-myapp2\",\"alias\":\"logs\"}}]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        getAliasesRequest = new Request("GET", "/_aliases");
+        getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/logs/_search")));
+
+        // Add logs-* -> logs
+        updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity("{\"actions\":[{\"add\":{\"index\":\"logs-*\",\"alias\":\"logs\"}}]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        getAliasesRequest = new Request("GET", "/_aliases");
+        getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+
+        searchRequest = new Request("GET", "/logs/_search");
+        searchResponse = entityAsMap(client().performRequest(searchRequest));
+        assertEquals(2, XContentMapValues.extractValue("hits.total.value", searchResponse));
+
+        // Remove logs-* -> logs
+        updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity("{\"actions\":[{\"remove\":{\"index\":\"logs-*\",\"alias\":\"logs\"}}]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        getAliasesRequest = new Request("GET", "/_aliases");
+        getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/logs/_search")));
+    }
+
+    public void testDeleteDataStreamApiWithAliasFails() throws IOException {
+        // Create a template
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\"logs-*\"], \"data_stream\": {}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/logs-emea/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        createDocRequest = new Request("POST", "/logs-nasa/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        Request updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity(
+            "{\"actions\":[{\"add\":{\"index\":\"logs-emea\",\"alias\":\"logs\"}}," +
+                "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"logs\"}}]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        Request getAliasesRequest = new Request("GET", "/logs-*/_alias");
+        Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+
+        Exception e = expectThrows(ResponseException.class, () -> client().performRequest(new Request("DELETE", "/_data_stream/logs")));
+        assertThat(e.getMessage(), containsString("The provided expression [logs] matches an alias, " +
+            "specify the corresponding concrete indices instead"));
+
+        assertOK(client().performRequest(new Request("DELETE", "/_data_stream/logs-emea")));
+        assertOK(client().performRequest(new Request("DELETE", "/_data_stream/logs-nasa")));
+
+        getAliasesRequest = new Request("GET", "/logs-*/_alias");
+        assertThat(entityAsMap(client().performRequest(getAliasesRequest)), equalTo(emptyMap()));
     }
 }

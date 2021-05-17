@@ -22,6 +22,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -114,7 +115,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
     private final JobDataCountsPersister jobDataCountsPersister;
     private final AnnotationPersister annotationPersister;
 
-    private NativeStorageProvider nativeStorageProvider;
+    private final NativeStorageProvider nativeStorageProvider;
     private final ConcurrentMap<Long, ProcessContext> processByAllocation = new ConcurrentHashMap<>();
 
     private volatile int maxAllowedRunningJobs;
@@ -455,7 +456,8 @@ public class AutodetectProcessManager implements ClusterStateListener {
         ));
     }
 
-    public void openJob(JobTask jobTask, ClusterState clusterState, BiConsumer<Exception, Boolean> closeHandler) {
+    public void openJob(JobTask jobTask, ClusterState clusterState, TimeValue masterNodeTimeout,
+                        BiConsumer<Exception, Boolean> closeHandler) {
         String jobId = jobTask.getJobId();
         logger.info("Opening job [{}]", jobId);
 
@@ -483,25 +485,27 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         // Make sure the state index and alias exist
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
-            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasHandler),
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, masterNodeTimeout,
+                stateAliasHandler),
             e -> closeHandler.accept(e, true)
         );
 
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
         ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
             ack -> ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-                AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler),
+                AnomalyDetectorsIndex::resultsMapping, client, clusterState, masterNodeTimeout, resultsMappingUpdateHandler),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
                 logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
                 ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-                    AnomalyDetectorsIndex::resultsMapping, client, clusterState, resultsMappingUpdateHandler);
+                    AnomalyDetectorsIndex::resultsMapping, client, clusterState, masterNodeTimeout, resultsMappingUpdateHandler);
             }
         );
 
         // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
-        AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, annotationsIndexUpdateHandler);
+        AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, clusterState, masterNodeTimeout,
+            annotationsIndexUpdateHandler);
     }
 
     private void startProcess(JobTask jobTask, Job job, BiConsumer<Exception, Boolean> closeHandler) {

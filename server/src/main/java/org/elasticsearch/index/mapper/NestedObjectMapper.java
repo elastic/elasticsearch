@@ -202,9 +202,11 @@ public class NestedObjectMapper extends ObjectMapper {
             if (includeInParent.value() != mergeWithObject.includeInParent.value()) {
                 throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
             }
+            builder.includeInParent(includeInParent);
             if (includeInRoot.value() != mergeWithObject.includeInRoot.value()) {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
+            builder.includeInRoot(includeInRoot);
         }
         for (Mapper child : mappers.values()) {
             builder.add(new Mapper.Builder(child.name()) {

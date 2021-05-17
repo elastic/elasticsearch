@@ -825,7 +825,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.startObject("properties");
             b.startObject("field1").field("type", "keyword").endObject();
             b.startObject("field2").field("type", "keyword").endObject();
-            b.startObject("nested2").field("type", "nested").endObject();
+            b.startObject("nested2").field("type", "nested").field("include_in_root", true).endObject();
             b.endObject();
             b.endObject();
         }));
@@ -836,13 +836,16 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             b.startObject("properties");
             b.startObject("field2").field("type", "keyword").endObject();
             b.startObject("field3").field("type", "keyword").endObject();
-            b.startObject("nested2").field("type", "nested").endObject();
+            b.startObject("nested2").field("type", "nested").field("include_in_root", true).endObject();
             b.endObject();
             b.endObject();
         }));
 
         NestedObjectMapper nested1 = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested1");
         assertThat(nested1.getChildren().values(), hasSize(4));
+
+        NestedObjectMapper nested2 = (NestedObjectMapper) nested1.getChildren().get("nested2");
+        assertTrue(nested2.isIncludeInRoot());
     }
 
     public void testMergeNestedMappings() throws IOException {

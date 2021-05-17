@@ -124,6 +124,9 @@ public class ExecutingPolicyDocTests extends BaseMonitoringDocTestCase<Executing
                     + ","
                     + "\"cancellable\":"
                     + executingPolicy.getTaskInfo().isCancellable()
+                    + (executingPolicy.getTaskInfo().isCancellable()
+                        ? ",\"cancelled\":" + executingPolicy.getTaskInfo().isCancellable()
+                        : "")
                     + ","
                     + header.map(entry -> String.format(Locale.ROOT, "\"headers\":{\"%s\":\"%s\"}", entry.getKey(), entry.getValue()))
                         .orElse("\"headers\":{}")

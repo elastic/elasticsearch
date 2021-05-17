@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -66,7 +67,8 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState clusterState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(IndexMetadata indexMetadata, ClusterState clusterState,
+                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
         // These allocation deciders were chosen because these are the conditions that can prevent
         // allocation long-term, and that we can inspect in advance. Most other allocation deciders
         // will either only delay relocation (e.g. ThrottlingAllocationDecider), or don't work very
@@ -74,7 +76,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(
             new FilterAllocationDecider(clusterState.getMetadata().settings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
+            new DataTierAllocationDecider(clusterState.getMetadata().settings(), new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
             new NodeVersionAllocationDecider()
         ));
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();

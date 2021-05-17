@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ssl;
 
@@ -116,9 +117,9 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
 
-        Settings parentSettings = super.nodeSettings(nodeOrdinal);
+        Settings parentSettings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder builder = Settings.builder()
                 .put(parentSettings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false))
                 .put(nodeSSL);

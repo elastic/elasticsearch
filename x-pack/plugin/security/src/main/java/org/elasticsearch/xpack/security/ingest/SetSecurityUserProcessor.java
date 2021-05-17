@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.ingest;
 
@@ -117,21 +118,27 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
                     }
                     break;
                 case API_KEY:
-                    final String apiKey = "api_key";
-                    final Object existingApiKeyField = userObject.get(apiKey);
-                    @SuppressWarnings("unchecked")
-                    final Map<String, Object> apiKeyField =
-                        existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
-                    Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
-                    if (apiKeyName != null) {
-                        apiKeyField.put("name", apiKeyName);
-                    }
-                    Object apiKeyId = authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
-                    if (apiKeyId != null) {
-                        apiKeyField.put("id", apiKeyId);
-                    }
-                    if (false == apiKeyField.isEmpty()) {
-                        userObject.put(apiKey, apiKeyField);
+                    if (Authentication.AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
+                        final String apiKey = "api_key";
+                        final Object existingApiKeyField = userObject.get(apiKey);
+                        @SuppressWarnings("unchecked")
+                        final Map<String, Object> apiKeyField =
+                            existingApiKeyField instanceof Map ? (Map<String, Object>) existingApiKeyField : new HashMap<>();
+                        Object apiKeyName = authentication.getMetadata().get(ApiKeyService.API_KEY_NAME_KEY);
+                        if (apiKeyName != null) {
+                            apiKeyField.put("name", apiKeyName);
+                        }
+                        Object apiKeyId = authentication.getMetadata().get(ApiKeyService.API_KEY_ID_KEY);
+                        if (apiKeyId != null) {
+                            apiKeyField.put("id", apiKeyId);
+                        }
+                        final Map<String,Object> apiKeyMetadata = ApiKeyService.getApiKeyMetadata(authentication);
+                        if (false == apiKeyMetadata.isEmpty()) {
+                            apiKeyField.put("metadata", apiKeyMetadata);
+                        }
+                        if (false == apiKeyField.isEmpty()) {
+                            userObject.put(apiKey, apiKeyField);
+                        }
                     }
                     break;
                 case REALM:

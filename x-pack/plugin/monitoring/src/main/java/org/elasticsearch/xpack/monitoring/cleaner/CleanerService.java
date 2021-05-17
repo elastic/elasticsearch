@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.cleaner;
 
@@ -166,11 +167,6 @@ public class CleanerService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            if (licenseState.checkFeature(Feature.MONITORING) == false) {
-                logger.debug("cleaning service is disabled due to invalid license");
-                return;
-            }
-
             // fetch the retention, which is depends on a bunch of rules
             TimeValue retention = getRetention();
 

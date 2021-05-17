@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
@@ -41,13 +30,15 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -57,8 +48,9 @@ import java.util.concurrent.atomic.AtomicReference;
 final class SingleDocDirectoryReader extends DirectoryReader {
     private final SingleDocLeafReader leafReader;
 
-    SingleDocDirectoryReader(ShardId shardId, Translog.Index operation, DocumentMapper mapper, Analyzer analyzer) throws IOException {
-        this(new SingleDocLeafReader(shardId, operation, mapper, analyzer));
+    SingleDocDirectoryReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
+                             Analyzer analyzer) throws IOException {
+        this(new SingleDocLeafReader(shardId, operation, mappingLookup, documentParser, analyzer));
     }
 
     private SingleDocDirectoryReader(SingleDocLeafReader leafReader) throws IOException {
@@ -119,15 +111,18 @@ final class SingleDocDirectoryReader extends DirectoryReader {
 
         private final ShardId shardId;
         private final Translog.Index operation;
-        private final DocumentMapper mapper;
+        private final MappingLookup mappingLookup;
+        private final DocumentParser documentParser;
         private final Analyzer analyzer;
         private final Directory directory;
         private final AtomicReference<LeafReader> delegate = new AtomicReference<>();
 
-        SingleDocLeafReader(ShardId shardId, Translog.Index operation, DocumentMapper mapper, Analyzer analyzer) {
+        SingleDocLeafReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
+                            Analyzer analyzer) {
             this.shardId = shardId;
             this.operation = operation;
-            this.mapper = mapper;
+            this.mappingLookup = mappingLookup;
+            this.documentParser = documentParser;
             this.analyzer = analyzer;
             this.directory = new ByteBuffersDirectory();
         }
@@ -150,8 +145,9 @@ final class SingleDocDirectoryReader extends DirectoryReader {
 
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
-            final ParsedDocument parsedDocs = mapper.parse(new SourceToParse(shardId.getIndexName(), operation.id(),
-                operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()));
+            final ParsedDocument parsedDocs = documentParser.parseDocument(new SourceToParse(shardId.getIndexName(), operation.id(),
+                operation.source(), XContentHelper.xContentType(operation.source()), operation.routing(), Map.of()), mappingLookup);
+
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());
             final IndexWriterConfig writeConfig = new IndexWriterConfig(analyzer).setOpenMode(IndexWriterConfig.OpenMode.CREATE);

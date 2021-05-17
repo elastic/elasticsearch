@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "x_cluster_role" ]
             }
   - do:
@@ -35,7 +35,7 @@ teardown:
 "Fetch remote cluster info for existing cluster":
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       cluster.remote_info: {}
   - match: { my_remote_cluster.connected: true }
   - match: { my_remote_cluster.num_nodes_connected: 1}
@@ -67,7 +67,7 @@ teardown:
         index: test_remote_cluster:test_index
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       cluster.remote_info: {}
   - match: { test_remote_cluster.connected: true }
   - match: { my_remote_cluster.connected: true }

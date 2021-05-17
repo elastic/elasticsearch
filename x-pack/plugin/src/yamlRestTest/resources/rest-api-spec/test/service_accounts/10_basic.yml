@@ -1,0 +1,98 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      security.delete_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: api-token-1
+        ignore: 404
+
+---
+"Test get service accounts":
+  - do:
+      security.get_service_accounts: {}
+  - length: { '': 1 }
+  - is_true: "elastic/fleet-server"
+
+  - do:
+      security.get_service_accounts:
+        namespace: elastic
+  - length: { '': 1 }
+  - is_true: "elastic/fleet-server"
+
+  - do:
+      security.get_service_accounts:
+        namespace: elastic
+        service: fleet-server
+  - length: { '': 1 }
+  - is_true: "elastic/fleet-server"
+
+---
+"Test service account tokens":
+  - skip:
+      features: headers
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: api-token-1
+
+  - is_true: created
+  - match: { "token.name": "api-token-1" }
+  - set: { "token.value": service_token }
+
+  - do:
+      headers:
+        Authorization: Bearer ${service_token}
+      security.authenticate: {}
+
+  - match: { username: "elastic/fleet-server" }
+  - match: { roles:  [] }
+  - match: { full_name: "Service account - elastic/fleet-server" }
+  - match: { "token.name": "api-token-1" }
+
+  - do:
+      catch: forbidden
+      headers:
+        Authorization: Bearer ${service_token}
+      security.delete_user:
+        username: foo
+
+  - match: { "error.type": "security_exception" }
+  - match:
+      error.reason: "action [cluster:admin/xpack/security/user/delete] is unauthorized for user [elastic/fleet-server], this action is granted by the cluster privileges [manage_security,all]"
+
+  - do:
+      security.get_service_credentials:
+        namespace: elastic
+        service: fleet-server
+
+  - match: { "service_account": "elastic/fleet-server" }
+  - match: { "count": 2 }
+  - match: { "tokens": { "api-token-1": {} } }
+  - match: { "file_tokens": { "token1": {}} }
+
+  - do:
+      security.clear_cached_service_tokens:
+        namespace: elastic
+        service: fleet-server
+        name: api-token-1
+
+  - match: { _nodes.failed: 0 }
+
+  - do:
+      security.clear_cached_service_tokens:
+        namespace: elastic
+        service: fleet-server
+        name: [ "api-token-1", "does-not-exist" ]
+
+  - match: { _nodes.failed: 0 }
+
+
+

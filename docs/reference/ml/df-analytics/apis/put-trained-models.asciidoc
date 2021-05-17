@@ -15,9 +15,6 @@ WARNING: Models created in version 7.8.0 are not backwards compatible
          a 7.8.0 node.
 
 
-beta::[]
-
-
 [[ml-put-trained-models-request]]
 == {api-request-title}
 
@@ -27,12 +24,8 @@ beta::[]
 [[ml-put-trained-models-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-built-in roles or equivalent privileges:
-
-* `machine_learning_admin`
-
-For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 
 [[ml-put-trained-models-desc]]

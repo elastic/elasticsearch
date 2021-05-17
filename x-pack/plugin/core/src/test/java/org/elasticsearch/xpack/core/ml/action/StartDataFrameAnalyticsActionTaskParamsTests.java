@@ -1,19 +1,17 @@
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 
@@ -26,15 +24,9 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractSerial
 
     @Override
     protected StartDataFrameAnalyticsAction.TaskParams createTestInstance() {
-        int phaseCount = randomIntBetween(0, 5);
-        List<PhaseProgress> progressOnStart = new ArrayList<>(phaseCount);
-        for (int i = 0; i < phaseCount; i++) {
-            progressOnStart.add(new PhaseProgress(randomAlphaOfLength(10), randomIntBetween(0, 100)));
-        }
         return new StartDataFrameAnalyticsAction.TaskParams(
             randomAlphaOfLength(10),
             randomVersion(random()),
-            progressOnStart,
             randomBoolean());
     }
 

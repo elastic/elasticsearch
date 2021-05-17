@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz;
 
@@ -14,11 +15,11 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -38,8 +39,8 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString
-            ("test123".toCharArray())));
+        final String usersPasswdHashed =
+            new String(getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return super.configUsers() +
             "create_only:" + usersPasswdHashed + "\n" +
             "all_on_test:" + usersPasswdHashed + "\n" +
@@ -108,7 +109,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
     public void testCreateIndexThenAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to add/remove aliases
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
-                new SecureString("test123".toCharArray())));
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client().filterWithHeader(headers);
         assertAcked(client.admin().indices().prepareCreate("test_1").get());
 
@@ -124,7 +125,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //user has create permission only: allows to create indices, manage_aliases is required to add aliases although they are part of
         // the same create index request
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
-                new SecureString("test123".toCharArray())));
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         assertThrowsAuthorizationException(
                 client(headers).admin().indices().prepareCreate("test_1").addAlias(new Alias("test_2"))::get,
@@ -134,7 +135,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
     public void testDeleteAliasesCreateOnlyPermission() {
         //user has create permission only: allows to create indices, manage_aliases is required to add/remove aliases
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
-                new SecureString("test123".toCharArray())));
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client().filterWithHeader(headers);
 
         assertThrowsAuthorizationException(
@@ -151,7 +152,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
     public void testGetAliasesCreateOnlyPermissionStrict() {
         //user has create permission only: allows to create indices, manage_aliases is required to retrieve aliases though
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
-                new SecureString("test123".toCharArray())));
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client().filterWithHeader(headers);
 
         assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases("test_1")
@@ -177,7 +178,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
     public void testGetAliasesCreateOnlyPermissionIgnoreUnavailable() {
         //user has create permission only: allows to create indices, manage_aliases is required to retrieve aliases though
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
-                new SecureString("test123".toCharArray())));
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client().filterWithHeader(headers);
 
         assertThrowsAuthorizationException(client.admin().indices().prepareGetAliases("test_1")
@@ -209,7 +210,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //user has create and manage_aliases permission on test_*. manage_aliases is required to add/remove aliases on both aliases and
         // indices
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_test", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_test", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client().filterWithHeader(headers);
 
         assertAcked(client.admin().indices().prepareCreate("test_1").get());
@@ -231,7 +232,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // indices
         //ok: user has manage_aliases on test_*
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test",
-                new SecureString("test123".toCharArray())));
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).get());
@@ -247,7 +248,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         // indices
         //ok: user has manage_aliases on test_*
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_test_aliases_test",
-                new SecureString("test123".toCharArray())));
+            SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias_1"))
@@ -297,7 +298,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         //user has create and manage_aliases permission on test_*. manage_aliases is required to retrieve aliases on both aliases and
         // indices
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_test", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_test", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
         assertAcked(client.admin().indices().prepareCreate("test_1").addAlias(new Alias("test_alias")).get());
 
@@ -348,7 +349,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission2() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_alias", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_alias", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases
@@ -371,8 +372,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testCreateIndexAndAliasesCreateAndAliasesPermission2() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_alias", new
-                SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_alias", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases
@@ -385,7 +385,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testDeleteAliasesCreateAndAliasesPermission2() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_alias", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_alias", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to add/remove aliases
@@ -401,7 +401,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testGetAliasesCreateAndAliasesPermission2() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_alias", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_alias", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         //user has create permission on test_* and manage_aliases permission on alias_*. manage_aliases is required to retrieve aliases
@@ -446,7 +446,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission3() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_test_alias", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_test_alias", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
@@ -461,7 +461,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testCreateIndexAndAliasesCreateAndAliasesPermission3() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_test_alias", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_test_alias", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
@@ -472,7 +472,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testDeleteAliasesCreateAndAliasesPermission3() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_test_alias", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_test_alias", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
@@ -495,7 +495,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testGetAliasesCreateAndAliasesPermission3() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("create_test_aliases_test_alias", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("create_test_aliases_test_alias", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         //user has create permission on test_* and manage_aliases permission on test_*,alias_*. All good.
@@ -530,13 +530,13 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testCreateIndexAliasesOnlyPermission() {
         assertThrowsAuthorizationException(client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("aliases_only", new SecureString("test123".toCharArray()))))
+            basicAuthHeaderValue("aliases_only", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)))
                 .admin().indices().prepareCreate("test_1")::get, CreateIndexAction.NAME, "aliases_only");
     }
 
     public void testGetAliasesAliasesOnlyPermissionStrict() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("aliases_only", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("aliases_only", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
         //user has manage_aliases only permissions on both alias_* and test_*
 
@@ -556,7 +556,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
 
     public void testGetAliasesAliasesOnlyPermissionIgnoreUnavailable() {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER,
-                basicAuthHeaderValue("aliases_only", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("aliases_only", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
         //user has manage_aliases only permissions on both alias_* and test_*
 
@@ -579,7 +579,7 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
     public void testRemoveIndex() {
         final Map<String, String> headers = Collections.singletonMap(
             BASIC_AUTH_HEADER,
-            basicAuthHeaderValue("all_on_test", new SecureString("test123".toCharArray())));
+            basicAuthHeaderValue("all_on_test", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client client = client(headers);
 
         assertAcked(client.admin().indices().prepareCreate("test_delete_1").get());
@@ -601,11 +601,11 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         final String hiddenAlias = "alias_hidden";
 
         final Map<String, String> createHeaders = Collections.singletonMap(
-            BASIC_AUTH_HEADER, basicAuthHeaderValue("all_on_test", new SecureString("test123".toCharArray())));
+            BASIC_AUTH_HEADER, basicAuthHeaderValue("all_on_test", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client createClient = client(createHeaders);
 
         final Map<String, String> aliasHeaders = Collections.singletonMap(
-            BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", new SecureString("test123".toCharArray())));
+            BASIC_AUTH_HEADER, basicAuthHeaderValue("aliases_only", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         final Client aliasesClient = client(aliasHeaders);
 
         assertAcked(createClient.admin().indices().prepareCreate(hiddenIndex)

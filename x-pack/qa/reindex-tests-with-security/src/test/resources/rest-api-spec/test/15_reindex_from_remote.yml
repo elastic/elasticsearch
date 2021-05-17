@@ -378,7 +378,7 @@
             remote:
               host: https://${host}
               username: test_admin
-              password: badpass
+              password: bad-x-pack-test-password
             index: source
           dest:
             index: dest

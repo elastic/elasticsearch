@@ -1,11 +1,11 @@
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
-apply from : "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-test'
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
@@ -58,4 +58,10 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#mixedClusterTest"
   }
+}
+
+
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
 }

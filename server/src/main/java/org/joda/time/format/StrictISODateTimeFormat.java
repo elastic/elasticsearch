@@ -409,7 +409,7 @@ public class StrictISODateTimeFormat {
         boolean minute = fields.remove(DateTimeFieldType.minuteOfHour());
         boolean second = fields.remove(DateTimeFieldType.secondOfMinute());
         boolean milli = fields.remove(DateTimeFieldType.millisOfSecond());
-        if (!hour && !minute && !second && !milli) {
+        if (hour == false && minute == false && second == false && milli == false) {
             return;
         }
         if (hour || minute || second || milli) {
@@ -420,13 +420,13 @@ public class StrictISODateTimeFormat {
                 bld.appendLiteral('T');
             }
         }
-        if (hour && minute && second || (hour && !second && !milli)) {
+        if (hour && minute && second || (hour && second == false && milli == false)) {
             // OK - HMSm/HMS/HM/H - valid in combination with date
         } else {
             if (strictISO && datePresent) {
                 throw new IllegalArgumentException("No valid ISO8601 format for fields because Time was truncated: " + fields);
             }
-            if (!hour && (minute && second || (minute && !milli) || second)) {
+            if (hour == false && (minute && second || (minute && milli == false) || second)) {
                 // OK - MSm/MS/M/Sm/S - valid ISO formats
             } else {
                 if (strictISO) {

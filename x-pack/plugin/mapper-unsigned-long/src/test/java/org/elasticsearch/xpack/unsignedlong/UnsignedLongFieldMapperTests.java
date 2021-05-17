@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.unsignedlong;
@@ -11,6 +12,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
@@ -40,6 +42,11 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleValueForDocument() {
         return 123;
+    }
+
+    @Override
+    protected boolean supportsSearchLookup() {
+        return false;
     }
 
     @Override
@@ -215,4 +222,26 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        Number n = randomNumericValue();
+        return randomBoolean() ? n : n.toString();
+    }
+
+    private Number randomNumericValue() {
+        switch (randomInt(8)) {
+            case 0:
+                return randomNonNegativeByte();
+            case 1:
+                return (short) between(0, Short.MAX_VALUE);
+            case 2:
+                return randomInt(Integer.MAX_VALUE);
+            case 3:
+            case 4:
+                return randomNonNegativeLong();
+            default:
+                BigInteger big = BigInteger.valueOf(randomLongBetween(0, Long.MAX_VALUE)).shiftLeft(1);
+                return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
+        }
+    }
 }

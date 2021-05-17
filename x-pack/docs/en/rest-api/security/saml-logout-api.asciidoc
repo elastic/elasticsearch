@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-saml-logout]]
 === SAML logout API
+++++
+<titleabbrev>SAML logout</titleabbrev>
+++++
 
 Submits a request to invalidate an access token and refresh token.
 

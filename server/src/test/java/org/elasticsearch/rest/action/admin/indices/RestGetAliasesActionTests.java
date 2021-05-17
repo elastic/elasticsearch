@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.rest.action.admin.indices;
@@ -29,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -52,9 +42,9 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final AliasMetadata fooAliasMetadata = AliasMetadata.builder("foo").build();
         openMapBuilder.put("index", Arrays.asList(fooAliasMetadata, foobarAliasMetadata));
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(false, new String[0], openMapBuilder.build(),
-                xContentBuilder);
+            Map.of(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{\"index\":{\"aliases\":{\"foo\":{},\"foobar\":{}}}}"));
     }
 
@@ -62,9 +52,9 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "baz*" }, openMapBuilder.build(),
-                xContentBuilder);
+            Map.of(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{}"));
     }
 
@@ -74,9 +64,9 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final AliasMetadata aliasMetadata = AliasMetadata.builder("foobar").build();
         openMapBuilder.put("index", Arrays.asList(aliasMetadata));
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "baz*", "foobar*" },
-                openMapBuilder.build(), xContentBuilder);
+                openMapBuilder.build(), Map.of(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{\"index\":{\"aliases\":{\"foobar\":{}}}}"));
     }
 
@@ -84,9 +74,9 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "foob*", "-foo*" },
-                openMapBuilder.build(), xContentBuilder);
+                openMapBuilder.build(), Map.of(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{}"));
     }
 
@@ -96,9 +86,9 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final AliasMetadata aliasMetadata = AliasMetadata.builder("foo").build();
         openMapBuilder.put("index", Arrays.asList(aliasMetadata));
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "foo*", "-foob*" },
-                openMapBuilder.build(), xContentBuilder);
+                openMapBuilder.build(), Map.of(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{\"index\":{\"aliases\":{\"foo\":{}}}}"));
     }
 
@@ -115,9 +105,9 @@ public class RestGetAliasesActionTests extends ESTestCase {
         }
 
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, aliasPattern, openMapBuilder.build(),
-                xContentBuilder);
+            Map.of(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(NOT_FOUND));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json"));
         assertThat(restResponse.content().utf8ToString(),
                 equalTo("{\"error\":\"alias [missing] missing\",\"status\":404,\"index\":{\"aliases\":{\"foo\":{}}}}"));
     }
@@ -126,9 +116,9 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
         final ImmutableOpenMap.Builder<String, List<AliasMetadata>> openMapBuilder = ImmutableOpenMap.builder();
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "foo", "foofoo", "-foo*" },
-                openMapBuilder.build(), xContentBuilder);
+                openMapBuilder.build(), Map.of(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{}"));
     }
 }

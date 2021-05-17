@@ -18,16 +18,11 @@ Previews a {transform}.
 [[preview-transform-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* `manage_transform` 
-* source index: `read`, `view_index_metadata`
-
-The built-in `transform_admin` role has the `manage_transform` privilege.
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
-
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`.
 
 [[preview-transform-desc]]
 == {api-description-title}
@@ -46,6 +41,9 @@ TIP: There are some <<transform-aggresponse-limitations,limitations>> that
 might result in poor mappings. As a work-around, create the destination index
 or an index template with your preferred mappings before you start the
 {transform}.
+
+You must choose either the `latest` or `pivot` method for your {transform}; you
+cannot use both in a single {transform}.
 
 [role="child_attributes"]
 [[preview-transform-request-body]]
@@ -77,6 +75,26 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin latest
+`latest`::
+(Required^*^, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-latest]
++
+.Properties of `latest`
+[%collapsible%open]
+====
+
+`sort`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-sort]
+
+`unique_key`:::
+(Required, array of strings)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-unique-key]
+
+====
+//End latest
+
 //Begin pivot
 `pivot`::
 (Required, object)
@@ -96,6 +114,32 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pivot-group-by]
 ====
 //End pivot
 
+//Begin retention policy
+`retention_policy`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention]
++
+.Properties of `retention_policy`
+[%collapsible%open]
+====
+`time`:::
+(Required, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time]
++
+.Properties of `time`
+[%collapsible%open]
+=====
+`field`:::
+(Required, string)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-field]
+
+`max_age`:::
+(Required, <<time-units, time units>>)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-retention-time-max-age]
+=====
+====
+//End retention policy
+
 //Begin source
 `source`::
 (Required, object)
@@ -112,6 +156,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transform
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+
+`runtime_mappings`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-runtime-mappings-transforms]
 ====
 //End source
 
@@ -136,7 +184,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 `delay`::::
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
-    
+
 `field`::::
 (Optional, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
@@ -167,11 +215,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max
 == {api-response-body-title}
 
 `preview`::
-(array) An array of documents. In particular, they are the JSON representation 
-of the documents that would be created in the destination index by the 
+(array) An array of documents. In particular, they are the JSON representation
+of the documents that would be created in the destination index by the
 {transform}.
 
-//Begin generated_dest_index  
+//Begin generated_dest_index
 `generated_dest_index`::
 (object) Contains details about the destination index.
 +
@@ -183,7 +231,7 @@ of the documents that would be created in the destination index by the
 (object) The aliases for the destination index.
 
 `mappings`:::
-(object) The <<mapping,mappings>> for each document in the destination index. 
+(object) The <<mapping,mappings>> for each document in the destination index.
 
 `settings`:::
 (object) The <<index-modules-settings,index settings>> for the destination index.

@@ -103,7 +103,7 @@ The `kuromoji_tokenizer` accepts the following settings:
 --
 
 The tokenization mode determines how the tokenizer handles compound and
-unknown words.  It can be set to:
+unknown words. It can be set to:
 
 `normal`::
 
@@ -403,11 +403,11 @@ form in either katakana or romaji. It accepts the following setting:
 
 `use_romaji`::
 
-    Whether romaji reading form should be output instead of katakana.  Defaults to `false`.
+    Whether romaji reading form should be output instead of katakana. Defaults to `false`.
 
 When using the pre-defined `kuromoji_readingform` filter, `use_romaji` is set
 to `true`. The default when defining a custom `kuromoji_readingform`, however,
-is `false`.  The only reason to use the custom form is if you need the
+is `false`. The only reason to use the custom form is if you need the
 katakana reading form:
 
 [source,console]
@@ -521,7 +521,7 @@ GET kuromoji_sample/_analyze
 
 The `ja_stop` token filter filters out Japanese stopwords (`_japanese_`), and
 any other custom stopwords specified by the user. This filter only supports
-the predefined `_japanese_` stopwords list.  If you want to use a different
+the predefined `_japanese_` stopwords list. If you want to use a different
 predefined list, then use the
 {ref}/analysis-stop-tokenfilter.html[`stop` token filter] instead.
 

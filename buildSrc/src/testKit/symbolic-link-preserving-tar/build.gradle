@@ -1,9 +1,10 @@
-import org.elasticsearch.gradle.tar.SymbolicLinkPreservingTar
+import org.elasticsearch.gradle.internal.SymbolicLinkPreservingTar
 
 plugins {
   id 'base'
   id 'distribution'
-  id 'elasticsearch.symbolic-link-preserving-tar'
+  // we need to add one of our plugins to get things on this classpath
+  id 'elasticsearch.global-build-info' apply false
 }
 
 final String source = Objects.requireNonNull(System.getProperty('tests.symbolic_link_preserving_tar_source'))

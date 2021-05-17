@@ -14,6 +14,11 @@ Returns the hot threads on each selected node in the cluster.
 
 `GET /_nodes/<node_id>/hot_threads`
 
+[[cluster-nodes-hot-threads-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-nodes-hot-threads-api-desc]]
 ==== {api-description-title}
@@ -35,7 +40,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `ignore_idle_threads`::
 		(Optional, Boolean) If true, known idle threads (e.g. waiting in a socket 
-		select, or to get a task from an empty queue) are filtered out.  Defaults to 
+		select, or to get a task from an empty queue) are filtered out. Defaults to 
 		true.
 
 `interval`::

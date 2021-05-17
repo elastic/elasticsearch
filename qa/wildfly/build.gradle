@@ -1,31 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
+import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'war'
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
-
-testFixtures.useFixture()
 
 dependencies {
   providedCompile 'javax.enterprise:cdi-api:1.2'
@@ -53,11 +41,15 @@ tasks.named("war").configure {
   archiveFileName = 'example-app.war'
 }
 
+// The wildfly docker image is only available for x86 architectures so disable these tests on arm
+if (Architecture.current() == Architecture.X64) {
+  testFixtures.useFixture()
+}
+
 elasticsearch_distributions {
   docker {
-    type = 'docker'
+    type = DOCKER
     architecture = Architecture.current()
-    flavor = System.getProperty('tests.distribution', 'default')
     version = VersionProperties.getElasticsearch()
     failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
   }
@@ -67,39 +59,14 @@ tasks.named("preProcessFixture").configure {
   dependsOn "war", elasticsearch_distributions.docker
 }
 
-dockerCompose {
-  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
-    useComposeFiles = ['docker-compose.yml']
-  } else {
-    useComposeFiles = ['docker-compose-oss.yml']
-  }
-}
-
 tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
+  onlyIf { Architecture.current() == Architecture.X64 }
   maxParallelForks = '1'
   include '**/*IT.class'
+  systemProperty 'tests.security.manager', 'false'
 }
 
 tasks.named("check").configure {
   dependsOn "integTest"
-}
-tasks.named("test").configure {enabled = false }
-tasks.named("dependencyLicenses").configure { enabled = false }
-tasks.named("dependenciesInfo") {
-  enabled = false
-}
-
-tasks.named("thirdPartyAudit").configure {
-  enabled = false
-}
-
-tasks.named("testingConventions").configure {
-  naming.clear()
-  // We only have one "special" integration test here to connect to wildfly
-  naming {
-    IT {
-      baseClass 'org.apache.lucene.util.LuceneTestCase'
-    }
-  }
 }

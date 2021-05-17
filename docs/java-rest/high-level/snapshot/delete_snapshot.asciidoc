@@ -34,7 +34,7 @@ include-tagged::{doc-tests}/SnapshotClientDocumentationIT.java[delete-snapshot-e
 [[java-rest-high-snapshot-delete-snapshot-async]]
 ==== Asynchronous Execution
 
-The asynchronous execution of a delete snapshot  request requires both the
+The asynchronous execution of a delete snapshot request requires both the
 `DeleteSnapshotRequest` instance and an `ActionListener` instance to be
 passed to the asynchronous method:
 

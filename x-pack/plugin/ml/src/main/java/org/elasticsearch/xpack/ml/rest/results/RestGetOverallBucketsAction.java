@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.rest.results;
 
@@ -14,23 +15,21 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetOverallBucketsAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetOverallBucketsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(
-                GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets"),
-            new Route(
-                POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/overall_buckets")
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets"),
+            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/results/overall_buckets")
         );
     }
 
@@ -61,7 +60,7 @@ public class RestGetOverallBucketsAction extends BaseRestHandler {
                 request.setEnd(restRequest.param(Request.END.getPreferredName()));
             }
             if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
+                LoggingDeprecationHandler.INSTANCE.logRenamedField(
                     null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH.getPreferredName());
             }
             request.setAllowNoMatch(

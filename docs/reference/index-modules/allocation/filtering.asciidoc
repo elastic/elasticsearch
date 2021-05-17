@@ -41,7 +41,7 @@ You can also set custom attributes when you start a node:
 +
 [source,sh]
 --------------------------------------------------------
-`./bin/elasticsearch -Enode.attr.size=medium
+./bin/elasticsearch -Enode.attr.size=medium
 --------------------------------------------------------
 
 . Add a routing allocation filter to the index. The `index.routing.allocation`

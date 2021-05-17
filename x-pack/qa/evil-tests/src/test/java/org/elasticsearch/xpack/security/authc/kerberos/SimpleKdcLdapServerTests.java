@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -50,8 +51,9 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         final String serviceUserName = randomFrom(serviceUserNames);
         // Client login and init token preparation
         final String clientUserName = randomFrom(clientUserNames);
-        try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName), new SecureString("pwd".toCharArray()),
-                principalName(serviceUserName), randomFrom(KerberosTicketValidator.SUPPORTED_OIDS));) {
+        try (SpnegoClient spnegoClient = new SpnegoClient(principalName(clientUserName),
+            new SecureString("spnego-test-password".toCharArray()), principalName(serviceUserName),
+            randomFrom(KerberosTicketValidator.SUPPORTED_OIDS));) {
             final String base64KerbToken = spnegoClient.getBase64EncodedTokenForSpnegoHeader();
             assertThat(base64KerbToken, is(notNullValue()));
             final KerberosAuthenticationToken kerbAuthnToken = new KerberosAuthenticationToken(Base64.getDecoder().decode(base64KerbToken));

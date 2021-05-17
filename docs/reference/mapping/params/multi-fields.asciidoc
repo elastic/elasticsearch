@@ -2,7 +2,7 @@
 === `fields`
 
 It is often useful to index the same field in different ways for different
-purposes.  This is the purpose of _multi-fields_. For instance, a `string`
+purposes. This is the purpose of _multi-fields_. For instance, a `string`
 field could be mapped as a `text` field for full-text
 search, and as a `keyword` field for sorting or aggregations:
 
@@ -61,7 +61,7 @@ GET my-index-000001/_search
 NOTE: Multi-fields do not change the original `_source` field.
 
 TIP: New multi-fields can be added to existing
-fields using the <<indices-put-mapping,PUT mapping API>>.
+fields using the <<indices-put-mapping,update mapping API>>.
 
 ==== Multi-fields with multiple analyzers
 
@@ -117,12 +117,12 @@ GET my-index-000001/_search
 <4> Query both the `text` and `text.english` fields and combine the scores.
 
 The `text` field contains the term `fox` in the first document and `foxes` in
-the second document.  The `text.english` field contains `fox` for both
+the second document. The `text.english` field contains `fox` for both
 documents, because `foxes` is stemmed to `fox`.
 
 The query string is also analyzed by the `standard` analyzer for the `text`
-field, and by the `english` analyzer for the `text.english` field.  The
+field, and by the `english` analyzer for the `text.english` field. The
 stemmed field allows a query for `foxes` to also match the document containing
-just `fox`.  This allows us to match as many documents as possible.  By also
+just `fox`. This allows us to match as many documents as possible. By also
 querying the unstemmed `text` field, we improve the relevance score of the
 document which matches `foxes` exactly.

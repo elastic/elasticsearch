@@ -216,7 +216,7 @@ public final class InjectionPoint {
 
             // Disallow private constructors on non-private classes (unless they have @Inject)
             if (Modifier.isPrivate(noArgConstructor.getModifiers())
-                    && !Modifier.isPrivate(rawType.getModifiers())) {
+                    && Modifier.isPrivate(rawType.getModifiers()) == false) {
                 errors.missingConstructor(rawType);
                 throw new ConfigurationException(errors.getMessages());
             }
@@ -376,7 +376,7 @@ public final class InjectionPoint {
             try {
                 injectionPoints.add(factory.create(typeLiteral, member, errors));
             } catch (ConfigurationException ignorable) {
-                if (!inject.optional()) {
+                if (inject.optional() == false) {
                     errors.merge(ignorable.getErrorMessages());
                 }
             }

@@ -1,11 +1,10 @@
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
   testImplementation project(path: xpackModule('security'))
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 tasks.named("integTest").configure {

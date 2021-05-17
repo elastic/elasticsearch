@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
@@ -356,9 +357,11 @@ public class CentroidCalculatorTests extends ESTestCase {
             CentroidCalculator calculator = new CentroidCalculator();
             calculator.add(point);
             calculator.add(line);
-            assertThat(calculator.getX(), equalTo(lineCalculator.getX()));
-            assertThat(calculator.getY(), equalTo(lineCalculator.getY()));
-            assertThat(calculator.sumWeight(), equalTo(lineCalculator.sumWeight()));
+            if (lineCalculator.getDimensionalShapeType() == LINE) {  // skip degenerated line
+                assertThat(calculator.getX(), equalTo(lineCalculator.getX()));
+                assertThat(calculator.getY(), equalTo(lineCalculator.getY()));
+                assertThat(calculator.sumWeight(), equalTo(lineCalculator.sumWeight()));
+            }
         }
 
         // line add point
@@ -368,9 +371,11 @@ public class CentroidCalculatorTests extends ESTestCase {
             CentroidCalculator calculator = new CentroidCalculator();
             calculator.add(line);
             calculator.add(point);
-            assertThat(calculator.getX(), equalTo(lineCalculator.getX()));
-            assertThat(calculator.getY(), equalTo(lineCalculator.getY()));
-            assertThat(calculator.sumWeight(), equalTo(lineCalculator.sumWeight()));
+            if (lineCalculator.getDimensionalShapeType() == LINE) { // skip degenerated line
+                assertThat(calculator.getX(), equalTo(lineCalculator.getX()));
+                assertThat(calculator.getY(), equalTo(lineCalculator.getY()));
+                assertThat(calculator.sumWeight(), equalTo(lineCalculator.sumWeight()));
+            }
         }
 
         // line add line

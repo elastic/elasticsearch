@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
@@ -39,12 +40,16 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
     }
 
     public static FrequencyEncoding createRandom(Boolean isCustom) {
+        return createRandom(isCustom, randomAlphaOfLength(10));
+    }
+
+    public static FrequencyEncoding createRandom(Boolean isCustom, String inputField) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new FrequencyEncoding(randomAlphaOfLength(10),
+        return new FrequencyEncoding(inputField,
             randomAlphaOfLength(10),
             valueMap,
             isCustom);

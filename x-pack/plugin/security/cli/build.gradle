@@ -1,5 +1,5 @@
 import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.build'
 
@@ -7,17 +7,16 @@ archivesBaseName = 'elasticsearch-security-cli'
 
 dependencies {
   compileOnly project(":server")
-  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  compileOnly project(path: xpackModule('core'))
   api "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   api "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
-  testImplementation('com.google.jimfs:jimfs:1.1') {
+  testImplementation("com.google.jimfs:jimfs:${versions.jimfs}") {
     // this is provided by the runtime classpath, from the security project
-    exclude group: 'com.google.guava', module: 'guava'
+    exclude group: "com.google.guava", module: "guava"
   }
-  testRuntimeOnly 'com.google.guava:guava:19.0'
+  testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
   testImplementation project(":test:framework")
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-}
+testImplementation(testArtifact(project(xpackModule('core'))))}
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /bc.*/, to: 'bouncycastle'

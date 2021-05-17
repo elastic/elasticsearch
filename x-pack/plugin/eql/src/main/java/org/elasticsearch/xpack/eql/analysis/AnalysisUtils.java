@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.analysis;
@@ -38,7 +39,7 @@ public final class AnalysisUtils {
         boolean qualified = u.qualifier() != null;
 
         for (Attribute attribute : attrList) {
-            if (!attribute.synthetic()) {
+            if (attribute.synthetic() == false) {
                 boolean match = qualified ? Objects.equals(u.qualifiedName(), attribute.qualifiedName()) :
                 // if the field is unqualified
                 // first check the names directly

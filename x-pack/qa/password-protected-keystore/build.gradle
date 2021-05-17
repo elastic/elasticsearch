@@ -3,17 +3,17 @@
  * is using a password protected keystore in its nodes.
  */
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
+  testImplementation project(path: xpackModule('core'))
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
-  keystorePassword 's3cr3t'
+  keystorePassword 'keystore-password'
 
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.anonymous.roles', 'anonymous'
@@ -29,5 +29,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
 
   user username: 'admin_user', password: 'admin-password'
-  user username:'test-user' ,password: 'test-password', role: 'user_role'
+  user username:'test-user' ,password: 'test-user-password', role: 'user_role'
 }

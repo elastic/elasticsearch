@@ -24,9 +24,8 @@ operations, but you can still explore and navigate results.
 [[ml-close-job-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs-setup-privileges}.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 * Before you can close an {anomaly-job}, you must stop its {dfeed}. See
 <<ml-stop-datafeed>>.
 
@@ -52,7 +51,7 @@ the job.
 NOTE: If you use the `force` query parameter, the request returns without performing
 the associated actions such as flushing buffers and persisting the model snapshots.
 Therefore, do not use this parameter if you want the job to be in a consistent state
-after the close job API returns.  The `force` query parameter should only be used in
+after the close job API returns. The `force` query parameter should only be used in
 situations where the job has already failed, or where you are not interested in
 results the job might have recently produced or might produce in the future.
 

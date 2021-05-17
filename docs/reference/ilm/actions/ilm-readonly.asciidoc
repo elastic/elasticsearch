@@ -2,7 +2,7 @@
 [[ilm-readonly]]
 === Read only
 
-Phases allowed: hot, warm.
+Phases allowed: hot, warm, cold.
 
 Makes the index <<index-blocks-read-only,read-only>>.
 

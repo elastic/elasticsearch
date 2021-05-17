@@ -221,14 +221,14 @@ public abstract class Multibinder<T> {
 
         @Override
         public void configure(Binder binder) {
-            checkConfiguration(!isInitialized(), "Multibinder was already initialized");
+            checkConfiguration(isInitialized() == false, "Multibinder was already initialized");
 
             binder.bind(setKey).toProvider(this);
         }
 
         @Override
         public LinkedBindingBuilder<T> addBinding() {
-            checkConfiguration(!isInitialized(), "Multibinder was already initialized");
+            checkConfiguration(isInitialized() == false, "Multibinder was already initialized");
 
             return binder.bind(Key.get(elementType, new RealElement(setName)));
         }

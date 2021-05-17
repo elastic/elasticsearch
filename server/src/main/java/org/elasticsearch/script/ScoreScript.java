@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
@@ -67,18 +56,18 @@ public abstract class ScoreScript {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
             "doc", value -> {
-                deprecationLogger.deprecate("score-script_doc",
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "score-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an score-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
             "_doc", value -> {
-                deprecationLogger.deprecate("score-script__doc",
+                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "score-script__doc",
                         "Accessing variable [doc] via [params._doc] from within an score-script "
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
-            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+            "_source", value -> ((SourceLookup)value).source()
     );
 
     public static final String[] PARAMETERS = new String[]{ "explanation" };
@@ -95,7 +84,6 @@ public abstract class ScoreScript {
     private int docId;
     private int shardId = -1;
     private String indexName = null;
-    private Version indexVersion = null;
 
     public ScoreScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
         // null check needed b/c of expression engine subclass
@@ -197,19 +185,6 @@ public abstract class ScoreScript {
 
     /**
      *  Starting a name with underscore, so that the user cannot access this function directly through a script
-     *  It is only used within predefined painless functions.
-     * @return index version or throws an exception if the index version is not set up for this script instance
-     */
-    public Version _getIndexVersion() {
-        if (indexVersion != null) {
-            return indexVersion;
-        } else {
-            throw new IllegalArgumentException("index version can not be looked up!");
-        }
-    }
-
-    /**
-     *  Starting a name with underscore, so that the user cannot access this function directly through a script
      */
     public void _setShard(int shardId) {
         this.shardId = shardId;
@@ -220,13 +195,6 @@ public abstract class ScoreScript {
      */
     public void _setIndexName(String indexName) {
         this.indexName = indexName;
-    }
-
-    /**
-     *  Starting a name with underscore, so that the user cannot access this function directly through a script
-     */
-    public void _setIndexVersion(Version indexVersion) {
-        this.indexVersion = indexVersion;
     }
 
 

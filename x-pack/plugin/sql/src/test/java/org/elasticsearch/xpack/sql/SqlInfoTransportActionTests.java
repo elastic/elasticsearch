@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql;
 
@@ -58,9 +59,7 @@ public class SqlInfoTransportActionTests extends ESTestCase {
     public void testAvailable() {
         SqlInfoTransportAction featureSet = new SqlInfoTransportAction(
             mock(TransportService.class), mock(ActionFilters.class), licenseState);
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SQL)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        assertThat(featureSet.available(), is(true));
     }
 
     @SuppressWarnings("unchecked")

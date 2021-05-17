@@ -42,16 +42,13 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     private static final Logger logger = LogManager.getLogger(FsHealthService.class);
     private final ThreadPool threadPool;
+    private volatile StatusInfo statusInfo = new StatusInfo(HEALTHY, "not started");
     private volatile boolean enabled;
-    private volatile boolean brokenLock;
     private final TimeValue refreshInterval;
     private volatile TimeValue slowPathLoggingThreshold;
     private final NodeEnvironment nodeEnv;
     private final LongSupplier currentTimeMillisSupplier;
     private volatile Scheduler.Cancellable scheduledFuture;
-
-    @Nullable // if data path is healthy
-    private volatile Path unhealthyPath;
 
     public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
@@ -98,16 +95,11 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     public StatusInfo getHealth() {
-        final Path unhealthyPath = this.unhealthyPath;
         if (enabled == false) {
             return new StatusInfo(HEALTHY, "health check disabled");
-        } else if (brokenLock) {
-            return new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
-        } else if (unhealthyPath == null) {
-            return new StatusInfo(HEALTHY, "health check passed");
-        } else {
-            return new StatusInfo(UNHEALTHY, "health check failed on [" + unhealthyPath + "]");
         }
+
+        return statusInfo;
     }
 
     class FsHealthMonitor implements Runnable {
@@ -136,8 +128,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
             try {
                 path = nodeEnv.nodeDataPath();
             } catch (IllegalStateException e) {
+                statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
                 logger.error("health check failed", e);
-                brokenLock = true;
                 return;
             }
 
@@ -158,13 +150,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                     }
                 }
             } catch (Exception ex) {
+                statusInfo = new StatusInfo(UNHEALTHY, "health check failed on [" + path + "]");
                 logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
-                unhealthyPath = path;
-                brokenLock = false;
                 return;
             }
-            unhealthyPath = null;
-            brokenLock = false;
+
+            statusInfo = new StatusInfo(HEALTHY, "health check passed");
         }
     }
 }

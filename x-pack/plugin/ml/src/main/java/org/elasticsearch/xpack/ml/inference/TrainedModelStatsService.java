@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -235,12 +236,15 @@ public class TrainedModelStatsService {
 
     private void createStatsIndexIfNecessary() {
         final PlainActionFuture<Boolean> listener = new PlainActionFuture<>();
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver, ActionListener.wrap(
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, indexNameExpressionResolver,
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            ActionListener.wrap(
             r -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlStatsIndex.writeAlias(),
                 MlStatsIndex::mapping,
                 client,
                 clusterState,
+                MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
                 listener),
             listener::onFailure
         ));

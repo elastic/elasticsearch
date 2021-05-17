@@ -10,7 +10,7 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.gradle.initialization.BuildRequestMetaData
-
+import org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin
 import java.util.concurrent.TimeUnit
 
 long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
@@ -22,6 +22,7 @@ buildScan {
     String buildUrl = System.getenv('BUILD_URL')
     String jobName = System.getenv('JOB_NAME')
     String nodeName = System.getenv('NODE_NAME')
+    String jobBranch = System.getenv('JOB_BRANCH')
 
     tag OS.current().name()
     tag Architecture.current().name()
@@ -75,6 +76,10 @@ buildScan {
       link 'CI Build', buildUrl
       link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
       value 'Job Number', buildNumber
+      if (jobBranch) {
+        tag jobBranch
+        value 'Git Branch', jobBranch
+      }
 
       System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
         value 'Jenkins Worker Label', it
@@ -84,18 +89,11 @@ buildScan {
       def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
       if (isPrBuild) {
         value 'Git Commit ID', System.getenv('ghprbActualCommit')
-        value 'Git Branch', System.getenv('ghprbTargetBranch')
-        tag System.getenv('ghprbTargetBranch')
         tag "pr/${System.getenv('ghprbPullId')}"
         tag 'pull-request'
         link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
         link 'Pull Request', System.getenv('ghprbPullLink')
       } else {
-        if (System.getenv('GIT_BRANCH')) {
-          def branch = System.getenv('GIT_BRANCH').split('/').last()
-          value 'Git Branch', branch
-          tag branch
-        }
         value 'Git Commit ID', BuildParams.gitRevision
         link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
       }
@@ -106,17 +104,19 @@ buildScan {
 }
 
 subprojects {
-  tasks.withType(Test).configureEach(new Action<Test>() {
-    @Override
-    void execute(Test test) {
-      test.doLast(new Action<Test>() {
-        @Override
-        void execute(Test t) {
-          if(t.rerun.didRerun.get() == true) {
-            buildScan.tag 'unexpected-test-jvm-exit'
+  project.getPlugins().withType(TestRerunPlugin) {
+    tasks.withType(Test).configureEach(new Action<Test>() {
+      @Override
+      void execute(Test test) {
+        test.doLast(new Action<Test>() {
+          @Override
+          void execute(Test t) {
+            if(t.rerun.didRerun.get() == true) {
+              buildScan.tag 'unexpected-test-jvm-exit'
+            }
           }
-        }
-      })
-    }
-  })
+        })
+      }
+    })
+  }
 }

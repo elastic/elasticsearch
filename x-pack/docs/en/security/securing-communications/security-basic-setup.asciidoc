@@ -105,8 +105,6 @@ contains a node certificate, node key, and CA certificate.
 . Copy the `elastic-certificates.p12` file to the `ES_PATH_CONF`
    directory on every node in your cluster.
 
-*Next*: <<encrypt-internode-communication>>
-
 [[encrypt-internode-communication]]
 ==== Encrypt internode communications with TLS
 
@@ -130,16 +128,15 @@ same cluster, all nodes must share the same `cluster.name` value.
 . Open the `ES_PATH_CONF/elasticsearch.yml` file and make the following
 changes:
 
-   a. Add the `cluster-name` setting and enter a name for your cluster:
+   a. Add the <<cluster-name,`cluster-name`>> setting and enter a name for your cluster:
 +
 [source,yaml]
 ----
 cluster.name: my-cluster
 ----
 
-b. Add the `node.name` setting and enter the name of the certificate that
-you generated for this node. For simplicity, it's good practice for this value
-to match the certificate name that you defined in your `certificates.yaml` file:
+b. Add the <<node-name,`node.name`>> setting and enter a name for the node.
+The node name defaults to the hostname of the machine when {es} starts. 
 +
 [source,yaml]
 ----
@@ -147,16 +144,23 @@ node.name: node-1
 ----
 
 c. Add the following settings to enable internode communication and provide
-access to the node's certificate:
+access to the node's certificate.
++
+Because you are using the same `elastic-certificates.p12` file on every node in
+your cluster, set the verification mode to `certificate`:
 +
 [source,yaml]
 ----
 xpack.security.transport.ssl.enabled: true
-xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.verification_mode: certificate <1>
 xpack.security.transport.ssl.client_authentication: required
-xpack.security.transport.ssl.keystore.path: <node-name>.p12
-xpack.security.transport.ssl.truststore.path: <node-name>.p12
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
 ----
+<1> If you want to use hostname verification, set the verification mode to
+`full`. You should generate a different certificate for each host that
+matches the DNS or IP address. See the 
+`xpack.security.transport.ssl.verification_mode` parameter in {ref}/security-settings.html#transport-tls-ssl-settings[TLS settings].
 
 . If you entered a password when creating the node certificate, run the following commands to store the password in the {es} keystore:
 +

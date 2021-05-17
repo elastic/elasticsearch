@@ -190,7 +190,8 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
 
         // Make sure the state index and alias exist
         ActionListener<Boolean> resultsMappingUpdateHandler = ActionListener.wrap(
-            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver, stateAliasHandler),
+            ack -> AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, clusterState, expressionResolver,
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT, stateAliasHandler),
             task::markAsFailed
         );
 
@@ -201,6 +202,7 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                 AnomalyDetectorsIndex::resultsMapping,
                 client,
                 clusterState,
+                MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
                 resultsMappingUpdateHandler),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
@@ -211,12 +213,14 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
                     AnomalyDetectorsIndex::resultsMapping,
                     client,
                     clusterState,
+                    MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
                     resultsMappingUpdateHandler);
             }
         );
 
         // Create the annotations index if necessary - this also updates the mappings if an old mapping is present
-        AnnotationIndex.createAnnotationsIndexIfNecessary(client, clusterState, annotationsIndexUpdateHandler);
+        AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, clusterState, MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT,
+            annotationsIndexUpdateHandler);
     }
 
     @Override

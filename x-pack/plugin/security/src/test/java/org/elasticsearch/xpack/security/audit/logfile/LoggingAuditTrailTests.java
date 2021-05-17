@@ -2242,7 +2242,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 user = new User(principal, Strings.EMPTY_ARRAY, "Service account - " + principal, null,
                     Map.of("_elastic_service_account", true), true);
                 lookedUpBy = null;
-                authBy = new RealmRef("service_account", "service_account", randomAlphaOfLengthBetween(3, 8));
+                authBy = new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
                 authenticationType = AuthenticationType.TOKEN;
                 authMetadata = Map.of("_token_name", ValidationTests.randomTokenName());
         }

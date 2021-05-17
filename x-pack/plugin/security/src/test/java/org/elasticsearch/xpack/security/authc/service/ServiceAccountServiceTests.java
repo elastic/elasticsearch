@@ -321,7 +321,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret3);
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "secret value too short", ServiceAccountService.class.getName(), Level.DEBUG,
-                "the length of a service account token's secret value must be at least [10], but is ["+ secret3.length() +"]"
+                "the provided credential has length [" + secret3.length()
+                    + "] but a token's secret value must be at least [10] characters"
             ));
             final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
             serviceAccountService.authenticateToken(token3, randomAlphaOfLengthBetween(3, 8), future3);

@@ -8,6 +8,7 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -17,6 +18,7 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.common.inject.matcher.Matchers.not;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -191,6 +193,15 @@ public class EnvironmentTests extends ESTestCase {
         }
     }
 
+    public void testSharedDataPathDeprecation() {
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
+        Environment env = new Environment(settings, null);
+        assertThat(env.sharedDataFile(), notNullValue());
+        assertSettingDeprecationsAndWarnings(new Setting[] { Environment.PATH_SHARED_DATA_SETTING });
+    }
+
     private void assertPath(final String actual, final Path expected) {
         assertIsAbsolute(actual);
         assertIsNormalized(actual);
@@ -204,5 +215,4 @@ public class EnvironmentTests extends ESTestCase {
     private void assertIsNormalized(final String path) {
         assertThat("path [" + path + "] is not normalized", PathUtils.get(path), equalTo(PathUtils.get(path).normalize()));
     }
-
 }

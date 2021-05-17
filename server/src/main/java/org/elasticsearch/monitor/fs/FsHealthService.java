@@ -30,16 +30,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Set;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
- * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the
- * path as unhealthy.
+ * Runs periodically and attempts to create a temp file to see if the filesystem is writable. If not then it marks the path as unhealthy.
  */
 public class FsHealthService extends AbstractLifecycleComponent implements NodeHealthService {
 
@@ -53,8 +50,8 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     private final LongSupplier currentTimeMillisSupplier;
     private volatile Scheduler.Cancellable scheduledFuture;
 
-    @Nullable
-    private volatile Set<Path> unhealthyPaths;
+    @Nullable // if data path is healthy
+    private volatile Path unhealthyPath;
 
     public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
@@ -79,8 +76,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     protected void doStart() {
-        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval,
-                ThreadPool.Names.GENERIC);
+        scheduledFuture = threadPool.scheduleWithFixedDelay(new FsHealthMonitor(), refreshInterval, ThreadPool.Names.GENERIC);
     }
 
     @Override
@@ -102,29 +98,25 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
 
     @Override
     public StatusInfo getHealth() {
-        StatusInfo statusInfo;
-        Set<Path> unhealthyPaths = this.unhealthyPaths;
+        final Path unhealthyPath = this.unhealthyPath;
         if (enabled == false) {
-            statusInfo = new StatusInfo(HEALTHY, "health check disabled");
+            return new StatusInfo(HEALTHY, "health check disabled");
         } else if (brokenLock) {
-            statusInfo = new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
-        } else if (unhealthyPaths == null) {
-            statusInfo = new StatusInfo(HEALTHY, "health check passed");
+            return new StatusInfo(UNHEALTHY, "health check failed due to broken node lock");
+        } else if (unhealthyPath == null) {
+            return new StatusInfo(HEALTHY, "health check passed");
         } else {
-            String info = "health check failed on [" + unhealthyPaths.stream()
-                .map(k -> k.toString()).collect(Collectors.joining(",")) + "]";
-            statusInfo = new StatusInfo(UNHEALTHY, info);
+            return new StatusInfo(UNHEALTHY, "health check failed on [" + unhealthyPath + "]");
         }
-        return statusInfo;
     }
 
-     class FsHealthMonitor implements Runnable {
+    class FsHealthMonitor implements Runnable {
 
         static final String TEMP_FILE_NAME = ".es_temp_file";
-        private byte[] byteToWrite;
+        private final byte[] bytesToWrite;
 
         FsHealthMonitor(){
-            this.byteToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
+            this.bytesToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
         }
 
         @Override
@@ -140,7 +132,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         }
 
         private void monitorFSHealth() {
-            Path path;
+            final Path path;
             try {
                 path = nodeEnv.nodeDataPath();
             } catch (IllegalStateException e) {
@@ -149,14 +141,13 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 return;
             }
 
-            brokenLock = false;
-            long executionStartTime = currentTimeMillisSupplier.getAsLong();
+            final long executionStartTime = currentTimeMillisSupplier.getAsLong();
             try {
                 if (Files.exists(path)) {
-                    Path tempDataPath = path.resolve(TEMP_FILE_NAME);
+                    final Path tempDataPath = path.resolve(TEMP_FILE_NAME);
                     Files.deleteIfExists(tempDataPath);
                     try (OutputStream os = Files.newOutputStream(tempDataPath, StandardOpenOption.CREATE_NEW)) {
-                        os.write(byteToWrite);
+                        os.write(bytesToWrite);
                         IOUtils.fsync(tempDataPath, false);
                     }
                     Files.delete(tempDataPath);
@@ -168,10 +159,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                 }
             } catch (Exception ex) {
                 logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
-                unhealthyPaths = Set.of(path);
+                unhealthyPath = path;
+                brokenLock = false;
                 return;
             }
-            unhealthyPaths = null;
+            unhealthyPath = null;
+            brokenLock = false;
         }
     }
 }

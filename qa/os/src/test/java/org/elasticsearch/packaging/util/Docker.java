@@ -612,4 +612,11 @@ public class Docker {
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
     }
+
+    /**
+     * Restarts the current docker container.
+     */
+    public static void restartContainer() {
+        sh.run("docker restart " + containerId);
+    }
 }

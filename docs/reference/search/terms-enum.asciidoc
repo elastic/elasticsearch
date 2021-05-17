@@ -47,7 +47,7 @@ set of terms examined was not the full set of available values.
 [[search-terms-enum-api-desc]]
 ==== {api-description-title}
 
-The termsenum API  can be used to discover terms in the index that begin with the provided
+The terms_enum API  can be used to discover terms in the index that begin with the provided
 string. It is designed for low-latency look-ups used in auto-complete scenarios.
 
 

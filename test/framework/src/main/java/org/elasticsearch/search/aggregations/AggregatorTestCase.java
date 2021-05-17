@@ -236,18 +236,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                 long bytesToPreallocate,
                                                 int maxBucket,
                                                 MappedFieldType... fieldTypes) throws IOException {
-        MappingLookup mappingLookup = new MappingLookup(
+        MappingLookup mappingLookup = MappingLookup.fromMappers(
             Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
             objectMappers(),
             // Alias all fields to <name>-alias to test aliases
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
-                .collect(toList()),
-            null,
-            null,
-            null
-        );
+                .collect(toList()));
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
             fieldType,
@@ -360,7 +356,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = new MappingLookup(Mapping.EMPTY, Set.of(), Set.of(), Set.of(), null, null, null);
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), Set.of());
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subContext).getNestedDocuments();
         when(ctx.getSearchExecutionContext()).thenReturn(subContext);
 

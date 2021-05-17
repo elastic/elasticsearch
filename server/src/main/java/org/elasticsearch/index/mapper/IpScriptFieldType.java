@@ -42,30 +42,8 @@ import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
-    private static final IpFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (IpFieldScript.LeafFactory) ctx -> new IpFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof String) {
-                    try {
-                        emit((String) v);
-                    } catch (Exception e) {
-                        // ignore parsing exceptions
-                    }
-                }
-            }
-        }
-    };
-
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, IpFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
+        new Builder<>(name, IpFieldScript.CONTEXT, IpFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(IpFieldScript.Factory scriptFactory) {
                 return new IpScriptFieldType(name, scriptFactory, getScript(), meta(), this);

@@ -57,7 +57,6 @@ import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.DATA_TIERS_CACHE_INDEX_PREFERENCE;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 import static org.hamcrest.Matchers.equalTo;
@@ -207,7 +206,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                     .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
                     .get()
                     .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTierAllocationDecider.INDEX_ROUTING_PREFER),
-                equalTo(DATA_TIERS_CACHE_INDEX_PREFERENCE)
+                equalTo("data_content,data_hot")
             );
         }
 

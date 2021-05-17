@@ -23,7 +23,6 @@ import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 /**
  * Simple unit-tests for Environment.java
@@ -158,19 +157,37 @@ public class EnvironmentTests extends ESTestCase {
     }
 
     public void testSingleDataPathListCheck() {
+        Path homeDir = createTempDir();
         {
-            final Settings settings = Settings.builder().build();
-            assertThat(Environment.dataPathUsesList(settings), is(false));
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeDir).build();
+            Environment env = new Environment(settings, null, createTempDir());
+            assertThat(env.dataFile(), equalTo(homeDir.resolve("data")));
         }
         {
             final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
-            assertThat(Environment.dataPathUsesList(settings), is(true));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                new Environment(settings, null, createTempDir()));
+            assertThat(e.getMessage(), startsWith("[path.data] is a list"));
         }
         {
             final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
-            assertThat(Environment.dataPathUsesList(settings), is(true));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                new Environment(settings, null, createTempDir()));
+            assertThat(e.getMessage(), startsWith("[path.data] is a list"));
+        }
+        {
+            // also check as if the data was munged into a string already in settings
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
+                .put(Environment.PATH_DATA_SETTING.getKey(), "[" + createTempDir().toString() + "]").build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+                new Environment(settings, null, createTempDir()));
+            assertThat(e.getMessage(), startsWith("[path.data] is a list"));
         }
     }
 

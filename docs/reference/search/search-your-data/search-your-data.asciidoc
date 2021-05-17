@@ -220,7 +220,7 @@ _synchronous_ by default. The search request waits for complete results before
 returning a response.
 
 However, complete results can take longer for searches across
-<<frozen-indices,frozen indices>> or <<modules-cross-cluster-search,multiple
+<<freeze-index-api,frozen indices>> or <<modules-cross-cluster-search,multiple
 clusters>>.
 
 To avoid long waits, you can run an _asynchronous_, or _async_, search

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -31,8 +32,8 @@ import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
@@ -61,7 +62,13 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class, BlockingUsageActionXPackPlugin.class);
+        return Arrays.asList(getTestTransportPlugin(), BlockingUsageActionXPackPlugin.class, NioTransportPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int ordinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(ordinal, otherSettings))
+            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME).build();
     }
 
     @Override

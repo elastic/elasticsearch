@@ -22,6 +22,7 @@ buildScan {
     String buildUrl = System.getenv('BUILD_URL')
     String jobName = System.getenv('JOB_NAME')
     String nodeName = System.getenv('NODE_NAME')
+    String jobBranch = System.getenv('JOB_BRANCH')
 
     tag OS.current().name()
     tag Architecture.current().name()
@@ -75,8 +76,10 @@ buildScan {
       link 'CI Build', buildUrl
       link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
       value 'Job Number', buildNumber
-      tag System.getenv('JOB_BRANCH')
-      value 'Git Branch', System.getenv('JOB_BRANCH')
+      if (jobBranch) {
+        tag jobBranch
+        value 'Git Branch', jobBranch
+      }
 
       System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
         value 'Jenkins Worker Label', it

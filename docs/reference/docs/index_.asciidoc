@@ -518,7 +518,7 @@ In addition to the `external` version type, Elasticsearch
 also supports other types for specific use cases:
 
 [[_version_types]]
-`external` or `external_gt`:: Only index the document if the given version is strictly higher
+`external` or `external_gte`:: Only index the document if the given version is strictly higher
 than the version of the stored document *or* if there is no existing document. The given
 version will be used as the new version and will be stored with the new document. The supplied
 version must be a non-negative long number.

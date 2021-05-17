@@ -292,7 +292,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     protected void doValidate(MappingLookup mappers) {
-        List<String> joinFields = getJoinFieldTypes(mappers.fieldTypes()).stream()
+        List<String> joinFields = getJoinFieldTypes(mappers.getAllFieldTypes()).stream()
             .map(JoinFieldType::name)
             .collect(Collectors.toList());
         if (joinFields.size() > 1) {

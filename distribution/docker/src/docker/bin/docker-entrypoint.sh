@@ -63,8 +63,9 @@ if [[ -n "$ES_LOG_STYLE" ]]; then
       # This is the default. Nothing to do.
       ;;
     file)
-      # Overwrite the default config with the stack config
-      mv /usr/share/elasticsearch/config/log4j2.file.properties /usr/share/elasticsearch/config/log4j2.properties
+      # Overwrite the default config with the stack config. Do this as a
+      # copy, not a move, in case the container is restarted.
+      cp -f /usr/share/elasticsearch/config/log4j2.file.properties /usr/share/elasticsearch/config/log4j2.properties
       ;;
     *)
       echo "ERROR: ES_LOG_STYLE set to [$ES_LOG_STYLE]. Expected [console] or [file]" >&2

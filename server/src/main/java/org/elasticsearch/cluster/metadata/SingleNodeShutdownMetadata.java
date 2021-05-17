@@ -29,15 +29,11 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         ToXContentObject,
         Diffable<SingleNodeShutdownMetadata> {
 
-    private static final ParseField NODE_ID_FIELD = new ParseField("node_id");
-    private static final ParseField TYPE_FIELD = new ParseField("type");
-    private static final ParseField REASON_FIELD = new ParseField("reason");
-    private static final ParseField STATUS_FIELD = new ParseField("shutdown_status");
-    private static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
-    private static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
-    private static final ParseField SHARD_MIGRATION_FIELD = new ParseField("shard_migration");
-    private static final ParseField PERSISTENT_TASKS_FIELD = new ParseField("persistent_tasks");
-    private static final ParseField PLUGINS_STATUS = new ParseField("plugins");
+    public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField REASON_FIELD = new ParseField("reason");
+    public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
+    public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
 
     public static final ConstructingObjectParser<SingleNodeShutdownMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "node_shutdown_info",
@@ -45,11 +41,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             (String) a[0],
             Type.valueOf((String) a[1]),
             (String) a[2],
-            Status.valueOf((String) a[3]),
-            (long) a[4],
-            (NodeShutdownComponentStatus) a[5],
-            (NodeShutdownComponentStatus) a[6],
-            (NodeShutdownComponentStatus) a[7]
+            (long) a[3]
         )
     );
 
@@ -57,23 +49,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), STATUS_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (parser, context) -> NodeShutdownComponentStatus.parse(parser),
-            SHARD_MIGRATION_FIELD
-        );
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (parser, context) -> NodeShutdownComponentStatus.parse(parser),
-            PERSISTENT_TASKS_FIELD
-        );
-        PARSER.declareObject(
-            ConstructingObjectParser.constructorArg(),
-            (parser, context) -> NodeShutdownComponentStatus.parse(parser),
-            PLUGINS_STATUS
-        );
     }
 
     public static SingleNodeShutdownMetadata parse(XContentParser parser) {
@@ -83,51 +59,31 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     private final String nodeId;
     private final Type type;
     private final String reason;
-    private final Status status;
     private final long startedAtMillis;
-    private final NodeShutdownComponentStatus shardMigrationStatus;
-    private final NodeShutdownComponentStatus persistentTasksStatus;
-    private final NodeShutdownComponentStatus pluginsStatus;
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
      * @param type The type of shutdown. See {@link Type}.
      * @param reason The reason for the shutdown, per the original shutdown request.
-     * @param status The overall status of this shutdown.
      * @param startedAtMillis The timestamp at which this shutdown was requested.
-     * @param shardMigrationStatus The status of shard migrations away from this node.
-     * @param persistentTasksStatus The status of persistent task migration away from this node.
-     * @param pluginsStatus The status of plugin shutdown on this node.
      */
     private SingleNodeShutdownMetadata(
         String nodeId,
         Type type,
         String reason,
-        Status status,
-        long startedAtMillis,
-        NodeShutdownComponentStatus shardMigrationStatus,
-        NodeShutdownComponentStatus persistentTasksStatus,
-        NodeShutdownComponentStatus pluginsStatus
+        long startedAtMillis
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
-        this.status = status;
         this.startedAtMillis = startedAtMillis;
-        this.shardMigrationStatus = Objects.requireNonNull(shardMigrationStatus, "shard migration status must not be null");
-        this.persistentTasksStatus = Objects.requireNonNull(persistentTasksStatus, "persistent tasks status must not be null");
-        this.pluginsStatus = Objects.requireNonNull(pluginsStatus, "plugins status must not be null");
     }
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
-        this.status = in.readEnum(Status.class);
         this.startedAtMillis = in.readVLong();
-        this.shardMigrationStatus = new NodeShutdownComponentStatus(in);
-        this.persistentTasksStatus = new NodeShutdownComponentStatus(in);
-        this.pluginsStatus = new NodeShutdownComponentStatus(in);
     }
 
     /**
@@ -152,38 +108,10 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
     }
 
     /**
-     * @return The status of this node's shutdown.
-     */
-    public Status getStatus() {
-        return status;
-    }
-
-    /**
      * @return The timestamp that this shutdown procedure was started.
      */
     public long getStartedAtMillis() {
         return startedAtMillis;
-    }
-
-    /**
-     * @return The status of shard migrations off of this node.
-     */
-    public NodeShutdownComponentStatus getShardMigrationStatus() {
-        return shardMigrationStatus;
-    }
-
-    /**
-     * @return The status of persistent task shutdown on this node.
-     */
-    public NodeShutdownComponentStatus getPersistentTasksStatus() {
-        return persistentTasksStatus;
-    }
-
-    /**
-     * @return The status of plugin shutdown on this node.
-     */
-    public NodeShutdownComponentStatus getPluginsStatus() {
-        return pluginsStatus;
     }
 
     @Override
@@ -191,11 +119,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         out.writeString(nodeId);
         out.writeEnum(type);
         out.writeString(reason);
-        out.writeEnum(status);
         out.writeVLong(startedAtMillis);
-        shardMigrationStatus.writeTo(out);
-        persistentTasksStatus.writeTo(out);
-        pluginsStatus.writeTo(out);
     }
 
     @Override
@@ -205,11 +129,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
-            builder.field(STATUS_FIELD.getPreferredName(), status);
             builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
-            builder.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus);
-            builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
-            builder.field(PLUGINS_STATUS.getPreferredName(), pluginsStatus);
         }
         builder.endObject();
 
@@ -224,11 +144,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         return getStartedAtMillis() == that.getStartedAtMillis()
             && getNodeId().equals(that.getNodeId())
             && getType() == that.getType()
-            && getReason().equals(that.getReason())
-            && status == that.status
-            && shardMigrationStatus.equals(that.shardMigrationStatus)
-            && persistentTasksStatus.equals(that.persistentTasksStatus)
-            && pluginsStatus.equals(that.pluginsStatus);
+            && getReason().equals(that.getReason());
     }
 
     @Override
@@ -237,11 +153,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             getNodeId(),
             getType(),
             getReason(),
-            status,
-            getStartedAtMillis(),
-            shardMigrationStatus,
-            persistentTasksStatus,
-            pluginsStatus
+            getStartedAtMillis()
         );
     }
 
@@ -257,11 +169,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             .setNodeId(original.getNodeId())
             .setType(original.getType())
             .setReason(original.getReason())
-            .setStatus(original.getStatus())
-            .setStartedAtMillis(original.getStartedAtMillis())
-            .setShardMigrationStatus(original.getShardMigrationStatus())
-            .setPersistentTasksStatus(original.getPersistentTasksStatus())
-            .setPluginsStatus(original.getPluginsStatus());
+            .setStartedAtMillis(original.getStartedAtMillis());
     }
 
     public static class Builder {
@@ -269,10 +177,6 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         private Type type;
         private String reason;
         private long startedAtMillis = -1;
-        private Status status = Status.IN_PROGRESS;
-        private NodeShutdownComponentStatus shardMigrationStatus = new NodeShutdownComponentStatus();
-        private NodeShutdownComponentStatus persistentTasksStatus = new NodeShutdownComponentStatus();
-        private NodeShutdownComponentStatus pluginsStatus = new NodeShutdownComponentStatus();
 
         private Builder() {}
 
@@ -312,42 +216,6 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
             return this;
         }
 
-        /**
-         * @param status The status of this shutdown.
-         * @return This builder.
-         */
-        public Builder setStatus(Status status) {
-            this.status = status;
-            return this;
-        }
-
-        /**
-         * @param shardMigrationStatus An object describing the status of shard migration away from this node.
-         * @return This builder.
-         */
-        public Builder setShardMigrationStatus(NodeShutdownComponentStatus shardMigrationStatus) {
-            this.shardMigrationStatus = shardMigrationStatus;
-            return this;
-        }
-
-        /**
-         * @param persistentTasksStatus An object describing the status of persistent task migration away from this node.
-         * @return This builder.
-         */
-        public Builder setPersistentTasksStatus(NodeShutdownComponentStatus persistentTasksStatus) {
-            this.persistentTasksStatus = persistentTasksStatus;
-            return this;
-        }
-
-        /**
-         * @param pluginsStatus An object describing the status of plugin shutdown on this node.
-         * @return
-         */
-        public Builder setPluginsStatus(NodeShutdownComponentStatus pluginsStatus) {
-            this.pluginsStatus = pluginsStatus;
-            return this;
-        }
-
         public SingleNodeShutdownMetadata build() {
             if (startedAtMillis == -1) {
                 throw new IllegalArgumentException("start timestamp must be set");
@@ -356,11 +224,7 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
                 nodeId,
                 type,
                 reason,
-                status,
-                startedAtMillis,
-                shardMigrationStatus,
-                persistentTasksStatus,
-                pluginsStatus
+                startedAtMillis
             );
         }
     }

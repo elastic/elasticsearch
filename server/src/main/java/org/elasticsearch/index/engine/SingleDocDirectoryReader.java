@@ -30,7 +30,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.ShardId;
@@ -47,8 +48,9 @@ import java.util.concurrent.atomic.AtomicReference;
 final class SingleDocDirectoryReader extends DirectoryReader {
     private final SingleDocLeafReader leafReader;
 
-    SingleDocDirectoryReader(ShardId shardId, Translog.Index operation, DocumentMapper mapper, Analyzer analyzer) throws IOException {
-        this(new SingleDocLeafReader(shardId, operation, mapper, analyzer));
+    SingleDocDirectoryReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
+                             Analyzer analyzer) throws IOException {
+        this(new SingleDocLeafReader(shardId, operation, mappingLookup, documentParser, analyzer));
     }
 
     private SingleDocDirectoryReader(SingleDocLeafReader leafReader) throws IOException {
@@ -109,15 +111,18 @@ final class SingleDocDirectoryReader extends DirectoryReader {
 
         private final ShardId shardId;
         private final Translog.Index operation;
-        private final DocumentMapper mapper;
+        private final MappingLookup mappingLookup;
+        private final DocumentParser documentParser;
         private final Analyzer analyzer;
         private final Directory directory;
         private final AtomicReference<LeafReader> delegate = new AtomicReference<>();
 
-        SingleDocLeafReader(ShardId shardId, Translog.Index operation, DocumentMapper mapper, Analyzer analyzer) {
+        SingleDocLeafReader(ShardId shardId, Translog.Index operation, MappingLookup mappingLookup, DocumentParser documentParser,
+                            Analyzer analyzer) {
             this.shardId = shardId;
             this.operation = operation;
-            this.mapper = mapper;
+            this.mappingLookup = mappingLookup;
+            this.documentParser = documentParser;
             this.analyzer = analyzer;
             this.directory = new ByteBuffersDirectory();
         }
@@ -140,8 +145,8 @@ final class SingleDocDirectoryReader extends DirectoryReader {
 
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
-            final ParsedDocument parsedDocs = mapper.parse(new SourceToParse(shardId.getIndexName(), operation.id(),
-                operation.source(), XContentHelper.xContentType(operation.source()), operation.routing(), Map.of()));
+            final ParsedDocument parsedDocs = documentParser.parseDocument(new SourceToParse(shardId.getIndexName(), operation.id(),
+                operation.source(), XContentHelper.xContentType(operation.source()), operation.routing(), Map.of()), mappingLookup);
 
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());

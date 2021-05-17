@@ -5,6 +5,8 @@
 # Side Public License, v 1.
 
 java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
+java.nio.file.Path#of(java.net.URI) @ Use org.elasticsearch.common.io.PathUtils.get() instead.
+java.nio.file.Path#of(java.lang.String, java.lang.String[]) @ Use org.elasticsearch.common.io.PathUtils.get() instead.
 java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.
 
 java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.getFileStore() instead, impacted by JDK-8034057

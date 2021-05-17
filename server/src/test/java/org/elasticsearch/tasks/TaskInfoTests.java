@@ -158,10 +158,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                 // if cancellable but not cancelled then mutate exactly one of the flags
                 //
                 // cancellable | cancelled | random | cancellable == cancelled | isNowCancellable | isNowCancelled
-                // false       | false     | false  | true                     | true             | false
-                // false       | false     | true   | true                     | true             | false
-                // true        | true      | false  | true                     | true             | false
-                // true        | true      | true   | true                     | true             | false
+                // false       | false     | -      | true                     | true             | false
+                // true        | true      | -      | true                     | true             | false
                 // true        | false     | false  | false                    | false            | false
                 // true        | false     | true   | false                    | true             | true
                 boolean isNowCancellable = info.isCancellable() == info.isCancelled() || randomBoolean();

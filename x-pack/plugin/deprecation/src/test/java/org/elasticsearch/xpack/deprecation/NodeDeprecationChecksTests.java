@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -17,7 +15,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;

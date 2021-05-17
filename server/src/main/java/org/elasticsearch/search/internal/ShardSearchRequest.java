@@ -237,13 +237,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
         channelVersion = Version.min(Version.readVersion(in), in.getVersion());
-        originalIndices = OriginalIndices.readOriginalIndices(in);
         // TODO: Update after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             afterRefreshedSeqNo = in.readLong();
         } else {
             afterRefreshedSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         }
+        originalIndices = OriginalIndices.readOriginalIndices(in);
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {

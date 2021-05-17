@@ -43,7 +43,7 @@ this API. For more information, see
 [[watcher-api-get-watch-example]]
 ==== {api-examples-title}
 
-The following example gets a watch with `my-watch` id:
+The following example gets a watch with `my_watch` id:
 
 [source,console]
 --------------------------------------------------

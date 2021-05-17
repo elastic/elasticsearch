@@ -8,7 +8,6 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -18,7 +17,6 @@ import java.net.URL;
 import java.nio.file.Path;
 import java.util.List;
 
-import static org.elasticsearch.common.inject.matcher.Matchers.not;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;

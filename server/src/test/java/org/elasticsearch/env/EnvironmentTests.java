@@ -193,15 +193,6 @@ public class EnvironmentTests extends ESTestCase {
         }
     }
 
-    public void testSharedDataPathDeprecation() {
-        final Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
-        Environment env = new Environment(settings, null);
-        assertThat(env.sharedDataFile(), notNullValue());
-        assertSettingDeprecationsAndWarnings(new Setting[] { Environment.PATH_SHARED_DATA_SETTING });
-    }
-
     private void assertPath(final String actual, final Path expected) {
         assertIsAbsolute(actual);
         assertIsNormalized(actual);

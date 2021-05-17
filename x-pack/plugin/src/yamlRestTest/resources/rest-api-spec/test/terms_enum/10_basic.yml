@@ -280,10 +280,6 @@ teardown:
 
 ---
 "Test null search string allowed":
-  - skip:
-      version: " - 7.99.99"
-      reason:  TODO remove this skip after PR 73144 is backported to 7.x
-
   - do:
       terms_enum:
         index:  test_k

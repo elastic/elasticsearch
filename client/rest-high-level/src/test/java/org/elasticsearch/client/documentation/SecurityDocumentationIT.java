@@ -65,6 +65,7 @@ import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -2560,6 +2561,51 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
             assertThat(resp.getAuthenticationType(), is("token"));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testNodeEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::node-enrollment-execute
+            NodeEnrollmentResponse response = client.security().enrollNode(RequestOptions.DEFAULT);
+            // end::node-enrollment-execute
+
+            // tag::node-enrollment-response
+            String httpCaKey = response.getHttpCaKey(); // <1>
+            String httpCaCert = response.getHttpCaCert(); // <2>
+            String transportKey = response.getTransportKey(); // <3>
+            String transportCert = response.getTransportCert(); // <4>
+            String clusterName = response.getClusterName(); // <5>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <6>
+            // end::node-enrollment-response
+        }
+
+        {
+            // tag::node-enrollment-execute-listener
+            ActionListener<NodeEnrollmentResponse> listener =
+                new ActionListener<NodeEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(NodeEnrollmentResponse response) {
+                        // <1>
+                    }
+
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::node-enrollment-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::node-enrollment-execute-async
+            client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
+            // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

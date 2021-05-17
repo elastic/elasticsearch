@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsSamplerAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -590,7 +591,9 @@ public class AggregationProfilerIT extends ESIntegTestCase {
 
         SearchResponse response = client().prepareSearch("dateidx")
             .setProfile(true)
-            .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
+            .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH)
+                // Add a sub-agg so we don't get to use metadata. That's great and all, but it outputs less debugging info for us to verify.
+                .subAggregation(new MaxAggregationBuilder("m").field("date")))
             .get();
         assertSearchResponse(response);
         Map<String, ProfileShardResult> profileResults = response.getProfileResults();
@@ -607,7 +610,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(histoAggResult, notNullValue());
             assertThat(histoAggResult.getQueryName(), equalTo("DateHistogramAggregator.FromDateRange"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
-            assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
+            assertThat(histoAggResult.getProfiledChildren().size(), equalTo(1));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> breakdown = histoAggResult.getTimeBreakdown();
             assertThat(breakdown, notNullValue());
@@ -639,7 +642,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             Map<?, ?> queryDebug = (Map<?, ?>) filtersDebug.get(0);
             assertThat(queryDebug, hasKey("scorers_prepared_while_estimating_cost"));
             assertThat((int) queryDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
-            assertThat(queryDebug, hasEntry("query", "ConstantScore(DocValuesFieldExistsQuery [field=date])"));
+            assertThat(queryDebug, hasEntry("query", "DocValuesFieldExistsQuery [field=date]"));
         }
     }
 }

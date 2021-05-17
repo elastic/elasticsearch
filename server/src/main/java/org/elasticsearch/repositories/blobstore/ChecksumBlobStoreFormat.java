@@ -137,10 +137,14 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         // checksum updated with all but the last 8 bytes read from the wrapped stream
         private final CRC32 crc32 = new CRC32();
 
+        // Only the first buffer.length - 16 bytes are exposed by the read() methods; once the read position reaches 16 bytes from the end
+        // of the buffer the remaining 16 bytes are moved to the start of the buffer and the rest of the buffer is filled from the stream.
         private final byte[] buffer = new byte[1024 * 8];
 
+        // the number of bytes in the buffer, in [0, buffer.length], equal to buffer.length unless the last fill hit EOF
         private int bufferCount;
 
+        // the current read position within the buffer, in [0, bufferCount - 16]
         private int bufferPos;
 
         DeserializeMetaBlobInputStream(InputStream in) {
@@ -244,8 +248,9 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                 // crc and discard all but the last 16 bytes in the buffer that might be the footer bytes
                 final int footerLen = CodecUtil.footerLength();
                 assert bufferCount >= footerLen;
-                crc32.update(buffer, 0, bufferCount - footerLen);
-                System.arraycopy(buffer, bufferCount - footerLen, buffer, 0, footerLen);
+                assert bufferPos == bufferCount - footerLen;
+                crc32.update(buffer, 0, bufferPos);
+                System.arraycopy(buffer, bufferPos, buffer, 0, footerLen);
                 bufferCount = footerLen + Streams.readFully(in, buffer, footerLen, buffer.length - footerLen);
                 bufferPos = 0;
             }

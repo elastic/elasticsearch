@@ -27,6 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,9 +40,9 @@ import java.util.Map;
  */
 final class RewriteCachingDirectoryReader extends DirectoryReader {
 
-    RewriteCachingDirectoryReader(Directory directory, List<LeafReaderContext> segmentReaders) throws
-        IOException {
-        super(directory, wrap(segmentReaders));
+    RewriteCachingDirectoryReader(Directory directory, List<LeafReaderContext> segmentReaders,
+                                  Comparator<LeafReader> leafSorter) throws IOException {
+        super(directory, wrap(segmentReaders), leafSorter);
     }
 
     private static LeafReader[] wrap(List<LeafReaderContext> readers) throws IOException {

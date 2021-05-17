@@ -109,7 +109,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     protected void registerAsDeprecatedHandler(RestRequest.Method method, String path,
                                                RestHandler handler, String deprecationMessage) {
         assert (handler instanceof DeprecationRestHandler) == false;
-        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
+        registerHandler(method, path, new DeprecationRestHandler(handler, method, path, deprecationMessage, deprecationLogger));
     }
 
     /**

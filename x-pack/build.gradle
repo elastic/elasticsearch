@@ -37,7 +37,7 @@ subprojects {
   }
 
   project.getPluginManager().withPlugin("elasticsearch.publish") {
-    ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
+    ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
   }
 
   project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt')

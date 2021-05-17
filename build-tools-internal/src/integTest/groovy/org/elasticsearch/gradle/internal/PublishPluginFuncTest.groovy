@@ -10,8 +10,10 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import org.junit.Ignore
 import org.xmlunit.builder.DiffBuilder
 import org.xmlunit.builder.Input
+import spock.lang.IgnoreRest
 
 class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
@@ -38,16 +40,42 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-1.0-sources.jar").exists()
         file("build/distributions/hello-world-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
-            <project xmlns="http://maven.apache.org/POM/4.0.0" 
-                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" 
-                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-              <modelVersion>4.0.0</modelVersion>
-              <groupId>org.acme</groupId>
-              <artifactId>hello-world</artifactId>
-              <version>1.0</version>
-              <name>hello-world</name>
-              <description>custom project description</description>
-            </project>"""
+            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- This module was also published with a richer model, Gradle metadata,  -->
+  <!-- which should be used instead. Do not delete the following line which  -->
+  <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+  <!-- that they should prefer consuming it instead. -->
+  <!-- do_not_remove: published-with-gradle-metadata -->
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.acme</groupId>
+  <artifactId>hello-world</artifactId>
+  <version>1.0</version>
+  <name>hello-world</name>
+  <description>custom project description</description>
+  <url>unknown</url>
+  <scm>
+    <url>unknown</url>
+  </scm>
+  <inceptionYear>2009</inceptionYear>
+  <licenses>
+    <license>
+      <name>Elastic License 2.0</name>
+      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
+      <name>Server Side Public License, v 1</name>
+      <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+      <distribution>repo</distribution>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <name>Elastic</name>
+      <url>https://www.elastic.co</url>
+    </developer>
+  </developers>
+</project>"""
         )
     }
 
@@ -216,15 +244,41 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-plugin-1.0-sources.jar").exists()
         file("build/distributions/hello-world-plugin-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-plugin-1.0.pom").text, """
-            <project xmlns="http://maven.apache.org/POM/4.0.0" 
-                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" 
-                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <!-- This module was also published with a richer model, Gradle metadata,  -->
+              <!-- which should be used instead. Do not delete the following line which  -->
+              <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+              <!-- that they should prefer consuming it instead. -->
+              <!-- do_not_remove: published-with-gradle-metadata -->
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
               <artifactId>hello-world-plugin</artifactId>
               <version>1.0</version>
               <name>hello-world</name>
               <description>custom project description</description>
+              <url>unknown</url>
+              <scm>
+                <url>unknown</url>
+              </scm>
+              <inceptionYear>2009</inceptionYear>
+              <licenses>
+                <license>
+                  <name>Elastic License 2.0</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>Server Side Public License, v 1</name>
+                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+                  <distribution>repo</distribution>
+                </license>
+              </licenses>
+              <developers>
+                <developer>
+                  <name>Elastic</name>
+                  <url>https://www.elastic.co</url>
+                </developer>
+              </developers>
               <dependencies/>
             </project>"""
         )
@@ -250,7 +304,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             tasks.named('bundlePlugin').configure { enabled = false }
             licenseFile = file('license.txt')
             noticeFile = file('notice.txt')
-            version = "1.0"
+            version = "2.0"
             group = 'org.acme'        
         """
 
@@ -259,22 +313,48 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
-        file("build/distributions/hello-world-plugin-1.0.pom").exists()
-        assertXmlEquals(file("build/distributions/hello-world-plugin-1.0.pom").text, """
-            <project xmlns="http://maven.apache.org/POM/4.0.0" 
-                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" 
-                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        file("build/distributions/hello-world-plugin-2.0.pom").exists()
+        assertXmlEquals(file("build/distributions/hello-world-plugin-2.0.pom").text, """
+            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <!-- This module was also published with a richer model, Gradle metadata,  -->
+              <!-- which should be used instead. Do not delete the following line which  -->
+              <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+              <!-- that they should prefer consuming it instead. -->
+              <!-- do_not_remove: published-with-gradle-metadata -->
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
               <artifactId>hello-world-plugin</artifactId>
-              <version>1.0</version>
+              <version>2.0</version>
               <name>hello-world</name>
               <description>custom project description</description>
+              <url>unknown</url>
+              <scm>
+                <url>unknown</url>
+              </scm>
+              <inceptionYear>2009</inceptionYear>
+              <licenses>
+                <license>
+                  <name>Elastic License 2.0</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v2.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>Server Side Public License, v 1</name>
+                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+                  <distribution>repo</distribution>
+                </license>
+              </licenses>
+              <developers>
+                <developer>
+                  <name>Elastic</name>
+                  <url>https://www.elastic.co</url>
+                </developer>
+              </developers>
             </project>"""
         )
     }
 
-    def "generated pom can be tweaked and validated"() {
+    def "generated pom can be validated"() {
         given:
         // scm info only added for internal builds
         internalBuild()
@@ -288,68 +368,47 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             group = 'org.acme'        
             description = "just a test project"
             
-            // this is currently required to have validation passed
-            // In our elasticsearch build this is currently setup in the 
-            // root build.gradle file.
-            plugins.withType(MavenPublishPlugin) {
-                publishing {
-                    publications {
-                        // add license information to generated poms
-                        all {
-                            pom.withXml { XmlProvider xml ->
-                                Node node = xml.asNode()
-                                node.appendNode('inceptionYear', '2009')
-                
-                                Node license = node.appendNode('licenses').appendNode('license')
-                                license.appendNode('name', "The Apache Software License, Version 2.0")
-                                license.appendNode('url', "http://www.apache.org/licenses/LICENSE-2.0.txt")
-                                license.appendNode('distribution', 'repo')
-              
-                                Node developer = node.appendNode('developers').appendNode('developer')
-                                developer.appendNode('name', 'Elastic')
-                                developer.appendNode('url', 'https://www.elastic.co')
-                            }
-                        }
-                    }
-                }
-            }
+            ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
         """
 
         when:
-        def result = gradleRunner('generatePom', 'validatElasticPom').build()
+        def result = gradleRunner('generatePom', 'validateElasticPom').build()
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
-            <project xmlns="http://maven.apache.org/POM/4.0.0" 
-                     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" 
-                     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-              <modelVersion>4.0.0</modelVersion>
-              <groupId>org.acme</groupId>
-              <artifactId>hello-world</artifactId>
-              <version>1.0</version>
-              <name>hello-world</name>
-              <description>just a test project</description>
-              <url>https://some-repo.com/repo.git</url>
-              <scm>
-                <url>https://some-repo.com/repo.git</url>
-              </scm>
-              <inceptionYear>2009</inceptionYear>
-              <licenses>
-                <license>
-                  <name>The Apache Software License, Version 2.0</name>
-                  <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-                  <distribution>repo</distribution>
-                </license>
-              </licenses>
-              <developers>
-                <developer>
-                  <name>Elastic</name>
-                  <url>https://www.elastic.co</url>
-                </developer>
-              </developers>
-            </project>"""
+            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+          <!-- This module was also published with a richer model, Gradle metadata,  -->
+          <!-- which should be used instead. Do not delete the following line which  -->
+          <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+          <!-- that they should prefer consuming it instead. -->
+          <!-- do_not_remove: published-with-gradle-metadata -->
+          <modelVersion>4.0.0</modelVersion>
+          <groupId>org.acme</groupId>
+          <artifactId>hello-world</artifactId>
+          <version>1.0</version>
+          <name>hello-world</name>
+          <description>just a test project</description>
+          <url>unknown</url>
+          <scm>
+            <url>unknown</url>
+          </scm>
+          <inceptionYear>2009</inceptionYear>
+          <licenses>
+            <license>
+              <name>The Apache Software License, Version 2.0</name>
+              <url>http://www.apache.org/licenses/LICENSE-2.0</url>
+              <distribution>repo</distribution>
+            </license>
+          </licenses>
+          <developers>
+            <developer>
+              <name>Elastic</name>
+              <url>https://www.elastic.co</url>
+            </developer>
+          </developers>
+        </project>"""
         )
     }
 

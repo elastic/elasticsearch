@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.internal.LoggedExec;
+import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;

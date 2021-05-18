@@ -42,22 +42,17 @@ public class FsProbe {
         if (nodeEnv.hasNodeFile() == false) {
             return new FsInfo(System.currentTimeMillis(), null, new FsInfo.Path[0]);
         }
-        NodePath[] dataLocations = nodeEnv.nodePaths();
-        FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
-        for (int i = 0; i < dataLocations.length; i++) {
-            paths[i] = getFSInfo(dataLocations[i]);
-        }
+        NodePath dataLocation = nodeEnv.nodePath();
+        FsInfo.Path pathInfo = getFSInfo(dataLocation);
         FsInfo.IoStats ioStats = null;
         if (Constants.LINUX) {
             Set<Tuple<Integer, Integer>> devicesNumbers = new HashSet<>();
-            for (int i = 0; i < dataLocations.length; i++) {
-                if (dataLocations[i].majorDeviceNumber != -1 && dataLocations[i].minorDeviceNumber != -1) {
-                    devicesNumbers.add(Tuple.tuple(dataLocations[i].majorDeviceNumber, dataLocations[i].minorDeviceNumber));
-                }
+            if (dataLocation.majorDeviceNumber != -1 && dataLocation.minorDeviceNumber != -1) {
+                devicesNumbers.add(Tuple.tuple(dataLocation.majorDeviceNumber, dataLocation.minorDeviceNumber));
             }
             ioStats = ioStats(devicesNumbers, previous);
         }
-        return new FsInfo(System.currentTimeMillis(), ioStats, paths);
+        return new FsInfo(System.currentTimeMillis(), ioStats, new FsInfo.Path[] { pathInfo });
     }
 
     final FsInfo.IoStats ioStats(final Set<Tuple<Integer, Integer>> devicesNumbers, final FsInfo previous) {
@@ -86,6 +81,7 @@ public class FsProbe {
                     final long sectorsRead = Long.parseLong(fields[5]);
                     final long writesCompleted = Long.parseLong(fields[7]);
                     final long sectorsWritten = Long.parseLong(fields[9]);
+                    final long ioTime = Long.parseLong(fields[12]);
                     final FsInfo.DeviceStats deviceStats =
                             new FsInfo.DeviceStats(
                                     majorDeviceNumber,
@@ -95,6 +91,7 @@ public class FsProbe {
                                     sectorsRead,
                                     writesCompleted,
                                     sectorsWritten,
+                                    ioTime,
                                     deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)));
                     devicesStats.add(deviceStats);
                 }

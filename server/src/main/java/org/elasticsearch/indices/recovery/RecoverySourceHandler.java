@@ -74,7 +74,6 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -396,12 +395,7 @@ public class RecoverySourceHandler {
      */
     private Engine.IndexCommitRef acquireSafeCommit(IndexShard shard) {
         final Engine.IndexCommitRef commitRef = shard.acquireSafeIndexCommit();
-        final AtomicBoolean closed = new AtomicBoolean(false);
-        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> {
-            if (closed.compareAndSet(false, true)) {
-                runWithGenericThreadPool(commitRef::close);
-            }
-        });
+        return new Engine.IndexCommitRef(commitRef.getIndexCommit(), () -> runWithGenericThreadPool(commitRef::close));
     }
 
     private void runWithGenericThreadPool(CheckedRunnable<Exception> task) {

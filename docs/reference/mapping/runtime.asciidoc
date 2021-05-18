@@ -145,10 +145,34 @@ PUT my-index
 
 [[runtime-fields-scriptless]]
 ==== Define runtime fields without a script
-You can define a runtime field in the mapping definition without a
-script. At query time, {es} looks in `_source` for a field with the same name
-and returns a value if one exists. If a field with the same name doesn’t
-exist, the response doesn't include any values for that runtime field.
+Defining a runtime field to access <<doc-values,`doc_values`>> is faster than
+retrieving values from `_source`. The `doc_values` are loaded directly from
+Lucene `doc_values`, whereas accessing `_source` requires loading values from a
+Lucene stored field. This means that accessing values from `_source` takes about
+twice as long as using a runtime field that extracts from `doc_values`.
+
+However, there are cases such as `text` fields where `doc_values` are not
+available by default, or where you choose to not index specific fields or set
+`doc_values` to `false`. In these instances, you have two options to retrieve
+values directly from `_source` using runtime fields:
+
+* Define a runtime field in the mapping without a script (*recommended*)
+* Prefix the field you want to retrieve values for with `params._source` (such
+as `params._source.day_of_week`)
+
+Defining a runtime field in the mapping definition without a script is the
+recommended option. At query time, {es} implicitly looks in `_source` for a
+field with the same name as the runtime field and returns a value if one exists.
+If a field with the same name doesn’t exist, the response doesn't include any
+values for that runtime field.
+
+Additionally, a runtime field without a script ignores errors as if <<ignore-malformed,`ignore_malformed`>> is `true`. Your runtime field will
+return values for the specified field, regardless of how the data is formatted.
+This behavior is really useful for exploring your data and determining how you
+might want to <<runtime-mapping-fields,map a runtime field>>.
+
+The following request adds a `day_of_week` runtime field to `my-index` without
+a script. 
 
 [source,console]
 ----

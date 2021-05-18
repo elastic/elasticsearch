@@ -79,6 +79,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 returnedAliasNames.add(aliasMetadata.alias());
             }
         }
+        dataStreamAliases.entrySet().stream()
+            .flatMap(entry -> entry.getValue().stream())
+            .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
+
         // compute explicitly requested aliases that have are not returned in the result
         final SortedSet<String> missingAliases = new TreeSet<>();
         // first wildcard index, leading "-" as an alias name after this index means
@@ -135,7 +139,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
 
             for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
+                if (aliasesExplicitlyRequested == false || indicesToDisplay.contains(entry.key)) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");
@@ -149,6 +153,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     builder.endObject();
                 }
             }
+            // No need to do filtering like is done for aliases pointing to indices (^),
+            // because this already happens in TransportGetAliasesAction.
             for (Map.Entry<String, List<DataStreamAlias>> entry : dataStreamAliases.entrySet()) {
                 builder.startObject(entry.getKey());
                 {

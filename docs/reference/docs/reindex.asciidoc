@@ -4,22 +4,7 @@
 <titleabbrev>Reindex</titleabbrev>
 ++++
 
-Copies documents from a _source_ to a _destination_.
-
-The source and destination can be any pre-existing index, index alias, or
-<<data-streams,data stream>>. However, the source and destination must be
-different. For example, you cannot reindex a data stream into itself.
-
-[IMPORTANT]
-=================================================
-Reindex requires <<mapping-source-field,`_source`>> to be enabled for
-all documents in the source.
-
-The destination should be configured as wanted before calling `_reindex`.
-Reindex does not copy the settings from the source or its associated template.
-
-Mappings, shard counts, replicas, and so on must be configured ahead of time.
-=================================================
+Copies documents from a source to a destination.
 
 [source,console]
 --------------------------------------------------
@@ -74,38 +59,45 @@ POST _reindex
 * If the {es} {security-features} are enabled, you must have the following
 security privileges:
 
-** The `read` <<privileges-list-indices,index privilege>> for the source data
-stream, index, or index alias.
+** The `read` <<privileges-list-indices,index privilege>> for `source.index`.
 
-** The `write` index privilege for the destination data stream, index, or index
-alias.
+** The `write` index privilege for `dest.index`.
 
 ** To automatically create a data stream or index with an reindex API request,
 you must have the `auto_configure`, `create_index`, or `manage` index
-privilege for the destination data stream, index, or index alias.
+privilege for `dest.index`.
 
 ** If reindexing from a remote cluster, the `source.remote.user` must have the
 `monitor` <<privileges-list-cluster,cluster privilege>> and the `read` index
-privilege for the source data stream, index, or index alias.
+privilege for `source.index`.
 
 * If reindexing from a remote cluster, you must explicitly allow the remote host
 in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
 <<reindex-from-remote>>.
 
-* Automatic data stream creation requires a matching index template with data
-stream enabled. See <<set-up-a-data-stream>>.
+* Data stream creation requires a matching index template with
+<<create-index-template,data stream enabled>>.
 
 [[docs-reindex-api-desc]]
 ==== {api-description-title}
 
-// tag::docs-reindex-api-desc-tag[]
-Extracts the <<mapping-source-field,document source>> from the source index and indexes the documents into the destination index.
-You can copy all documents to the destination index, or reindex a subset of the documents.
-// end::docs-reindex-api-desc-tag[]
+Extracts the <<mapping-source-field,document source>> from a source data stream,
+index, or alias and indexes the documents into a destination. You can copy all
+documents or a subset of documents.
 
+[IMPORTANT]
+====
+Reindex requires <<mapping-source-field,`_source`>> to be enabled for
+all documents in the source.
 
-Just like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
-snapshot of the source but its destination must be **different** so
+The destination should be configured as wanted before calling `_reindex`.
+Reindex does not copy the settings from the source or associated templates.
+
+Mappings, shard counts, replicas, and so on must be configured ahead of time.
+====
+
+Like <<docs-update-by-query,`_update_by_query`>>, `_reindex` gets a
+snapshot of the source but its destination must be different so
 version conflicts are unlikely. The `dest` element can be configured like the
 index API to control optimistic concurrency control. Omitting
 `version_type` or setting it to `internal` causes Elasticsearch
@@ -121,10 +113,7 @@ Setting `op_type` to `create` causes `_reindex` to only create missing
 documents in the destination. All existing documents will cause a version
 conflict.
 
-IMPORTANT: Because data streams are <<data-streams-append-only,append-only>>,
-any reindex request to a destination data stream must have an `op_type`
-of`create`. A reindex can only add new documents to a destination data stream.
-It cannot update existing documents in a destination data stream.
+IMPORTANT: If the destination is a data stream, `op_type` must be `create`.
 
 By default, version conflicts abort the `_reindex` process.
 To continue reindexing if there are conflicts, set the `"conflicts"` request body parameter to `proceed`.
@@ -507,8 +496,9 @@ Defaults to `abort`.
 
 `source`::
 `index`:::
-(Required, string) The name of the data stream, index, or index alias you are copying _from_.
-Also accepts a comma-separated list to reindex from multiple sources.
+(Required, string or array of strings)
+Comma-separated list of data streams, indices, and aliases to use as the source.
+Supports wildcards (`*`). See <<docs-reindex-from-multiple-sources>>.
 
 `max_docs`:::
 (Optional, integer) The maximum number of documents to reindex. If <<conflicts, conflicts>> is equal to
@@ -558,7 +548,11 @@ Defaults to `true`.
 
 `dest`::
 `index`:::
-(Required, string) The name of the data stream, index, or index alias you are copying _to_.
+(Required, string)
+Data stream, index, or alias to use as the destination. Must differ from
+`source.index`.
++
+include::{es-ref-dir}/docs/index_.asciidoc[tag=autocreate]
 
 `version_type`:::
 (Optional, enum) The versioning to use for the indexing operation.
@@ -569,8 +563,7 @@ See <<index-version-types>> for more information.
 (Optional, enum) Set to create to only index documents that do not already exist (put if absent).
 Valid values: `index`, `create`. Defaults to `index`.
 +
-IMPORTANT: To reindex to a data stream destination, this argument must be
-`create`.
+IMPORTANT: If `dest.index` is a data stream, `op_type` must be `create`.
 
 `script`::
 `source`:::

@@ -39,7 +39,7 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testCheckTask() {
-//        setupJarJdkClasspath(getProjectDir());
+        setupJarJdkClasspath(getProjectDir());
         BuildResult result = getGradleRunner().withArguments("check", "assemble", "-s").build();
         assertTaskSuccessful(result, ":check");
     }

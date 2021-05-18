@@ -315,10 +315,27 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 + token2.getAccountId().asPrincipal() + "] with token name [" + token2.getTokenName() + "]"));
             appender.assertAllExpectationsMatched();
 
-            // Success based on credential store
+            // Length of secret value is too short
             final ServiceAccountId accountId3 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet-server");
-            final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret);
-            final ServiceAccountToken token4 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8),
+            final SecureString secret3 = new SecureString(randomAlphaOfLengthBetween(1, 9).toCharArray());
+            final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret3);
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "secret value too short", ServiceAccountService.class.getName(), Level.DEBUG,
+                "the provided credential has length [" + secret3.length()
+                    + "] but a token's secret value must be at least [10] characters"
+            ));
+            final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
+            serviceAccountService.authenticateToken(token3, randomAlphaOfLengthBetween(3, 8), future3);
+            final ExecutionException e3 = expectThrows(ExecutionException.class, future3::get);
+            assertThat(e3.getCause().getClass(), is(ElasticsearchSecurityException.class));
+            assertThat(e3.getMessage(), containsString("failed to authenticate service account ["
+                + token3.getAccountId().asPrincipal() + "] with token name [" + token3.getTokenName() + "]"));
+            appender.assertAllExpectationsMatched();
+
+            // Success based on credential store
+            final ServiceAccountId accountId4 = new ServiceAccountId(ElasticServiceAccounts.NAMESPACE, "fleet-server");
+            final ServiceAccountToken token4 = new ServiceAccountToken(accountId4, randomAlphaOfLengthBetween(3, 8), secret);
+            final ServiceAccountToken token5 = new ServiceAccountToken(accountId4, randomAlphaOfLengthBetween(3, 8),
                 new SecureString(randomAlphaOfLength(20).toCharArray()));
             final String nodeName = randomAlphaOfLengthBetween(3, 8);
             doAnswer(invocationOnMock -> {
@@ -326,18 +343,18 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
                 listener.onResponse(true);
                 return null;
-            }).when(serviceAccountTokenStore).authenticate(eq(token3), any());
+            }).when(serviceAccountTokenStore).authenticate(eq(token4), any());
 
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("unchecked")
                 final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
                 listener.onResponse(false);
                 return null;
-            }).when(serviceAccountTokenStore).authenticate(eq(token4), any());
+            }).when(serviceAccountTokenStore).authenticate(eq(token5), any());
 
-            final PlainActionFuture<Authentication> future3 = new PlainActionFuture<>();
-            serviceAccountService.authenticateToken(token3, nodeName, future3);
-            final Authentication authentication = future3.get();
+            final PlainActionFuture<Authentication> future4 = new PlainActionFuture<>();
+            serviceAccountService.authenticateToken(token4, nodeName, future4);
+            final Authentication authentication = future4.get();
             assertThat(authentication, equalTo(new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY,
                     "Service account - elastic/fleet-server", null,
@@ -345,20 +362,20 @@ public class ServiceAccountServiceTests extends ESTestCase {
                     true),
                 new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                org.elasticsearch.common.collect.Map.of("_token_name", token3.getTokenName())
+                org.elasticsearch.common.collect.Map.of("_token_name", token4.getTokenName())
             )));
 
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "non-elastic service account", ServiceAccountService.class.getName(), Level.DEBUG,
-                "failed to authenticate service account [" + token4.getAccountId().asPrincipal()
-                    + "] with token name [" + token4.getTokenName() + "]"
+                "failed to authenticate service account [" + token5.getAccountId().asPrincipal()
+                    + "] with token name [" + token5.getTokenName() + "]"
             ));
-            final PlainActionFuture<Authentication> future4 = new PlainActionFuture<>();
-            serviceAccountService.authenticateToken(token4, nodeName, future4);
-            final ExecutionException e4 = expectThrows(ExecutionException.class, future4::get);
-            assertThat(e4.getCause().getClass(), is(ElasticsearchSecurityException.class));
-            assertThat(e4.getMessage(), containsString("failed to authenticate service account ["
-                + token4.getAccountId().asPrincipal() + "] with token name [" + token4.getTokenName() + "]"));
+            final PlainActionFuture<Authentication> future5 = new PlainActionFuture<>();
+            serviceAccountService.authenticateToken(token5, nodeName, future5);
+            final ExecutionException e5 = expectThrows(ExecutionException.class, future5::get);
+            assertThat(e5.getCause().getClass(), is(ElasticsearchSecurityException.class));
+            assertThat(e5.getMessage(), containsString("failed to authenticate service account ["
+                + token5.getAccountId().asPrincipal() + "] with token name [" + token5.getTokenName() + "]"));
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();

@@ -280,4 +280,3 @@ per index data path settings.
 
 *Impact* +
 Discontinue use of the deprecated settings.
-====

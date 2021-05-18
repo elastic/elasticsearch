@@ -299,6 +299,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
     }
 
+    /**
+     * Tries to poll a {@link SnapshotId} to load {@link SnapshotInfo} for from the given {@code queue}. If it finds one in the queue,
+     * loads the snapshot info from the repository on the given {@code executor} and adds it to the given {@code snapshotInfos} collect,
+     * then invokes itself again to try and poll another task from the queue.
+     * If the queue is empty resolves {@code} listener.
+     */
     private void getOneSnapshotInfo(boolean ignoreUnavailable,
                                     Repository repository,
                                     BlockingQueue<SnapshotId> queue,

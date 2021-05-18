@@ -33,10 +33,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
+import java.util.Map;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.tasks.TaskInfo.INCLUDE_CANCELLED_PARAM;
 
 /**
  * Service that can store task results.
@@ -80,7 +82,7 @@ public class TaskResultsService {
     public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
         IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().getTaskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
-            taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            taskResult.toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_CANCELLED_PARAM, "false")));
             index.setSource(builder);
         } catch (IOException e) {
             throw new ElasticsearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());

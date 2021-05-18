@@ -32,7 +32,6 @@ public class RestMultiTermVectorsActionTests extends RestActionTestCase {
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestMultiTermVectorsAction());
-        //TODO clarify why we need to set these? any workaround?
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(MultiTermVectorsResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(MultiTermVectorsResponse.class));
     }

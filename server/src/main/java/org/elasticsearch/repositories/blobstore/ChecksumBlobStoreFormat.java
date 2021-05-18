@@ -123,6 +123,18 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             // we trick this into a dedicated exception with the original stacktrace
             throw new CorruptStateException(ex);
+        } catch (Exception e) {
+            try {
+                // drain stream fully and check whether the footer is corrupted
+                Streams.consumeFully(deserializeMetaBlobInputStream);
+                deserializeMetaBlobInputStream.verifyFooter();
+            } catch (CorruptStateException cse) {
+                cse.addSuppressed(e);
+                throw cse;
+            } catch (Exception ex) {
+                e.addSuppressed(ex);
+            }
+            throw e;
         }
     }
 

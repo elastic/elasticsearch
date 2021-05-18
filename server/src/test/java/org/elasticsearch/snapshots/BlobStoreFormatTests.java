@@ -8,10 +8,8 @@
 
 package org.elasticsearch.snapshots;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchCorruptionException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -34,7 +32,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
-import java.util.zip.ZipException;
 
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -127,8 +124,7 @@ public class BlobStoreFormatTests extends ESTestCase {
         try {
             checksumFormat.read(blobContainer, "test-path", xContentRegistry());
             fail("Should have failed due to corruption");
-        } catch (ElasticsearchCorruptionException | EOFException | ZipException | JsonParseException | ParsingException
-                | ElasticsearchParseException ex) {
+        } catch (ElasticsearchCorruptionException | EOFException ex) {
             // expected exceptions from random byte corruption
         }
     }

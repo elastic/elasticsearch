@@ -12,7 +12,7 @@ information, but you only want to extract pieces and parts.
 
 There are two options at your disposal:
 
-* <<grok-basics,Grok>> is a regular expression dialect that supports aliased
+* <<grok,Grok>> is a regular expression dialect that supports aliased
 expressions that you can reuse. Because Grok sits on top of regular expressions
 (regex), any regular expressions are valid in grok as well.
 * <<dissect-processor,Dissect>> extracts structured fields out of text, using

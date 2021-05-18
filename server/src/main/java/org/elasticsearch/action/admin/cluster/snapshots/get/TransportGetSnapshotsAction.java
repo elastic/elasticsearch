@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 
@@ -279,7 +278,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         // put snapshot info downloads into a task queue instead of pushing them all into the queue to not completely monopolize the
         // snapshot meta pool for a single request
         final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(), snapshotIdsToIterate.size());
-        final Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT_META);
         final BlockingQueue<SnapshotId> queue = new LinkedBlockingQueue<>(snapshotIdsToIterate);
         final ActionListener<Void> workerDoneListener = new GroupedActionListener<>(allDoneListener, workers).delegateResponse((l, e) -> {
             queue.clear(); // Stop fetching the remaining snapshots once we've failed fetching one since the response is an error response
@@ -300,7 +298,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     queue,
                     snapshotInfos,
                     task,
-                    executor,
                     workerDoneListener
             );
         }
@@ -308,7 +305,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     /**
      * Tries to poll a {@link SnapshotId} to load {@link SnapshotInfo} for from the given {@code queue}. If it finds one in the queue,
-     * loads the snapshot info from the repository on the given {@code executor} and adds it to the given {@code snapshotInfos} collect,
+     * loads the snapshot info from the repository and adds it to the given {@code snapshotInfos} collect,
      * then invokes itself again to try and poll another task from the queue.
      * If the queue is empty resolves {@code} listener.
      */
@@ -317,14 +314,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                     BlockingQueue<SnapshotId> queue,
                                     Collection<SnapshotInfo> snapshotInfos,
                                     CancellableTask task,
-                                    Executor executor,
                                     ActionListener<Void> listener) {
         final SnapshotId snapshotId = queue.poll();
         if (snapshotId == null) {
             listener.onResponse(null);
             return;
         }
-        executor.execute(() -> {
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> {
             if (task.isCancelled()) {
                 listener.onFailure(new TaskCancelledException("task cancelled"));
                 return;
@@ -342,7 +338,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     );
                 }
             }
-            getOneSnapshotInfo(ignoreUnavailable, repository, queue, snapshotInfos, task, executor, listener);
+            getOneSnapshotInfo(ignoreUnavailable, repository, queue, snapshotInfos, task, listener);
         });
     }
 

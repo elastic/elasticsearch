@@ -223,20 +223,17 @@ public class DataStreamsRestIT extends ESRestTestCase {
         response = client().performRequest(new Request("GET", "/_alias/emea"));
         assertOK(response);
         getAliasesResponse = entityAsMap(response);
-        assertThat(getAliasesResponse.size(), equalTo(2)); // Adjust to equalTo(1) when #72953 is merged
+        assertThat(getAliasesResponse.size(), equalTo(1));
         assertEquals(Map.of("emea", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)); // Remove when #72953 is merged
 
         ResponseException exception =
             expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/_alias/wrong_name")));
         response = exception.getResponse();
         assertThat(response.getStatusLine().getStatusCode(), equalTo(404));
         getAliasesResponse = entityAsMap(response);
-        assertThat(getAliasesResponse.size(), equalTo(4)); // Adjust to equalTo(2) when #72953 is merged
+        assertThat(getAliasesResponse.size(), equalTo(2));
         assertEquals("alias [wrong_name] missing", getAliasesResponse.get("error"));
         assertEquals(404, getAliasesResponse.get("status"));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse)); // Remove when #72953 is merged
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)); // Remove when #72953 is merged
     }
 
 }

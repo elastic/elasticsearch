@@ -59,7 +59,7 @@ POST _reindex
 * If the {es} {security-features} are enabled, you must have the following
 security privileges:
 
-** The `read` <<privileges-list-indices,index privilege>> for the source..
+** The `read` <<privileges-list-indices,index privilege>> for the source.
 
 ** The `write` index privilege for the destination.
 

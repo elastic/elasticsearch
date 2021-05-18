@@ -2405,6 +2405,18 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         return indices;
     }
 
+    /**
+     * Filters out the aliases that refer to data streams to do not exist in the provided data streams.
+     * Also rewrites the list of data streams an alias point to to only contain data streams that exist in the provided data streams.
+     *
+     * The purpose of this method is to capture the relevant data stream aliases based on the data streams
+     * that will be included in a snapshot.
+     *
+     * @param dataStreams       The provided data streams, which will be included in a snapshot.
+     * @param dataStreamAliases The data streams aliases that may contain aliases that refer to data streams
+     *                          that don't exist in the provided data streams.
+     * @return                  The filtered data streams aliases only referring to data streams in the provided data streams.
+     */
     static Map<String, DataStreamAlias> filterDataStreamAliases(Map<String, DataStream> dataStreams,
                                                                 Map<String, DataStreamAlias> dataStreamAliases) {
 

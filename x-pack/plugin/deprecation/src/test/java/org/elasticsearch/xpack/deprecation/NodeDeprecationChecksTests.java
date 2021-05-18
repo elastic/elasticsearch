@@ -582,10 +582,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
 
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null);
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
-        assertThat(issues, contains(
+        assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "setting [path.shared_data] is deprecated and will be removed in a future version",
                 expectedUrl,

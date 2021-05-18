@@ -103,9 +103,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             MountSearchableSnapshotRequest::new,
             indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
-            // Avoid SNAPSHOT since snapshot threads may all be busy with long-running tasks which would block this action from responding
-            // with an error. Avoid SAME since getting the repository metadata may block on IO.
-            ThreadPool.Names.GENERIC
+            // Use SNAPSHOT_META pool since we are mainly loading repository metadata in this action
+            ThreadPool.Names.SNAPSHOT_META
         );
         this.client = client;
         this.repositoriesService = repositoriesService;
@@ -280,6 +279,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                         .snapshotUuid(snapshotId.getUUID()),
                     listener
                 );
-        }, listener::onFailure), threadPool.generic(), null);
+        }, listener::onFailure), threadPool.executor(ThreadPool.Names.SNAPSHOT_META), null);
     }
 }

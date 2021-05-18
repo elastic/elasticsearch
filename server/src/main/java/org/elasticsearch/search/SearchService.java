@@ -393,14 +393,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
-            ensureAfterSeqNoRefreshed(shard, request, () -> executeQueryPhase(orig, task), l);
+            ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
         }));
     }
 
     private <T> void ensureAfterSeqNoRefreshed(IndexShard shard, ShardSearchRequest request, CheckedSupplier<T, Exception> executable,
                                                ActionListener<T> listener) {
-        final String executorName = getExecutorName(shard);
-        final Executor executor = threadPool.executor(executorName);
+        final Executor executor = getExecutor(shard);
         executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
@@ -437,10 +436,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                     "Wait for seq_no [{}] refreshed timed out [{}]",
                                     request.afterRefreshedSeqNo(),
                                     timeout)
-                            ), timeout, executorName);
+                            ), timeout, Names.SAME);
                     }
                 } else {
-                    ActionRunnable.supply(listener, executable);
+                    ActionRunnable.supply(listener, executable).run();
                 }
             }
         });
@@ -569,7 +568,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
-    private String getExecutorName(IndexShard indexShard) {
+    private Executor getExecutor(IndexShard indexShard) {
         assert indexShard != null;
         final String executorName;
         if (indexShard.isSystem()) {
@@ -579,11 +578,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         } else {
             executorName = Names.SEARCH;
         }
-        return executorName;
-    }
-
-    private Executor getExecutor(IndexShard indexShard) {
-        String executorName = getExecutorName(indexShard);
         return threadPool.executor(executorName);
     }
 

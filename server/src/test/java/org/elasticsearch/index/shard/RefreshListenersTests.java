@@ -228,7 +228,6 @@ public class RefreshListenersTests extends ESTestCase {
         latch.await();
     }
 
-    // TODO
     public void testTooMany() throws Exception {
         assertEquals(0, listeners.pendingLocationListenerCount());
         assertEquals(0, listeners.pendingSeqNoListenersCount());
@@ -236,35 +235,54 @@ public class RefreshListenersTests extends ESTestCase {
         Engine.IndexResult index = index("1");
 
         // Fill the listener slots
-        List<DummyRefreshListener> nonForcedListeners = new ArrayList<>(maxListeners);
+        List<DummyRefreshListener> nonForcedLocationListeners = new ArrayList<>(maxListeners);
+        List<DummySeqNoListener> nonSeqNoLocationListeners = new ArrayList<>(maxListeners);
         for (int i = 0; i < maxListeners; i++) {
-            DummyRefreshListener listener = new DummyRefreshListener();
-            nonForcedListeners.add(listener);
-            listeners.addOrNotify(index.getTranslogLocation(), listener);
+            if (randomBoolean()) {
+                DummyRefreshListener listener = new DummyRefreshListener();
+                nonForcedLocationListeners.add(listener);
+                listeners.addOrNotify(index.getTranslogLocation(), listener);
+            } else {
+                DummySeqNoListener listener = new DummySeqNoListener();
+                nonSeqNoLocationListeners.add(listener);
+                listeners.addOrNotify(index.getSeqNo(), listener);
+            }
             assertTrue(listeners.refreshNeeded());
         }
 
         // We shouldn't have called any of them
-        for (DummyRefreshListener listener : nonForcedListeners) {
+        for (DummyRefreshListener listener : nonForcedLocationListeners) {
             assertNull("Called listener too early!", listener.forcedRefresh.get());
         }
-        assertEquals(maxListeners, listeners.pendingLocationListenerCount());
+        for (DummySeqNoListener listener : nonSeqNoLocationListeners) {
+            assertFalse("Called listener too early!", listener.isDone.get());
+        }
+        assertEquals(maxListeners, listeners.pendingLocationListenerCount() + listeners.pendingSeqNoListenersCount());
 
         // Add one more listener which should cause a refresh.
-        DummyRefreshListener forcingListener = new DummyRefreshListener();
-        listeners.addOrNotify(index.getTranslogLocation(), forcingListener);
-        assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
-        forcingListener.assertNoError();
+        if (randomBoolean()) {
+            DummyRefreshListener forcingListener = new DummyRefreshListener();
+            listeners.addOrNotify(index.getTranslogLocation(), forcingListener);
+            assertTrue("Forced listener wasn't forced?", forcingListener.forcedRefresh.get());
+            forcingListener.assertNoError();
+        } else {
+            DummySeqNoListener forcingListener = new DummySeqNoListener();
+            listeners.addOrNotify(index.getSeqNo(), forcingListener);
+            assertTrue("Forced listener wasn't executed?", forcingListener.isDone.get());
+        }
 
         // That forces all the listeners through. It would be on the listener ThreadPool but we've made all of those execute immediately.
-        for (DummyRefreshListener listener : nonForcedListeners) {
+        for (DummyRefreshListener listener : nonForcedLocationListeners) {
             assertEquals("Expected listener called with unforced refresh!", Boolean.FALSE, listener.forcedRefresh.get());
             listener.assertNoError();
         }
+        for (DummySeqNoListener listener : nonSeqNoLocationListeners) {
+            assertEquals("Expected listener called to be called by refresh!", Boolean.TRUE, listener.isDone.get());
+        }
         assertFalse(listeners.refreshNeeded());
         assertEquals(0, listeners.pendingLocationListenerCount());
+        assertEquals(0, listeners.pendingSeqNoListenersCount());
     }
-
     public void testClose() throws Exception {
         assertEquals(0, listeners.pendingLocationListenerCount());
         assertEquals(0, listeners.pendingSeqNoListenersCount());

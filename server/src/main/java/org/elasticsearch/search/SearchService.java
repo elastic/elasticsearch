@@ -58,6 +58,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -341,7 +342,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, rewritten) -> {
             // fork the execution in the search thread pool
-            runAsync(getExecutor(shard), () -> executeDfsPhase(request, task), l);
+            ensureAfterSeqNoRefreshed(shard, request, () -> executeDfsPhase(request, task), l);
         }));
     }
 
@@ -392,49 +393,57 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return;
                 }
             }
-            final String executorName = getExecutorName(shard);
-            final Executor executor = threadPool.executor(executorName);
+            ensureAfterSeqNoRefreshed(shard, request, () -> executeQueryPhase(orig, task), l);
+        }));
+    }
 
-            final AtomicBoolean isDone = new AtomicBoolean(false);
-            final ActionListener<Void> readyListener = new ActionListener<>() {
+    private <T> void ensureAfterSeqNoRefreshed(IndexShard shard, ShardSearchRequest request, CheckedSupplier<T, Exception> executable,
+                                               ActionListener<T> listener) {
+        final String executorName = getExecutorName(shard);
+        final Executor executor = threadPool.executor(executorName);
+        executor.execute(new ActionRunnable<>(listener) {
+            @Override
+            protected void doRun() {
+                if (request.afterRefreshedSeqNo() > SequenceNumbers.NO_OPS_PERFORMED) {
+                    final AtomicBoolean isDone = new AtomicBoolean(false);
+                    final ActionListener<Void> readyListener = new ActionListener<>() {
 
-                @Override
-                public void onResponse(Void unused) {
-                    if (isDone.compareAndSet(false, true)) {
-                        runAsync(executor, () -> executeQueryPhase(orig, task), l);
+                        @Override
+                        public void onResponse(Void unused) {
+                            if (isDone.compareAndSet(false, true)) {
+                                runAsync(executor, executable, listener);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            if (isDone.compareAndSet(false, true)) {
+                                listener.onFailure(e);
+                            }
+                        }
+                    };
+                    shard.addRefreshListener(request.afterRefreshedSeqNo(), readyListener);
+                    SearchSourceBuilder source = request.source();
+                    final TimeValue timeout;
+                    if (source == null) {
+                        timeout = defaultSearchTimeout;
+                    } else {
+                        timeout = source.timeout() == null ? defaultSearchTimeout : source.timeout();
                     }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (isDone.compareAndSet(false, true)) {
-                        listener.onFailure(e);
-                    }
-                }
-            };
-
-            shard.addRefreshListener(request.afterRefreshedSeqNo(), readyListener);
-
-            // If a refresh is not needed, the listener will completed synchronously and there is not need for a timeout.
-            if (isDone.get() == false) {
-                SearchSourceBuilder source = request.source();
-                final TimeValue timeout;
-                if (source == null) {
-                    timeout = defaultSearchTimeout;
-                } else {
-                    timeout = source.timeout() == null ? defaultSearchTimeout : source.timeout();
-                }
-                if (NO_TIMEOUT.equals(timeout) == false) {
-                    threadPool.schedule(() ->
+                    if (NO_TIMEOUT.equals(timeout) == false) {
+                        threadPool.schedule(() ->
                             readyListener.onFailure(
                                 new ElasticsearchTimeoutException(
                                     "Wait for seq_no [{}] refreshed timed out [{}]",
                                     request.afterRefreshedSeqNo(),
                                     timeout)
                             ), timeout, executorName);
+                    }
+                } else {
+                    ActionRunnable.supply(listener, executable);
                 }
             }
-        }));
+        });
     }
 
     private IndexShard getShard(ShardSearchRequest request) {

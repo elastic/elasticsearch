@@ -158,7 +158,8 @@ tasks.named("yamlRestCompatTest").configure {
     'vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents\' vectors',
     'vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions',
     'vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types',
-    'vectors/50_vector_stats/Usage stats on vector fields'
+    'vectors/50_vector_stats/Usage stats on vector fields',
+    'service_accounts/10_basic/*'
   ])
 
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')

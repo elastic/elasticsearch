@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -125,7 +124,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         } else {
             Tuple<Cursor, ZoneId> decoded = Cursors.decodeFromStringWithZone(request.cursor());
             planExecutor.nextPage(cfg, decoded.v1(),
-                    wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, null)),
+                    wrap(p -> listener.onResponse(createResponse(request, decoded.v2(), null, p, task)),
                             listener::onFailure));
         }
     }
@@ -146,12 +145,11 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             }
         }
         columns = unmodifiableList(columns);
-        AsyncExecutionId executionId = task.getExecutionId();
-        return createResponse(request, request.zoneId(), columns, page, executionId == null ? null : executionId.getEncoded());
+        return createResponse(request, request.zoneId(), columns, page, task);
     }
 
     private static SqlQueryResponse createResponse(SqlQueryRequest request, ZoneId zoneId, List<ColumnInfo> header, Page page,
-                                                   @Nullable String asyncExecutionId) {
+                                                   SqlQueryTask task) {
         List<List<Object>> rows = new ArrayList<>();
         page.rowSet().forEachRow(rowView -> {
             List<Object> row = new ArrayList<>(rowView.columnCount());
@@ -159,6 +157,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
             rows.add(unmodifiableList(row));
         });
 
+        AsyncExecutionId executionId = task.getExecutionId();
         return new SqlQueryResponse(
                 Cursors.encodeToString(page.next(), zoneId),
                 request.mode(),
@@ -166,8 +165,8 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
                 request.columnar(),
                 header,
                 rows,
-                asyncExecutionId,
-            false, false
+                executionId == null ? null : executionId.getEncoded(),
+                false, false
         );
     }
 

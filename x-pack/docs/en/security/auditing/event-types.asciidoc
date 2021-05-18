@@ -347,17 +347,17 @@ that have been previously described:
                             This attribute is only provided for authentication using an API key.
   `apikey.name`        ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-  `service_token.name` ::   Name of the <<service-accounts,service account>> token.
-                            This attribute is only provided for authentication using a service account token.
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
 
 * `authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
                              If the request authentication token is invalid or
                              unparsable, this information might be missing.
-  `service_token.name` ::    Name of the <<service-accounts,service account>> token.
-                             This attribute is only provided for authentication using a service account token.
-                             If the request authentication token is invalid or unparsable,
-                             this information might be missing.
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+                                 If the request authentication token is invalid or unparsable,
+                                 this information might be missing.
 
 * `realm_authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
@@ -406,5 +406,5 @@ that have been previously described:
                             This attribute is only provided for authentication using an API key.
   `apikey.name`        ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-  `service_token.name` ::   Name of the <<service-accounts,service account>> token.
-                            This attribute is only provided for authentication using a service account token.
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.

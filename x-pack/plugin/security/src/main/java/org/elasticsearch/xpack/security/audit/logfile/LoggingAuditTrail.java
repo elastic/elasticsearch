@@ -150,7 +150,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_AS_REALM_FIELD_NAME = "user.run_as.realm";
     public static final String API_KEY_ID_FIELD_NAME = "apikey.id";
     public static final String API_KEY_NAME_FIELD_NAME = "apikey.name";
-    public static final String SERVICE_TOKEN_NAME_FIELD_NAME = "service_token.name";
+    public static final String SERVICE_TOKEN_NAME_FIELD_NAME = "authentication.token.name";
     public static final String PRINCIPAL_ROLES_FIELD_NAME = "user.roles";
     public static final String AUTHENTICATION_TYPE_FIELD_NAME = "authentication.type";
     public static final String REALM_FIELD_NAME = "realm";

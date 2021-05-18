@@ -300,7 +300,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 if (mappedFieldType != null) {
                     TermsEnum terms = mappedFieldType.getTerms(
                         request.caseInsensitive(),
-                        request.string(),
+                        request.string() == null ? "" : request.string(),
                         queryShardContext,
                         request.searchAfter()                        
                     );

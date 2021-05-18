@@ -201,13 +201,6 @@ public final class MappingLookup {
         return fieldMappers.values();
     }
 
-    /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> fieldTypes() {
-        return fieldTypeLookup.get();
-    }
-
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
@@ -296,8 +289,35 @@ public final class MappingLookup {
         return field.substring(0, lastDot);
     }
 
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return fieldTypesLookup().simpleMatchToFullName(pattern);
+    /**
+     * Returns a set of field names that match a regex-like pattern
+     *
+     * All field names in the returned set are guaranteed to resolve to a field
+     *
+     * @param pattern the pattern to match field names against
+     */
+    public Set<String> getMatchingFieldNames(String pattern) {
+        return fieldTypeLookup.getMatchingFieldNames(pattern);
+    }
+
+    /**
+     * Returns all the mapped field types that match a pattern
+     *
+     * Note that if a field is aliased and both its actual name and its alias
+     * match the pattern, the returned collection will contain the field type
+     * twice.
+     *
+     * @param pattern the pattern to match field names against
+     */
+    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+        return fieldTypeLookup.getMatchingFieldTypes(pattern);
+    }
+
+    /**
+     * @return all mapped field types
+     */
+    public Collection<MappedFieldType> getAllFieldTypes() {
+        return fieldTypeLookup.getMatchingFieldTypes("*");
     }
 
     /**

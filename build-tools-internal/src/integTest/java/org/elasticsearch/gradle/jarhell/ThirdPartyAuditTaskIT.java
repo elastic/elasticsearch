@@ -12,6 +12,8 @@ import org.elasticsearch.gradle.internal.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.junit.Before;
 
+import static org.elasticsearch.gradle.internal.test.TestClasspathUtils.setupJarJdkClasspath;
+
 public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
     @Override
@@ -24,7 +26,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
         // Build the sample jars
         getGradleRunner().withArguments(":sample_jars:build", "-s").build();
         // propagate jdkjarhell jar
-//        setupJarJdkClasspath(getProjectDir());
+        setupJarJdkClasspath(getProjectDir());
     }
 
     public void testElasticsearchIgnored() {

@@ -1,3 +1,10 @@
+[[release-notes-6.8.16]]
+== {es} version 6.8.16
+
+coming::[6.8.16]
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
 [[release-notes-6.8.15]]
 == {es} version 6.8.15
 

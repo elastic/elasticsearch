@@ -120,7 +120,7 @@ tasks.named("yamlRestCompatTest").configure {
     // field search on _type field- not implementing. The data for _type is considered incorrect in this search
     'search/160_exists_query/Test exists query on _type field',
     //type information is not stored, hence the the index will be found
-   'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
+    'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
     // 85 - 13 = 72 tests won't be fixed
     'bulk/11_basic_with_types/Array of objects',
     'bulk/11_basic_with_types/Empty _id',
@@ -220,8 +220,8 @@ tasks.named("yamlRestCompatTest").configure {
     'snapshot.get/10_basic/Get snapshot info when verbose is false',
     'snapshot.get/10_basic/Get snapshot info with metadata',
     'snapshot.get/10_basic/Get snapshot info with index details',
-    'suggest/20_completion/Suggestions with source should work',
-  ].join(',')
+    'suggest/20_completion/Suggestions with source should work'
+   ].join(',')
 }
 
 tasks.named("transformV7RestTests").configure({ task ->

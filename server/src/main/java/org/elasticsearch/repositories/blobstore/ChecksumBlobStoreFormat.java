@@ -105,18 +105,17 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     public T deserialize(NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
         final DeserializeMetaBlobInputStream deserializeMetaBlobInputStream = new DeserializeMetaBlobInputStream(input);
-
-        CodecUtil.checkHeader(new InputStreamDataInput(deserializeMetaBlobInputStream), codec, VERSION, VERSION);
-        final InputStream wrappedStream;
-        if (deserializeMetaBlobInputStream.nextBytesCompressed()) {
-            wrappedStream = CompressorFactory.COMPRESSOR.threadLocalInputStream(deserializeMetaBlobInputStream);
-        } else {
-            wrappedStream = deserializeMetaBlobInputStream;
-        }
         try {
+            CodecUtil.checkHeader(new InputStreamDataInput(deserializeMetaBlobInputStream), codec, VERSION, VERSION);
+            final InputStream wrappedStream;
+            if (deserializeMetaBlobInputStream.nextBytesCompressed()) {
+                wrappedStream = CompressorFactory.COMPRESSOR.threadLocalInputStream(deserializeMetaBlobInputStream);
+            } else {
+                wrappedStream = deserializeMetaBlobInputStream;
+            }
             final T result;
             try (XContentParser parser = XContentType.SMILE.xContent().createParser(
-                namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)) {
+                    namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)) {
                 result = reader.apply(parser);
             }
             deserializeMetaBlobInputStream.verifyFooter();
@@ -153,10 +152,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
         @Override
         public int read() throws IOException {
-            if (buffered() <= 0) {
-                fill();
-            }
-            if (buffered() <= 0) {
+            if (getAvailable() <= 0) {
                 return -1;
             }
             return buffer[bufferPos++];
@@ -187,10 +183,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         }
 
         private int doRead(byte[] b, int off, int len) throws IOException {
-            if (buffered() <= 0) {
-                fill();
-            }
-            final int available = buffered();
+            final int available = getAvailable();
             if (available < 0) {
                 return -1;
             }
@@ -237,24 +230,24 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
             return CompressorFactory.COMPRESSOR.isCompressed(new BytesArray(buffer, bufferPos, bufferCount - bufferPos));
         }
 
-        private int buffered() {
-            // bytes in the buffer minus 16 bytes that could be the footer
-            return bufferCount - bufferPos - CodecUtil.footerLength();
-        }
-
-        private void fill() throws IOException {
+        /**
+         * @return the number of bytes available in the buffer, possibly refilling the buffer if needed
+         */
+        private int getAvailable() throws IOException {
+            final int footerLen = CodecUtil.footerLength();
             if (bufferCount == 0) {
+                // first read, fill the buffer
                 bufferCount = Streams.readFully(in, buffer, 0, buffer.length);
-            } else {
+            } else if (bufferPos == bufferCount - footerLen) {
                 // crc and discard all but the last 16 bytes in the buffer that might be the footer bytes
-                final int footerLen = CodecUtil.footerLength();
                 assert bufferCount >= footerLen;
-                assert bufferPos == bufferCount - footerLen;
                 crc32.update(buffer, 0, bufferPos);
                 System.arraycopy(buffer, bufferPos, buffer, 0, footerLen);
                 bufferCount = footerLen + Streams.readFully(in, buffer, footerLen, buffer.length - footerLen);
                 bufferPos = 0;
             }
+            // bytes in the buffer minus 16 bytes that could be the footer
+            return bufferCount - bufferPos - footerLen;
         }
     }
 

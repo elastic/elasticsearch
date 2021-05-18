@@ -367,7 +367,7 @@ public class RefreshListenersTests extends ESTestCase {
                     doneSupplier = () -> listener.forcedRefresh.get() != null;
                     if (immediate) {
                         assertNotNull(listener.forcedRefresh.get());
-                        assertFalse(listener.forcedRefresh.get());
+                        assertTrue(listener.forcedRefresh.get());
                         listener.assertNoError();
                     }
                 } else {

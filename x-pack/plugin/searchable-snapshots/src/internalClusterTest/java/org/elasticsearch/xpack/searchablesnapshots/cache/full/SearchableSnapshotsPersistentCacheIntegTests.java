@@ -162,7 +162,6 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72857")
     public void testPersistentCacheCleanUpAfterRelocation() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().ensureAtLeastNumDataNodes(3);
@@ -179,6 +178,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
+                .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
         );
 
         final String snapshotName = prefix + "snapshot";
@@ -190,6 +190,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
         assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
+        waitForRelocation();
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
         assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));

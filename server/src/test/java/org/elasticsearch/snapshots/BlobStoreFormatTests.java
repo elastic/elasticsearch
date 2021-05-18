@@ -85,13 +85,13 @@ public class BlobStoreFormatTests extends ESTestCase {
         final String randomText = randomAlphaOfLengthBetween(0, 1024 * 8 * 3);
         final String normalText = "checksum smile: " + randomText;
         checksumSMILE.write(new BlobObj(normalText), blobContainer, "check-smile", false, MockBigArrays.NON_RECYCLING_INSTANCE);
-        final String compresedText = "checksum smile compressed: " + randomText;
-        checksumSMILE.write(new BlobObj(compresedText), blobContainer, "check-smile-comp", true,
+        final String compressedText = "checksum smile compressed: " + randomText;
+        checksumSMILE.write(new BlobObj(compressedText), blobContainer, "check-smile-comp", true,
                 MockBigArrays.NON_RECYCLING_INSTANCE);
 
         // Assert that all checksum blobs can be read
         assertEquals(normalText, checksumSMILE.read(blobContainer, "check-smile", xContentRegistry()).getText());
-        assertEquals(compresedText, checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry()).getText());
+        assertEquals(compressedText, checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry()).getText());
     }
 
     public void testCompressionIsApplied() throws IOException {

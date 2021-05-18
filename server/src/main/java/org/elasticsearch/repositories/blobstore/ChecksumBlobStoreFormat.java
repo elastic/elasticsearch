@@ -233,6 +233,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         boolean nextBytesCompressed() {
             // we already have bytes buffered here because we verify the blob's header (far less than the 8k buffer size) before calling
             // this method
+            assert bufferPos > 0 : "buffer position must be greater than 0 but was [" + bufferPos + "]";
             return CompressorFactory.COMPRESSOR.isCompressed(new BytesArray(buffer, bufferPos, bufferCount - bufferPos));
         }
 

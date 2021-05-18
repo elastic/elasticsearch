@@ -143,7 +143,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             }
             List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = locationRefreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
-            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
+            if (refreshForcers == 0 && exceededMaxListeners(maxRefreshes, listeners, seqNoRefreshListeners)) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
                 Consumer<Boolean> contextPreservingListener = forced -> {
                     try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -180,7 +180,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             }
             List<Tuple<Long, ActionListener<Void>>> listeners = seqNoRefreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
-            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
+            if (refreshForcers == 0 && exceededMaxListeners(maxRefreshes, locationRefreshListeners, listeners)) {
                 ActionListener<Void> contextPreservingListener =
                     ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
 
@@ -406,6 +406,14 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 }
             }
         }
+    }
+
+    private static boolean exceededMaxListeners(final int maxRefreshes,
+                                                      final List<Tuple<Translog.Location, Consumer<Boolean>>> locationListeners,
+                                                      final List<Tuple<Long, ActionListener<Void>>> seqNoListeners) {
+        final int locationListenerCount = locationListeners == null ? 0 : locationListeners.size();
+        final int seqNoListenerCount = seqNoListeners == null ? 0 : seqNoListeners.size();
+        return (locationListenerCount + seqNoListenerCount) < maxRefreshes;
     }
 
     /**

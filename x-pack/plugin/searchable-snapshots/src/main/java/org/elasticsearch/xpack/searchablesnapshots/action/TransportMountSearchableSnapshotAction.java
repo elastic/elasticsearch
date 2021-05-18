@@ -103,7 +103,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             MountSearchableSnapshotRequest::new,
             indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
-            // Use SNAPSHOT_META pool since we are mainly loading repository metadata in this action
+            // Use SNAPSHOT_META pool since we are slow due to loading repository metadata in this action
             ThreadPool.Names.SNAPSHOT_META
         );
         this.client = client;

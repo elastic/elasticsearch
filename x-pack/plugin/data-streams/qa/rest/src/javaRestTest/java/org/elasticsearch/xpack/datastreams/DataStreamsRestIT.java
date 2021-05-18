@@ -221,15 +221,15 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertOK(response);
         Map<String, Object> getAliasesResponse = entityAsMap(response);
         assertThat(getAliasesResponse.size(), equalTo(2));
-        assertEquals(Map.of("emea", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
-        assertEquals(Map.of("nasa", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+        assertEquals(singletonMap("emea", emptyMap()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(singletonMap("nasa", emptyMap()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
 
         response = client().performRequest(new Request("GET", "/_alias/emea"));
         assertOK(response);
         getAliasesResponse = entityAsMap(response);
         assertThat(getAliasesResponse.size(), equalTo(2)); // Adjust to equalTo(1) when #72953 is merged
-        assertEquals(Map.of("emea", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)); // Remove when #72953 is merged
+        assertEquals(singletonMap("emea", emptyMap()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)); // Remove when #72953 is merged
 
         ResponseException exception =
             expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/_alias/wrong_name")));
@@ -239,8 +239,8 @@ public class DataStreamsRestIT extends ESRestTestCase {
         assertThat(getAliasesResponse.size(), equalTo(4)); // Adjust to equalTo(2) when #72953 is merged
         assertEquals("alias [wrong_name] missing", getAliasesResponse.get("error"));
         assertEquals(404, getAliasesResponse.get("status"));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse)); // Remove when #72953 is merged
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)); // Remove when #72953 is merged
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse)); // Remove when #72953 is merged
+        assertEquals(emptyMap(), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)); // Remove when #72953 is merged
     }
 
 }

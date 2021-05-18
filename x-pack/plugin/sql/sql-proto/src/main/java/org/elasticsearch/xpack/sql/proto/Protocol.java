@@ -82,6 +82,15 @@ public final class Protocol {
     public static final String URL_PARAM_DELIMITER = "delimiter";
 
     /**
+     * HTTP header names
+     */
+    public static final String HEADER_NAME_CURSOR = "Cursor";
+    public static final String HEADER_NAME_TOOK_NANOS = "Took-nanos";
+    public static final String HEADER_NAME_ASYNC_ID = "Async-ID";
+    public static final String HEADER_NAME_ASYNC_PARTIAL = "Async-partial";
+    public static final String HEADER_NAME_ASYNC_RUNNING = "Async-running";
+
+    /**
      * SQL-related endpoints
      */
     public static final String CLEAR_CURSOR_REST_ENDPOINT = "/_sql/close";

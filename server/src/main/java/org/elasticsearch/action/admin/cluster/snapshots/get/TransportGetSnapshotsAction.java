@@ -33,6 +33,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -285,7 +286,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                            // anyway in this case
             l.onFailure(e);
         });
-        final Repository repository = repositoriesService.repository(repositoryName);
+        final Repository repository;
+        try {
+            repository = repositoriesService.repository(repositoryName);
+        } catch (RepositoryMissingException e) {
+            listener.onFailure(e);
+            return;
+        }
         for (int i = 0; i < workers; i++) {
             getOneSnapshotInfo(
                     ignoreUnavailable,

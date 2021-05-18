@@ -39,11 +39,6 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
-import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
@@ -67,9 +62,6 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.transform.action.TransportPutTransformAction.buildPrivilegeCheck;
 
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
@@ -219,23 +211,45 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                 updateListener = listener;
             }
 
-            client.execute(
-                ValidateTransformAction.INSTANCE,
-                new ValidateTransformAction.Request(updatedConfig, request.isDeferValidation()),
-                ActionListener.wrap(
-                    validationResponse -> {
-                        checkPriviledgesAndUpdateTransform(
-                            request,
-                            clusterState,
-                            updatedConfig,
-                            validationResponse.getDestIndexMappings(),
-                            configAndVersion.v2(),
-                            updateListener);
-                    },
-                    listener::onFailure
-                )
+            // <3> Update the transform
+            ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
+                validationResponse -> {
+                    updateTransform(
+                        request,
+                        updatedConfig,
+                        validationResponse.getDestIndexMappings(),
+                        configAndVersion.v2(),
+                        clusterState,
+                        updateListener);
+                },
+                listener::onFailure
             );
 
+            // <2> Validate source and destination indices
+            ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
+                aVoid -> {
+                    client.execute(
+                        ValidateTransformAction.INSTANCE,
+                        new ValidateTransformAction.Request(updatedConfig, request.isDeferValidation()),
+                        validateTransformListener
+                    );
+                },
+                listener::onFailure);
+
+            // <1> Early check to verify that the user can create the destination index and can read from the source
+            if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
+                TransformPrivilegeChecker.checkPrivileges(
+                    "update",
+                    securityContext,
+                    indexNameExpressionResolver,
+                    clusterState,
+                    client,
+                    updatedConfig,
+                    true,
+                    checkPrivilegesListener);
+            } else { // No security enabled, just move on
+                checkPrivilegesListener.onResponse(null);
+            }
         }, listener::onFailure));
     }
 
@@ -255,58 +269,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
     ) {
         // there should be only 1 response, todo: check
         return tasks.get(0);
-    }
-
-    private void handlePrivsResponse(
-        String username,
-        Request request,
-        TransformConfig config,
-        Map<String, String> mappings,
-        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
-        ClusterState clusterState,
-        HasPrivilegesResponse privilegesResponse,
-        ActionListener<Response> listener
-    ) {
-        if (privilegesResponse.isCompleteMatch()) {
-            updateTransform(request, config, mappings, seqNoPrimaryTermAndIndex, clusterState, listener);
-        } else {
-            List<String> indices = privilegesResponse.getIndexPrivileges()
-                .stream()
-                .map(ResourcePrivileges::getResource)
-                .collect(Collectors.toList());
-
-            listener.onFailure(
-                Exceptions.authorizationError(
-                    "Cannot update transform [{}] because user {} lacks all the required permissions for indices: {}",
-                    request.getId(),
-                    username,
-                    indices
-                )
-            );
-        }
-    }
-
-    private void checkPriviledgesAndUpdateTransform(
-        Request request,
-        ClusterState clusterState,
-        TransformConfig config,
-        Map<String, String> mappings,
-        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
-        ActionListener<Response> listener
-    ) {
-        // Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
-            final String username = securityContext.getUser().principal();
-            HasPrivilegesRequest privRequest = buildPrivilegeCheck(config, indexNameExpressionResolver, clusterState, username);
-            ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                r -> handlePrivsResponse(username, request, config, mappings, seqNoPrimaryTermAndIndex, clusterState, r, listener),
-                listener::onFailure
-            );
-
-            client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
-        } else { // No security enabled, just create the transform
-            updateTransform(request, config, mappings, seqNoPrimaryTermAndIndex, clusterState, listener);
-        }
     }
 
     private void updateTransform(

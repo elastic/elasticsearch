@@ -392,7 +392,7 @@ POST /_reindex
 
 // tag::rename-field[]
 Renaming a field would invalidate data already indexed under the old field name.
-Instead, add an <<alias, `alias`>> field to create an alternate field name.
+Instead, add an <<field-alias, `alias`>> field to create an alternate field name.
 // end::rename-field[]
 
 For example,

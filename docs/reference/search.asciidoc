@@ -18,6 +18,7 @@ exception of the <<search-explain,explain API>>.
 * <<scroll-api>>
 * <<clear-scroll-api>>
 * <<search-suggesters>>
+* <<search-terms-enum>>
 
 [discrete]
 [[search-testing-apis]]
@@ -78,6 +79,8 @@ include::eql/delete-async-eql-search-api.asciidoc[]
 include::search/count.asciidoc[]
 
 include::search/validate.asciidoc[]
+
+include::search/terms-enum.asciidoc[]
 
 include::search/explain.asciidoc[]
 

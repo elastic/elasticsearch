@@ -62,7 +62,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             keepAlive = randomIntBetween(1, 300);
             builder.put("thread_pool." + threadPoolName + ".keep_alive", keepAlive + "s");
         } else {
-            keepAlive = "generic".equals(threadPoolName) ? 30 : 300; // the defaults
+            keepAlive = "generic".equals(threadPoolName) || ThreadPool.Names.SNAPSHOT_META.equals(threadPoolName)
+                    ? 30 : 300; // the defaults
         }
 
         runScalingThreadPoolTest(builder.build(), (clusterSettings, threadPool) -> {

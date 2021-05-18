@@ -17,7 +17,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
@@ -329,11 +328,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                                 if (basePath().buildAsString().equals(path().buildAsString())) {
                                     try {
                                         final SnapshotInfo updatedInfo = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
-                                                blobName, namedXContentRegistry, new BytesArray(data));
+                                                namedXContentRegistry, new ByteArrayInputStream(data));
                                         // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
                                         // a problem and could be the result of a correctly handled master failover.
-                                        final SnapshotInfo existingInfo = SNAPSHOT_FORMAT.deserialize(
-                                                blobName, namedXContentRegistry, Streams.readFully(readBlob(blobName)));
+                                        final SnapshotInfo existingInfo =
+                                            SNAPSHOT_FORMAT.deserialize(namedXContentRegistry, readBlob(blobName));
                                         assertThat(existingInfo.snapshotId(), equalTo(updatedInfo.snapshotId()));
                                         assertThat(existingInfo.reason(), equalTo(updatedInfo.reason()));
                                         assertThat(existingInfo.state(), equalTo(updatedInfo.state()));

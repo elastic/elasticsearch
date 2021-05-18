@@ -77,6 +77,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 returnedAliasNames.add(aliasMetadata.alias());
             }
         }
+        dataStreamAliases.entrySet().stream()
+            .flatMap(entry -> entry.getValue().stream())
+            .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
+
         // compute explicitly requested aliases that have are not returned in the result
         final SortedSet<String> missingAliases = new TreeSet<>();
         // first wildcard index, leading "-" as an alias name after this index means
@@ -133,7 +137,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
             }
 
             for (final var entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
+                if (aliasesExplicitlyRequested == false || indicesToDisplay.contains(entry.key)) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");
@@ -147,6 +151,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     builder.endObject();
                 }
             }
+            // No need to do filtering like is done for aliases pointing to indices (^),
+            // because this already happens in TransportGetAliasesAction.
             for (var entry : dataStreamAliases.entrySet()) {
                 builder.startObject(entry.getKey());
                 {
@@ -182,7 +188,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
         //we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
         //not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
-        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
+        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
                 return buildRestResponse(namesProvided, aliases, response.getAliases(), response.getDataStreamAliases(), builder);

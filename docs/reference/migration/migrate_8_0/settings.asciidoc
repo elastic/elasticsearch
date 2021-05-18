@@ -242,3 +242,18 @@ was deprecated in Elasticsearch 7.13.0, and is removed as of Elasticsearch
 Discontinue use of the removed setting. Specifying this setting in Elasticsearch
 configuration will result in an error on startup.
 ====
+
+[[shared-data-path-setting]]
+.Shared data path and per index data path settings deprecated
+[%collapsible]
+====
+*Details* +
+Elasticsearch uses the shared data path as the base path of per index data
+paths. This feature was previously used with shared replicas. Starting in
+7.13.0, these settings are deprecated. Starting in 8.0 only existing
+indices created in 7.x will be capable of using the shared data path and
+per index data path settings.
+
+*Impact* +
+Discontinue use of the deprecated settings.
+====

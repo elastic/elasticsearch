@@ -69,7 +69,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
             this.docsStats = docsStats(reader);
             canMatchReader = ElasticsearchDirectoryReader.wrap(
-                new RewriteCachingDirectoryReader(directory, reader.leaves()), config.getShardId());
+                new RewriteCachingDirectoryReader(directory, reader.leaves(), null), config.getShardId());
             success = true;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -85,7 +85,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
         // we fake an empty DirectoryReader for the ReadOnlyEngine. this reader is only used
         // to initialize the reference manager and to make the refresh call happy which is essentially
         // a no-op now
-        return new DirectoryReader(indexCommit.getDirectory(), new LeafReader[0]) {
+        return new DirectoryReader(indexCommit.getDirectory(), new LeafReader[0], null) {
             @Override
             protected DirectoryReader doOpenIfChanged() {
                 return null;

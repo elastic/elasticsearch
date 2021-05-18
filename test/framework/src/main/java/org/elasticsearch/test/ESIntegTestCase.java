@@ -727,8 +727,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (numberOfReplicas >= 0) {
             builder.put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         }
-        // 30% of the time
-        if (randomInt(9) < 3) {
+        // 30% of the time, for non-external clusters
+        if (cluster() instanceof ExternalTestCluster == false && randomInt(9) < 3) {
             final String dataPath = randomAlphaOfLength(10);
             logger.info("using custom data_path for index: [{}]", dataPath);
             builder.put(IndexMetadata.SETTING_DATA_PATH, dataPath);

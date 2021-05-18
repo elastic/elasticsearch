@@ -83,7 +83,8 @@ public class DeprecationChecks {
                     (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
                         XPackSettings.VECTORS_ENABLED),
                     NodeDeprecationChecks::checkMultipleDataPaths,
-                    NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting
+                    NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
+                    NodeDeprecationChecks::checkSharedDataPathSetting
                 )
             ).collect(Collectors.toList());
         }
@@ -95,7 +96,8 @@ public class DeprecationChecks {
             IndexDeprecationChecks::chainedMultiFieldsCheck,
             IndexDeprecationChecks::deprecatedDateTimeFormat,
             IndexDeprecationChecks::translogRetentionSettingCheck,
-            IndexDeprecationChecks::fieldNamesDisabledCheck
+            IndexDeprecationChecks::fieldNamesDisabledCheck,
+            IndexDeprecationChecks::checkIndexDataPath
         ));
 
 

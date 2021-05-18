@@ -1222,7 +1222,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         baseConfig.put("path.repo", confPathRepo.toAbsolutePath().toString());
         baseConfig.put("path.data", confPathData.toAbsolutePath().toString());
         baseConfig.put("path.logs", confPathLogs.toAbsolutePath().toString());
-        baseConfig.put("path.shared_data", workingDir.resolve("sharedData").toString());
         baseConfig.put("node.attr.testattr", "test");
         baseConfig.put("node.portsfile", "true");
         baseConfig.put("http.port", httpPort);

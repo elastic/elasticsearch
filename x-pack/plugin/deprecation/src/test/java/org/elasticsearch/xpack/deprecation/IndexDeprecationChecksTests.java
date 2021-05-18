@@ -441,4 +441,19 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals("The index mapping contains a deprecated `enabled` setting for `_field_names` that should be removed moving foward.",
                 issue.getDetails());
     }
+
+    public void testIndexDataPathSetting() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), createTempDir());
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "setting [index.data_path] is deprecated and will be removed in a future version",
+                expectedUrl,
+                "Found index data path configured. Discontinue use of this setting."
+        )));
+    }
 }

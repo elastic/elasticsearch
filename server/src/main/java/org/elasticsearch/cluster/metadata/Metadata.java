@@ -1279,10 +1279,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        public Builder dataStreams(Map<String, DataStream> dataStreams) {
-            // TODO: take into account aliases...
-            // (this is only used from snapshot / restore)
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, new HashMap<>()));
+        public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
             return this;
         }
 

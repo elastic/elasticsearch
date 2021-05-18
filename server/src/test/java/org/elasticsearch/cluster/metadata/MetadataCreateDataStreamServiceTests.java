@@ -93,7 +93,9 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         DataStream existingDataStream =
             new DataStream(dataStreamName, createTimestampField("@timestamp"), Collections.singletonList(idx.getIndex()));
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().dataStreams(Collections.singletonMap(dataStreamName, existingDataStream)).build()).build();
+            .metadata(Metadata.builder().dataStreams(Collections.singletonMap(dataStreamName, existingDataStream), Collections.emptyMap())
+                .build())
+            .build();
         CreateDataStreamClusterStateUpdateRequest req =
             new CreateDataStreamClusterStateUpdateRequest(dataStreamName, TimeValue.ZERO, TimeValue.ZERO);
 

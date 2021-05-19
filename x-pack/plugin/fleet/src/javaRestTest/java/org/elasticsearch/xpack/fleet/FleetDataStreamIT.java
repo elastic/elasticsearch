@@ -30,12 +30,11 @@ public class FleetDataStreamIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         // Note that we are superuser here but DO NOT provide a product origin
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 
-    @Override protected Settings restAdminSettings() {
+    @Override
+    protected Settings restAdminSettings() {
         // Note that we are both superuser here and provide a product origin
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
@@ -48,7 +47,6 @@ public class FleetDataStreamIT extends ESRestTestCase {
         initialDocResponse.setJsonEntity("{\"@timestamp\": 0}");
         Response response = adminClient().performRequest(initialDocResponse);
         assertOK(response);
-
 
         Request getAliasRequest = new Request("GET", "_alias/auditbeat-7.13.0");
         try {

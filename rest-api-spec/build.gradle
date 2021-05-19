@@ -119,7 +119,9 @@ tasks.named("yamlRestCompatTest").configure {
     // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
     // field search on _type field- not implementing. The data for _type is considered incorrect in this search
     'search/160_exists_query/Test exists query on _type field',
-    // 83 - 12 = 71 tests won't be fixed
+    //type information is not stored, hence the the index will be found
+    'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
+    // 85 - 13 = 72 tests won't be fixed
     'bulk/11_basic_with_types/Array of objects',
     'bulk/11_basic_with_types/Empty _id',
     'bulk/11_basic_with_types/Empty _id with op_type create',
@@ -218,13 +220,8 @@ tasks.named("yamlRestCompatTest").configure {
     'snapshot.get/10_basic/Get snapshot info when verbose is false',
     'snapshot.get/10_basic/Get snapshot info with metadata',
     'snapshot.get/10_basic/Get snapshot info with index details',
-    'suggest/20_completion/Suggestions with source should work',
-    'termvectors/11_basic_with_types/Basic tests for termvector get',
-    'termvectors/20_issue7121/Term vector API should return \'found: false\' for docs between index and refresh',
-    'termvectors/21_issue7121_with_types/Term vector API should return \'found: false\' for docs between index and refresh',
-    'termvectors/31_realtime_with_types/Realtime Term Vectors',
-    'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types'
-  ].join(',')
+    'suggest/20_completion/Suggestions with source should work'
+   ].join(',')
 }
 
 tasks.named("transformV7RestTests").configure({ task ->

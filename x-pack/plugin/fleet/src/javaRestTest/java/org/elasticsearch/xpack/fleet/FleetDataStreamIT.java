@@ -18,7 +18,10 @@ import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.Collections;
+import java.util.List;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -189,5 +192,54 @@ public class FleetDataStreamIT extends ESRestTestCase {
                 );
             }
         }
+    }
+
+    public void testCountWithSystemDataStream() throws Exception {
+        assertThatAPIWildcardResolutionWorks();
+
+        // Create a system data stream
+        Request initialDocResponse = new Request("POST", ".fleet-actions-results/_doc");
+        initialDocResponse.setJsonEntity("{\"@timestamp\": 0}");
+        assertOK(adminClient().performRequest(initialDocResponse));
+        assertThatAPIWildcardResolutionWorks();
+
+        // Create a system index - this one has an alias
+        Request sysIdxRequest = new Request("PUT", ".fleet-artifacts");
+        assertOK(adminClient().performRequest(sysIdxRequest));
+        assertThatAPIWildcardResolutionWorks(singletonList(
+            "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system indices " +
+                "will be prevented by default"));
+        assertThatAPIWildcardResolutionWorks(singletonList(
+            "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system indices " +
+                "will be prevented by default"), ".f*");
+
+        // Create a regular index
+        String regularIndex = "regular-idx";
+        String regularAlias = "regular-alias";
+        Request regularIdxRequest = new Request("PUT", regularIndex);
+        regularIdxRequest.setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
+        assertOK(client().performRequest(regularIdxRequest));
+        assertThatAPIWildcardResolutionWorks(singletonList(
+            "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system indices " +
+                "will be prevented by default"));
+        assertThatAPIWildcardResolutionWorks(emptyList(), "r*");
+    }
+
+    private void assertThatAPIWildcardResolutionWorks() throws Exception {
+        assertThatAPIWildcardResolutionWorks(emptyList(), null);
+    }
+
+    private void assertThatAPIWildcardResolutionWorks(List<String> warningsExpected) throws Exception {
+        assertThatAPIWildcardResolutionWorks(warningsExpected, null);
+    }
+
+    private void assertThatAPIWildcardResolutionWorks(List<String> warningsExpected, String indexPattern) throws Exception {
+        String path = indexPattern == null || indexPattern.isEmpty() ? "/_count" : "/" + indexPattern + "/_count";
+        Request countRequest = new Request("GET", path);
+        if (warningsExpected.isEmpty() == false) {
+            countRequest.setOptions(
+                countRequest.getOptions().toBuilder().setWarningsHandler(warnings -> warningsExpected.equals(warnings) == false));
+        }
+        assertOK(client().performRequest(countRequest));
     }
 }

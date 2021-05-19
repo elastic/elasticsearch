@@ -64,13 +64,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
     @Override
     protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
-        String[] concreteIndices;
-        // Switch to a context with no headers, so that no deprecation warnings will be emitted, and we won't get spurious errors
-        // resolving _all while Security is enabled if system data streams exist. This hack should be removed ASAP
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
-            // BE VERY CAREFUL ADDING ANYTHING TO THIS BLOCK. REQUEST HEADERS, SUCH AS SECURITY HEADERS, ARE SUPPRESSED HERE
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        }
+        // resolve all concrete indices upfront and warn/error later
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,

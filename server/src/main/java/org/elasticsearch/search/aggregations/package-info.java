@@ -43,10 +43,10 @@
  * operate, in general.  Which one we choose depends on limitations in the query
  * and how the data was ingested (e.g. if it is searchable).</p>
  *
- * <p>The easiest to understand is the <strong>Compatible</strong> (TODO: Why is this called "compatible"?)
- * mode, which can be thought of as iterating each query hit and collecting a
- * value from it.  This is the least performant way to evaluate aggregations,
- * requiring looking at every hit.</p>
+ * <p>The easiest to understand is the <strong>Compatible</strong> (i.e. usable in
+ * all situations) mode, which can be thought of as iterating each query hit and
+ * collecting a value from it.  This is the least performant way to evaluate
+ * aggregations, requiring looking at every hit.</p>
  *
  * <p>The fastest way to run an aggregation is by <strong>looking at the index structures
  * directly.</strong>  For example, Lucene just stores the minimum and maximum values
@@ -56,12 +56,14 @@
  * {@link org.elasticsearch.search.aggregations.support.ValuesSourceConfig#getPointReaderOrNull()}.</p>
  *
  * <p>Finally, we can <strong>rewrite</strong> an aggregation into faster aggregations,
- * or ideally into just a query.  Generally, the goal here is to get to a filters
- * aggregation, which can be rewritten into filters queries.  We call this
- * <strong>filter by filters</strong>.  Often this process will look like rewriting
+ * or ideally into just a query.  Generally, the goal here is to get to
+ * <strong>filter by filters</strong> (which is an optimization on the filters aggregation
+ * which runs it as a set of filter queries).  Often this process will look like rewriting
  * a DateHistogram into a DateRange, and then rewriting the DateRange into Filters.
  * If you see {@link org.elasticsearch.search.aggregations.AdaptingAggregator}, that's
- * a good clue that the rewrite mode is being used.</p>
+ * a good clue that the rewrite mode is being used.  In general, when we rewrite aggregations,
+ * we are able to detect if the rewritten agg can run in a "fast" mode, and decline the
+ * rewrite if it can't.</p>
  *
  * <p>In general, aggs will try to use one of the fast modes, and if that's not possible,
  * fall back to running in compatible mode.</p>

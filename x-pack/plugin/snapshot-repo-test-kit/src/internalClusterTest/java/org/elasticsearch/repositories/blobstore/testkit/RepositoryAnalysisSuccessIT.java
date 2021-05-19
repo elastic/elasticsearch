@@ -41,6 +41,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
@@ -153,9 +154,9 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
     private static BlobPath buildBlobPath(Settings settings) {
         final String basePath = settings.get(BASE_PATH_SETTING_KEY);
         if (basePath == null) {
-            return BlobPath.cleanPath();
+            return BlobPath.EMPTY;
         } else {
-            return BlobPath.cleanPath().add(basePath);
+            return BlobPath.EMPTY.add(basePath);
         }
     }
 
@@ -363,8 +364,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
-            blobs.keySet().removeAll(blobNames);
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
+            blobNames.forEachRemaining(blobs.keySet()::remove);
         }
 
         @Override

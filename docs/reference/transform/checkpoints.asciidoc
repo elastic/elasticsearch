@@ -40,7 +40,7 @@ The {transform} applies changes related to either new or changed entities or
 time buckets to the destination index. The set of changes can be paginated. The
 {transform} performs a composite aggregation similarly to the batch {transform} 
 operation, however it also injects query filters based on the previous step to 
-reduce the amount work. After all changes have been applied, the checkpoint is 
+reduce the amount of work. After all changes have been applied, the checkpoint is 
 complete.
 --
 

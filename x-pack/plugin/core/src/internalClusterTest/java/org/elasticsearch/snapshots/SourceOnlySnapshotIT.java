@@ -185,7 +185,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(startFullSnapshot(repo, "snapshot-3"));
     }
 
-    private void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) {
+    private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) {
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
         MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
         String nested = useNested ?

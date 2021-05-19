@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -31,6 +32,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -63,7 +65,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
     static RestResponse buildRestResponse(boolean aliasesExplicitlyRequested, String[] requestedAliases,
                                           ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
-                                          XContentBuilder builder) throws Exception {
+                                          Map<String, List<DataStreamAlias>> dataStreamAliases, XContentBuilder builder) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
         for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
@@ -75,6 +77,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 returnedAliasNames.add(aliasMetadata.alias());
             }
         }
+        dataStreamAliases.entrySet().stream()
+            .flatMap(entry -> entry.getValue().stream())
+            .forEach(dataStreamAlias -> returnedAliasNames.add(dataStreamAlias.getName()));
+
         // compute explicitly requested aliases that have are not returned in the result
         final SortedSet<String> missingAliases = new TreeSet<>();
         // first wildcard index, leading "-" as an alias name after this index means
@@ -130,8 +136,8 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
+            for (final var entry : responseAliasMap) {
+                if (aliasesExplicitlyRequested == false || indicesToDisplay.contains(entry.key)) {
                     builder.startObject(entry.key);
                     {
                         builder.startObject("aliases");
@@ -144,6 +150,22 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     }
                     builder.endObject();
                 }
+            }
+            // No need to do filtering like is done for aliases pointing to indices (^),
+            // because this already happens in TransportGetAliasesAction.
+            for (var entry : dataStreamAliases.entrySet()) {
+                builder.startObject(entry.getKey());
+                {
+                    builder.startObject("aliases");
+                    {
+                        for (DataStreamAlias alias : entry.getValue()) {
+                            builder.startObject(alias.getName());
+                            builder.endObject();
+                        }
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
             }
         }
         builder.endObject();
@@ -166,10 +188,10 @@ public class RestGetAliasesAction extends BaseRestHandler {
 
         //we may want to move this logic to TransportGetAliasesAction but it is based on the original provided aliases, which will
         //not always be available there (they may get replaced so retrieving request.aliases is not quite the same).
-        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<GetAliasesResponse>(channel) {
+        return channel -> client.admin().indices().getAliases(getAliasesRequest, new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(GetAliasesResponse response, XContentBuilder builder) throws Exception {
-                return buildRestResponse(namesProvided, aliases, response.getAliases(), builder);
+                return buildRestResponse(namesProvided, aliases, response.getAliases(), response.getDataStreamAliases(), builder);
             }
         });
     }

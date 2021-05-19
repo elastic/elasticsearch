@@ -4,11 +4,11 @@
 <titleabbrev>Reindex</titleabbrev>
 ++++
 
-Copies documents from a _source_ to a _destination_.
+Copies documents from a source to a destination.
 
-The source and destination can be any pre-existing index, index alias, or
-<<data-streams,data stream>>. However, the source and destination must be
-different. For example, you cannot reindex a data stream into itself.
+The source can be any existing index, alias, or data stream. The destination
+must differ from the source. For example, you cannot reindex a data stream into
+itself.
 
 [IMPORTANT]
 =================================================

@@ -208,14 +208,14 @@ public class FleetDataStreamIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(sysIdxRequest));
         assertThatAPIWildcardResolutionWorks(
             singletonList(
-                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system indices "
-                    + "will be prevented by default"
+                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
+                    + " indices will be prevented by default"
             )
         );
         assertThatAPIWildcardResolutionWorks(
             singletonList(
-                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system indices "
-                    + "will be prevented by default"
+                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system" +
+                    " indices will be prevented by default"
             ),
             ".f*"
         );
@@ -228,8 +228,8 @@ public class FleetDataStreamIT extends ESRestTestCase {
         assertOK(client().performRequest(regularIdxRequest));
         assertThatAPIWildcardResolutionWorks(
             singletonList(
-                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system indices "
-                    + "will be prevented by default"
+                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
+                    + " indices will be prevented by default"
             )
         );
         assertThatAPIWildcardResolutionWorks(emptyList(), "r*");

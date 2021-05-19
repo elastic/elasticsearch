@@ -45,19 +45,30 @@ public class FleetDataStreamIT extends ESRestTestCase {
     public void testAliasWithSystemDataStream() throws Exception {
         Request initialDocResponse = new Request("POST", ".fleet-actions-results/_doc");
         initialDocResponse.setJsonEntity("{\"@timestamp\": 0}");
-        Response response = adminClient().performRequest(initialDocResponse);
-        assertOK(response);
+        assertOK(adminClient().performRequest(initialDocResponse));
 
-        Request getAliasRequest = new Request("GET", "_alias/auditbeat-7.13.0");
-        try {
-            client().performRequest(getAliasRequest);
-            fail("this request should not succeed, as it is looking for an alias that does not exist");
-        } catch (ResponseException e) {
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
-            assertThat(
-                EntityUtils.toString(e.getResponse().getEntity()),
-                not(containsString("use and access is reserved for system operations"))
-            );
+        // Check just _alias
+        {
+            Request getAliasRequest = new Request("GET", "_alias");
+            Response response = client().performRequest(getAliasRequest);
+            String entity = EntityUtils.toString(response.getEntity());
+            assertOK(response);
+            assertThat("response should be empty as no aliases should exist, but was: " + entity, entity, is("{}"));
+        }
+
+        // Check an alias that doesn't exist
+        {
+            Request getAliasRequest = new Request("GET", "_alias/auditbeat-7.13.0");
+            try {
+                client().performRequest(getAliasRequest);
+                fail("this request should not succeed, as it is looking for an alias that does not exist");
+            } catch (ResponseException e) {
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
+                assertThat(
+                    EntityUtils.toString(e.getResponse().getEntity()),
+                    not(containsString("use and access is reserved for system operations"))
+                );
+            }
         }
     }
 }

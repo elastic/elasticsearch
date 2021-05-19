@@ -178,6 +178,32 @@ SELECT j AS k FROM (
 ) GROUP BY k;
 ;
 
+MultiLevelAliasedSubqueryGroupBy1
+SELECT int FROM (
+    SELECT int FROM (
+        SELECT int FROM test GROUP BY int
+    ) AS subq1
+) AS subq2;
+;
+
+MultiLevelAliasedSubqueryGroupBy2
+SELECT int FROM (
+    SELECT int FROM (
+        SELECT int FROM test
+    GROUP BY int) AS subq1
+) AS subq2;
+;
+
+MultiLevelAliasedSubqueryGroupBy3
+SELECT * FROM (
+    SELECT int FROM (
+        SELECT * FROM (
+            SELECT int FROM test
+        GROUP BY int) AS subq1
+    ) AS subq2
+)AS subq3;
+;
+
 SubqueryGroupByFilterAndOrderByByRealiased
 SELECT g as h FROM (
     SELECT date AS f, int AS g FROM test

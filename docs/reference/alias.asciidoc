@@ -180,11 +180,11 @@ PUT %3Cmy-index-%7Bnow%2Fd%7D-000001%3E
 === View aliases
 
 To get a list of your cluster's aliases, use the <<indices-get-alias,get alias
-API>> with a `*` argument.
+API>> with no argument.
 
 [source,console]
 ----
-GET _alias/*
+GET _alias
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
 

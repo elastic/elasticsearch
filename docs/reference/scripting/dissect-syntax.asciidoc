@@ -1,0 +1,10 @@
+[[dissect]]
+=== Dissect patterns
+Dissect matches a single text field against a defined pattern. A dissect
+pattern is defined by the parts of the string you want to discard. Paying
+special attention to the parts of the string you want to discard will help
+build successful dissect patterns.
+
+Regex is incredibly powerful but can be complicated. If you don't need the
+power of regular expressions, use dissect patterns, which are simple and
+often faster than grok patterns. 

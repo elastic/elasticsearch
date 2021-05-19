@@ -19,11 +19,6 @@ expressions that you can reuse. Because Grok sits on top of regular expressions
 delimiters to define the matching pattern. Unlike grok, dissect doesn't use regular
 expressions.
 
-Regex is incredibly powerful but can be complicated. If you don't need the
-power of regular expressions, use dissect patterns, which are simple and
-often faster than grok patterns. Paying special attention to the parts of the string
-you want to discard will help build successful dissect patterns.
-
 Let's start with a simple example by adding the `@timestamp` and `message`
 fields to the `my-index` mapping as indexed fields. To remain flexible, use
 `wildcard` as the field type for `message`:

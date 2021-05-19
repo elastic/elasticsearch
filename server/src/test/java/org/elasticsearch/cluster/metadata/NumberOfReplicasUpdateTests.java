@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -88,6 +89,13 @@ public class NumberOfReplicasUpdateTests extends ESTestCase {
         assertDeprecated(numberOfReplicasUpdate().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all"), randomIndices());
     }
 
+    public void testNotDeprecatedIfNoIndicesSelected() {
+        runTest(
+            false,
+            new UpdateSettingsRequest(numberOfReplicasUpdate().build(), "nonexistent*")
+                .indicesOptions(IndicesOptions.lenientExpandOpen()));
+    }
+
     private static Settings.Builder numberOfReplicasUpdate() {
         return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, Integer.toString(between(0, 5)));
     }
@@ -105,6 +113,10 @@ public class NumberOfReplicasUpdateTests extends ESTestCase {
     }
 
     private static void runTest(boolean expectDeprecated, Settings.Builder settings, String[] indices) {
+        runTest(expectDeprecated, new UpdateSettingsRequest(settings.build(), indices));
+    }
+
+    private static void runTest(boolean expectDeprecated, UpdateSettingsRequest updateSettingsRequest) {
         try {
             final MockLogAppender appender = new MockLogAppender();
             try {
@@ -126,7 +138,7 @@ public class NumberOfReplicasUpdateTests extends ESTestCase {
                         "*"));
                 }
 
-                clusterStateChanges.updateSettings(clusterState, new UpdateSettingsRequest(settings.build(), indices));
+                clusterStateChanges.updateSettings(clusterState, updateSettingsRequest);
 
                 appender.assertAllExpectationsMatched();
             } finally {

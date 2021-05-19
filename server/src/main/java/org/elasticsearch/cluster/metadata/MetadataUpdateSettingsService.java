@@ -137,7 +137,11 @@ public class MetadataUpdateSettingsService {
                 if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
 
                     final boolean updatingReplicasHasEffect;
-                    if (IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.exists(openSettings)) {
+                    if (openIndices.isEmpty() && closeIndices.isEmpty()) {
+                        // there are no indices to update, which means the user has requested lenient wildcard expansion, so we treat
+                        // this as ok
+                        updatingReplicasHasEffect = true;
+                    } else if (IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.exists(openSettings)) {
                         // we are setting auto-expand replicas on all these indices, so setting the number of replicas is meaningful iff
                         // it's being disabled
                         updatingReplicasHasEffect

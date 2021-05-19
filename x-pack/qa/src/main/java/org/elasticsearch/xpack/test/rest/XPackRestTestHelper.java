@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.fail;
 
 public final class XPackRestTestHelper {

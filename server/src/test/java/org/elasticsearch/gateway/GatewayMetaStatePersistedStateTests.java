@@ -366,7 +366,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertThat(persistedState.getLastAcceptedState().getLastAcceptedConfiguration(),
                 not(equalTo(persistedState.getLastAcceptedState().getLastCommittedConfiguration())));
             CoordinationMetadata persistedCoordinationMetadata =
-                persistedClusterStateService.loadOnDiskState().metadata.coordinationMetadata();
+                persistedClusterStateService.loadOnDiskState(false).metadata.coordinationMetadata();
             assertThat(persistedCoordinationMetadata.getLastAcceptedConfiguration(),
                 equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
             assertThat(persistedCoordinationMetadata.getLastCommittedConfiguration(),
@@ -382,12 +382,12 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     .clusterUUID(state.metadata().clusterUUID()).clusterUUIDCommitted(true).build()).build();
 
             assertClusterStateEqual(expectedClusterState, persistedState.getLastAcceptedState());
-            persistedCoordinationMetadata = persistedClusterStateService.loadOnDiskState().metadata.coordinationMetadata();
+            persistedCoordinationMetadata = persistedClusterStateService.loadOnDiskState(false).metadata.coordinationMetadata();
             assertThat(persistedCoordinationMetadata.getLastAcceptedConfiguration(),
                 equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
             assertThat(persistedCoordinationMetadata.getLastCommittedConfiguration(),
                 equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
-            assertTrue(persistedClusterStateService.loadOnDiskState().metadata.clusterUUIDCommitted());
+            assertTrue(persistedClusterStateService.loadOnDiskState(false).metadata.clusterUUIDCommitted());
 
             // generate a series of updates and check if batching works
             final String indexName = randomAlphaOfLength(10);

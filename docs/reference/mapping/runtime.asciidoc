@@ -145,34 +145,10 @@ PUT my-index
 
 [[runtime-fields-scriptless]]
 ==== Define runtime fields without a script
-Defining a runtime field to access <<doc-values,`doc_values`>> is faster than
-retrieving values from `_source`. The `doc_values` are loaded directly from
-Lucene `doc_values`, whereas accessing `_source` requires loading values from a
-Lucene stored field. This means that accessing values from `_source` takes about
-twice as long as using a runtime field that extracts from `doc_values`.
-
-However, there are cases such as `text` fields where `doc_values` are not
-available by default, or where you choose to not index specific fields or set
-`doc_values` to `false`. In these instances, you have two options to retrieve
-values directly from `_source` using runtime fields:
-
-* Define a runtime field in the mapping without a script (*recommended*)
-* Prefix the field you want to retrieve values for with `params._source` (such
-as `params._source.day_of_week`)
-
-Defining a runtime field in the mapping definition without a script is the
-recommended option. At query time, {es} implicitly looks in `_source` for a
-field with the same name as the runtime field and returns a value if one exists.
-If a field with the same name doesn’t exist, the response doesn't include any
-values for that runtime field.
-
-Additionally, a runtime field without a script ignores errors as if <<ignore-malformed,`ignore_malformed`>> is `true`. Your runtime field will
-return values for the specified field, regardless of how the data is formatted.
-This behavior is really useful for exploring your data and determining how you
-might want to <<runtime-mapping-fields,map a runtime field>>.
-
-The following request adds a `day_of_week` runtime field to `my-index` without
-a script. 
+Runtime fields typically include a Painless script that manipulates data in some
+way. However, there are instances where you might define a runtime field
+_without_ a script. For example, if you want to retrieve a single value from `_source` without making changes, you don't need a script. You can just create
+a runtime field without a script, such as `day_of_week`:
 
 [source,console]
 ----
@@ -187,6 +163,26 @@ PUT my-index/
   }
 }
 ----
+
+When no script is provided, {es} implicitly looks in `_source` at query time
+for a field with the same name as the runtime field, and returns a value if one
+exists. If a field with the same name doesn’t exist, the response doesn't
+include any values for that runtime field.
+
+In most cases, you should retrieve field values through
+<<doc-values,`doc_values`>> whenever possible. Accessing `doc_values` with a
+runtime field is faster than retrieving values from `_source` because of how
+data is loaded from Lucene.
+
+However, there are cases such as `text` fields where `doc_values` are not
+available by default, or where you choose to not index specific fields or set
+`doc_values` to `false`. In these instances, define a runtime field without a
+script to retrieve values directly from `_source`.
+
+NOTE: You can alternatively prefix the field you want to retrieve values for
+with `params._source` (such as `params._source.day_of_week`). For simplicity,
+defining a runtime field in the mapping definition without a script is the
+recommended option.
 
 [[runtime-updating-scripts]]
 ==== Updating and removing runtime fields

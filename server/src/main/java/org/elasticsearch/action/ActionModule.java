@@ -463,7 +463,7 @@ public class ActionModule extends AbstractModule {
                 if (plugin.getClass().getCanonicalName() == null ||
                     plugin.getClass().getCanonicalName().startsWith("org.elasticsearch") == false) {
                     deprecationLogger.deprecate(DeprecationCategory.PLUGINS, "3rd_party_rest_deprecation", "The " +
-                        plugin.getClass().getName() + "plugin installs a custom REST wrapper. This functionality is deprecated and will " +
+                        plugin.getClass().getName() + " plugin installs a custom REST wrapper. This functionality is deprecated and will " +
                         "not be possible in Elasticsearch 8.0. If this plugin is intended to provide security features for Elasticsearch " +
                         "then you should switch to using the built-in Elasticsearch features instead.");
                 }

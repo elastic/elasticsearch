@@ -204,7 +204,6 @@ Specify an alias after `_alias` to view its data streams or indices.
 GET _alias/logs
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
-// TEST[catch:missing]
 
 [discrete]
 [[write-index]]

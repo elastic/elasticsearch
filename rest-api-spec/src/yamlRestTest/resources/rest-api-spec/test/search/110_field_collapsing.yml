@@ -235,8 +235,8 @@ setup:
 ---
 "field collapsing and search_after with invalid sort":
   - skip:
-      version: " - 7.99.99"
-      reason: "support for collapsing with search_after not yet backported"
+      version: " - 7.13.99"
+      reason: "support for collapsing with search_after was added in 7.14"
   - do:
       catch: /Cannot use \[collapse\] in conjunction with \[search_after\] unless the search is sorted on the same field. Multiple sort fields are not allowed./
       search:
@@ -258,8 +258,8 @@ setup:
 ---
 "field collapsing and search_after":
   - skip:
-      version: " - 7.99.99"
-      reason: "support for collapsing with search_after not yet backported"
+      version: " - 7.13.99"
+      reason: "support for collapsing with search_after was added in 7.14"
   - do:
       search:
         index: test

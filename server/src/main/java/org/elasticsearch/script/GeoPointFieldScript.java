@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
@@ -45,6 +46,21 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
             emitFromSource();
         }
     };
+
+    public static Factory objectAdapter(Function<SearchLookup, ObjectFieldScript.LeafFactory> objectFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            ObjectFieldScript.LeafFactory objectLeafFactory = objectFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                ObjectFieldScript objectFieldScript = objectLeafFactory.newInstance(ctx);
+                return new GeoPointFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emitFromObjectScript(objectFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

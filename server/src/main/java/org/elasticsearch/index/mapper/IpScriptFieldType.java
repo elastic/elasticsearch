@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
+import org.elasticsearch.script.ObjectFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -38,15 +39,26 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, IpFieldScript.CONTEXT, IpFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<>(name, IpFieldScript.CONTEXT) {
             @Override
             RuntimeField newRuntimeField(IpFieldScript.Factory scriptFactory) {
                 return new IpScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+            }
+
+            @Override
+            IpFieldScript.Factory getParseFromSourceFactory() {
+                return IpFieldScript.PARSE_FROM_SOURCE;
+            }
+
+            @Override
+            IpFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
+                return IpFieldScript.objectAdapter(parentScriptFactory);
             }
         });
 

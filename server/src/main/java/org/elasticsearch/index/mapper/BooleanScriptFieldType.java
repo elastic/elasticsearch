@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.ObjectFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -29,15 +30,26 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, BooleanFieldScript.CONTEXT, BooleanFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<>(name, BooleanFieldScript.CONTEXT) {
             @Override
             RuntimeField newRuntimeField(BooleanFieldScript.Factory scriptFactory) {
                 return new BooleanScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+            }
+
+            @Override
+            BooleanFieldScript.Factory getParseFromSourceFactory() {
+                return BooleanFieldScript.PARSE_FROM_SOURCE;
+            }
+
+            @Override
+            BooleanFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
+                return BooleanFieldScript.objectAdapter(parentScriptFactory);
             }
         });
 

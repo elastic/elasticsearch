@@ -287,6 +287,14 @@ public class MockScriptEngine implements ScriptEngine {
                 }
             };
             return context.factoryClazz.cast(geoPointFieldScript);
+        } else if (context.instanceClazz.equals(ObjectFieldScript.class)) {
+            ObjectFieldScript.Factory objectFieldScript = (f, p, s) -> ctx -> new ObjectFieldScript(f, p, s, ctx) {
+                @Override
+                public void execute() {
+                    emit("field", "value");
+                }
+            };
+            return context.factoryClazz.cast(objectFieldScript);
         }
         ContextCompiler compiler = contexts.get(context);
         if (compiler != null) {

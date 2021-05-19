@@ -13,6 +13,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
+import java.util.function.Function;
 
 public abstract class LongFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("long_field", Factory.class);
@@ -30,6 +31,21 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
             emitFromSource();
         }
     };
+
+    public static Factory objectAdapter(Function<SearchLookup, ObjectFieldScript.LeafFactory> objectFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            ObjectFieldScript.LeafFactory objectLeafFactory = objectFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                ObjectFieldScript objectFieldScript = objectLeafFactory.newInstance(ctx);
+                return new LongFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emitFromObjectScript(objectFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

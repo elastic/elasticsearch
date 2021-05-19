@@ -106,6 +106,13 @@ public abstract class AbstractFieldScript {
         return XContentMapValues.extractRawValues(path, leafSearchLookup.source().source());
     }
 
+    protected final void emitFromObjectScript(ObjectFieldScript objectFieldScript) {
+        List<Object> values = objectFieldScript.getValues(fieldName);
+        for (Object value : values) {
+            emitFromObject(value);
+        }
+    }
+
     protected abstract void emitFromObject(Object v);
 
     protected final void emitFromSource() {

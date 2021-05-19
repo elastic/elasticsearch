@@ -18,6 +18,7 @@ import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.ObjectFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -30,15 +31,26 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, LongFieldScript.CONTEXT, LongFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<>(name, LongFieldScript.CONTEXT) {
             @Override
             RuntimeField newRuntimeField(LongFieldScript.Factory scriptFactory) {
                 return new LongScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+            }
+
+            @Override
+            LongFieldScript.Factory getParseFromSourceFactory() {
+                return LongFieldScript.PARSE_FROM_SOURCE;
+            }
+
+            @Override
+            LongFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
+                return LongFieldScript.objectAdapter(parentScriptFactory);
             }
         });
 

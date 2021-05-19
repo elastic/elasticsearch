@@ -14,6 +14,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 import java.util.function.DoubleConsumer;
+import java.util.function.Function;
 
 public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_field", Factory.class);
@@ -31,6 +32,21 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
             emitFromSource();
         }
     };
+
+    public static Factory objectAdapter(Function<SearchLookup, ObjectFieldScript.LeafFactory> objectFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            ObjectFieldScript.LeafFactory objectLeafFactory = objectFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                ObjectFieldScript objectFieldScript = objectLeafFactory.newInstance(ctx);
+                return new DoubleFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emitFromObjectScript(objectFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public abstract class StringFieldScript extends AbstractFieldScript {
     /**
@@ -38,6 +39,21 @@ public abstract class StringFieldScript extends AbstractFieldScript {
             emitFromSource();
         }
     };
+
+    public static Factory objectAdapter(Function<SearchLookup, ObjectFieldScript.LeafFactory> objectFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            ObjectFieldScript.LeafFactory objectLeafFactory = objectFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                ObjectFieldScript objectFieldScript = objectLeafFactory.newInstance(ctx);
+                return new StringFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void execute() {
+                        emitFromObjectScript(objectFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};

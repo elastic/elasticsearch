@@ -215,7 +215,7 @@ public class RootObjectMapper extends ObjectMapper {
                 return true;
             } else if (fieldName.equals("runtime")) {
                 if (fieldNode instanceof Map) {
-                    builder.setRuntime(RuntimeField.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, true));
+                    builder.setRuntime(RuntimeField.parseRuntimeFields((Map<String, Object>) fieldNode, parserContext, null, true));
                     return true;
                 } else {
                     throw new ElasticsearchParseException("runtime must be a map type");
@@ -403,7 +403,7 @@ public class RootObjectMapper extends ObjectMapper {
                     if (parser == null) {
                         throw new IllegalArgumentException("No runtime field found for type [" + mappingType + "]");
                     }
-                    validate(template, dynamicType, (name, mapping) -> parser.parse(name, mapping, parserContext));
+                    validate(template, dynamicType, (name, mapping) -> parser.parse(name, mapping, parserContext, null));
                 } else {
                     Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
                     if (typeParser == null) {

@@ -23,6 +23,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DateFieldScript;
+import org.elasticsearch.script.ObjectFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -40,12 +41,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, DateFieldScript.CONTEXT, DateFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<>(name, DateFieldScript.CONTEXT) {
             private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
                 "format",
                 true,
@@ -83,6 +85,16 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
                 Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
                 DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
                 return new DateScriptFieldType(name, scriptFactory, dateTimeFormatter, getScript(), meta(), this);
+            }
+
+            @Override
+            DateFieldScript.Factory getParseFromSourceFactory() {
+                return DateFieldScript.PARSE_FROM_SOURCE;
+            }
+
+            @Override
+            DateFieldScript.Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
+                return DateFieldScript.objectAdapter(parentScriptFactory);
             }
         });
 

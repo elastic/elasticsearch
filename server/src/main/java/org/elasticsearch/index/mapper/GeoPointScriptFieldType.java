@@ -23,6 +23,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.ObjectFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
@@ -32,15 +33,27 @@ import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPointFieldScript.LeafFactory> implements GeoShapeQueryable {
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, GeoPointFieldScript.CONTEXT, GeoPointFieldScript.PARSE_FROM_SOURCE) {
+        new Builder<>(name, GeoPointFieldScript.CONTEXT) {
             @Override
             RuntimeField newRuntimeField(GeoPointFieldScript.Factory scriptFactory) {
                 return new GeoPointScriptFieldType(name, scriptFactory, getScript(), meta(), this);
+            }
+
+            @Override
+            GeoPointFieldScript.Factory getParseFromSourceFactory() {
+                return GeoPointFieldScript.PARSE_FROM_SOURCE;
+            }
+
+            @Override
+            GeoPointFieldScript.Factory getObjectSubfieldFactory(
+                Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
+                return GeoPointFieldScript.objectAdapter(parentScriptFactory);
             }
         });
 

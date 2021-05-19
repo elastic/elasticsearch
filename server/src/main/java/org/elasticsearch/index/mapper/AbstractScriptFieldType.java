@@ -20,6 +20,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.ObjectFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
@@ -209,7 +210,6 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
 
     abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
-        private final Factory parseFromSourceFactory;
 
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
@@ -219,18 +219,25 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
             initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        Builder(String name, ScriptContext<Factory> scriptContext, Factory parseFromSourceFactory) {
+        Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
-            this.parseFromSourceFactory = parseFromSourceFactory;
         }
+
+        abstract Factory getParseFromSourceFactory();
+
+        abstract Factory getObjectSubfieldFactory(Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory);
 
         abstract RuntimeField newRuntimeField(Factory scriptFactory);
 
         @Override
-        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
+        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext,
+                                                        Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory) {
             if (script.get() == null) {
-                return newRuntimeField(parseFromSourceFactory);
+                if (parentScriptFactory == null) {
+                    return newRuntimeField(getParseFromSourceFactory());
+                }
+                return newRuntimeField(getObjectSubfieldFactory(parentScriptFactory));
             }
             Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
             return newRuntimeField(factory);
@@ -250,7 +257,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
             return script.get();
         }
 
-        private static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
+        static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
             Script script = Script.parse(scriptObject);
             if (script.getType() == ScriptType.STORED) {
                 throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");

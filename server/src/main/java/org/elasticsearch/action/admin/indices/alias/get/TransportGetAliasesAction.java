@@ -74,7 +74,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,
-            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices), postProcess(request, state)));
+            systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices),
+            postProcess(indexNameExpressionResolver, request, state)));
     }
 
     /**
@@ -108,17 +109,19 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         return finalResponse;
     }
 
-    Map<String, List<DataStreamAlias>> postProcess(GetAliasesRequest request, ClusterState state) {
+    static Map<String, List<DataStreamAlias>> postProcess(IndexNameExpressionResolver resolver, GetAliasesRequest request,
+                                                          ClusterState state) {
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
         boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
-        List<String> requestedDataStreams =
-            indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), request.indices());
+        List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
         for (String requestedDataStream : requestedDataStreams) {
             List<DataStreamAlias> aliases = state.metadata().dataStreamAliases().values().stream()
                 .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
                 .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
                 .collect(Collectors.toList());
-            result.put(requestedDataStream, aliases);
+            if (aliases.isEmpty() == false) {
+                result.put(requestedDataStream, aliases);
+            }
         }
         return result;
     }

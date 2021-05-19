@@ -204,5 +204,4 @@ public class EnvironmentTests extends ESTestCase {
     private void assertIsNormalized(final String path) {
         assertThat("path [" + path + "] is not normalized", PathUtils.get(path), equalTo(PathUtils.get(path).normalize()));
     }
-
 }

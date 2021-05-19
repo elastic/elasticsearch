@@ -33,6 +33,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.Task;
@@ -95,7 +96,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
     private List<ScriptedBlockPlugin> initBlockFactory() {
         List<ScriptedBlockPlugin> plugins = new ArrayList<>();
-        for (PluginsService pluginsService : internalCluster().getDataNodeInstances(PluginsService.class)) {
+        for (PluginsService pluginsService : internalCluster().getInstances(PluginsService.class)) {
             plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
         }
         for (ScriptedBlockPlugin plugin : plugins) {
@@ -186,52 +187,60 @@ public class SearchCancellationIT extends ESIntegTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
+        logger.info("Executing search");
         ActionFuture<SearchResponse> searchResponse = client()
             .prepareSearch("test")
             .setQuery(matchAllQuery())
             .addAggregation(
-                new ScriptedMetricAggregationBuilder("test_agg")
-                    .initScript(
-                        new Script(
-                            ScriptType.INLINE,
-                            "mockscript",
-                            SCRIPT_NAME,
-                            Collections.emptyMap()
-                        )
-                    )
-                    .mapScript(
-                        new Script(
-                            ScriptType.INLINE,
-                            "mockscript",
-                            SCRIPT_NAME,
-                            Collections.emptyMap()
-                        )
-                    )
-                    .combineScript(
-                        new Script(
-                            ScriptType.INLINE,
-                            "mockscript",
-                            SCRIPT_NAME,
-                            Collections.emptyMap()
-                        )
-                    )
-                    .reduceScript(
-                        new Script(
-                            ScriptType.INLINE,
-                            "mockscript",
-                            SCRIPT_NAME,
-                            Collections.emptyMap()
-                        )
+                new TermsAggregationBuilder("test_agg")
+                    .script(new Script(
+                        ScriptType.INLINE,
+                        "mockscript",
+                        ScriptedBlockPlugin.TERM_SCRIPT_NAME,
+                        Collections.emptyMap()
+                    ))
+                    .subAggregation(
+                        new ScriptedMetricAggregationBuilder("sub_agg")
+                            .initScript(
+                                new Script(
+                                    ScriptType.INLINE,
+                                    "mockscript",
+                                    ScriptedBlockPlugin.INIT_SCRIPT_NAME,
+                                    Collections.emptyMap()
+                                )
+                            )
+                            .mapScript(
+                                new Script(
+                                    ScriptType.INLINE,
+                                    "mockscript",
+                                    ScriptedBlockPlugin.MAP_SCRIPT_NAME,
+                                    Collections.emptyMap()
+                                )
+                            )
+                            .combineScript(
+                                new Script(
+                                    ScriptType.INLINE,
+                                    "mockscript",
+                                    ScriptedBlockPlugin.COMBINE_SCRIPT_NAME,
+                                    Collections.emptyMap()
+                                )
+                            )
+                            .reduceScript(
+                                new Script(
+                                    ScriptType.INLINE,
+                                    "mockscript",
+                                    ScriptedBlockPlugin.REDUCE_SCRIPT_NAME,
+                                    Collections.emptyMap()
+                                )
+                            )
                     )
             )
             .execute();
-
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        ensureSearchWasCancelled(searchResponse);
+        assertNull(ensureSearchWasCancelled(searchResponse));
     }
-
 
     public void testCancellationOfScrollSearches() throws Exception {
 
@@ -398,6 +407,11 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
     public static class ScriptedBlockPlugin extends MockScriptPlugin {
         static final String SCRIPT_NAME = "search_block";
+        static final String INIT_SCRIPT_NAME = "init";
+        static final String MAP_SCRIPT_NAME = "map";
+        static final String COMBINE_SCRIPT_NAME = "combine";
+        static final String REDUCE_SCRIPT_NAME = "reduce";
+        static final String TERM_SCRIPT_NAME = "term";
 
         private final AtomicInteger hits = new AtomicInteger();
 
@@ -423,21 +437,52 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap(SCRIPT_NAME, params -> {
-                final Runnable runnable = beforeExecution.get();
-                if (runnable != null) {
-                    runnable.run();
-                }
-                LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
-                LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
-                hits.incrementAndGet();
-                try {
-                    assertBusy(() -> assertFalse(shouldBlock.get()));
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-                return true;
-            });
+            return Map.of(
+                SCRIPT_NAME, this::searchBlockScript,
+                INIT_SCRIPT_NAME, this::nullScript,
+                MAP_SCRIPT_NAME, this::nullScript,
+                COMBINE_SCRIPT_NAME, this::nullScript,
+                REDUCE_SCRIPT_NAME, this::blockScript,
+                TERM_SCRIPT_NAME, this::termScript);
+        }
+
+        private Object searchBlockScript(Map<String, Object> params) {
+            final Runnable runnable = beforeExecution.get();
+            if (runnable != null) {
+                runnable.run();
+            }
+            LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
+            LogManager.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
+            hits.incrementAndGet();
+            try {
+                assertBusy(() -> assertFalse(shouldBlock.get()));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            return true;
+        }
+
+        private Object nullScript(Map<String, Object> params) {
+            return null;
+        }
+
+        private Object blockScript(Map<String, Object> params) {
+            final Runnable runnable = beforeExecution.get();
+            if (runnable != null) {
+                runnable.run();
+            }
+            LogManager.getLogger(SearchCancellationIT.class).info("Blocking in reduce");
+            hits.incrementAndGet();
+            try {
+                assertBusy(() -> assertFalse(shouldBlock.get()));
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            return 42;
+        }
+
+        private Object termScript(Map<String, Object> params) {
+            return 1;
         }
     }
 }

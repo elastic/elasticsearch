@@ -174,5 +174,20 @@ public class FleetDataStreamIT extends ESRestTestCase {
                 );
             }
         }
+
+        // Specify a system data stream as an alias - should 404
+        {
+            Request getAliasRequest = new Request("GET", "_alias/.fleet-actions-results");
+            try {
+                client().performRequest(getAliasRequest);
+                fail("this request should not succeed, as it is looking for an alias that does not exist");
+            } catch (ResponseException e) {
+                assertThat(e.getResponse().getStatusLine().getStatusCode(), is(404));
+                assertThat(
+                    EntityUtils.toString(e.getResponse().getEntity()),
+                    not(containsString("use and access is reserved for system operations"))
+                );
+            }
+        }
     }
 }

@@ -106,8 +106,12 @@ public class FleetDataStreamIT extends ESRestTestCase {
 
         // The rest of these produce a warning
         RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> Collections.singletonList("this request accesses system indices: [.fleet-artifacts-7], but " +
-                "in a future major version, direct access to system indices will be prevented by default").equals(warnings) == false)
+            .setWarningsHandler(
+                warnings -> Collections.singletonList(
+                    "this request accesses system indices: [.fleet-artifacts-7], but "
+                        + "in a future major version, direct access to system indices will be prevented by default"
+                ).equals(warnings) == false
+            )
             .build();
 
         // The base _alias route warns because there is a system index in the response

@@ -6,9 +6,11 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -21,6 +23,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ccr.CCR;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
@@ -308,6 +311,42 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         ClusterState goodState = ClusterState.builder(new ClusterName("test")).metadata(goodMetadata).build();
         assertThat(
             DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState)),
+            hasSize(0)
+        );
+    }
+
+    public void testSystemIndicesFollowed() {
+        IndexMetadata systemIndexFollower = IndexMetadata.builder(".system_index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, Collections.singletonMap("ccr-data", "data"))
+            .system(true)
+            .build();
+
+        Metadata invalid = Metadata.builder()
+            .put(systemIndexFollower, true)
+            .build();
+        ClusterState invalidState = ClusterState.builder(new ClusterName("test")).metadata(invalid).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(invalidState));
+        assertThat(issues, hasSize(1));
+        assertThat(issues.get(0).getDetails(),
+            equalTo("Follower indices [.system_index] follow remote system indices and this will not work in the next major version."));
+
+        IndexMetadata regularIndexFollower = IndexMetadata.builder("regular_index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, Collections.singletonMap("ccr-data", "data"))
+            .build();
+
+        Metadata validMetadata = Metadata.builder()
+            .put(regularIndexFollower, true)
+            .build();
+
+        ClusterState validState = ClusterState.builder(new ClusterName("test")).metadata(validMetadata).build();
+        assertThat(
+            DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(validState)),
             hasSize(0)
         );
     }

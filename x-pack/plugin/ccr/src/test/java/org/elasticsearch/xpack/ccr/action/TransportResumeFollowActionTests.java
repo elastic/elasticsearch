@@ -22,6 +22,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.CCR;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
 import java.io.IOException;
@@ -280,7 +281,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             .putMapping("_doc", mapping);
 
         if (custom != null) {
-            builder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, custom);
+            builder.putCustom(CCR.CCR_CUSTOM_METADATA_KEY, custom);
         }
 
         return builder.build();

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -20,6 +22,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
+import org.elasticsearch.xpack.core.ccr.CCR;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
@@ -188,5 +191,30 @@ public class ClusterDeprecationChecks {
             "Index templates " + templatesWithMultipleTypes
             + " define multiple types and so will cause errors when used in index creation"
             );
+    }
+
+    static DeprecationIssue checkAutoFollowedSystemIndices(ClusterState state) {
+        Set<String> systemIndexFollowers = new HashSet<>();
+        for (ObjectObjectCursor<String, IndexMetadata> indexEntry : state.metadata().getIndices()) {
+            final IndexMetadata indexMetadata = indexEntry.value;
+            final Map<String, String> ccrMetadata = indexMetadata.getCustomData(CCR.CCR_CUSTOM_METADATA_KEY);
+            if (ccrMetadata == null) {
+                continue;
+            }
+            if (indexMetadata.isSystem()) {
+                systemIndexFollowers.add(indexEntry.key);
+            }
+        }
+
+        if (systemIndexFollowers.isEmpty()) {
+            return null;
+        }
+
+        return new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            "Some follower indices follow remote system indices",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html",
+            "Follower indices " + systemIndexFollowers
+                + " follow remote system indices and this will not work in the next major version."
+        );
     }
 }

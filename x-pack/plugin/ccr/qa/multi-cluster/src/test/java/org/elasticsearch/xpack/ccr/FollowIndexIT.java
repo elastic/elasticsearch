@@ -8,21 +8,28 @@ package org.elasticsearch.xpack.ccr;
 
 import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskResultsService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -232,6 +239,36 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             assertThat(e.getMessage(), containsString("is a searchable snapshot index and cannot be used as a leader index for " +
                 "cross-cluster replication purpose"));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        }
+    }
+
+    public void testFollowSystemIndexTriggersDeprecationWarnings() throws Exception {
+        if ("leader".equals(targetCluster)) {
+            final Request request = new Request("POST", "/" + TaskResultsService.TASK_INDEX + "/_doc/123");
+            XContentBuilder document = jsonBuilder();
+            document.startObject();
+            document.field("completed", true);
+            document.endObject();
+
+            // Avoid throwing a warning exception since we're writing into a system index
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> false));
+            request.setJsonEntity(Strings.toString(document));
+            assertOK(adminClient().performRequest(request));
+            ensureGreen(TaskResultsService.TASK_INDEX);
+        } else {
+            final WarningFailureException exception = expectThrows(WarningFailureException.class,
+                () -> followIndex(TaskResultsService.TASK_INDEX, ".tasks-follower"));
+
+            final List<String> warnings = exception.getResponse().getWarnings();
+            boolean expectedWarningMessageFound = warnings.stream()
+                .anyMatch(warning ->
+                    warning.startsWith("Following a system index [" + TaskResultsService.TASK_INDEX) &&
+                        warning.endsWith("will not work in the next major version"));
+            assertThat(
+                "Expected to find a warning about following system indices but the warnings are: " + warnings,
+                expectedWarningMessageFound,
+                equalTo(true)
+            );
         }
     }
 

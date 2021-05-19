@@ -27,9 +27,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.LicenseUtils;
@@ -52,12 +55,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class TransportPutFollowAction
     extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutFollowAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutFollowAction.class);
 
     private final IndexScopedSettings indexScopedSettings;
     private final Client client;
@@ -135,6 +140,12 @@ public final class TransportPutFollowAction
             return;
         }
 
+        if (leaderIndexMetadata.isSystem()) {
+            deprecationLogger.deprecate(DeprecationCategory.INDICES,
+                "ccr_follow_system_indices",
+                "Following a system index " + leaderIndexMetadata.getIndex() + " will not work in the next major version"
+            );
+        }
         final Settings replicatedRequestSettings = TransportResumeFollowAction.filter(request.getSettings());
         if (replicatedRequestSettings.isEmpty() == false) {
             final List<String> unknownKeys =
@@ -232,18 +243,21 @@ public final class TransportPutFollowAction
             listener = originalListener;
         }
 
+        final Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         RestoreClusterStateListener.createAndRegisterListener(clusterService, response, listener.delegateFailure(
             (delegatedListener, restoreSnapshotResponse) -> {
-                RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
-                if (restoreInfo == null) {
-                    // If restoreInfo is null then it is possible there was a master failure during the
-                    // restore.
-                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
-                } else if (restoreInfo.failedShards() == 0) {
-                    initiateFollowing(clientWithHeaders, request, delegatedListener);
-                } else {
-                    assert restoreInfo.failedShards() > 0 : "Should have failed shards";
-                    delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
+                try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
+                    RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
+                    if (restoreInfo == null) {
+                        // If restoreInfo is null then it is possible there was a master failure during the
+                        // restore.
+                        delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
+                    } else if (restoreInfo.failedShards() == 0) {
+                        initiateFollowing(clientWithHeaders, request, delegatedListener);
+                    } else {
+                        assert restoreInfo.failedShards() > 0 : "Should have failed shards";
+                        delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
+                    }
                 }
             }));
     }

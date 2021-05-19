@@ -57,12 +57,15 @@ stream enabled. See <<set-up-a-data-stream>>.
 `<target>`::
 (Required, string) Name of the data stream or index to target.
 +
-// tag::autocreate[]
-If the target doesn't exist and matches an index template with
-<<create-index-template,data stream enabled>>, the request creates a data
-stream. If the target doesn't exist and doesn't match a data stream enabled
-template, the request creates an index.
-// end::autocreate[]
+If the target doesn't exist and matches the name or wildcard (`*`) pattern of an
+<<create-index-template,index template with a `data_stream`
+definition>>, this request creates the data stream. See
+<<set-up-a-data-stream>>.
++
+If the target doesn't exist and doesn't match a data stream template,
+this request creates the index.
++
+You can check for existing targets using the resolve index API.
 
 `<_id>`::
 (Optional, string) Unique identifier for the document.

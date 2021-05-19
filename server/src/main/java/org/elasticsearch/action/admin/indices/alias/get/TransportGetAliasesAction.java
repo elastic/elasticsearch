@@ -65,9 +65,10 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
     @Override
     protected void masterOperation(Task task, GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices;
-        // Switch to a context which will drop any deprecation warnings, because there may be indices resolved here which are not
-        // returned in the final response. We'll add warnings back later if necessary in checkSystemIndexAccess.
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext(false)) {
+        // Switch to a context with no headers, so that no deprecation warnings will be emitted, and we won't get spurious errors
+        // resolving _all while Security is enabled if system data streams exist. This hack should be removed ASAP
+        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+            // BE VERY CAREFUL ADDING ANYTHING TO THIS BLOCK. REQUEST HEADERS, SUCH AS SECURITY HEADERS, ARE SUPPRESSED HERE
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         }
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();

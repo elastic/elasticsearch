@@ -63,12 +63,8 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
     @Override
     protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
-        String[] concreteIndices;
-        // Switch to a context which will drop any deprecation warnings, because there may be indices resolved here which are not
-        // returned in the final response. We'll add warnings back later if necessary in checkSystemIndexAccess.
-        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext(false)) {
-            concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
-        }
+        // resolve all concrete indices upfront and warn/error later
+        final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
         ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
         listener.onResponse(new GetAliasesResponse(postProcess(request, concreteIndices, aliases, state,

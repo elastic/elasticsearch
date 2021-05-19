@@ -188,15 +188,6 @@ GET _alias/_all
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
 
-Specify an alias after `_alias` to view its data streams or indices.
-
-[source,console]
-----
-GET _alias/logs
-----
-// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
-// TEST[catch:missing]
-
 Specify a data stream or index before `_alias` to view its aliases.
 
 [source,console]
@@ -205,6 +196,15 @@ GET my-data-stream/_alias
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
 // TEST[s/my-data-stream/logs-nginx.access-prod/]
+
+Specify an alias after `_alias` to view its data streams or indices.
+
+[source,console]
+----
+GET _alias/logs
+----
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT logs-nginx.access-prod\/_alias\/logs\n/]
+// TEST[catch:missing]
 
 [discrete]
 [[write-index]]

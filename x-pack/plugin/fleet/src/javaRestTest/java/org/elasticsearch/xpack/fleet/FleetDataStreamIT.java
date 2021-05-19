@@ -214,8 +214,8 @@ public class FleetDataStreamIT extends ESRestTestCase {
         );
         assertThatAPIWildcardResolutionWorks(
             singletonList(
-                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system" +
-                    " indices will be prevented by default"
+                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
+                    + " indices will be prevented by default"
             ),
             ".f*"
         );

@@ -66,6 +66,7 @@ public final class RestClientBuilder {
     private RequestConfigCallback requestConfigCallback;
     private String pathPrefix;
     private NodeSelector nodeSelector = NodeSelector.ANY;
+    private NodePriorityStrategy nodePriorityStrategy = NodePriorityStrategy.NO_PRIORITY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
     private boolean metaHeaderEnabled = true;
@@ -228,6 +229,16 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Sets the {@link NodePriorityStrategy} to be used for all requests.
+     * @throws NullPointerException if the provided nodePriorityStrategy is null
+     */
+    public RestClientBuilder setNodePriorityStrategy(NodePriorityStrategy nodePriorityStrategy) {
+        Objects.requireNonNull(nodePriorityStrategy, "nodePriorityStrategy must not be null");
+        this.nodePriorityStrategy = nodePriorityStrategy;
+        return this;
+    }
+
+    /**
      * Whether the REST client should return any response containing at least
      * one warning header as a failure.
      */
@@ -266,7 +277,7 @@ public final class RestClientBuilder {
         CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
             (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
         RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
-                pathPrefix, failureListener, nodeSelector, strictDeprecationMode, compressionEnabled);
+                pathPrefix, failureListener, nodeSelector, nodePriorityStrategy, strictDeprecationMode, compressionEnabled);
         httpClient.start();
         return restClient;
     }

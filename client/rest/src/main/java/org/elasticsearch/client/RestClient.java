@@ -115,18 +115,20 @@ public class RestClient implements Closeable {
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
     private final NodeSelector nodeSelector;
+    private final NodePriorityStrategy nodePriorityStrategy;
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
 
     RestClient(CloseableHttpAsyncClient client, Header[] defaultHeaders, List<Node> nodes, String pathPrefix,
-            FailureListener failureListener, NodeSelector nodeSelector, boolean strictDeprecationMode,
-            boolean compressionEnabled) {
+            FailureListener failureListener, NodeSelector nodeSelector, NodePriorityStrategy nodePriorityStrategy,
+            boolean strictDeprecationMode, boolean compressionEnabled) {
         this.client = client;
         this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
         this.failureListener = failureListener;
         this.pathPrefix = pathPrefix;
         this.nodeSelector = nodeSelector;
+        this.nodePriorityStrategy = nodePriorityStrategy;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
         setNodes(nodes);
@@ -426,7 +428,7 @@ public class RestClient implements Closeable {
      */
     private NodeTuple<Iterator<Node>> nextNodes() throws IOException {
         NodeTuple<List<Node>> nodeTuple = this.nodeTuple;
-        Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector);
+        Iterable<Node> hosts = selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector, nodePriorityStrategy);
         return new NodeTuple<>(hosts.iterator(), nodeTuple.authCache);
     }
 
@@ -436,6 +438,16 @@ public class RestClient implements Closeable {
      */
     static Iterable<Node> selectNodes(NodeTuple<List<Node>> nodeTuple, Map<HttpHost, DeadHostState> blacklist,
                                       AtomicInteger lastNodeIndex, NodeSelector nodeSelector) throws IOException {
+        return selectNodes(nodeTuple, blacklist, lastNodeIndex, nodeSelector, NodePriorityStrategy.NO_PRIORITY);
+    }
+
+    /**
+     * Select nodes to try and sorts them so that the first one will be tried initially, then the following ones
+     * if the previous attempt failed and so on. Package private for testing.
+     */
+    static Iterable<Node> selectNodes(NodeTuple<List<Node>> nodeTuple, Map<HttpHost, DeadHostState> blacklist,
+                                      AtomicInteger lastNodeIndex, NodeSelector nodeSelector,
+                                      NodePriorityStrategy nodePriorityStrategy) throws IOException {
         /*
          * Sort the nodes into living and dead lists.
          */
@@ -459,12 +471,18 @@ public class RestClient implements Closeable {
             List<Node> selectedLivingNodes = new ArrayList<>(livingNodes);
             nodeSelector.select(selectedLivingNodes);
             if (false == selectedLivingNodes.isEmpty()) {
+                List<List<Node>> priorityGroups = nodePriorityStrategy.groupByPriority(selectedLivingNodes);
                 /*
-                 * Rotate the list using a global counter as the distance so subsequent
+                 * Rotate the lists using a global counter as the distance so subsequent
                  * requests will try the nodes in a different order.
                  */
-                Collections.rotate(selectedLivingNodes, lastNodeIndex.getAndIncrement());
-                return selectedLivingNodes;
+                int distance = lastNodeIndex.getAndIncrement();
+                return priorityGroups.stream()
+                    .flatMap(group -> {
+                        Collections.rotate(group, distance);
+                        return group.stream();
+                    })
+                    .collect(Collectors.toList());
             }
         }
 

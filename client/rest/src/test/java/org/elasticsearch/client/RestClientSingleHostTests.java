@@ -117,7 +117,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         failureListener = new HostsTrackingFailureListener();
         strictDeprecationMode = randomBoolean();
         restClient = new RestClient(this.httpClient, defaultHeaders,
-                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode, false);
+            singletonList(node), null, failureListener, NodeSelector.ANY, NodePriorityStrategy.NO_PRIORITY, strictDeprecationMode, false);
     }
 
     @SuppressWarnings("unchecked")

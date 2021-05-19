@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import static org.elasticsearch.client.NodePriorityStrategy.NO_PRIORITY;
 import org.junit.After;
 
 import java.io.IOException;
@@ -59,6 +60,10 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
     private HostsTrackingFailureListener failureListener;
 
     public RestClient createRestClient(NodeSelector nodeSelector) {
+        return createRestClient(nodeSelector, NO_PRIORITY);
+    }
+
+    public RestClient createRestClient(NodeSelector nodeSelector, NodePriorityStrategy nodePriorityStrategy) {
         CloseableHttpAsyncClient httpClient = RestClientSingleHostTests.mockHttpClient(exec);
         int numNodes = RandomNumbers.randomIntBetween(getRandom(), 2, 5);
         nodes = new ArrayList<>(numNodes);
@@ -67,7 +72,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
         }
         nodes = Collections.unmodifiableList(nodes);
         failureListener = new HostsTrackingFailureListener();
-        return new RestClient(httpClient, new Header[0], nodes, null, failureListener, nodeSelector, false, false);
+        return new RestClient(httpClient, new Header[0], nodes, null, failureListener, nodeSelector, nodePriorityStrategy, false, false);
     }
 
     /**
@@ -257,6 +262,29 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             assertTrue(found);
         };
         RestClient restClient = createRestClient(firstPositionOnly);
+        int rounds = between(1, 10);
+        for (int i = 0; i < rounds; i++) {
+            /*
+             * Run the request more than once to verify that the
+             * NodeSelector overrides the round robin behavior.
+             */
+            Request request = new Request("GET", "/200");
+            Response response = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
+            assertEquals(nodes.get(0).getHost(), response.getHost());
+        }
+    }
+
+    public void testNodePriorityStrategy() throws Exception {
+        NodePriorityStrategy firstPositionPriority = restClientNodes -> {
+            List<Node> highPriority = new ArrayList<>();
+            highPriority.add(restClientNodes.get(0));
+            List<Node> lowPriority = new ArrayList<>(restClientNodes.subList(1, restClientNodes.size() - 1));
+            List<List<Node>> groups = new ArrayList<>();
+            groups.add(highPriority);
+            groups.add(lowPriority);
+            return groups;
+        };
+        RestClient restClient = createRestClient(NodeSelector.ANY, firstPositionPriority);
         int rounds = between(1, 10);
         for (int i = 0; i < rounds; i++) {
             /*

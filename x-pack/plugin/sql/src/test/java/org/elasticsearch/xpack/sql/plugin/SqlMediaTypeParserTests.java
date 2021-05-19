@@ -26,7 +26,6 @@ import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.nullValue;
 
 public class SqlMediaTypeParserTests extends ESTestCase {
 
@@ -73,8 +72,17 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     }
 
     public void testInvalidFormat() {
-        MediaType mediaType = getResponseMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false));
-        assertThat(mediaType, is(nullValue()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> getResponseMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false)));
+        assertEquals(e.getMessage(),
+            "Invalid request content type: Accept=[text/garbage], Content-Type=[application/json], format=[null]");
+    }
+
+    public void testNoFormat() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () ->  getResponseMediaType(new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
+                createTestInstance(false, Mode.PLAIN, false)));
+        assertEquals(e.getMessage(), "Invalid request content type: Accept=[null], Content-Type=[null], format=[null]");
     }
 
     private static RestRequest reqWithAccept(String acceptHeader) {

@@ -148,6 +148,7 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_sql/async/" + id);
         setRunAsHeader(request, user);
         request.addParameter("wait_for_completion_timeout", "0ms");
+        request.addParameter("format", "json");
         return client().performRequest(request);
     }
 

@@ -1226,15 +1226,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 return plan.transformExpressionsDown(FieldAttribute.class, f -> {
                    if (f.qualifier() != null && f.qualifier().equals(a.alias())) {
                        // Find the underlying concrete relation (EsIndex) and its name as the new qualifier
-                       String newQualifier = null;
                        List<LogicalPlan> children = a.collectFirstChildren(p -> p instanceof EsRelation);
                        if (children.isEmpty() == false) {
-                           newQualifier = ((EsRelation) children.get(0)).index().name();
+                           return f.withQualifier(((EsRelation) children.get(0)).index().name());
                        }
-                       return f.withQualifier(newQualifier);
-                   } else {
-                       return f;
                    }
+                   return f;
                 });
             }
             return plan;

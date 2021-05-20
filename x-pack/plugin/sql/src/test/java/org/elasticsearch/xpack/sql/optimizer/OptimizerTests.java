@@ -185,13 +185,14 @@ public class OptimizerTests extends ESTestCase {
 
     public void testReplaceSubQueryAliases() {
         FieldAttribute firstField = new FieldAttribute(EMPTY, "field", new EsField("field", BYTE, emptyMap(), true));
-        Aggregate agg = new Aggregate(EMPTY, FROM(), Collections.singletonList(firstField), Collections.singletonList(firstField));
+        EsRelation relation = new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false);
+        Aggregate agg = new Aggregate(EMPTY, relation, Collections.singletonList(firstField), Collections.singletonList(firstField));
         SubQueryAlias subquery = new SubQueryAlias(EMPTY, agg, "subquery");
         Project project = new Project(EMPTY, subquery, Collections.singletonList(firstField.withQualifier("subquery")));
         LogicalPlan result = new ReplaceSubQueryAliases().apply(project);
         assertThat(result, instanceOf(Project.class));
         assertThat(((Project) result).projections().get(0), instanceOf(FieldAttribute.class));
-        assertNull(((FieldAttribute) ((Project) result).projections().get(0)).qualifier());
+        assertEquals("table", ((FieldAttribute) ((Project) result).projections().get(0)).qualifier());
     }
 
     public void testCombineProjections() {

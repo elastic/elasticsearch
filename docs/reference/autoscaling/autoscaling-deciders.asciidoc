@@ -12,7 +12,7 @@ Estimates required storage capacity based on current ingestion into hot nodes.
 Available for policies governing hot data nodes.
 
 <<autoscaling-frozen-shards-decider,Frozen shards decider>>::
-Estimates required memory capacity based on number of partially mounted shards.
+Estimates required memory capacity based on the number of partially mounted shards.
 Available for policies governing frozen data nodes.
 
 <<autoscaling-frozen-storage-decider,Frozen storage decider>>::

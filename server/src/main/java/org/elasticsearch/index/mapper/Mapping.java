@@ -23,9 +23,11 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static java.util.Collections.unmodifiableMap;
 
@@ -84,6 +86,29 @@ public final class Mapping implements ToXContentFragment {
     RootObjectMapper getRoot() {
         return root;
     }
+
+    /**
+     * Visit each defined Mapper and their children in the mapper tree
+     * @param consumer a callback that will receive each Mapper
+     */
+    public void forEachMapper(Consumer<Mapper> consumer) {
+        collectMappers(root, consumer);
+    }
+
+    private static void collectMappers(Mapper mapper, Consumer<Mapper> consumer) {
+        consumer.accept(mapper);
+        for (Mapper child : mapper) {
+            collectMappers(child, consumer);
+        }
+    }
+
+    /**
+     * @return all runtime fields defined in this Mapping
+     */
+    public Collection<RuntimeField> runtimeFields() {
+        return root.runtimeFields();
+    }
+
 
     /**
      * Returns the meta section for the current mapping

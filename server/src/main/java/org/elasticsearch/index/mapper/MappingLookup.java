@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.ArrayList;
@@ -35,8 +34,7 @@ public final class MappingLookup {
     }
 
     /**
-     * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
-     * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
+     * A lookup representing an empty mapping.
      */
     public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), List.of());
 
@@ -67,9 +65,17 @@ public final class MappingLookup {
                 newFieldMappers.add(metadataMapper);
             }
         }
-        for (Mapper child : mapping.getRoot()) {
-            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-        }
+        mapping.forEachMapper(mapper -> {
+            if (mapper instanceof ObjectMapper) {
+                newObjectMappers.add((ObjectMapper)mapper);
+            } else if (mapper instanceof FieldMapper) {
+                newFieldMappers.add((FieldMapper)mapper);
+            } else if (mapper instanceof FieldAliasMapper) {
+                newFieldAliasMappers.add((FieldAliasMapper) mapper);
+            } else {
+                throw new IllegalStateException("Unrecognized mapper type [" + mapper.getClass().getSimpleName() + "].");
+            }
+        });
         return new MappingLookup(
             mapping,
             newFieldMappers,
@@ -77,31 +83,11 @@ public final class MappingLookup {
             newFieldAliasMappers);
     }
 
-    private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
-                               Collection<FieldMapper> fieldMappers,
-                               Collection<FieldAliasMapper> fieldAliasMappers) {
-        if (mapper instanceof ObjectMapper) {
-            objectMappers.add((ObjectMapper)mapper);
-        } else if (mapper instanceof FieldMapper) {
-            fieldMappers.add((FieldMapper)mapper);
-        } else if (mapper instanceof FieldAliasMapper) {
-            fieldAliasMappers.add((FieldAliasMapper) mapper);
-        } else {
-            throw new IllegalStateException("Unrecognized mapper type [" + mapper.getClass().getSimpleName() + "].");
-        }
-
-        for (Mapper child : mapper) {
-            collect(child, objectMappers, fieldMappers, fieldAliasMappers);
-        }
-    }
-
     /**
      * Creates a new {@link MappingLookup} instance given the provided mappers and mapping.
      * Note that the provided mappings are not re-parsed but only exposed as-is. No consistency is enforced between
      * the provided mappings and set of mappers.
      * This is a commodity method to be used in tests, or whenever no mappings are defined for an index.
-     * When creating a MappingLookup through this method, its exposed functionalities are limited as it does not
-     * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      *
      * @param mapping the mapping
      * @param mappers the field mappers
@@ -192,13 +178,6 @@ public final class MappingLookup {
             return this.indexAnalyzersMap.get(field);
         }
         return unmappedFieldAnalyzer.apply(field);
-    }
-
-    /**
-     * Returns an iterable over all the registered field mappers (including alias mappers)
-     */
-    public Iterable<Mapper> fieldMappers() {
-        return fieldMappers.values();
     }
 
     void checkLimits(IndexSettings settings) {

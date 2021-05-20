@@ -204,4 +204,21 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
             disableIndexBlock("test", SETTING_BLOCKS_METADATA);
         }
     }
+
+    public void testRuntimeFieldOverride() throws IOException {
+        assertAcked(prepareCreate("test").setMapping(getMappingForType()));
+        XContentBuilder runtimeMapping = jsonBuilder().startObject()
+            .startObject("runtime")
+            .startObject("field1").field("type", "keyword").endObject()
+            .endObject()
+            .endObject();
+        assertAcked(client().admin().indices().preparePutMapping("test").setSource(runtimeMapping).get());
+
+        GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
+            .setFields("field1").get();
+        FieldMappingMetadata field = response.fieldMappings("test", "field1");
+        // TODO should we indicate that this is a runtime override somehow?
+        assertThat(Strings.toString(field),
+            equalTo("{\"full_name\":\"field1\",\"mapping\":{\"field1\":{\"type\":\"keyword\"}}}"));
+    }
 }

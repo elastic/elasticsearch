@@ -1385,12 +1385,12 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     public void testArrayAsFunctionArgument() {
-        assertEquals("1:12: [ARRAY()] cannot be an argument to a function",
+        assertEquals("1:12: [ARRAY()] cannot be used in expressions, does not support further processing",
             error("SELECT SUM(ARRAY(int)) FROM test"));
     }
 
     public void testArrayAsFunctionArgumentInExpression() {
-        assertEquals("1:8: [ARRAY()] cannot be an argument to a function",
+        assertEquals("1:8: [ARRAY()] cannot be used in expressions, does not support further processing",
             error("SELECT ARRAY(int) + 1 FROM test")); // SUM(ARRAY(int) + 1) would just be SUM(ADD(ARRAY(int), 1), same test
     }
 

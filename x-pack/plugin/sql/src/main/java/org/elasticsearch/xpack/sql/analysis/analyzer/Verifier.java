@@ -742,7 +742,7 @@ public final class Verifier {
         p.forEachExpression(Function.class, f ->
             f.arguments().stream()
                 .filter(exp -> exp.anyMatch(restrictedFunctionClass::isInstance))
-                .forEach(exp -> localFailures.add(fail(exp, "[{}()] cannot be an argument to a function",
+                .forEach(exp -> localFailures.add(fail(exp, "[{}()] cannot be used in expressions, does not support further processing",
                     restrictedFunctionClass.getSimpleName().toUpperCase(Locale.ROOT))))
         );
     }

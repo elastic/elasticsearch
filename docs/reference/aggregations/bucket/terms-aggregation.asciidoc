@@ -104,7 +104,7 @@ Response:
 By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
 change this default behaviour by setting the `size` parameter.
 
-
+[[search-aggregations-bucket-terms-aggregation-types]]
 The `field` can be <<keyword>>, <<number>>, <<ip, `ip`>>, <<boolean, `boolean`>>,
 or <<binary, `binary`>>.
 

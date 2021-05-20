@@ -67,6 +67,10 @@ public interface IndexAbstraction {
      */
     boolean isSystem();
 
+    default boolean isDataStreamRelated() {
+        return getType() == Type.DATA_STREAM || this instanceof DataStreamAlias;
+    }
+
     /**
      * An index abstraction type.
      */

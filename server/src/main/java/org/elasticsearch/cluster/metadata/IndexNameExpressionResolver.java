@@ -265,6 +265,9 @@ public class IndexNameExpressionResolver {
                         context.includeDataStreams() == false) {
                 excludedDataStreams = true;
                 continue;
+            } else if (indexAbstraction instanceof IndexAbstraction.DataStreamAlias && context.includeDataStreams() == false) {
+                excludedDataStreams = true;
+                continue;
             }
 
             if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && context.isResolveToWriteIndex()) {
@@ -935,6 +938,9 @@ public class IndexNameExpressionResolver {
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
                             context.includeDataStreams() == false) {
                             throw indexNotFoundException(expression);
+                        } else if (indexAbstraction instanceof IndexAbstraction.DataStreamAlias &&
+                            context.includeDataStreams() == false) {
+                            throw indexNotFoundException(expression);
                         }
                     }
                     if (add) {
@@ -985,6 +991,10 @@ public class IndexNameExpressionResolver {
             }
 
             if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.includeDataStreams() == false) {
+                return false;
+            }
+
+            if (indexAbstraction instanceof IndexAbstraction.DataStreamAlias && context.includeDataStreams() == false) {
                 return false;
             }
 
@@ -1053,7 +1063,8 @@ public class IndexNameExpressionResolver {
             }
             if (context.includeDataStreams() == false) {
                 shouldConsumeStream = true;
-                stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.DATA_STREAM);
+                stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.DATA_STREAM)
+                    .filter(e -> e.getValue() instanceof DataStreamAlias == false);
             }
             if (shouldConsumeStream) {
                 return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

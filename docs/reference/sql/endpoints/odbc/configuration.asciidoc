@@ -83,6 +83,7 @@ image:images/sql/odbc/dsn_editor_basic.png[]
 This new window has three tabs, each responsible for a set of configuration parameters, as follows.
 
 [discrete]
+[[connection_parameters]]
 ===== 2.2 Connection parameters
 This tab allows configuration for the following items:
 
@@ -186,7 +187,7 @@ If connecting to the {es} node needs to go through a proxy, the following parame
 
 * Type
 +
-What kind of protocol to use when connecting to the proxy host. This also mandates how the the {es} node you want to connect to over the proxy needs to be specified under <<2.2 Connection parameters>>:
+What kind of protocol to use when connecting to the proxy host. This also mandates how the the {es} node you want to connect to over the proxy needs to be specified under <<connection_parameters>>:
 +
 ** HTTP, SOCKS4A, SOCKS5H: either IP address or host name are accepted; the proxy will resolve the DNS name;
 ** SOCKS4, SOCKS5: {es} node location needs to be provided as an IP address;

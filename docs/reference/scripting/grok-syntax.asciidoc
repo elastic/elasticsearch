@@ -50,7 +50,7 @@ can match this text by using the following grok expression:
 ----
 
 [[grok-patterns]]
-==== Incorporate grok patterns
+==== Use grok patterns in Painless scripts
 You can incorporate predefined grok patterns into Painless scripts to extract
 data. To test your script, use either the {painless}/painless-execute-api.html[field contexts] of the Painless execute API or create a runtime field that
 includes the script. Runtime fields offer greater flexibility and accept
@@ -119,6 +119,8 @@ POST /my-index-000001/_bulk?refresh
 ----
 // TEST[continued]
 
+[[grok-patterns-runtime]]
+==== Incorporate grok patterns and scripts in runtime fields
 Now you can define a runtime field in the mappings that includes your Painless
 script and grok pattern. If the pattern matches, the script emits the value of
 the matching IP address. If the pattern doesn't match (`clientip != null`), the
@@ -146,7 +148,7 @@ search request. The runtime definition and the script are exactly the same as
 the one defined previously in the index mapping. Just copy that definition into
 the search request under the `runtime_mappings` section and include a query
 that matches on the runtime field. This query returns the same results as if
-you <<grok-pattern-results,return calculated results>> for the `http.clientip`
+you <<grok-pattern-results,defined a search query>> for the `http.clientip`
 runtime field in your index mappings, but only in the context of this specific
 search:
 

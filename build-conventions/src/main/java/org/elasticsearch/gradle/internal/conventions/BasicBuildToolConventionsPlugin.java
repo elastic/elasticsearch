@@ -9,16 +9,19 @@
 package org.elasticsearch.gradle.internal.conventions;
 
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.testing.Test;
 
-public class BasicConventionsPlugin implements Plugin<Project> {
+public class BasicBuildToolConventionsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
         int defaultParallel = ParallelDetector.findDefaultParallel(project);
-        project.getTasks().withType(Test.class).configureEach(test -> test.setMaxParallelForks(defaultParallel));
+        project.getTasks().withType(Test.class).configureEach(test -> {
+            test.onlyIf((t) -> Util.getBooleanProperty("tests.fips.enabled", false));
+            test.setMaxParallelForks(defaultParallel);
+        });
     }
-
 }

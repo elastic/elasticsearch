@@ -13,7 +13,7 @@ plugins {
     id 'java-test-fixtures'
     id 'elasticsearch.publish'
     id 'elasticsearch.internal-licenseheaders'
-    id 'elasticsearch.basic-conventions'
+    id 'elasticsearch.basic-build-tool-conventions'
 }
 
 description = "The elasticsearch build tools"
@@ -28,7 +28,7 @@ allprojects {
     group = "org.elasticsearch"
     version = props.getProperty("elasticsearch")
 
-    apply plugin:'java'
+    apply plugin: 'java'
     targetCompatibility = minRuntimeJava
     sourceCompatibility = minRuntimeJava
 }
@@ -145,6 +145,13 @@ tasks.register("integTest", Test) {
     useJUnitPlatform()
 }
 
+normalization {
+    runtimeClasspath {
+        // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
+        ignore('META-INF/reaper.jar')
+    }
+}
+
 tasks.named("check").configure { dependsOn("integTest") }
 
 tasks.register("checkPart1") {
@@ -185,12 +192,7 @@ tasks.register("checkPart1") {
 //    include("**/*TestSpec.class")
 //  }
 //
-//  normalization {
-//    runtimeClasspath {
-//      // We already include the reaper jar as part of our runtime classpath. Ignore the copy in META-INF.
-//      ignore('META-INF/reaper.jar')
-//    }
-//  }
+
 //
 //  tasks.named("forbiddenPatterns").configure {
 //    exclude '**/*.wav'

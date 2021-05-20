@@ -496,7 +496,7 @@ tasks.register("precommit") {
 }
 
 tasks.named("checkPart1").configure {
-//  dependsOn gradle.includedBuild('build-tools').task(':checkPart1')
+  dependsOn gradle.includedBuild('build-tools').task(':checkPart1')
   dependsOn gradle.includedBuild('build-tools-internal').task(':checkPart1')
 }
 

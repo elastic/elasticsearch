@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+
+import org.elasticsearch.gradle.internal.conventions.util.Util
 import org.gradle.internal.jvm.Jvm
 import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
 
@@ -15,7 +17,7 @@ plugins {
   id 'groovy'
   id 'java-test-fixtures'
   id 'elasticsearch.internal-licenseheaders'
-  id 'elasticsearch.basic-conventions'
+  id 'elasticsearch.basic-build-tool-conventions'
 }
 
 group = 'org.elasticsearch.gradle'
@@ -268,16 +270,6 @@ dependencies {
   integTestImplementation "org.xmlunit:xmlunit-core:2.8.2"
 }
 
-/*****************************************************************************
- *                         Bootstrap repositories                            *
- *****************************************************************************/
-
-// only run tests as build-tools
-tasks.named("test").configure {
-  enabled = false
-}
-//}
-
 tasks.register("integTest", Test) {
   inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
   systemProperty 'test.version_under_test', version
@@ -291,11 +283,3 @@ tasks.named("check").configure { dependsOn("integTest") }
 tasks.register("checkPart1") {
   dependsOn 'check'
 }
-//
-//  // for now we hardcode the tests for our build to use the gradle jvm.
-//  tasks.withType(Test).configureEach {
-//    onlyIf { org.elasticsearch.gradle.internal.info.BuildParams.inFipsJvm == false }
-//    it.executable = Jvm.current().getJavaExecutable()
-//    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.internal.info.BuildParams.defaultParallel.toString()) as Integer
-//  }
-//

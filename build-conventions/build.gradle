@@ -8,7 +8,6 @@
 
 plugins {
     id 'java-gradle-plugin'
-    id 'groovy'
     id 'java-test-fixtures'
 }
 
@@ -36,8 +35,8 @@ gradlePlugin {
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.LicensingPlugin'
         }
         basics {
-            id = 'elasticsearch.basic-conventions'
-            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BasicConventionsPlugin'
+            id = 'elasticsearch.basic-build-tool-conventions'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BasicBuildToolConventionsPlugin'
         }
     }
 }

@@ -147,7 +147,7 @@ PUT my-index
 ==== Define runtime fields without a script
 Runtime fields typically include a Painless script that manipulates data in some
 way. However, there are instances where you might define a runtime field
-_without_ a script. For example, if you want to retrieve a single value from `_source` without making changes, you don't need a script. You can just create
+_without_ a script. For example, if you want to retrieve a single field from `_source` without making changes, you don't need a script. You can just create
 a runtime field without a script, such as `day_of_week`:
 
 [source,console]
@@ -169,20 +169,26 @@ for a field with the same name as the runtime field, and returns a value if one
 exists. If a field with the same name doesn’t exist, the response doesn't
 include any values for that runtime field.
 
-In most cases, you should retrieve field values through
+In most cases, retrieve field values through
 <<doc-values,`doc_values`>> whenever possible. Accessing `doc_values` with a
 runtime field is faster than retrieving values from `_source` because of how
 data is loaded from Lucene.
 
-However, there are cases such as `text` fields where `doc_values` are not
-available by default, or where you choose to not index specific fields or set
-`doc_values` to `false`. In these instances, define a runtime field without a
-script to retrieve values directly from `_source`.
+However, there are cases where retrieving fields from `_source` is necessary.
+For example, `text` fields do not have `doc_values` available by default, so you
+have to retrieve values from `_source`. In other instances, you might choose to
+not index specific fields or choose to disable `doc_values` on an index.
+
+With `doc_values` disabled, you could have a field in your index mapping where
+`index` is `true` and `doc_values` is `false`. This combination can be
+confusing because although the field isn't indexed, it is _searchable_. In this
+case, define a runtime field without a script to retrieve values directly
+from `_source`.
 
 NOTE: You can alternatively prefix the field you want to retrieve values for
 with `params._source` (such as `params._source.day_of_week`). For simplicity,
 defining a runtime field in the mapping definition without a script is the
-recommended option.
+recommended option, whenever possible.
 
 [[runtime-updating-scripts]]
 ==== Updating and removing runtime fields

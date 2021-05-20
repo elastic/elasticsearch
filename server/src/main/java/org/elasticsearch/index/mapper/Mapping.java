@@ -92,7 +92,9 @@ public final class Mapping implements ToXContentFragment {
      * @param consumer a callback that will receive each Mapper
      */
     public void forEachMapper(Consumer<Mapper> consumer) {
-        collectMappers(root, consumer);
+        for (Mapper mapper : root) {
+            collectMappers(mapper, consumer);
+        }
     }
 
     private static void collectMappers(Mapper mapper, Consumer<Mapper> consumer) {

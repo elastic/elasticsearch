@@ -126,9 +126,12 @@ public class TransportGetFieldMappingsIndexAction
     }
 
     private static Predicate<String> fieldPredicate(Predicate<String> baseFieldPredicate, String[] fields) {
+        if (fields.length == 0) {
+            return baseFieldPredicate;
+        }
         Automaton fieldAutomaton = Regex.simpleMatchToAutomaton(fields);
         CharacterRunAutomaton fieldMatcher = new CharacterRunAutomaton(fieldAutomaton);
-        return baseFieldPredicate.or(fieldMatcher::run);
+        return baseFieldPredicate.and(fieldMatcher::run);
     }
 
     private static FieldMappingMetadata buildFieldMappingMetadata(

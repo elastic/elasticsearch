@@ -1,0 +1,160 @@
+[[indices-disk-usage]]
+=== Analyze index disk usage API
+++++
+<titleabbrev>Analyze index disk usage</titleabbrev>
+++++
+
+experimental[]
+
+Analyzes the disk usage of each field of an index. This API
+might not support indices created in previous {es} versions.
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
+--------------------------------------------------
+// TEST[setup:my_index]
+
+
+[[analyze-index-disk-usage-api-request]]
+==== {api-request-title}
+
+`POST /<index>/_index_disk_usage`
+
+[[analyze-index-disk-usage-api-request-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
+
+[[analyze-index-disk-usage-api-path-params]]
+==== {api-path-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
++
+By default, you must explicitly name the indices you are analyzing the disk usage.
+To specify indices to close with `_all`, `*`, or other wildcard
+expressions, change the `action.destructive_requires_name` setting to `false`.
+You can update this setting in the `elasticsearch.yml` file
+or using the <<cluster-update-settings,cluster update settings>> API.
+
+[[analyze-index-disk-usage-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
++
+Defaults to `true`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
++
+Defaults to `open`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+`run_expensive_tasks`::
+(Optional, Boolean)
+Since analyzing per field disk usage of indices is expensive and resource-intensive,
+the parameter `run_expensive_tasks` must be set to `true` in order for the task to be
+performed.
+Defaults to `false`.
+
+`flush`::
+(Optional, Boolean)
+If `true`, the target index will be flushed before the analyzing process starts.
+If `false`, then uncommitted data might not be included in the result.
+Defaults to `true`.
+
+
+[[analyze-index-disk-usage-api-example]]
+==== {api-examples-title}
+
+The following request analyzes the disk usage of index `my-index-000001`.
+
+[source,console]
+--------------------------------------------------
+POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
+--------------------------------------------------
+
+The API returns the following response:
+
+[source,console-result]
+--------------------------------------------------
+{
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "failed": 0
+    },
+    "my-index-000001": {
+        "_all": {
+            "total": "925.4mb",
+            "total_in_bytes": 970370607,
+            "terms": "38.6mb",
+            "terms_in_bytes": 40541738,
+            "postings": "65.7mb",
+            "postings_in_bytes": 68963453,
+            "proximity": "11.6mb",
+            "proximity_in_bytes": 12253834,
+            "stored_fields": "623.5mb",
+            "stored_fields_in_bytes": 653843556,
+            "doc_values": "125.7mb",
+            "doc_values_in_bytes": 131882253,
+            "points": "59.9mb",
+            "points_in_bytes": 62885773,
+            "norms": "0b",
+            "norms_in_bytes": 0,
+            "vectors": "0b",
+            "vectors_in_bytes": 0
+        },
+        "fields": {
+            "title": {
+                "total": "27.6mb",
+                "total_in_bytes": 29005703,
+                "terms": "1.2mb",
+                "terms_in_bytes": 1295195,
+                "postings": "19.7mb",
+                "postings_in_bytes": 20741011,
+                "proximity": "6.6mb",
+                "proximity_in_bytes": 6969497,
+                "stored_fields": "0b",
+                "stored_fields_in_bytes": 0,
+                "doc_values": "0b",
+                "doc_values_in_bytes": 0,
+                "points": "0b",
+                "points_in_bytes": 0,
+                "norms": "0b",
+                "norms_in_bytes": 0,
+                "vectors": "0b",
+                "vectors_in_bytes": 0
+            },
+            "_source": {
+                "total": "609.5mb",
+                "total_in_bytes": 639114192,
+                "terms": "0b",
+                "terms_in_bytes": 0,
+                "postings": "0b",
+                "postings_in_bytes": 0,
+                "proximity": "0b",
+                "proximity_in_bytes": 0,
+                "stored_fields": "609.5mb",
+                "stored_fields_in_bytes": 639114192,
+                "doc_values": "0b",
+                "doc_values_in_bytes": 0,
+                "points": "0b",
+                "points_in_bytes": 0,
+                "norms": "0b",
+                "norms_in_bytes": 0,
+                "vectors": "0b",
+                "vectors_in_bytes": 0
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"_all": \{[^}]*\}/"_all": $body.$_path/]
+// TESTRESPONSE[s/"fields": \{[^}]*\}/"fields": $body.$_path/]

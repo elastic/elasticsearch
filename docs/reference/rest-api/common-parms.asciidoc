@@ -30,13 +30,6 @@ which include the index. Index alias names support <<date-math-index-names,date
 math>>.
 end::aliases[]
 
-tag::target-index-aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>)
-<<indices-aliases,Index aliases>> which include the target index. Index alias
-names support <<date-math-index-names,date math>>.
-end::target-index-aliases[]
-
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)

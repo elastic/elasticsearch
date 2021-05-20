@@ -19,8 +19,13 @@ class JdbcColumnInfo {
     public final String name;
     public final int displaySize;
     public final EsType type;
+    public final boolean isArray;
 
     JdbcColumnInfo(String name, EsType type, String table, String catalog, String schema, String label, int displaySize) {
+        this(name, type, false, table, catalog, schema, label, displaySize);
+    }
+
+    JdbcColumnInfo(String name, EsType type, boolean isArray, String table, String catalog, String schema, String label, int displaySize) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null");
         }
@@ -41,6 +46,7 @@ class JdbcColumnInfo {
         }
         this.name = name;
         this.type = type;
+        this.isArray = isArray;
         this.table = table;
         this.catalog = catalog;
         this.schema = schema;

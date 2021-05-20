@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import java.sql.Array;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.util.List;
 import java.util.Locale;
 
@@ -110,12 +112,12 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public int getColumnType(int column) throws SQLException {
-        return column(column).type.getVendorTypeNumber();
+        return column(column).isArray ? Types.ARRAY : column(column).type.getVendorTypeNumber();
     }
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        return column(column).type.getName();
+        return column(column).type.getName() + (column(column).isArray ? "_ARRAY" : "");
     }
 
     @Override
@@ -138,7 +140,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public String getColumnClassName(int column) throws SQLException {
-        return TypeUtils.classOf(column(column).type).getName();
+        return column(column).isArray ? Array.class.getName() : TypeUtils.classOf(column(column).type).getName();
     }
 
     private void checkOpen() throws SQLException {

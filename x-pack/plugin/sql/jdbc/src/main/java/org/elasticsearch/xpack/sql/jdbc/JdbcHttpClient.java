@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.client.StringUtils.EMPTY;
@@ -116,7 +117,13 @@ class JdbcHttpClient {
     private List<JdbcColumnInfo> toJdbcColumnInfo(List<ColumnInfo> columns) throws SQLException {
         List<JdbcColumnInfo> cols = new ArrayList<>(columns.size());
         for (ColumnInfo info : columns) {
-            cols.add(new JdbcColumnInfo(info.name(), TypeUtils.of(info.esType()), EMPTY, EMPTY, EMPTY, EMPTY, info.displaySize()));
+            String typeName = info.esType().toLowerCase(Locale.ROOT);
+            boolean isArray = false;
+            if (typeName.endsWith("_array")) {
+                isArray = true;
+                typeName = typeName.substring(0, typeName.length() - "_array".length());
+            }
+            cols.add(new JdbcColumnInfo(info.name(), TypeUtils.of(typeName), isArray, EMPTY, EMPTY, EMPTY, EMPTY, info.displaySize()));
         }
         return cols;
     }

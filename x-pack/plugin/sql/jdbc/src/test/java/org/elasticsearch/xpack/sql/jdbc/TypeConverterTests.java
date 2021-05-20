@@ -26,7 +26,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.sql.jdbc.JdbcTestUtils.nowWithMillisResolution;
-import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.arrayOf;
 import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.of;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -95,16 +94,16 @@ public class TypeConverterTests extends ESTestCase {
             }
         };
         List<Object> asFromJson = expected.stream().map(toJsoned).collect(Collectors.toList());
-        EsType arrayType = expected.get(0) != null
-            ? arrayOf(of(expected.get(0).getClass()))
-            : randomFrom(EsType.BOOLEAN_ARRAY, EsType.LONG_ARRAY, EsType.DOUBLE_ARRAY, EsType.KEYWORD_ARRAY, EsType.DATETIME_ARRAY);
+        EsType arrayBaseType = expected.get(0) != null
+            ? of(expected.get(0).getClass())
+            : randomFrom(EsType.BOOLEAN, EsType.LONG, EsType.DOUBLE, EsType.KEYWORD, EsType.DATETIME);
 
-        assertNotNull(arrayType);
-        assertEquals(expected, TypeConverter.convert(asFromJson, arrayType, arrayType.getName()));
+        assertNotNull(arrayBaseType);
+        assertEquals(expected, TypeConverter.convertArray(asFromJson, arrayBaseType, arrayBaseType.getName()));
     }
 
-    public void testMultiValueFailedConversion() throws Exception {
-        expectThrows(ClassCastException.class, () -> convertAsNative(3L, EsType.LONG_ARRAY));
+    public void testMultiValueFailedConversion() {
+        expectThrows(ClassCastException.class, () -> convertAsNative(3L, EsType.ARRAY));
         expectThrows(ClassCastException.class, () -> convertAsNative(asList(3L), EsType.LONG));
     }
 
@@ -117,6 +116,8 @@ public class TypeConverterTests extends ESTestCase {
         builder.endObject();
         builder.close();
         Object copy = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2().get("value");
-        return TypeConverter.convert(copy, type, type.toString());
+        return type == EsType.ARRAY
+            ? TypeConverter.convertArray(copy, type, type.toString())
+            : TypeConverter.convert(copy, type, type.toString());
     }
 }

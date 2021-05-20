@@ -141,6 +141,38 @@ PUT my-index-000001/_mappings
 ----
 // TEST[continued]
 
+Alternatively, you can define the same runtime field but in the context of a
+search request. The runtime definition and the script are exactly the same as
+the one defined previously in the index mapping. Just copy that definition into
+the search request under the `runtime_mappings` section and include a query
+that matches on the runtime field. This query returns the same results as if
+you <<grok-pattern-results,return calculated results>> for the `http.clientip`
+runtime field in your index mappings, but only in the context of this specific
+search:
+
+[source,console]
+----
+GET my-index-000001/_search
+{
+  "runtime_mappings": {
+    "http.clientip": {
+      "type": "ip",
+      "script": """
+        String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
+        if (clientip != null) emit(clientip);
+      """
+    }
+  },
+  "query": {
+    "match": {
+      "http.clientip": "40.135.0.0"
+    }
+  },
+  "fields" : ["http.clientip"]
+}
+----
+// TEST[continued]
+
 [[grok-pattern-results]]
 ==== Return calculated results
 Using the `http.clientip` runtime field, you can define a simple query to run a

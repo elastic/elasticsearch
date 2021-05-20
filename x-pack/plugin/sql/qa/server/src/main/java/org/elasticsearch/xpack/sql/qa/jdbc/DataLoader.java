@@ -438,60 +438,6 @@ public class DataLoader {
         client.performRequest(request); // fails by exception
     }
 
-    // TODO: functionalize index creation (settings+mapping) and bulk builder throughout class?
-    protected static void loadEcommerceDatasetIntoEs(RestClient client, String index, String fileName) throws Exception {
-        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("settings");
-        {
-            createIndex.field("number_of_shards", 1);
-            createIndex.field("number_of_replicas", 1);
-        }
-        createIndex.endObject();
-        createIndex.startObject("mappings");
-        {
-            createIndex.startObject("properties");
-            {
-                createIndex.startObject("id").field("type", "integer").endObject();
-                createIndex.startObject("date").field("type", "date").endObject();
-                createString("product", createIndex);
-                createString("sku", createIndex);
-                createIndex.startObject("price").field("type", "integer").endObject();
-                createIndex.startObject("tax").field("type", "double").endObject();
-                createIndex.startObject("shipped").field("type", "date").endObject();
-            }
-            createIndex.endObject();
-        }
-        createIndex.endObject().endObject();
-
-        Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity(Strings.toString(createIndex));
-        client.performRequest(request);
-
-        StringBuilder builder = new StringBuilder();
-        csvToLines(fileName, (headers, values) -> {
-            builder.append("{\"index\":{\"_id\":" + values.get(0) + "}}\n");
-            builder.append("{");
-            for (int i = 0; i < headers.size(); i++) {
-                String value = values.get(i);
-                if (i == 1) { // date: [2020-...]
-                    value = '"' + value + '"';
-                } else if (i == 6) { // shipped: [2020-..,2020-...] or [null,2020-...]
-                    String[] tokens = value.substring(1, value.length() - 1).split(",");
-                    value = Arrays.stream(tokens).map(x -> x.equals("null") ? x : '"' + x + '"').collect(Collectors.joining(","));
-                    value = '[' + value + ']';
-                }
-                builder.append('"').append(headers.get(i)).append('"').append(':').append(value);
-                builder.append(",");
-            }
-            builder.deleteCharAt(builder.length() - 1); // trailing comma
-            builder.append("}").append("\n");
-        });
-
-        request = new Request("POST", "/" + index + "/_bulk?refresh=true");
-        request.setJsonEntity(builder.toString());
-        client.performRequest(request); // fails by exception
-    }
-
     public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
         for (String index : indices) {
             client.performRequest(new Request("POST", "/" + index + "/_alias/" + aliasName));
@@ -529,43 +475,6 @@ public class DataLoader {
                 consumeLine.accept(titles, values);
             }
         }
-    }
-
-    private static List<String> splitCsvLine(String line) {
-        List<String> values = new ArrayList<>();
-        StringBuilder buff = new StringBuilder();
-        boolean quoteOn = false;
-        char crr, prev = 0;
-        for (int i = 0; i < line.length(); i++, prev = crr) {
-            switch ((crr = line.charAt(i))) {
-                case ',':
-                    if (quoteOn) {
-                        buff.append(crr);
-                    } else {
-                        values.add(buff.toString());
-                        buff = new StringBuilder();
-                    }
-                    break;
-                case '"':
-                    if (quoteOn) {
-                        quoteOn = false;
-                    } else {
-                        if (prev == '"') { // double `"` == escaped `"`
-                            buff.append('"');
-                        } // else: no if (prev != 0 && prev != ',') check => ...,foo"bar"baz,... -> foobarbaz
-                        quoteOn = true;
-                    }
-                    break;
-                default:
-                    buff.append(crr);
-                    break;
-            }
-        }
-        if (quoteOn) {
-            throw new IllegalArgumentException("Quote not closed in badly formatted CSV line: [" + line + "]");
-        }
-        values.add(buff.toString());
-        return values;
     }
 
     private static List<String> splitCsvLine(String line) {

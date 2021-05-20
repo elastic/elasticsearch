@@ -187,9 +187,9 @@ If connecting to the {es} node needs to go through a proxy, the following parame
 
 * Type
 +
-What kind of protocol to use when connecting to the proxy host. This also mandates how the the {es} node you want to connect to over the proxy needs to be specified under <<connection_parameters>>:
+What kind of protocol to use when connecting to the proxy host. This also mandates how the {es} node you want to connect to over the proxy needs to be specified under <<connection_parameters>>:
 +
-** HTTP, SOCKS4A, SOCKS5H: either IP address or host name are accepted; the proxy will resolve the DNS name;
+** HTTP, SOCKS4A, SOCKS5H: either IP address or host name is accepted; the proxy will resolve the DNS name;
 ** SOCKS4, SOCKS5: {es} node location needs to be provided as an IP address;
 +
 * Port
@@ -237,7 +237,7 @@ If this setting is greater than zero, the driver will advertise all the string
 type columns as having a maximum character length equal to this value and will
 truncate any longer string to it. The string types are textual fields
 (TEXT, KEYWORD etc.) and some specialized fields (IP, the GEOs etc.). Note that
-no interpretation of the value is performed before trunctation, which can lead
+no interpretation of the value is performed before truncation, which can lead
 to invalid values if the limit is set too low.
 This is required for those applications that do not support column lengths as
 large as {es} fields can be.

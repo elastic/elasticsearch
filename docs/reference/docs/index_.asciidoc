@@ -203,7 +203,8 @@ If the target doesn't exist and doesn't match a data stream template,
 the operation automatically creates the index and applies any matching
 <<index-templates,index templates>>.
 
-include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templates]
+NOTE: {es} includes several built-in index templates. To avoid naming collisions
+with these templates, see <<avoid-index-pattern-collisions>>.
 
 If no mapping exists, the index operation
 creates a dynamic mapping. By default, new fields and objects are

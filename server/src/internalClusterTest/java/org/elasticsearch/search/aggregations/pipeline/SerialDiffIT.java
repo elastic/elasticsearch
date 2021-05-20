@@ -127,7 +127,7 @@ public class SerialDiffIT extends ESIntegTestCase {
         numBuckets = randomIntBetween(10, 80);
         lag = randomIntBetween(1, numBuckets / 2);
 
-        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.SKIP : BucketHelpers.GapPolicy.INSERT_ZEROS;
+        gapPolicy = randomFrom(BucketHelpers.GapPolicy.values());
         metric = randomMetric("the_metric", VALUE_FIELD);
         mockHisto = PipelineAggregationHelperTests.generateHistogram(interval, numBuckets, randomDouble(), randomDouble());
 

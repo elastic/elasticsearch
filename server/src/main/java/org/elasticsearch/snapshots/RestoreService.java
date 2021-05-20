@@ -239,25 +239,24 @@ public class RestoreService implements ClusterStateApplier {
                     // fork handling to the generic pool since it loads various pieces of metadata from the repository over a longer period
                     // of time
                     clusterService.getClusterApplierService().threadPool().generic().execute(
-                            ActionRunnable.wrap(
-                                listener,
-                                l -> {
-                                    final String snapshotName = request.snapshot();
-                                    final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
-                                            .filter(s -> snapshotName.equals(s.getName())).findFirst();
-                                    if (matchingSnapshotId.isPresent() == false) {
-                                        throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
-                                    }
+                        ActionRunnable.wrap(
+                            listener,
+                            l -> {
+                                final String snapshotName = request.snapshot();
+                                final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
+                                        .filter(s -> snapshotName.equals(s.getName())).findFirst();
+                                if (matchingSnapshotId.isPresent() == false) {
+                                    throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
+                                }
 
-                                    final SnapshotId snapshotId = matchingSnapshotId.get();
-                                    if (request.snapshotUuid() != null
-                                            && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
-                                        throw new SnapshotRestoreException(repositoryName, snapshotName,
-                                                "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got ["
-                                                        + snapshotId.getUUID() + "]");
-                                    }
-                                    startRestore(repository.getSnapshotInfo(snapshotId), repository, request, repositoryData, updater, l);
-                                })
+                                final SnapshotId snapshotId = matchingSnapshotId.get();
+                                if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
+                                    throw new SnapshotRestoreException(repositoryName, snapshotName,
+                                            "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got ["
+                                                    + snapshotId.getUUID() + "]");
+                                }
+                                startRestore(repository.getSnapshotInfo(snapshotId), repository, request, repositoryData, updater, l);
+                            })
                         ),
                     listener::onFailure
                 ),
@@ -1075,7 +1074,6 @@ public class RestoreService implements ClusterStateApplier {
                             "] because it cannot be upgraded", ex);
                 }
                 final String renamedIndexName = indexEntry.getKey();
-                // Check that the index is closed or doesn't exist
                 final IndexMetadata currentIndexMetadata = currentState.metadata().index(renamedIndexName);
                 final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                         restoreUUID,

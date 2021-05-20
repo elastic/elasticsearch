@@ -226,7 +226,7 @@ Type of data stream that wildcard expressions can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::
-Match any data stream, including <<hidden-indices,hidden>> ones.
+Match any data stream, including <<hidden,hidden>> ones.
 
 `open`, `closed`::
 Matches any non-hidden data stream. Data streams cannot be closed.
@@ -247,7 +247,7 @@ hidden data streams. Supports comma-separated values, such as `open,hidden`.
 Valid values are:
 
 `all`::
-Match any data stream or index, including <<hidden-indices,hidden>> ones.
+Match any data stream or index, including <<hidden,hidden>> ones.
 
 `open`::
 Match open, non-hidden indices. Also matches any non-hidden data stream.

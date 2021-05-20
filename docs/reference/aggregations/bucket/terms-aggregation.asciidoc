@@ -60,15 +60,12 @@ GET /_search
 {
   "aggs": {
     "genres": {
-      "terms": { "field": "genre" } <1>
+      "terms": { "field": "genre" }
     }
   }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
-
-<1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable
-<<fielddata, fielddata>>.
 
 Response:
 
@@ -106,6 +103,19 @@ Response:
 
 By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
 change this default behaviour by setting the `size` parameter.
+
+
+The `field` can be <<keyword>>, <<number>>, <<ip, `ip`>>, <<boolean, `boolean`>>,
+or <<binary, `binary`>>.
+
+NOTE:: If you try to run it on a text field you will get an error back about
+field data. You have a choice, run `terms` on a `keyword`
+<<multi-fields, sub-field>> instead or enable <<fielddata, fielddata>> on the text
+field. Generally the `keyword` sub-field is better because fielddata consumes a
+ton of memory. But the `fielddata` way of running the terms aggregation will
+return a bucket per <<analysis, *analyzed*>> term in the `text` field while the
+`keyword` way will return a bucket for each value in the keyword.
+
 
 [[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size

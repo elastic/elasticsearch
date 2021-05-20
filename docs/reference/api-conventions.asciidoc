@@ -50,7 +50,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
 not support multi-target syntax.
 
-[[hidden-indices]]
+[[hidden]]
 ==== Hidden data streams and indices
 
 For most APIs, wildcard expressions do not match hidden data streams and indices

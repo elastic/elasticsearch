@@ -599,9 +599,6 @@ The get index alias API returns:
 [source,console-result]
 ----
 {
-  "logs-my_app-default": {
-    "aliases": {}
-  },
   "logs-nginx.access-prod": {
     "aliases": {
       "logs": {}

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -80,11 +79,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
         this.snapshotRepository = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            this.forceMergeIndex = in.readBoolean();
-        } else {
-            this.forceMergeIndex = true;
-        }
+        this.forceMergeIndex = in.readBoolean();
     }
 
     boolean isForceMergeIndex() {
@@ -293,9 +288,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeBoolean(forceMergeIndex);
-        }
+        out.writeBoolean(forceMergeIndex);
     }
 
     @Override

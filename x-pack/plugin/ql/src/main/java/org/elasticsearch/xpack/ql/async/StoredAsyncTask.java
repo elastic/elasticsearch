@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql.async;
+package org.elasticsearch.xpack.ql.async;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -94,5 +94,16 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     @Override
     public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {
         taskManager.cancelTaskAndDescendants(this, reason, true, ActionListener.wrap(runnable));
+    }
+
+    public static QlStatusResponse getStatusResponse(StoredAsyncTask<?> asyncTask) {
+        return new QlStatusResponse(
+            asyncTask.getExecutionId().getEncoded(),
+            true,
+            true,
+            asyncTask.getStartTime(),
+            asyncTask.getExpirationTimeMillis(),
+            null
+        );
     }
 }

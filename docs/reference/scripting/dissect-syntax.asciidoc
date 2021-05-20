@@ -1,10 +1,30 @@
 [[dissect]]
-=== Dissect patterns
+=== Dissecting data
 Dissect matches a single text field against a defined pattern. A dissect
 pattern is defined by the parts of the string you want to discard. Paying
-special attention to the parts of the string you want to discard will help
-build successful dissect patterns.
+special attention to each part of a string helps to build successful dissect
+patterns.
 
-Regex is incredibly powerful but can be complicated. If you don't need the
-power of regular expressions, use dissect patterns, which are simple and
-often faster than grok patterns. 
+If you don't need the power of regular expressions, use dissect patterns instead
+of grok. Dissect uses a much simpler syntax than grok and is typically faster
+overall. The syntax for dissect is transparent: tell dissect what you want and
+it will return it to you.
+
+[[dissect-patterns]]
+==== Dissect patterns
+Dissect patterns are comprised of variables and separators. Anything defined by
+a percent sign and curly braces `%{}` is considered a variable, such as
+`%{clientip}`. You can assign variables to any part of data in a field, and
+then return only the parts that you want. Separators are any values between
+variables, which could be spaces, dashes, or other delimiter.
+
+For example, let's say you have log data that looks like this:
+
+[source,txt]
+----
+"message": "1.2.3.4 - - [30/Apr/1998:22:00:52 +0000] \"GET /english/venues/cities/images montpellier/18.gif HTTP/1.0\" 200 3171"
+----
+
+You assign variables to each part of this data to construct a successful
+dissect pattern. The first part of the data looks like an IP address, so you
+can assign a variable like `%{clientip}`. 

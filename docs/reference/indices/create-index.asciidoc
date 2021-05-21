@@ -88,7 +88,7 @@ alias can access.
 
 `index_routing`::
 (Optional, string) Value used to route indexing operations to a specific shard.
-If specified, this overrides the `routing` value for indexing operations.
+If specified, this overwrites the `routing` value for indexing operations.
 
 `is_hidden`::
 (Optional, Boolean) If `true`, the index is <<hidden,hidden>>. Defaults to
@@ -104,7 +104,7 @@ specific shard.
 
 `search_routing`::
 (Optional, string) Value used to route search operations to a specific shard. If
-specified, this overrides the `routing` value for search operations.
+specified, this overwrites the `routing` value for search operations.
 =====
 ====
 // end::aliases[]

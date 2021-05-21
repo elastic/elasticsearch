@@ -15,7 +15,10 @@ define fixed number of multiple buckets, and others dynamically create the bucke
 
 NOTE: The maximum number of buckets allowed in a single response is limited by a dynamic cluster
 setting named `search.max_buckets`. It is disabled by default (-1) but requests that try to return more than
-10,000 buckets (the default value for future versions) will log a deprecation warning.
+10,000 buckets (the default value for future versions) will log a deprecation warning. 
+When using composite aggs however, the handling of -1 differs. Elasticsearch would use the soft limit as a 
+hard limit for those aggregations, and raise a `TooManyBucketsException` 
+about `Trying to create too many buckets. Must be less than or equal to: [10000]` if the soft limit is exceeded. 
 
 include::bucket/adjacency-matrix-aggregation.asciidoc[]
 

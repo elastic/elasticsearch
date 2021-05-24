@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndexDescriptor;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -58,7 +58,7 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * @return A list of descriptors of indices which depend on the contents of this plugin's system indices, but are not themselves system
      * indices
      */
-    default Collection<IndexDescriptor> getAssociatedIndexDescriptors() {
+    default Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
         return Collections.emptyList();
     }
 

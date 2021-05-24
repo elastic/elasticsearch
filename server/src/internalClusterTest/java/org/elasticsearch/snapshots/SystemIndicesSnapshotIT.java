@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.indices.IndexDescriptor;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -943,8 +943,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public Collection<IndexDescriptor> getAssociatedIndexDescriptors() {
-            return Collections.singletonList(new IndexDescriptor(ASSOCIATED_INDEX_NAME, "Associated indices"));
+        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+            return Collections.singletonList(new AssociatedIndexDescriptor(ASSOCIATED_INDEX_NAME, "Associated indices"));
         }
 
         @Override

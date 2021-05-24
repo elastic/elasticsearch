@@ -68,7 +68,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndexDescriptor;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -300,7 +300,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                     // Add all resolved indices from the feature states to the list of indices
                     for (String feature : featureStatesSet) {
-                        for (IndexDescriptor aid : systemIndexDescriptorMap.get(feature).getAssociatedIndexDescriptors()) {
+                        for (AssociatedIndexDescriptor aid : systemIndexDescriptorMap.get(feature).getAssociatedIndexDescriptors()) {
                             indexNames.addAll(aid.getMatchingIndices(currentState.metadata()));
                         }
                     }

@@ -92,6 +92,9 @@ public final class Mapping implements ToXContentFragment {
      * @param consumer a callback that will receive each Mapper
      */
     public void forEachMapper(Consumer<Mapper> consumer) {
+        for (Mapper mapper : metadataMappers) {
+            consumer.accept(mapper);
+        }
         for (Mapper mapper : root) {
             collectMappers(mapper, consumer);
         }
@@ -110,7 +113,6 @@ public final class Mapping implements ToXContentFragment {
     public Collection<RuntimeField> runtimeFields() {
         return root.runtimeFields();
     }
-
 
     /**
      * Returns the meta section for the current mapping

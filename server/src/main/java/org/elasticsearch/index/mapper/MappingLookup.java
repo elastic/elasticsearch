@@ -60,11 +60,6 @@ public final class MappingLookup {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
-        for (MetadataFieldMapper metadataMapper : mapping.getSortedMetadataMappers()) {
-            if (metadataMapper != null) {
-                newFieldMappers.add(metadataMapper);
-            }
-        }
         mapping.forEachMapper(mapper -> {
             if (mapper instanceof ObjectMapper) {
                 newObjectMappers.add((ObjectMapper)mapper);

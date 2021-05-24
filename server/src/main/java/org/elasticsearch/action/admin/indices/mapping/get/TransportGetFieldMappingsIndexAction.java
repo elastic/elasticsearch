@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -99,6 +100,9 @@ public class TransportGetFieldMappingsIndexAction
         Map<String, FieldMappingMetadata> mappings = new HashMap<>();
 
         mappingLookup.getMapping().forEachMapper(m -> {
+            if (m instanceof ObjectMapper) {
+                return;
+            }
             FieldMappingMetadata metadata = buildFieldMappingMetadata(fieldPredicate, m.name(), m, params);
             if (metadata != null) {
                 mappings.put(metadata.fullName(), metadata);

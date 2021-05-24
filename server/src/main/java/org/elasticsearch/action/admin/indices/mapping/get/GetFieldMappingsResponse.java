@@ -95,9 +95,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             if (indexEntry.getValue() != null) {
                 if (builder.getRestApiVersion() == RestApiVersion.V_7 &&
                     params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
-                    builder.startObject(MapperService.SINGLE_MAPPING_NAME);
-                    addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
-                    builder.endObject();
+                    if (indexEntry.getValue().size() > 0) {
+                        builder.startObject(MapperService.SINGLE_MAPPING_NAME);
+                        addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
+                        builder.endObject();
+                    }
                 } else {
                     addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
                 }

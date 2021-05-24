@@ -208,7 +208,8 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
               task.removeWarning("one", "warning to remove")
               task.replaceIsTrue("value_to_replace", "replaced_value")
               task.replaceIsFalse("value_to_replace", "replaced_value")
-              task.replaceKeyInMatch("some.key_to_replace", "some.key_that_was_replaced")
+              task.replaceKeyInDo("do_.some.key_to_replace", "do_.some.key_that_was_replaced")
+              task.replaceKeyInMatch("match_.some.key_to_replace", "match_.some.key_that_was_replaced")
               task.replaceKeyInLength("key.in_length_to_replace", "key.in_length_that_was_replaced")
             })
             // can't actually spin up test cluster from this test
@@ -220,7 +221,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/test.yml" ) << """
         "one":
           - do:
-              get:
+              do_.some.key_to_replace:
                 index: test
                 id: 1
               warnings:
@@ -229,7 +230,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
           - match: { _type: "_foo" }
           - match: { _source.blah: 1234 }
           - match: { _source.junk: true }
-          - match: { some.key_to_replace: true }
+          - match: { match_.some.key_to_replace: true }
           - is_true: "value_to_replace"
           - is_false: "value_to_replace"
           - is_true: "value_not_to_replace"
@@ -275,7 +276,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         ---
         one:
         - do:
-            get:
+            do_.some.key_that_was_replaced:
               index: "test"
               id: 1
             warnings:
@@ -299,7 +300,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         - match:
             _source.junk: true
         - match:
-            some.key_that_was_replaced : true
+            match_.some.key_that_was_replaced: true
         - is_true: "replaced_value"
         - is_false: "replaced_value"
         - is_true: "value_not_to_replace"

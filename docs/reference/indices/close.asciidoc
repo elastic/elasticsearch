@@ -39,7 +39,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
 +
 To close all indices, use `_all` or `*`.
 By default, you must explicitly name the indices you are closing.
-To specify indices to close with `_all`, `*``, or other wildcard
+To specify indices to close with `_all`, `*`, or other wildcard
 expressions, change the `action.destructive_requires_name` setting to `false`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.

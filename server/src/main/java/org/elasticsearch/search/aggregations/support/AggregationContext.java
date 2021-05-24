@@ -114,7 +114,7 @@ public abstract class AggregationContext implements Releasable {
     /**
      * Returns the registered mapped field types.
      */
-    public abstract Collection<MappedFieldType> getFieldTypes();
+    public abstract Collection<MappedFieldType> getMatchingFieldTypes(String pattern);
 
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
@@ -346,8 +346,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Collection<MappedFieldType> getFieldTypes() {
-            return context.getFieldTypes();
+        public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+            return context.getMatchingFieldTypes(pattern);
         }
 
         @Override

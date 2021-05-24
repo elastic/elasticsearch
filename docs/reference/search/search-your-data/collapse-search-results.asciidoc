@@ -118,8 +118,35 @@ The `max_concurrent_group_searches` request parameter can be used to control
 the maximum number of concurrent searches allowed in this phase.
 The default is based on the number of data nodes and the default search thread pool size.
 
-WARNING: `collapse` cannot be used in conjunction with <<scroll-search-results, scroll>>,
-<<rescore, rescore>> or <<search-after, search after>>.
+WARNING: `collapse` cannot be used in conjunction with <<scroll-search-results, scroll>> or
+<<rescore, rescore>>.
+
+[discrete]
+[[collapsing-with-search-after]]
+=== Collapsing with `search_after`
+Field collapsing can be used with the <<search-after, `search_after`>>
+parameter. Using `search_after` is only supported when sorting and collapsing
+on the same field. Secondary sorts are also not allowed. For example, we can
+collapse and sort on `user.id`, while paging through the results using
+`search_after`:
+
+[source,console]
+--------------------------------------------------
+GET /my-index-000001/_search
+{
+  "query": {
+    "match": {
+      "message": "GET /search"
+    }
+  },
+  "collapse": {
+    "field": "user.id"
+  },
+  "sort": [ "user.id" ],
+  "search_after": ["dd5ce1ad"]
+}
+--------------------------------------------------
+// TEST[setup:my_index]
 
 [discrete]
 [[second-level-of-collapsing]]

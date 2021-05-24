@@ -93,10 +93,12 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 <1> By default, `include_global_state` is `false`, meaning the snapshot's
 cluster state and feature states are not restored.
 +
-If `true`, the snapshot's persistent settings, index templates, ingest
-pipelines, and {ilm-init} policies are restored into the current cluster. This
-overwrites any existing cluster settings, templates, pipelines and {ilm-init}
-policies whose names match those in the snapshot.
+If `true` then the restore operation merges the legacy index templates in your
+cluster with the templates contained in the snapshot, replacing any existing
+ones whose name matches one in the snapshot. It completely removes all
+persistent settings, non-legacy index templates, ingest pipelines and
+{ilm-init} lifecycle policies that exist in your cluster and replaces them with
+the corresponding items from the snapshot.
 
 The restore operation must be performed on a functioning cluster. However, an
 existing index can be only restored if it's <<indices-close,closed>> and

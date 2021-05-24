@@ -10,21 +10,86 @@ of grok. Dissect uses a much simpler syntax than grok and is typically faster
 overall. The syntax for dissect is transparent: tell dissect what you want and
 it will return it to you.
 
-[[dissect-patterns]]
+[[dissect-syntax]]
 ==== Dissect patterns
 Dissect patterns are comprised of variables and separators. Anything defined by
 a percent sign and curly braces `%{}` is considered a variable, such as
 `%{clientip}`. You can assign variables to any part of data in a field, and
 then return only the parts that you want. Separators are any values between
-variables, which could be spaces, dashes, or other delimiter.
+variables, which could be spaces, dashes, or other delimiters.
 
-For example, let's say you have log data that looks like this:
+For example, let's say you have log data with a `message` field that looks like
+this:
 
 [source,txt]
 ----
-"message": "1.2.3.4 - - [30/Apr/1998:22:00:52 +0000] \"GET /english/venues/cities/images montpellier/18.gif HTTP/1.0\" 200 3171"
+"message" : "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
+----
+// NOTCONSOLE
+
+You assign variables to each part of the data to construct a successful
+dissect pattern. Remember, tell dissect _exactly_ what you want you want to
+match on.
+
+The first part of the data looks like an IP address, so you
+can assign a variable like `%{clientip}`. The next two characters are dashes
+with a space on either side. You can assign a variable for each dash, or a single variable to represent the dashes and spaces. Next are a set of brackets containing a timestamp. The brackets are a separator, so you include those in
+the dissect pattern. Thus far, the data and matching dissect pattern looks like
+this:
+
+[source,txt]
+----
+247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] <1>
+
+%{clientip} %{ident} %{auth} [%{@timestamp}] <2>
+----
+<1> The first chunks of data from the `message` field
+<2> Dissect pattern to match on the selected data chunks
+
+Using that same logic, you can create variables for the remaining chunks of
+data. Double quotation marks are separators, so include those in your dissect
+pattern. The pattern replaces `GET` with a `%{verb}` variable, but keeps `HTTP`
+as part of the pattern. 
+
+[source,txt]
+----
+\"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0
+
+"%{verb} %{request} HTTP/%{httpversion}" %{response} %{size}
 ----
 
-You assign variables to each part of this data to construct a successful
-dissect pattern. The first part of the data looks like an IP address, so you
-can assign a variable like `%{clientip}`. 
+Combining the two patterns results in a dissect pattern that looks like this: 
+
+[source,txt]
+----
+%{clientip} %{ident} %{auth} [%{@timestamp}] \"%{verb} %{request} HTTP/%{httpversion}\" %{status} %{size}
+----
+
+To test your dissect pattern, you can use an online tool like this  
+https://dissect-tester.jorgelbg.me/[dissect filter]. Now that you have a
+functioning dissect pattern, how do you use it?
+
+[[dissect-patterns]]
+==== Use dissect patterns and scripts in runtime fields
+Incorporate your dissect pattern into Painless scripts and runtime fields to
+manipulate data. Because runtime fields don't require you to index fields, you
+have incredible flexibility to modify your script and how it functions.
+
+If you want to extract the HTTP response code using your dissect pattern, you
+can create a runtime field like `http.response` 
+
+[source,console]
+----
+PUT my-index-00001/_mappings
+{
+  "runtime": {
+    "http.response": {
+      "type": "long",
+      "script": """
+        String response=dissect('%{clientip} %{ident} %{auth} [%{@timestamp}] "%{verb} %{request} HTTP/%{httpversion}" %{response} %{size}').extract(doc["message"].value)?.response;
+        if (response != null) emit(Integer.parseInt(response));
+      """
+    }
+  }
+}
+----

@@ -75,6 +75,7 @@ you do not utilize multiple data paths this will not affect you. Likewise, if
 you have not set `xpack.searchable.snapshot.shared_cache.size` and have not
 configured dedicated frozen nodes (nodes with the `data_frozen` role and no
 other data roles) this will not affect you.
+// end::notable-breaking-changes[]
 
 [discrete]
 [[deprecated-7.13]]
@@ -91,6 +92,7 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_713_agg_deprecations]]
 ==== Aggregation deprecations

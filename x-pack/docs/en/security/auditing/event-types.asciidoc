@@ -15,7 +15,13 @@ have the necessary <<security-privileges,privilege>> to perform.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T22:30:06,949+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"access_denied", "authentication.type":"REALM", "user.name":"user1", "user.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw", "action":"indices:admin/auto_create", "request.name":"CreateIndexRequest", "indices":["<index-{now/d+1d}>"]}
+{"type":"audit", "timestamp":"2020-12-30T22:30:06,949+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"access_denied", "authentication.type":"REALM", "user.name":"user1", 
+"user.realm":"default_native", "user.roles":["test_role"], "origin.type":
+"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw",
+"action":"indices:admin/auto_create", "request.name":"CreateIndexRequest", 
+"indices":["<index-{now/d+1d}>"]}
 ====
 
 [[event-access-granted]]
@@ -29,7 +35,12 @@ does not log system actions to avoid cluttering the logs.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T22:30:06,947+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"access_granted", "authentication.type":"REALM", "user.name":"user1", "user.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw", "action":"indices:data/write/bulk", "request.name":"BulkRequest"}
+{"type":"audit", "timestamp":"2020-12-30T22:30:06,947+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"access_granted", "authentication.type":"REALM", "user.name":"user1", "user
+realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", 
+"origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw", 
+"action":"indices:data/write/bulk", "request.name":"BulkRequest"}
 ====
 
 [[event-anonymous-access-denied]]
@@ -40,7 +51,11 @@ Logged when a request is denied due to missing authentication credentials.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T21:56:43,608+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"anonymous_access_denied", "origin.type":"rest", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
+{"type":"audit", "timestamp":"2020-12-30T21:56:43,608+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"anonymous_access_denied", "origin.type":"rest", "origin.address":
+"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", 
+"request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
 ====
 
 [[event-authentication-failed]]
@@ -51,7 +66,12 @@ Logged when the authentication credentials cannot be matched to a known user.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"authentication_failed", "user.name":"elastic", "origin.type":"rest", "origin.address":"[::1]:51504", "url.path":"/_security/user/user1", "url.query":"pretty", "request.method":"POST", "request.id":"POv8p_qeTl2tb5xoFl0HIg"}
+{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"authentication_failed", "user.name":"elastic", "origin.type":"rest", 
+"origin.address":"[::1]:51504", "url.path":"/_security/user/user1", 
+"url.query":"pretty", "request.method":"POST", 
+"request.id":"POv8p_qeTl2tb5xoFl0HIg"}
 ====
 
 [[event-authentication-success]]
@@ -62,7 +82,13 @@ Logged when a user successfully authenticates.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T22:03:35,018+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"authentication_success", "authentication.type":"REALM", "user.name":"elastic", "user.realm":"reserved", "origin.type":"rest", "origin.address":"[::1]:51014", "realm":"reserved", "url.path":"/twitter/_search", "url.query":"pretty", "request.method":"POST", "request.id":"nHV3UMOoSiu-TaSPWCfxGg"}
+{"type":"audit", "timestamp":"2020-12-30T22:03:35,018+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"authentication_success", "authentication.type":"REALM", "user.name":
+"elastic", "user.realm":"reserved", "origin.type":"rest", "origin.address":
+"[::1]:51014", "realm":"reserved", "url.path":"/twitter/_search", 
+"url.query":"pretty", "request.method":"POST", 
+"request.id":"nHV3UMOoSiu-TaSPWCfxGg"}
 ====
 
 [[event-change-disable-user]]
@@ -74,7 +100,10 @@ disable a native or a built-in user.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T23:17:28,308+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg", "change":{"disable":{"user":{"name":"user1"}}}}
+{"type":"audit", "timestamp":"2020-12-30T23:17:28,308+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg", 
+"change":{"disable":{"user":{"name":"user1"}}}}
 ====
 
 [[event-change-enable-user]]
@@ -86,7 +115,10 @@ enable a native or a built-in user.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T23:17:34,843+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ", "change":{"enable":{"user":{"name":"user1"}}}}
+{"type":"audit", "timestamp":"2020-12-30T23:17:34,843+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ", 
+"change":{"enable":{"user":{"name":"user1"}}}}
 ====
 
 [[event-change-password]]
@@ -98,7 +130,10 @@ invoked to change the password of a native or built-in user.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2019-12-30T22:19:41,345+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw", "change":{"password":{"user":{"name":"user1"}}}}
+{"type":"audit", "timestamp":"2019-12-30T22:19:41,345+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw", 
+"change":{"password":{"user":{"name":"user1"}}}}
 ====
 
 [[event-connection-denied]]
@@ -110,7 +145,10 @@ Logged when an incoming TCP connection does not pass the
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20", "transport.profile":".http", "rule":"deny 10.10.0.0/16"}
+{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":
+"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20", 
+"transport.profile":".http", "rule":"deny 10.10.0.0/16"}
 ====
 
 [[event-connection-granted]]
@@ -122,7 +160,10 @@ for a specific profile.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_granted", "origin.type":"rest", "origin.address":"::1", "transport.profile":".http", "rule":"allow ::1,127.0.0.1"}
+{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":
+"connection_granted", "origin.type":"rest", "origin.address":"::1", 
+"transport.profile":".http", "rule":"allow ::1,127.0.0.1"}
 ====
 
 [[event-create-apikey]]
@@ -135,7 +176,15 @@ API key.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"create_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "create":{"apikey":{"name":"test-api-key-1","expiration":"10d","role_descriptors":[{"cluster":["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],"field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],"applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}]}}}
+{"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":
+"create_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "create":{"apikey":
+{"name":"test-api-key-1","expiration":"10d","role_descriptors":[{"cluster":
+["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":
+["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
+"field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],
+"applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
+["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}]}}}
 ====
 
 [[event-delete-privileges]]
@@ -148,7 +197,10 @@ to remove one or more application privileges.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-31T00:39:30,246+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g", "delete":{"privileges":{"application":"myapp","privileges":["read"]}}}
+{"type":"audit", "timestamp":"2020-12-31T00:39:30,246+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.
+action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g", 
+"delete":{"privileges":{"application":"myapp","privileges":["read"]}}}
 ====
 
 [[event-delete-role]]
@@ -160,7 +212,10 @@ delete a role.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-31T00:08:11,678+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role", "request.id":"155IKq3zQdWq-12dgKZRnw", "delete":{"role":{"name":"my_admin_role"}}}
+{"type":"audit", "timestamp":"2020-12-31T00:08:11,678+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":
+"delete_role", "request.id":"155IKq3zQdWq-12dgKZRnw", 
+"delete":{"role":{"name":"my_admin_role"}}}
 ====
 
 `delete_role_mapping`::
@@ -171,7 +226,9 @@ is invoked to delete a role mapping.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-31T00:12:09,349+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g", "delete":{"role_mapping":{"name":"mapping1"}}}
+{"type":"audit", "timestamp":"2020-12-31T00:12:09,349+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g", 
+"delete":{"role_mapping":{"name":"mapping1"}}}
 ====
 
 `delete_user`::
@@ -182,7 +239,10 @@ delete a specific native user.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-30T22:19:41,345+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw", "delete":{"user":{"name":"jacknich"}}}
+{"type":"audit", "timestamp":"2020-12-30T22:19:41,345+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", 
+"event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw", 
+"delete":{"user":{"name":"jacknich"}}}
 ====
 
 `invalidate_apikeys`::
@@ -193,53 +253,143 @@ invoked to invalidate one or more API keys.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-31T00:36:30,247+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ", "invalidate":{"apikeys":{"owned_by_authenticated_user":false,"user":{"name":"myuser","realm":"native1"}}}}
+{"type":"audit", "timestamp":"2020-12-31T00:36:30,247+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.
+action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ", 
+"invalidate":{"apikeys":{"owned_by_authenticated_user":false,
+"user":{"name":"myuser","realm":"native1"}}}}
+====
+
+`put_privileges`::
+Logged when the <<security-api-put-privileges,create or update privileges API>> is invoked
+to add or update one or more application privileges.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:39:07,779+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", 
+"event.action":"put_privileges", "request.id":"1X2VVtNgRYO7FmE0nR_BGA", 
+"put":{"privileges":[{"application":"myapp","name":"read","actions":
+["data:read/*","action:login"],"metadata":{"description":"Read access to myapp"}}]}}
+====
+
+`put_role`::
+Logged when the <<security-api-put-role,create or update role API>> is invoked to create or
+update a role.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:27:01,978+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", 
+"event.action":"put_role", "request.id":"tDYQhv5CRMWM4Sc5Zkk2cQ", 
+"put":{"role":{"name":"test_role","role_descriptor":{"cluster":["all"],
+"indices":[{"names":["apm*"],"privileges":["all"],"field_security":
+{"grant":["granted"]},"query":"{\"term\": {\"service.name\": \"bar\"}}"},
+{"names":["apm-all*"],"privileges":["all"],"query":"{\"term\": 
+{\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}
+====
+
+`put_role_mapping`::
+Logged when the <<security-api-put-role-mapping,create or update role mapping API>> is
+invoked to create or update a role mapping.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:11:13,932+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA", 
+"put":{"role_mapping":{"name":"mapping1","roles":["user"],"rules":
+{"field":{"username":"*"}},"enabled":true,"metadata":{"version":1}}}}
+====
+
+`put_user`::
+Logged when the <<security-api-put-user,create or update user API>> is invoked to create or
+update a native user. Note that user updates can also change the
+user's password.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:10:09,749+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", 
+"event.action":"put_user", "request.id":"VIiSvhp4Riim_tpkQCVSQA", 
+"put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],
+"full_name":"Jack Sparrow","email":"jack@blackpearl.com",
+"has_password":true,"metadata":{"cunning":10}}}}
+====
+
+`realm_authentication_failed`::
+Logged for every realm that fails to present a valid authentication token.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"realm_authentication_failed", "user.name":"elastic", "origin.type":"rest", 
+"origin.address":"[::1]:51504", "realm":"myTestRealm1", "url.path":
+"/_security/user/user1", "url.query":"pretty", "request.method":"POST", 
+"request.id":"POv8p_qeTl2tb5xoFl0HIg"}
+====
+
+`run_as_denied`::
+Logged when an authenticated user attempts to <<run-as-privilege,run as>>
+another user that they do not have the necessary
+<<security-privileges,privileges>> to do so.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:49:34,859+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"run_as_denied", "user.name":"user1", "user.run_as.name":"user1", 
+"user.realm":"default_native", "user.run_as.realm":"default_native", 
+"user.roles":["test_role"], "origin.type":"rest", "origin.address":
+"[::1]:52662", "request.id":"RcaSt872RG-R_WJBEGfYXA", 
+"action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
 ====
 
 
-
-| `put_privileges`
-| Logged when the <<security-api-put-privileges,create or update privileges API>> is invoked
-to add or update one or more application privileges.
-| `{"type":"audit", "timestamp":"2020-12-31T00:39:07,779+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"put_privileges", "request.id":"1X2VVtNgRYO7FmE0nR_BGA", "put":{"privileges":[{"application":"myapp","name":"read","actions":["data:read/*","action:login"],"metadata":{"description":"Read access to myapp"}}]}}`
-
-| `put_role`
-| Logged when the <<security-api-put-role,create or update role API>> is invoked to create or
-update a role.
-| `{"type":"audit", "timestamp":"2020-12-30T22:27:01,978+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role", "request.id":"tDYQhv5CRMWM4Sc5Zkk2cQ", "put":{"role":{"name":"test_role","role_descriptor":{"cluster":["all"],"indices":[{"names":["apm*"],"privileges":["all"],"field_security":{"grant":["granted"]},"query":"{\"term\": {\"service.name\": \"bar\"}}"},{"names":["apm-all*"],"privileges":["all"],"query":"{\"term\": {\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}`
-
-| `put_role_mapping`
-| Logged when the <<security-api-put-role-mapping,create or update role mapping API>> is
-invoked to create or update a role mapping.
-| `{"type":"audit", "timestamp":"2020-12-31T00:11:13,932+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA", "put":{"role_mapping":{"name":"mapping1","roles":["user"],"rules":{"field":{"username":"*"}},"enabled":true,"metadata":{"version":1}}}}`
-
-| `put_user`
-| Logged when the <<security-api-put-user,create or update user API>> is invoked to create or
-update a native user. Note that user updates can also change the
-user's password.
-| `{"type":"audit", "timestamp":"2020-12-30T22:10:09,749+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_user", "request.id":"VIiSvhp4Riim_tpkQCVSQA", "put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],"full_name":"Jack Sparrow","email":"jack@blackpearl.com","has_password":true,"metadata":{"cunning":10}}}}`
-
-| `realm_authentication_failed`
-| Logged for every realm that fails to present a valid authentication token.
-| `{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"realm_authentication_failed", "user.name":"elastic", "origin.type":"rest", "origin.address":"[::1]:51504", "realm":"myTestRealm1", "url.path":"/_security/user/user1", "url.query":"pretty", "request.method":"POST", "request.id":"POv8p_qeTl2tb5xoFl0HIg"}`
-
-| `run_as_denied`
-| Logged when an authenticated user attempts to <<run-as-privilege,run as>>
-another user that they do not have the necessary
-<<security-privileges,privileges>> to do so.
-| `{"type":"audit", "timestamp":"2020-12-30T22:49:34,859+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"run_as_denied", "user.name":"user1", "user.run_as.name":"user1", "user.realm":"default_native", "user.run_as.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52662", "request.id":"RcaSt872RG-R_WJBEGfYXA", "action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}`
-
-| `run_as_granted`
-| Logged when an authenticated user attempts to <<run-as-privilege,run as>>
+`run_as_granted`::
+Logged when an authenticated user attempts to <<run-as-privilege,run as>>
 another user that they have the necessary privileges to do so.
-| `{"type":"audit", "timestamp":"2020-12-30T22:44:42,068+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"run_as_granted", "user.name":"elastic", "user.run_as.name":"user1", "user.realm":"reserved", "user.run_as.realm":"default_native", "user.roles":["superuser"], "origin.type":"rest", "origin.address":"[::1]:52623", "request.id":"dGqPTdEQSX2TAPS3cvc1qA", "action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:44:42,068+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"run_as_granted", "user.name":"elastic", "user.run_as.name":"user1", 
+"user.realm":"reserved", "user.run_as.realm":"default_native", 
+"user.roles":["superuser"], "origin.type":"rest", "origin.address":
+"[::1]:52623", "request.id":"dGqPTdEQSX2TAPS3cvc1qA", "action":
+"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
+====
 
-| `tampered_request`
-| Logged when the {security-features} detect that the request has been tampered
+`tampered_request`::
+Logged when the {security-features} detect that the request has been tampered
 with. Typically relates to `search/scroll` requests when the scroll ID is
 believed to have been tampered with.
-| `{"type":"audit", "timestamp":"2019-11-27T22:00:00,947+0200", "node.id": "0RMNyghkQYCc_gVd1G6tZQ", "event.type": "rest", "event.action": "tampered_request", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}`
-|======
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2019-11-27T22:00:00,947+0200", "node.id": 
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type": "rest", "event.action": 
+"tampered_request", "origin.address":"[::1]:50543", "url.path":
+"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", 
+"request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
+====
 
 [discrete]
 [[audit-event-attributes]]

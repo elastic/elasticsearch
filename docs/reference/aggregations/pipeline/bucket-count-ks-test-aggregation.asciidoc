@@ -15,7 +15,7 @@ the distribution of documents counts in the configured sibling aggregation.
 This test is useful to determine if two samples (represented by `fractions` and `buckets_path`) are
 drawn from the same distribution.
 
-[[bucket-correlation-agg-syntax]]
+[[bucket-count-ks-test-agg-syntax]]
 ==== Parameters
 
 `buckets_path`::
@@ -62,7 +62,7 @@ A `bucket_count_ks_test` aggregation looks like this in isolation:
 <3> The sampling method for the K-S statistic
 
 
-[[bucket-correlation-agg-example]]
+[[bucket-count-ks-test-agg-example]]
 ==== Example
 
 The following snippet runs the `bucket_count_ks_test` on the individual terms in the field `version` against a uniform distribution.

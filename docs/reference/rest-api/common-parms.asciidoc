@@ -31,13 +31,6 @@ tag::aliases[]
 index. See <<indices-aliases>>.
 end::aliases[]
 
-tag::target-index-aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>)
-Index aliases which include the target index.
-See <<indices-aliases>>.
-end::target-index-aliases[]
-
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)

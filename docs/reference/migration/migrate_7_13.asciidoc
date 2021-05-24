@@ -150,8 +150,9 @@ errors in 8.0.0.
 [%collapsible]
 ====
 *Impact* +
-Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or
-<<eql-syntax-pattern-comparison-keywords,`regex`>> keyword instead.
+Use the {ref}/eql-syntax.html#eql-syntax-pattern-comparison-keywords[`like`] or
+{ref}/eql-syntax.html#eql-syntax-pattern-comparison-keywords[`regex`] keyword
+instead.
 ====
 
 [discrete]

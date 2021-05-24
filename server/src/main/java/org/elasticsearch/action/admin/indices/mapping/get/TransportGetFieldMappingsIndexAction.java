@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -85,8 +85,8 @@ public class TransportGetFieldMappingsIndexAction
         Predicate<String> metadataFieldPredicate = (f) -> indexService.mapperService().isMetadataField(f);
         Predicate<String> baseFieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
-        DocumentMapper documentParser = indexService.mapperService().documentMapper();
-        if (documentParser == null) {
+        MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
+        if (mappingLookup == MappingLookup.EMPTY) {
             // no mappings
             return new GetFieldMappingsResponse(singletonMap(shardId.getIndexName(), Collections.emptyMap()));
         }
@@ -98,14 +98,14 @@ public class TransportGetFieldMappingsIndexAction
 
         Map<String, FieldMappingMetadata> mappings = new HashMap<>();
 
-        documentParser.mapping().forEachMapper(m -> {
+        mappingLookup.getMapping().forEachMapper(m -> {
             FieldMappingMetadata metadata = buildFieldMappingMetadata(fieldPredicate, m.name(), m, params);
             if (metadata != null) {
                 mappings.put(metadata.fullName(), metadata);
             }
         });
 
-        for (RuntimeField rf : documentParser.mapping().runtimeFields()) {
+        for (RuntimeField rf : mappingLookup.getMapping().runtimeFields()) {
             FieldMappingMetadata metadata = buildFieldMappingMetadata(fieldPredicate, rf.name(), rf, params);
             if (metadata != null) {
                 mappings.put(metadata.fullName(), metadata);

@@ -36,6 +36,11 @@ See <<secure-cluster,Secure the Elastic Stack>>.
 
 See <<oidc-elasticsearch-authentication,Configure {es} for OpenID Connect authentication>>.
 
+[role="exclude",id="oidc-claims-mapping"]
+==== Claims mapping
+
+See <<oidc-claims-mappings,Claims mapping for OpenID Connect>>.
+
 [role="exclude",id="oidc-kibana"]
 === Configuring {kib}
 

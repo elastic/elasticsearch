@@ -139,7 +139,7 @@ public class DataFrameAnalyticsManager {
         ActionListener<Boolean> createIndexListener = ActionListener.wrap(
             aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
                     MlStatsIndex.writeAlias(),
-                    MlStatsIndex::mapping,
+                    MlStatsIndex::wrappedMapping,
                     client,
                     clusterState,
                     masterNodeTimeout,

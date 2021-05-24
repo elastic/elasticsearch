@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.AssertingQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
@@ -134,33 +133,13 @@ public class FieldExtractorTests extends ESTestCase {
         assertEquals(Collections.emptySet(), fields);
     }
 
-    public void testUnsupported() {
-        Set<String> fields = new HashSet<>();
-        expectThrows(UnsupportedOperationException.class, () -> {
-            FieldExtractor.extractFields(new AssertingQuery(random(), new MatchAllDocsQuery()), fields);
-        });
-    }
-
     public void testIndexOrDocValuesQuery() {
         Set<String> fields = new HashSet<>();
-        Query supported = IntPoint.newExactQuery("foo", 42);
-        Query unsupported = NumericDocValuesField.newSlowExactQuery("bar", 3);
+        Query fast = IntPoint.newExactQuery("foo", 42);
+        Query slow = NumericDocValuesField.newSlowExactQuery("bar", 3);
 
-        IndexOrDocValuesQuery query = new IndexOrDocValuesQuery(supported, supported);
+        IndexOrDocValuesQuery query = new IndexOrDocValuesQuery(fast, slow);
         FieldExtractor.extractFields(query, fields);
-        assertEquals(asSet("foo"), fields);
-
-        IndexOrDocValuesQuery query2 = new IndexOrDocValuesQuery(unsupported, unsupported);
-        expectThrows(UnsupportedOperationException.class, () -> FieldExtractor.extractFields(query2, new HashSet<>()));
-
-        fields = new HashSet<>();
-        IndexOrDocValuesQuery query3 = new IndexOrDocValuesQuery(supported, unsupported);
-        FieldExtractor.extractFields(query3, fields);
-        assertEquals(asSet("foo"), fields);
-
-        fields = new HashSet<>();
-        IndexOrDocValuesQuery query4 = new IndexOrDocValuesQuery(unsupported, supported);
-        FieldExtractor.extractFields(query4, fields);
-        assertEquals(asSet("foo"), fields);
+        assertEquals(Set.of("foo", "bar"), fields);
     }
 }

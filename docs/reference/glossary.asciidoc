@@ -182,7 +182,7 @@ hold time series data that is accessed rarely and not normally updated. See
 // tag::hidden-index-def[]
 <<glossary-data-stream,Data stream>> or <<glossary-index,index>> excluded from
 most <<glossary-index-pattern,index patterns>> by default. See
-{ref}/multi-index.html#hidden-indices[Hidden data streams and indices].
+{ref}/multi-index.html#hidden[Hidden data streams and indices].
 // end::hidden-index-def[]
 
 [[glossary-hot-phase]] hot phase::

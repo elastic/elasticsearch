@@ -15,8 +15,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
-//tag::notable-breaking-changes[]
-
 [discrete]
 [[breaking-changes-7.13]]
 === Breaking changes
@@ -33,6 +31,7 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_713_mapping_changes]]
 ==== Mapping changes
@@ -76,6 +75,7 @@ you do not utilize multiple data paths this will not affect you. Likewise, if
 you have not set `xpack.searchable.snapshot.shared_cache.size` and have not
 configured dedicated frozen nodes (nodes with the `data_frozen` role and no
 other data roles) this will not affect you.
+// end::notable-breaking-changes[]
 
 [discrete]
 [[deprecated-7.13]]
@@ -92,6 +92,7 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_713_agg_deprecations]]
 ==== Aggregation deprecations
@@ -149,8 +150,9 @@ errors in 8.0.0.
 [%collapsible]
 ====
 *Impact* +
-Use the <<eql-syntax-pattern-comparison-keywords,`like`>> or
-<<eql-syntax-pattern-comparison-keywords,`regex`>> keyword instead.
+Use the {ref}/eql-syntax.html#eql-syntax-pattern-comparison-keywords[`like`] or
+{ref}/eql-syntax.html#eql-syntax-pattern-comparison-keywords[`regex`] keyword
+instead.
 ====
 
 [discrete]
@@ -192,3 +194,4 @@ deprecated and will be removed in Elasticsearch 8.0.
 Discontinue use of the removed setting. Specifying this setting in Elasticsearch
 configuration will result in an error on startup.
 ====
+// end::notable-breaking-changes[]

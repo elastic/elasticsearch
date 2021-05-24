@@ -74,7 +74,7 @@ public class IndexMetadataVerifier {
 
         // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
         IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
-        // Remove _tier preference settings if available, because though these are technically not
+        // Remove _tier routing settings if available, because though these are technically not
         // invalid settings, since they are now removed the FilterAllocationDecider treats them as
         // regular attribute filters, and shards cannot be allocated.
         newMetadata = removeTierFiltering(newMetadata);

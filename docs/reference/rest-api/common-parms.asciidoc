@@ -30,13 +30,6 @@ which include the index. Index alias names support <<date-math-index-names,date
 math>>.
 end::aliases[]
 
-tag::target-index-aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>)
-<<indices-aliases,Index aliases>> which include the target index. Index alias
-names support <<date-math-index-names,date math>>.
-end::target-index-aliases[]
-
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)
@@ -224,7 +217,7 @@ Type of data stream that wildcard expressions can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::
-Match any data stream, including <<hidden-indices,hidden>> ones.
+Match any data stream, including <<hidden,hidden>> ones.
 
 `open`, `closed`::
 Matches any non-hidden data stream. Data streams cannot be closed.
@@ -245,7 +238,7 @@ hidden data streams. Supports comma-separated values, such as `open,hidden`.
 Valid values are:
 
 `all`::
-Match any data stream or index, including <<hidden-indices,hidden>> ones.
+Match any data stream or index, including <<hidden,hidden>> ones.
 
 `open`::
 Match open, non-hidden indices. Also matches any non-hidden data stream.
@@ -798,15 +791,9 @@ end::requests_per_second[]
 
 tag::routing[]
 `routing`::
-(Optional, string) Target the specified primary shard.
-end::routing[]
-
-tag::index-routing[]
-`routing`::
 (Optional, string)
-Custom <<mapping-routing-field, routing value>>
-used to route operations to a specific shard.
-end::index-routing[]
+Custom value used to route operations to a specific shard.
+end::routing[]
 
 tag::cat-s[]
 `s`::

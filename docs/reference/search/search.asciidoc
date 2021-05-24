@@ -760,7 +760,7 @@ Key is the field name. Value is the value for the field.
 
 [source,console]
 ----
-GET /my-index-000001/_search
+GET /my-index-000001/_search?from=40&size=20
 {
   "query": {
     "term": {
@@ -770,6 +770,7 @@ GET /my-index-000001/_search
 }
 ----
 // TEST[setup:my_index]
+// TEST[s/\?from=40&size=20//]
 
 The API returns the following response:
 
@@ -786,7 +787,7 @@ The API returns the following response:
   },
   "hits": {
     "total": {
-      "value": 1,
+      "value": 20,
       "relation": "eq"
     },
     "max_score": 1.3862942,
@@ -815,9 +816,12 @@ The API returns the following response:
             "id": "kimchy"
           }
         }
-      }
+      },
+      ...
     ]
   }
 }
 ----
 // TESTRESPONSE[s/"took": 5/"took": $body.took/]
+// TESTRESPONSE[s/"value": 20,/"value": 1,/]
+// TESTRESPONSE[s/,\n      \.\.\.//]

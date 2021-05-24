@@ -88,9 +88,14 @@ SSL/TLS versions on your JDK].
 ====
 
 [discrete]
-[[breaking_713_frozen_multiple_data_paths_changes]]
-==== Frozen tier and multiple data paths changes
+[[breaking_713_settings_changes]]
+==== Settings changes
 
+[[breaking_713_frozen_multiple_data_paths_changes]]
+.Changes to the frozen tier and multiple data paths
+[%collapsible]
+====
+*Details* +
 {es} 7.12 included a technical preview of the frozen tier, being able to use
 partially mounted indices (searchable snapshots mounted with the shared cache
 option). Trying out this feature required configuring a shared cache using the
@@ -103,6 +108,7 @@ you do not utilize multiple data paths this will not affect you. Likewise, if
 you have not set `xpack.searchable.snapshot.shared_cache.size` and have not
 configured dedicated frozen nodes (nodes with the `data_frozen` role and no
 other data roles) this will not affect you.
+====
 // end::notable-breaking-changes[]
 
 [discrete]

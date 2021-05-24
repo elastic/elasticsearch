@@ -15,8 +15,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
-//tag::notable-breaking-changes[]
-
 [discrete]
 [[breaking-changes-7.13]]
 === Breaking changes
@@ -33,6 +31,7 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
+// tag::notable-breaking-changes[]
 [discrete]
 [[breaking_713_mapping_changes]]
 ==== Mapping changes
@@ -192,3 +191,4 @@ deprecated and will be removed in Elasticsearch 8.0.
 Discontinue use of the removed setting. Specifying this setting in Elasticsearch
 configuration will result in an error on startup.
 ====
+// end::notable-breaking-changes[]

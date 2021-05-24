@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -51,18 +50,12 @@ public class DeleteAction implements LifecycleAction {
     }
 
     public DeleteAction(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-            this.deleteSearchableSnapshot = in.readBoolean();
-        } else {
-            this.deleteSearchableSnapshot = true;
-        }
+        this.deleteSearchableSnapshot = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-            out.writeBoolean(deleteSearchableSnapshot);
-        }
+        out.writeBoolean(deleteSearchableSnapshot);
     }
 
     @Override

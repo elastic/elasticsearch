@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatPoint;
-import org.apache.lucene.document.HalfFloatPoint;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LatLonPoint;
@@ -20,6 +19,7 @@ import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -799,13 +799,16 @@ public class QueryAnalyzerTests extends ESTestCase {
     }
 
     public void testSynonymQuery() {
-        SynonymQuery query = new SynonymQuery();
+        SynonymQuery query = new SynonymQuery.Builder("field").build();
         Result result = analyze(query);
         assertThat(result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(0));
         assertThat(result.extractions.isEmpty(), is(true));
 
-        query = new SynonymQuery(new Term("_field", "_value1"), new Term("_field", "_value2"));
+        query = new SynonymQuery.Builder("_field")
+            .addTerm(new Term("_field", "_value1"))
+            .addTerm(new Term("_field", "_value2"))
+            .build();
         result = analyze(query);
         assertThat(result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(1));

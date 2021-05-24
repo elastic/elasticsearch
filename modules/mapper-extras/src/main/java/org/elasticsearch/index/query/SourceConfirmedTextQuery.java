@@ -184,6 +184,11 @@ public final class SourceConfirmedTextQuery extends Query {
     }
 
     @Override
+    public void visit(QueryVisitor visitor) {
+        in.visit(visitor.getSubVisitor(Occur.MUST, this));
+    }
+
+    @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query inRewritten = in.rewrite(reader);
         if (inRewritten != in) {
@@ -242,11 +247,6 @@ public final class SourceConfirmedTextQuery extends Query {
             public boolean isCacheable(LeafReaderContext ctx) {
                 // Don't cache queries that may perform linear scans
                 return false;
-            }
-
-            @Override
-            public void extractTerms(Set<Term> termSet) {
-                termSet.addAll(terms);
             }
 
             @Override

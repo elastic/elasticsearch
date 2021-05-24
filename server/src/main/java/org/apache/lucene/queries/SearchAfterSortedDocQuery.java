@@ -17,6 +17,7 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
@@ -110,6 +111,11 @@ public class SearchAfterSortedDocQuery extends Query {
     @Override
     public int hashCode() {
         return Objects.hash(classHash(), sort, after.doc, after.score, Arrays.hashCode(after.fields));
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
     }
 
     interface TopComparator {

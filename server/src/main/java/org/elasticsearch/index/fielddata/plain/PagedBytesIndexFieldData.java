@@ -9,8 +9,8 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.codecs.blocktree.FieldReader;
-import org.apache.lucene.codecs.blocktree.Stats;
+import org.apache.lucene.codecs.lucene90.blocktree.FieldReader;
+import org.apache.lucene.codecs.lucene90.blocktree.Stats;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;

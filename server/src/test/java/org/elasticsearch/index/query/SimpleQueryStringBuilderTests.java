@@ -461,13 +461,19 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             parser.setDefaultOperator(defaultOp);
             Query query = parser.parse("first foo-bar-foobar* last");
             Query expectedQuery = new BooleanQuery.Builder()
-                .add(new BooleanClause(new SynonymQuery(new Term(TEXT_FIELD_NAME, "first"),
-                    new Term(TEXT_FIELD_NAME, "first")), defaultOp))
+                .add(new BooleanClause(new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                    .addTerm(new Term(TEXT_FIELD_NAME, "first"))
+                    .addTerm(new Term(TEXT_FIELD_NAME, "first"))
+                    .build(), defaultOp))
                 .add(new BooleanQuery.Builder()
-                    .add(new BooleanClause(new SynonymQuery(new Term(TEXT_FIELD_NAME, "foo"),
-                        new Term(TEXT_FIELD_NAME, "foo")), defaultOp))
-                    .add(new BooleanClause(new SynonymQuery(new Term(TEXT_FIELD_NAME, "bar"),
-                        new Term(TEXT_FIELD_NAME, "bar")), defaultOp))
+                    .add(new BooleanClause(new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                        .addTerm(new Term(TEXT_FIELD_NAME, "foo"))
+                        .addTerm(new Term(TEXT_FIELD_NAME, "foo"))
+                        .build(), defaultOp))
+                    .add(new BooleanClause(new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                        .addTerm(new Term(TEXT_FIELD_NAME, "bar"))
+                        .addTerm(new Term(TEXT_FIELD_NAME, "bar"))
+                        .build(), defaultOp))
                     .add(new BooleanQuery.Builder()
                         .add(new BooleanClause(new PrefixQuery(new Term(TEXT_FIELD_NAME, "foobar")),
                             BooleanClause.Occur.SHOULD))
@@ -475,8 +481,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                             BooleanClause.Occur.SHOULD))
                         .build(), defaultOp)
                     .build(), defaultOp)
-                .add(new BooleanClause(new SynonymQuery(new Term(TEXT_FIELD_NAME, "last"),
-                    new Term(TEXT_FIELD_NAME, "last")), defaultOp))
+                .add(new BooleanClause(new SynonymQuery.Builder(TEXT_FIELD_NAME)
+                    .addTerm(new Term(TEXT_FIELD_NAME, "last"))
+                    .addTerm(new Term(TEXT_FIELD_NAME, "last"))
+                    .build(), defaultOp))
                 .build();
             assertThat(query, equalTo(expectedQuery));
         }

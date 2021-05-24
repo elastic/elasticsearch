@@ -25,6 +25,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
@@ -208,6 +210,16 @@ final class SingleDocDirectoryReader extends DirectoryReader {
         @Override
         public NumericDocValues getNormValues(String field) throws IOException {
             return getDelegate().getNormValues(field);
+        }
+
+        @Override
+        public VectorValues getVectorValues(String field) throws IOException {
+            return getDelegate().getVectorValues(field);
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k, int fanout) throws IOException {
+            return getDelegate().searchNearestVectors(field, target, k, fanout);
         }
 
         @Override

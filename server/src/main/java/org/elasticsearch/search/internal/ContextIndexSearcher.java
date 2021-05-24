@@ -209,11 +209,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (cancellable.isEnabled()) {
             return new Weight(weight.getQuery()) {
                 @Override
-                public void extractTerms(Set<Term> terms) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                     throw new UnsupportedOperationException();
                 }

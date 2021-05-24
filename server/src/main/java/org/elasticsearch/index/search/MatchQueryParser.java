@@ -425,11 +425,6 @@ public class MatchQueryParser {
             return new SpanOrQuery(spanQueries);
         }
 
-        @Override
-        protected SpanQuery createSpanQuery(TokenStream in, String field) throws IOException {
-            return createSpanQuery(in, field, false);
-        }
-
         private SpanQuery createSpanQuery(TokenStream in, String field, boolean isPrefix) throws IOException {
             TermToBytesRefAttribute termAtt = in.getAttribute(TermToBytesRefAttribute.class);
             PositionIncrementAttribute posIncAtt = in.getAttribute(PositionIncrementAttribute.class);

@@ -212,7 +212,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         tokenizers.put("keyword", null);
         tokenizers.put("lowercase", Void.class);
         tokenizers.put("classic", null);
-        tokenizers.put("uax_url_email", org.apache.lucene.analysis.standard.UAX29URLEmailTokenizerFactory.class);
+        tokenizers.put("uax_url_email", org.apache.lucene.analysis.email.UAX29URLEmailTokenizerFactory.class);
         tokenizers.put("path_hierarchy", null);
         tokenizers.put("letter", null);
         tokenizers.put("whitespace", null);

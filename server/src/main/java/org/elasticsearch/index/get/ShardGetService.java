@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.VectorValues;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -238,7 +239,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                         IndexableFieldType fieldType = indexableField.fieldType();
                         if (fieldType.stored()) {
                             FieldInfo fieldInfo = new FieldInfo(indexableField.name(), 0, false, false, false, IndexOptions.NONE,
-                                DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, false);
+                                DocValuesType.NONE, -1, Collections.emptyMap(), 0, 0, 0, 0, VectorValues.SimilarityFunction.NONE, false);
                             StoredFieldVisitor.Status status = fieldVisitor.needsField(fieldInfo);
                             if (status == StoredFieldVisitor.Status.YES) {
                                 if (indexableField.numericValue() != null) {

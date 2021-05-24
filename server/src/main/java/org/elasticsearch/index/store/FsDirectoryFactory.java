@@ -18,7 +18,6 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -80,7 +79,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             case MMAPFS:
                 return setPreload(new MMapDirectory(location, lockFactory), lockFactory, preLoadExtensions);
             case SIMPLEFS:
-                return new SimpleFSDirectory(location, lockFactory);
+                // TODO nocommit throw an error here or just fall through?
             case NIOFS:
                 return new NIOFSDirectory(location, lockFactory);
             default:

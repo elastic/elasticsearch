@@ -178,11 +178,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             public void close() throws IOException {
                 in.close();
             }
-
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
-            }
         }
 
         private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {
@@ -191,11 +186,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
             FilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
                 this.in = fieldsReader;
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                return in.ramBytesUsed();
             }
 
             @Override
@@ -270,7 +260,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             }
 
             @Override
-            public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
+            public void stringField(FieldInfo fieldInfo, String value) throws IOException {
                 visitor.stringField(fieldInfo, value);
             }
 

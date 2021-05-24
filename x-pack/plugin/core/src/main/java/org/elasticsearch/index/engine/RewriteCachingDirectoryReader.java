@@ -23,6 +23,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 
@@ -210,6 +212,16 @@ final class RewriteCachingDirectoryReader extends DirectoryReader {
 
         @Override
         public NumericDocValues getNormValues(String field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public VectorValues getVectorValues(String field) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k, int fanout) throws IOException {
             throw new UnsupportedOperationException();
         }
 

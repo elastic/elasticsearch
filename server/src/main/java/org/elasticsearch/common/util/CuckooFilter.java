@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.store.DataInput;
-import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -121,7 +119,8 @@ public class CuckooFilter implements Writeable {
         this.rng = rng;
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
-
+        this.data = null; // nocommit
+        /*
         data = (PackedInts.Mutable) PackedInts.getReader(new DataInput() {
             @Override
             public byte readByte() throws IOException {
@@ -133,6 +132,7 @@ public class CuckooFilter implements Writeable {
                 in.readBytes(b, offset, len);
             }
         });
+         */
     }
 
     @Override
@@ -143,6 +143,8 @@ public class CuckooFilter implements Writeable {
         out.writeVInt(count);
         out.writeVInt(evictedFingerprint);
 
+        // nocommit
+        /*
         data.save(new DataOutput() {
             @Override
             public void writeByte(byte b) throws IOException {
@@ -154,6 +156,7 @@ public class CuckooFilter implements Writeable {
                 out.writeBytes(b, offset, length);
             }
         });
+         */
     }
 
     /**

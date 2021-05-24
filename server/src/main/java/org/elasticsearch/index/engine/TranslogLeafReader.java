@@ -22,6 +22,8 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.set.Sets;
@@ -32,7 +34,6 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Set;
 
@@ -44,13 +45,13 @@ public final class TranslogLeafReader extends LeafReader {
     private final Translog.Index operation;
     private static final FieldInfo FAKE_SOURCE_FIELD
         = new FieldInfo(SourceFieldMapper.NAME, 1, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0, 0, 0, false);
+        0, 0, 0, 0, VectorValues.SimilarityFunction.NONE, false);
     private static final FieldInfo FAKE_ROUTING_FIELD
         = new FieldInfo(RoutingFieldMapper.NAME, 2, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0, 0, 0, false);
+        0, 0, 0, 0, VectorValues.SimilarityFunction.NONE, false);
     private static final FieldInfo FAKE_ID_FIELD
         = new FieldInfo(IdFieldMapper.NAME, 3, false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, Collections.emptyMap(),
-        0, 0, 0, false);
+        0, 0, 0, 0, VectorValues.SimilarityFunction.NONE, false);
     public static Set<String> ALL_FIELD_NAMES = Sets.newHashSet(FAKE_SOURCE_FIELD.name, FAKE_ROUTING_FIELD.name, FAKE_ID_FIELD.name);
 
     TranslogLeafReader(Translog.Index operation) {
@@ -93,6 +94,16 @@ public final class TranslogLeafReader extends LeafReader {
 
     @Override
     public NumericDocValues getNormValues(String field) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public VectorValues getVectorValues(String field) throws IOException {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, float[] target, int k, int fanout) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -147,7 +158,7 @@ public final class TranslogLeafReader extends LeafReader {
             visitor.binaryField(FAKE_SOURCE_FIELD, operation.source().toBytesRef().bytes);
         }
         if (operation.routing() != null && visitor.needsField(FAKE_ROUTING_FIELD) == StoredFieldVisitor.Status.YES) {
-            visitor.stringField(FAKE_ROUTING_FIELD, operation.routing().getBytes(StandardCharsets.UTF_8));
+            visitor.stringField(FAKE_ROUTING_FIELD, operation.routing());
         }
         if (visitor.needsField(FAKE_ID_FIELD) == StoredFieldVisitor.Status.YES) {
             BytesRef bytesRef = Uid.encodeId(operation.id());

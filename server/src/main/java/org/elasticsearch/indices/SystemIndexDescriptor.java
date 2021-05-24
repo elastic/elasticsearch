@@ -37,7 +37,7 @@ import java.util.Set;
  * indices that are managed internally to Elasticsearch, a descriptor can also include information for
  * creating the system index, upgrading its mappings, and creating an alias.
  */
-public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> {
+public class SystemIndexDescriptor implements IndexDescriptor, Comparable<SystemIndexDescriptor> {
     /** A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices. */
     private final String indexPattern;
 
@@ -284,6 +284,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
     /**
      * @return The pattern of index names that this descriptor will be used for.
      */
+    @Override
     public String getIndexPattern() {
         return indexPattern;
     }
@@ -314,6 +315,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      * @param metadata The current metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
+    @Override
     public List<String> getMatchingIndices(Metadata metadata) {
         ArrayList<String> matchingIndices = new ArrayList<>();
         metadata.indices().keysIt().forEachRemaining(indexName -> {
@@ -328,6 +330,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
     /**
      * @return A short description of the purpose of this system index.
      */
+    @Override
     public String getDescription() {
         return description;
     }

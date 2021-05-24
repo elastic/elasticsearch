@@ -582,23 +582,17 @@ public class SystemIndices {
          * @param listener A listener to return success or failure of cleanup
          */
         public static void cleanUpFeature(
-            Collection<SystemIndexDescriptor> indexDescriptors,
-            Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
+            Collection<? extends IndexDescriptor> indexDescriptors,
+            Collection<? extends IndexDescriptor> associatedIndexDescriptors,
             String name,
             ClusterService clusterService,
             Client client,
             ActionListener<ResetFeatureStateStatus> listener) {
             Metadata metadata = clusterService.state().getMetadata();
 
-            Stream<String> systemIndices = indexDescriptors.stream()
-                .map(sid -> sid.getMatchingIndices(metadata))
-                .flatMap(List::stream);
-
-            Stream<String> associatedIndices = associatedIndexDescriptors.stream()
-                .map(aid -> aid.getMatchingIndices(metadata))
-                .flatMap(List::stream);
-
-            List<String> allIndices = Stream.concat(systemIndices, associatedIndices)
+            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
+                .map(descriptor -> descriptor.getMatchingIndices(metadata))
+                .flatMap(List::stream)
                 .collect(Collectors.toList());
 
             if (allIndices.isEmpty()) {

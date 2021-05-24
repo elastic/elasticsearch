@@ -27,7 +27,7 @@ import java.util.Objects;
  * in the snapshot, and, likewise, we want an associated index to be restored
  * when a feature snapshot is restored.
  */
-public class AssociatedIndexDescriptor {
+public class AssociatedIndexDescriptor implements IndexDescriptor {
     /** A pattern, either with a wildcard or simple regex.*/
     private final String indexPattern;
 
@@ -74,6 +74,7 @@ public class AssociatedIndexDescriptor {
     /**
      * @return The pattern of index names that this descriptor will be used for.
      */
+    @Override
     public String getIndexPattern() {
         return indexPattern;
     }
@@ -81,6 +82,7 @@ public class AssociatedIndexDescriptor {
     /**
      * @return A short description of the purpose of this system index.
      */
+    @Override
     public String getDescription() {
         return description;
     }
@@ -104,6 +106,7 @@ public class AssociatedIndexDescriptor {
      * @param metadata The current metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
+    @Override
     public List<String> getMatchingIndices(Metadata metadata) {
         ArrayList<String> matchingIndices = new ArrayList<>();
         metadata.indices().keysIt().forEachRemaining(indexName -> {
@@ -120,8 +123,16 @@ public class AssociatedIndexDescriptor {
      * @param index The index name to be checked against the index pattern given at construction time.
      * @return True if the name matches the pattern, false otherwise.
      */
-    public boolean matchesIndexPattern(String index) {
+    private boolean matchesIndexPattern(String index) {
         return indexPatternAutomaton.run(index);
     }
 
+    @Override
+    public String toString() {
+        return "AssociatedIndexDescriptor{" +
+            "indexPattern='" + indexPattern + '\'' +
+            ", description='" + description + '\'' +
+            ", indexPatternAutomaton=" + indexPatternAutomaton +
+            '}';
+    }
 }

@@ -59,7 +59,7 @@ See <<eql-syntax-limitations,EQL limitations>>.
 `<target>`::
 (Required, string) Comma-separated list of data streams, indices, or aliases
 used to limit the request. Supports wildcards (`*`). To search all data streams
-and indices, use `*`.
+and indices, use `*` or `_all`.
 
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}

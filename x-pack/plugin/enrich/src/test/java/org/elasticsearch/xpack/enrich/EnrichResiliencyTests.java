@@ -75,7 +75,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
             PutEnrichPolicyAction.INSTANCE,
             new PutEnrichPolicyAction.Request(
                 enrichPolicyName,
-                new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
+                new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"), false)
             )
         ).actionGet();
 
@@ -174,7 +174,7 @@ public class EnrichResiliencyTests extends ESSingleNodeTestCase {
             PutEnrichPolicyAction.INSTANCE,
             new PutEnrichPolicyAction.Request(
                 enrichPolicyName,
-                new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"))
+                new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(enrichIndexName), "my_key", List.of("my_value"), false)
             )
         ).actionGet();
 

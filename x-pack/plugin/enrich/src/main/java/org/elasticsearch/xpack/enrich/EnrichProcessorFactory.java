@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 final class EnrichProcessorFactory implements Processor.Factory, Consumer<ClusterState> {
 
@@ -40,24 +41,36 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     public Processor create(Map<String, Processor.Factory> processorFactories, String tag, String description, Map<String, Object> config)
         throws Exception {
         String policyName = ConfigurationUtils.readStringProperty(TYPE, tag, config, "policy_name");
-        String policyAlias = EnrichPolicy.getBaseName(policyName);
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(policyAlias);
-        if (indexAbstraction == null) {
-            throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
+        Supplier<EnrichPolicy> supplier = () -> {
+            EnrichMetadata enrichMetadata = metadata.custom(EnrichMetadata.TYPE);
+            return enrichMetadata.getPolicies().get(policyName);
+        };
+        EnrichPolicy enrichPolicy = supplier.get();
+        if (enrichPolicy == null) {
+            throw new IllegalArgumentException("enrich policy [" + policyName + "] does not exist");
         }
-        assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
-        assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = indexAbstraction.getIndices().get(0);
 
-        Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
-        String policyType = (String) XContentMapValues.extractValue(
-            "_meta." + EnrichPolicyRunner.ENRICH_POLICY_TYPE_FIELD_NAME,
-            mappingAsMap
-        );
-        String matchField = (String) XContentMapValues.extractValue("_meta." + EnrichPolicyRunner.ENRICH_MATCH_FIELD_NAME, mappingAsMap);
+        String matchField;
+        String policyType;
+        if (enrichPolicy.isInstant()) {
+            policyType = enrichPolicy.getType();
+            matchField = enrichPolicy.getMatchField();
+        } else {
+            String policyAlias = EnrichPolicy.getBaseName(policyName);
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(policyAlias);
+            if (indexAbstraction == null) {
+                throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
+            }
+            assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
+            assert indexAbstraction.getIndices().size() == 1;
+            IndexMetadata imd = indexAbstraction.getIndices().get(0);
+            Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
+            policyType = (String) XContentMapValues.extractValue("_meta." + EnrichPolicyRunner.ENRICH_POLICY_TYPE_FIELD_NAME, mappingAsMap);
+            matchField = (String) XContentMapValues.extractValue("_meta." + EnrichPolicyRunner.ENRICH_MATCH_FIELD_NAME, mappingAsMap);
+        }
 
         TemplateScript.Factory field = ConfigurationUtils.readTemplateProperty(TYPE, tag, config, "field", scriptService);
         boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
@@ -75,6 +88,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                     description,
                     client,
                     policyName,
+                    supplier,
                     field,
                     targetField,
                     overrideEnabled,
@@ -92,6 +106,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                     description,
                     client,
                     policyName,
+                    supplier,
                     field,
                     targetField,
                     overrideEnabled,

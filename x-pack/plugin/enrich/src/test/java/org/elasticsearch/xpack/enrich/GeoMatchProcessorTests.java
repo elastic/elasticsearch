@@ -33,6 +33,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -98,6 +99,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
+            () -> createPolicy(EnrichPolicy.GEO_MATCH_TYPE),
             str("location"),
             str("entry"),
             false,
@@ -151,6 +153,10 @@ public class GeoMatchProcessorTests extends ESTestCase {
         assertThat(entry.size(), equalTo(2));
         assertThat(entry.get("zipcode"), equalTo(94040));
 
+    }
+
+    static EnrichPolicy createPolicy(String type) {
+        return new EnrichPolicy(type, null, List.of("source-index"), "match_field", List.of("enrich-field"), false);
     }
 
     private static final class MockSearchFunction implements BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> {

@@ -102,7 +102,7 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
             assertThat(error.getMessage(), equalTo("Invalid policy name [myPolicy], must be lowercase"));
         }
         {
-            EnrichPolicy invalidPolicy = new EnrichPolicy("unsupported_type", null, List.of("index"), "field", List.of("field"));
+            EnrichPolicy invalidPolicy = new EnrichPolicy("unsupported_type", null, List.of("index"), "field", List.of("field"), false);
             IllegalArgumentException error = expectThrows(
                 IllegalArgumentException.class,
                 () -> saveEnrichPolicy("name", invalidPolicy, clusterService)

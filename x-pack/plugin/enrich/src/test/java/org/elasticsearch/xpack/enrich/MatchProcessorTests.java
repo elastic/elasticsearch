@@ -29,6 +29,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.enrich.GeoMatchProcessorTests.createPolicy;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -55,6 +57,7 @@ public class MatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
+            () -> createPolicy(EnrichPolicy.MATCH_TYPE),
             str("domain"),
             str("entry"),
             true,
@@ -110,6 +113,7 @@ public class MatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
+            () -> createPolicy(EnrichPolicy.MATCH_TYPE),
             str("domain"),
             str("entry"),
             true,
@@ -157,6 +161,7 @@ public class MatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
+            () -> createPolicy(EnrichPolicy.MATCH_TYPE),
             str("domain"),
             str("entry"),
             true,
@@ -208,6 +213,7 @@ public class MatchProcessorTests extends ESTestCase {
                 null,
                 mockedSearchFunction(),
                 "_name",
+                () -> createPolicy(EnrichPolicy.MATCH_TYPE),
                 str("domain"),
                 str("entry"),
                 true,
@@ -229,6 +235,7 @@ public class MatchProcessorTests extends ESTestCase {
                 null,
                 mockedSearchFunction(),
                 "_name",
+                () -> createPolicy(EnrichPolicy.MATCH_TYPE),
                 str("domain"),
                 str("entry"),
                 true,
@@ -256,6 +263,7 @@ public class MatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
+            () -> createPolicy(EnrichPolicy.MATCH_TYPE),
             str("domain"),
             str("entry"),
             false,
@@ -283,6 +291,7 @@ public class MatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
+            () -> createPolicy(EnrichPolicy.MATCH_TYPE),
             str("domain"),
             str("entry"),
             false,
@@ -313,6 +322,7 @@ public class MatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
+            () -> createPolicy(EnrichPolicy.MATCH_TYPE),
             str("domain"),
             str("entry"),
             false,
@@ -352,6 +362,7 @@ public class MatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
+            () -> createPolicy(EnrichPolicy.MATCH_TYPE),
             str("domain"),
             str("entry"),
             false,

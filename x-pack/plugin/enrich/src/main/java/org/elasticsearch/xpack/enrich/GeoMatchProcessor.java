@@ -16,8 +16,10 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 public final class GeoMatchProcessor extends AbstractEnrichProcessor {
 
@@ -29,6 +31,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         String description,
         Client client,
         String policyName,
+        Supplier<EnrichPolicy> supplier,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
         boolean overrideEnabled,
@@ -38,7 +41,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         ShapeRelation shapeRelation,
         ShapeBuilder.Orientation orientation
     ) {
-        super(tag, description, client, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
+        super(tag, description, client, policyName, supplier, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
         this.shapeRelation = shapeRelation;
         parser = new GeometryParser(orientation.getAsBoolean(), true, true);
     }
@@ -49,6 +52,7 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         String description,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
+        Supplier<EnrichPolicy> supplier,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
         boolean overrideEnabled,
@@ -58,7 +62,19 @@ public final class GeoMatchProcessor extends AbstractEnrichProcessor {
         ShapeRelation shapeRelation,
         ShapeBuilder.Orientation orientation
     ) {
-        super(tag, description, searchRunner, policyName, field, targetField, ignoreMissing, overrideEnabled, matchField, maxMatches);
+        super(
+            tag,
+            description,
+            searchRunner,
+            policyName,
+            supplier,
+            field,
+            targetField,
+            ignoreMissing,
+            overrideEnabled,
+            matchField,
+            maxMatches
+        );
         this.shapeRelation = shapeRelation;
         parser = new GeometryParser(orientation.getAsBoolean(), true, true);
     }

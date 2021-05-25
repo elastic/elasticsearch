@@ -175,6 +175,11 @@ public class EnrichPolicyExecutor {
         EnrichPolicy policy,
         ActionListener<ExecuteEnrichPolicyStatus> listener
     ) {
+        if (policy.isInstant()) {
+            // noop instead of error?
+            throw new IllegalArgumentException("policy [" + request.getName() + "] is an instant policy");
+        }
+
         return runPolicy(request, policy, (t, r) -> listener.onResponse(r), (t, e) -> listener.onFailure(e));
     }
 
@@ -183,6 +188,11 @@ public class EnrichPolicyExecutor {
         EnrichPolicy policy,
         TaskListener<ExecuteEnrichPolicyStatus> listener
     ) {
+        if (policy.isInstant()) {
+            // noop instead of error?
+            throw new IllegalArgumentException("policy [" + request.getName() + "] is an instant policy");
+        }
+
         return runPolicy(request, policy, listener::onResponse, listener::onFailure);
     }
 

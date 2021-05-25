@@ -12,8 +12,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.TemplateScript;
@@ -23,15 +25,19 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.enrich.action.EnrichCoordinatorProxyAction;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     private final String policyName;
+    private final Supplier<EnrichPolicy> supplier;
     private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
     private final TemplateScript.Factory field;
     private final TemplateScript.Factory targetField;
@@ -45,6 +51,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String description,
         Client client,
         String policyName,
+        Supplier<EnrichPolicy> supplier,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
         boolean ignoreMissing,
@@ -57,6 +64,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
             description,
             createSearchRunner(client),
             policyName,
+            supplier,
             field,
             targetField,
             ignoreMissing,
@@ -71,6 +79,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String description,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
+        Supplier<EnrichPolicy> supplier,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
         boolean ignoreMissing,
@@ -80,6 +89,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     ) {
         super(tag, description);
         this.policyName = policyName;
+        this.supplier = supplier;
         this.searchRunner = searchRunner;
         this.field = field;
         this.targetField = targetField;
@@ -102,18 +112,44 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                 return;
             }
 
+            SearchRequest req;
             QueryBuilder queryBuilder = getQueryBuilder(value);
-            ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(queryBuilder);
-            SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
-            searchBuilder.from(0);
-            searchBuilder.size(maxMatches);
-            searchBuilder.trackScores(false);
-            searchBuilder.fetchSource(true);
-            searchBuilder.query(constantScore);
-            SearchRequest req = new SearchRequest();
-            req.indices(EnrichPolicy.getBaseName(getPolicyName()));
-            req.preference(Preference.LOCAL.type());
-            req.source(searchBuilder);
+            EnrichPolicy enrichPolicy = supplier.get();
+            if (enrichPolicy.isInstant()) {
+                SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
+                BoolQueryBuilder boolQuery = new BoolQueryBuilder();
+                boolQuery.filter(queryBuilder);
+                if (enrichPolicy.getQuery() != null) {
+                    boolQuery.filter(QueryBuilders.wrapperQuery(enrichPolicy.getQuery().getQuery()));
+                }
+                searchBuilder.query(boolQuery);
+
+                searchBuilder.from(0);
+                searchBuilder.size(maxMatches);
+                searchBuilder.trackScores(false);
+
+                Set<String> retainFields = new HashSet<>();
+                retainFields.add(enrichPolicy.getMatchField());
+                retainFields.addAll(enrichPolicy.getEnrichFields());
+                searchBuilder.fetchSource(retainFields.toArray(new String[0]), new String[0]);
+
+                req = new SearchRequest();
+                req.indices(enrichPolicy.getIndices().toArray(new String[0]));
+                req.preference(Preference.LOCAL.type());
+                req.source(searchBuilder);
+            } else {
+                ConstantScoreQueryBuilder constantScore = new ConstantScoreQueryBuilder(queryBuilder);
+                SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
+                searchBuilder.from(0);
+                searchBuilder.size(maxMatches);
+                searchBuilder.trackScores(false);
+                searchBuilder.fetchSource(true);
+                searchBuilder.query(constantScore);
+                req = new SearchRequest();
+                req.indices(EnrichPolicy.getBaseName(getPolicyName()));
+                req.preference(Preference.LOCAL.type());
+                req.source(searchBuilder);
+            }
 
             searchRunner.accept(req, (searchResponse, e) -> {
                 if (e != null) {

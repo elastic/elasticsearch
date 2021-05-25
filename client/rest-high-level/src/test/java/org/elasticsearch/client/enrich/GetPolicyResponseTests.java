@@ -74,7 +74,8 @@ public class GetPolicyResponseTests extends AbstractResponseTestCase<GetEnrichPo
                 randomBoolean() ? new EnrichPolicy.QuerySource(querySource, xContentType) : null,
                 Arrays.asList(generateRandomStringArray(8, 4, false, false)),
                 randomAlphaOfLength(4),
-                Arrays.asList(generateRandomStringArray(8, 4, false, false))
+                Arrays.asList(generateRandomStringArray(8, 4, false, false)),
+                false
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

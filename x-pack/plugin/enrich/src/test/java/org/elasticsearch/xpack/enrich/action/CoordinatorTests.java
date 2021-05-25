@@ -253,7 +253,7 @@ public class CoordinatorTests extends ESTestCase {
 
     public void testLookupFunction() {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
-        List<String> indices = List.of("index1", "index2", "index3");
+        List<String> indices = List.of(".enrich-index1", ".enrich-index2", ".enrich-index3");
         for (String index : indices) {
             multiSearchRequest.add(new SearchRequest(index));
             multiSearchRequest.add(new SearchRequest(index));

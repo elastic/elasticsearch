@@ -136,7 +136,14 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
 
     public void testNonConcurrentPolicyExecution() throws InterruptedException {
         String testPolicyName = "test_policy";
-        EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("some_index"), "keyfield", List.of("valuefield"));
+        EnrichPolicy testPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of("some_index"),
+            "keyfield",
+            List.of("valuefield"),
+            false
+        );
         final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(
             Settings.EMPTY,
             null,
@@ -193,7 +200,14 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
     public void testMaximumPolicyExecutionLimit() throws InterruptedException {
         String testPolicyBaseName = "test_policy_";
         Settings testSettings = Settings.builder().put(EnrichPlugin.ENRICH_MAX_CONCURRENT_POLICY_EXECUTIONS.getKey(), 2).build();
-        EnrichPolicy testPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("some_index"), "keyfield", List.of("valuefield"));
+        EnrichPolicy testPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of("some_index"),
+            "keyfield",
+            List.of("valuefield"),
+            false
+        );
         final EnrichPolicyTestExecutor testExecutor = new EnrichPolicyTestExecutor(
             testSettings,
             null,

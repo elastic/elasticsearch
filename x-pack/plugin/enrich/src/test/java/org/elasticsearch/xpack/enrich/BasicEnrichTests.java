@@ -73,7 +73,8 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             null,
             List.of(SOURCE_INDEX_NAME),
             MATCH_FIELD,
-            List.of(DECORATE_FIELDS)
+            List.of(DECORATE_FIELDS),
+            false
         );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
@@ -160,7 +161,8 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             null,
             List.of(SOURCE_INDEX_NAME),
             matchField,
-            List.of(enrichField)
+            List.of(enrichField),
+            false
         );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
@@ -213,7 +215,14 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             client().index(indexRequest).actionGet();
             client().admin().indices().refresh(new RefreshRequest("source-" + i)).actionGet();
 
-            EnrichPolicy enrichPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of("source-" + i), "key", List.of("value"));
+            EnrichPolicy enrichPolicy = new EnrichPolicy(
+                EnrichPolicy.MATCH_TYPE,
+                null,
+                List.of("source-" + i),
+                "key",
+                List.of("value"),
+                false
+            );
             PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
             client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
             client().execute(ExecuteEnrichPolicyAction.INSTANCE, new ExecuteEnrichPolicyAction.Request(policyName)).actionGet();
@@ -256,7 +265,14 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             client().admin().indices().refresh(new RefreshRequest(sourceIndexName)).actionGet();
         }
 
-        EnrichPolicy enrichPolicy = new EnrichPolicy(EnrichPolicy.MATCH_TYPE, null, List.of(sourceIndexName), "key", List.of("value"));
+        EnrichPolicy enrichPolicy = new EnrichPolicy(
+            EnrichPolicy.MATCH_TYPE,
+            null,
+            List.of(sourceIndexName),
+            "key",
+            List.of("value"),
+            false
+        );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();
         ExecuteEnrichPolicyAction.Response executeResponse = client().execute(
@@ -310,7 +326,8 @@ public class BasicEnrichTests extends ESSingleNodeTestCase {
             null,
             List.of(SOURCE_INDEX_NAME),
             MATCH_FIELD,
-            List.of(DECORATE_FIELDS)
+            List.of(DECORATE_FIELDS),
+            false
         );
         PutEnrichPolicyAction.Request request = new PutEnrichPolicyAction.Request(policyName, enrichPolicy);
         client().execute(PutEnrichPolicyAction.INSTANCE, request).actionGet();

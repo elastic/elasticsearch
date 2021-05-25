@@ -42,7 +42,8 @@ public class EnrichRestartIT extends ESIntegTestCase {
             null,
             List.of(SOURCE_INDEX_NAME),
             MATCH_FIELD,
-            List.of(DECORATE_FIELDS)
+            List.of(DECORATE_FIELDS),
+            false
         );
         createSourceIndices(client(), enrichPolicy);
         for (int i = 0; i < numPolicies; i++) {

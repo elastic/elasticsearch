@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.enrich.action;
 import org.apache.logging.log4j.util.BiConsumer;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -24,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 
@@ -237,7 +239,14 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
 
                     MultiSearchRequest mrequest = new MultiSearchRequest();
                     enrichIndexRequestsAndSlots.stream().map(Tuple::v2).forEach(mrequest::add);
-                    client.execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(mrequest), listener);
+                    if (enrichIndexName.startsWith(EnrichPolicy.ENRICH_INDEX_NAME_BASE)) {
+                        // Use optimized msearch api for .enrich-* indices with a single primary shard:
+                        client.execute(EnrichShardMultiSearchAction.INSTANCE, new EnrichShardMultiSearchAction.Request(mrequest), listener);
+                    } else {
+                        // Use regular msearch api for searching enrich policy's source index directly (for instant enrich policies):
+                        // TODO: if enrich policy's source index has a single primary shard then optimized msearch api (^) could be used
+                        client.execute(MultiSearchAction.INSTANCE, mrequest, listener);
+                    }
                 }
             };
         }

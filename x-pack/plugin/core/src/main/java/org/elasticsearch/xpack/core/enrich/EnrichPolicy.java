@@ -47,6 +47,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private static final ParseField INDICES = new ParseField("indices");
     private static final ParseField MATCH_FIELD = new ParseField("match_field");
     private static final ParseField ENRICH_FIELDS = new ParseField("enrich_fields");
+    private static final ParseField INSTANT = new ParseField("instant");
     private static final ParseField ELASTICSEARCH_VERSION = new ParseField("elasticsearch_version");
 
     @SuppressWarnings("unchecked")
@@ -59,7 +60,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             (List<String>) args[1],
             (String) args[2],
             (List<String>) args[3],
-            (Version) args[4]
+            args[4] != null ? (Boolean) args[4] : false,
+            (Version) args[5]
         )
     );
 
@@ -76,6 +78,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDICES);
         parser.declareString(ConstructingObjectParser.constructorArg(), MATCH_FIELD);
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), ENRICH_FIELDS);
+        parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INSTANT);
         parser.declareField(ConstructingObjectParser.optionalConstructorArg(), ((p, c) -> Version.fromString(p.text())),
             ELASTICSEARCH_VERSION, ValueType.STRING);
     }
@@ -106,6 +109,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
     private final List<String> indices;
     private final String matchField;
     private final List<String> enrichFields;
+    private final boolean instant;
     private final Version elasticsearchVersion;
 
     public EnrichPolicy(StreamInput in) throws IOException {
@@ -115,6 +119,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             in.readStringList(),
             in.readString(),
             in.readStringList(),
+            in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean(),
             Version.readVersion(in)
         );
     }
@@ -123,8 +128,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                         QuerySource query,
                         List<String> indices,
                         String matchField,
-                        List<String> enrichFields) {
-        this(type, query, indices, matchField, enrichFields, Version.CURRENT);
+                        List<String> enrichFields,
+                        boolean instant) {
+        this(type, query, indices, matchField, enrichFields, instant, Version.CURRENT);
     }
 
     public EnrichPolicy(String type,
@@ -132,12 +138,14 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                         List<String> indices,
                         String matchField,
                         List<String> enrichFields,
+                        boolean instant,
                         Version elasticsearchVersion) {
         this.type = type;
         this.query = query;
         this.indices = indices;
         this.matchField = matchField;
         this.enrichFields = enrichFields;
+        this.instant = instant;
         this.elasticsearchVersion = elasticsearchVersion != null ? elasticsearchVersion : Version.CURRENT;
     }
 
@@ -161,6 +169,10 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return enrichFields;
     }
 
+    public boolean isInstant() {
+        return instant;
+    }
+
     public Version getElasticsearchVersion() {
         return elasticsearchVersion;
     }
@@ -176,6 +188,9 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(matchField);
         out.writeStringCollection(enrichFields);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeBoolean(instant);
+        }
         Version.writeVersion(elasticsearchVersion, out);
     }
 
@@ -196,6 +211,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         builder.array(INDICES.getPreferredName(), indices.toArray(new String[0]));
         builder.field(MATCH_FIELD.getPreferredName(), matchField);
         builder.array(ENRICH_FIELDS.getPreferredName(), enrichFields.toArray(new String[0]));
+        builder.field(INSTANT.getPreferredName(), instant);
         if (params.paramAsBoolean("include_version", false) && elasticsearchVersion != null) {
             builder.field(ELASTICSEARCH_VERSION.getPreferredName(), elasticsearchVersion.toString());
         }
@@ -211,6 +227,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             indices.equals(policy.indices) &&
             matchField.equals(policy.matchField) &&
             enrichFields.equals(policy.enrichFields) &&
+            instant == policy.instant &&
             elasticsearchVersion.equals(policy.elasticsearchVersion);
     }
 
@@ -222,6 +239,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
             indices,
             matchField,
             enrichFields,
+            instant,
             elasticsearchVersion
         );
     }
@@ -291,7 +309,8 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
                     (List<String>) args[2],
                     (String) args[3],
                     (List<String>) args[4],
-                    (Version) args[5])
+                    args[5] != null ? (Boolean) args[5] : false,
+                    (Version) args[6])
             )
         );
 

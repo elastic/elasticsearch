@@ -22,19 +22,19 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.11.0',
-  'azureCore': '1.15.0',
+  'azure': '12.11.1',
+  'azureCore': '1.16.0',
   'azureCoreHttpNetty': '1.9.1',
-  'azureAvro': '12.0.3',
+  'azureAvro': '12.0.4',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
   'stax2API': '4.2',
   'woodstox': '6.2.4',
 
-  'azureNetty': '4.1.60.Final',
-  'reactorNetty': '1.0.4',
-  'reactorCore': '3.4.3',
+  'azureNetty': '4.1.63.Final',
+  'reactorNetty': '1.0.6',
+  'reactorCore': '3.4.5',
   'reactiveStreams': '1.0.3',
 ]
 

@@ -134,8 +134,8 @@ If you currently use multiple data paths in a
 migrate to a setup that uses a single path for each node without downtime using
 a process similar to a <<restart-cluster-rolling,rolling restart>>: shut each
 node down in turn and replace it with one or more nodes each configured to use
-a single data path. In more detail, for each node you should follow the
-following process.
+a single data path. In more detail, for each node that currently has multiple
+data paths you should follow the following process.
 
 1. Take a snapshot to protect your data in case of disaster.
 

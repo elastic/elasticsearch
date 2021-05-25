@@ -71,9 +71,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     RestoreSnapshotResponse> {
 
     private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(
-        DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
-        DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
-        DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,
         DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING
     );
 

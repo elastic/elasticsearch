@@ -70,7 +70,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        this.dataTierAllocationDecider = new DataTierAllocationDecider(settings, clusterSettings);
+        this.dataTierAllocationDecider = new DataTierAllocationDecider();
         this.allocationDeciders = allocationDeciders;
     }
 

@@ -303,7 +303,7 @@ POST _aliases
 ----
 // TEST[s/^/PUT my-index-2099.05.06-000001\n/]
 
-Use the `index_routing` and `search_routing` to use different routing values for
+Use `index_routing` and `search_routing` to specify different routing values for
 indexing and search. If specified, these options overwrite the `routing` value
 for their respective operations.
 

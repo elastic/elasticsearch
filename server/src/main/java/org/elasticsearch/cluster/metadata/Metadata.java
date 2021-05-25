@@ -1156,10 +1156,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        public Builder dataStreams(Map<String, DataStream> dataStreams) {
-            // TODO: take into account aliases...
-            // (this is only used from snapshot / restore)
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, new HashMap<>()));
+        public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
             return this;
         }
 
@@ -1179,7 +1177,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public boolean put(String name, String dataStream) {
+        public boolean put(String aliasName, String dataStream) {
             Map<String, DataStream> existingDataStream =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
@@ -1190,21 +1188,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .orElse(new HashMap<>());
 
             if (existingDataStream.containsKey(dataStream) == false) {
-                throw new IllegalArgumentException("alias [" + name + "] refers to a non existing data stream [" + dataStream + "]");
+                throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
             }
 
-            DataStreamAlias alias = dataStreamAliases.get(name);
+            DataStreamAlias alias = dataStreamAliases.get(aliasName);
             if (alias == null) {
-                alias = new DataStreamAlias(name, List.of(dataStream));
+                alias = new DataStreamAlias(aliasName, List.of(dataStream));
             } else {
                 Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
                 boolean added = dataStreams.add(dataStream);
                 if (added == false) {
                     return false;
                 }
-                alias = new DataStreamAlias(name, List.copyOf(dataStreams));
+                alias = new DataStreamAlias(aliasName, List.copyOf(dataStreams));
             }
-            dataStreamAliases.put(name, alias);
+            dataStreamAliases.put(aliasName, alias);
 
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
             return true;

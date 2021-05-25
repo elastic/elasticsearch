@@ -79,8 +79,9 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
         // by the number of splits. Choose the max value with respect to the bounding box.
         final int minY = Math.max(this.minY, yTile * splits);
         // The end value of a dimension is calculated by adding to the start value the number of splits.
-        //  Choose the min value with respect to the bounding box.
+        // Choose the min value with respect to the bounding box.
         final int maxY = Math.min(this.maxY, yTile * splits + splits);
+        // Do the same for the X dimension taking into account that the bounding box might cross the dateline.
         if (crossesDateline) {
             final int eastMinX = xTile * splits;
             final int eastMaxX = Math.min(this.maxX, xTile * splits + splits);

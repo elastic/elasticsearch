@@ -239,8 +239,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `require_alias`::
 (Optional, Boolean)
-If `true`, the request's actions must target an <<indices-aliases,index alias>>.
-Defaults to `false`.
+If `true`, the request's actions must target an <<alias,index alias>>. Defaults
+to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 

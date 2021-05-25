@@ -5,17 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.Arrays;
 
-public class FillMaskProcessor extends NlpPipeline.Processor {
+public class FillMaskProcessor extends NlpTask.Processor {
 
     private final BertTokenizer tokenizer;
     private BertTokenizer.TokenizationResult tokenization;
@@ -30,12 +30,12 @@ public class FillMaskProcessor extends NlpPipeline.Processor {
     }
 
     @Override
-    public NlpPipeline.RequestBuilder getRequestBuilder() {
+    public NlpTask.RequestBuilder getRequestBuilder() {
         return this::buildRequest;
     }
 
     @Override
-    public NlpPipeline.ResultProcessor getResultProcessor() {
+    public NlpTask.ResultProcessor getResultProcessor() {
         return new FillMaskResultProcessor(tokenization);
     }
 

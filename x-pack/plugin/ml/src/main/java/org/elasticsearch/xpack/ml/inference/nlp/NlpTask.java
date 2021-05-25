@@ -5,21 +5,21 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 
-public class NlpPipeline {
+public class NlpTask {
 
     private final TaskType taskType;
     private final BertTokenizer tokenizer;
 
-    private NlpPipeline(TaskType taskType, BertTokenizer tokenizer) {
+    private NlpTask(TaskType taskType, BertTokenizer tokenizer) {
         this.taskType = taskType;
         this.tokenizer = tokenizer;
     }
@@ -28,8 +28,8 @@ public class NlpPipeline {
         return taskType.createProcessor(tokenizer);
     }
 
-    public static NlpPipeline fromConfig(PipelineConfig config) {
-        return new NlpPipeline(config.getTaskType(), config.buildTokenizer());
+    public static NlpTask fromConfig(TaskConfig config) {
+        return new NlpTask(config.getTaskType(), config.buildTokenizer());
     }
 
     public interface RequestBuilder {

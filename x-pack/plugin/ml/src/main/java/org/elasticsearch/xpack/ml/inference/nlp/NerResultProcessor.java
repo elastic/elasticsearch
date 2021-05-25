@@ -5,12 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -18,9 +18,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.ml.inference.pipelines.nlp.NerProcessor.IobTag;
-
-class NerResultProcessor implements NlpPipeline.ResultProcessor {
+class NerResultProcessor implements NlpTask.ResultProcessor {
 
     private final BertTokenizer.TokenizationResult tokenization;
 
@@ -71,7 +69,7 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
                 String endTokenWord = tokenization.getTokens().get(endTokenIndex).substring(2);
                 word.append(endTokenWord);
             }
-            double[] avgScores = Arrays.copyOf(scores[startTokenIndex], IobTag.values().length);
+            double[] avgScores = Arrays.copyOf(scores[startTokenIndex], NerProcessor.IobTag.values().length);
             for (int i = startTokenIndex + 1; i <= endTokenIndex; i++) {
                 for (int j = 0; j < scores[i].length; j++) {
                     avgScores[j] += scores[i][j];
@@ -82,7 +80,7 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
             }
             int maxScoreIndex = NlpHelpers.argmax(avgScores);
             double score = avgScores[maxScoreIndex];
-            taggedTokens.add(new TaggedToken(word.toString(), IobTag.values()[maxScoreIndex], score));
+            taggedTokens.add(new TaggedToken(word.toString(), NerProcessor.IobTag.values()[maxScoreIndex], score));
             startTokenIndex = endTokenIndex + 1;
         }
         return taggedTokens;
@@ -134,10 +132,10 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
 
     private static class TaggedToken {
         private final String word;
-        private final IobTag tag;
+        private final NerProcessor.IobTag tag;
         private final double score;
 
-        private TaggedToken(String word, IobTag tag, double score) {
+        private TaggedToken(String word, NerProcessor.IobTag tag, double score) {
             this.word = word;
             this.tag = tag;
             this.score = score;

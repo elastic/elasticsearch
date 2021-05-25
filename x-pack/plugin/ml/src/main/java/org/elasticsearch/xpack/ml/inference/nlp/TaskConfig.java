@@ -5,30 +5,30 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class PipelineConfig implements ToXContentObject {
+public class TaskConfig implements ToXContentObject {
 
     public static final ParseField VOCAB = new ParseField("vocab");
     public static final ParseField TASK_TYPE = new ParseField("task_type");
     public static final ParseField LOWER_CASE = new ParseField("do_lower_case");
 
-    private static final ObjectParser<PipelineConfig.Builder, Void> STRICT_PARSER = createParser(false);
-    private static final ObjectParser<PipelineConfig.Builder, Void> LENIENT_PARSER = createParser(true);
+    private static final ObjectParser<TaskConfig.Builder, Void> STRICT_PARSER = createParser(false);
+    private static final ObjectParser<TaskConfig.Builder, Void> LENIENT_PARSER = createParser(true);
 
-    private static ObjectParser<PipelineConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<PipelineConfig.Builder, Void> parser = new ObjectParser<>("pipeline_config",
+    private static ObjectParser<TaskConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<TaskConfig.Builder, Void> parser = new ObjectParser<>("task_config",
             ignoreUnknownFields,
             Builder::new);
 
@@ -38,19 +38,19 @@ public class PipelineConfig implements ToXContentObject {
         return parser;
     }
 
-    public static PipelineConfig fromXContent(XContentParser parser, boolean lenient) {
+    public static TaskConfig fromXContent(XContentParser parser, boolean lenient) {
         return lenient ? LENIENT_PARSER.apply(parser, null).build() : STRICT_PARSER.apply(parser, null).build();
     }
 
     public static String documentId(String model) {
-        return model + "_pipeline_config";
+        return model + "_task_config";
     }
 
     private final TaskType taskType;
     private final List<String> vocabulary;
     private final boolean doLowerCase;
 
-    PipelineConfig(TaskType taskType, List<String> vocabulary, boolean doLowerCase) {
+    TaskConfig(TaskType taskType, List<String> vocabulary, boolean doLowerCase) {
         this.taskType = taskType;
         this.vocabulary = vocabulary;
         this.doLowerCase = doLowerCase;
@@ -77,7 +77,7 @@ public class PipelineConfig implements ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        PipelineConfig that = (PipelineConfig) o;
+        TaskConfig that = (TaskConfig) o;
         return taskType == that.taskType &&
             doLowerCase == that.doLowerCase &&
             Objects.equals(vocabulary, that.vocabulary);
@@ -118,8 +118,8 @@ public class PipelineConfig implements ToXContentObject {
             return this;
         }
 
-        public PipelineConfig build() {
-            return new PipelineConfig(taskType, vocabulary, doLowerCase);
+        public TaskConfig build() {
+            return new TaskConfig(taskType, vocabulary, doLowerCase);
         }
     }
 }

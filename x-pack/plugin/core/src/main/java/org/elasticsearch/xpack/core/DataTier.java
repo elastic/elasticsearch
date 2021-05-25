@@ -98,8 +98,10 @@ public class DataTier {
 
     /**
      * This setting provider injects the setting allocating all newly created indices with
-     * {@code index.routing.allocation.include._tier: "data_hot"} unless the user overrides the
-     * setting while the index is being created (in a create index request for instance)
+     * {@code index.routing.allocation.include._tier_preference: "data_hot"} for a data stream index
+     * or {@code index.routing.allocation.include._tier_preference: "data_content"} for an index not part of
+     * a data stream unless the user overrides the setting while the index is being created
+     * (in a create index request for instance)
      */
     public static class DefaultHotAllocationSettingProvider implements IndexSettingProvider {
         private static final Logger logger = LogManager.getLogger(DefaultHotAllocationSettingProvider.class);

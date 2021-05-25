@@ -182,7 +182,9 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("field", field);
-        builder.field("string", string);
+        if (string != null) {
+            builder.field("string", string);
+        }
         if (searchAfter != null) {
             builder.field("search_after", searchAfter);            
         }

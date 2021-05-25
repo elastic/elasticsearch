@@ -223,15 +223,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     );
 
     /**
-     * Prefer to allocate to the cold tier, then the warm tier, then the hot tier
+     * Prefer to allocate to the data content tier and then the hot tier.
      * This affects the system searchable snapshot cache index (not the searchable snapshot index itself)
      */
-    public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(
-        ",",
-        DataTier.DATA_COLD,
-        DataTier.DATA_WARM,
-        DataTier.DATA_HOT
-    );
+    public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(",", DataTier.DATA_CONTENT, DataTier.DATA_HOT);
 
     /**
      * Returns the preference for new searchable snapshot indices. When

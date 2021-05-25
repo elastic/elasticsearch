@@ -17,21 +17,36 @@ import org.elasticsearch.geometry.utils.Geohash;
 public class BoundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
     private final GeoBoundingBox bbox;
     private final boolean crossesDateline;
+    private final long maxHashes;
 
     public BoundedGeoHashGridTiler(int precision, GeoBoundingBox bbox) {
         super(precision);
         this.bbox = bbox;
         this.crossesDateline = bbox.right() < bbox.left();
+        final long hashesY = (long)((bbox.top() - bbox.bottom()) / Geohash.latHeightInDegrees(precision)) + 1;
+        final long hashesX;
+        if (crossesDateline) {
+            hashesX = (long)((360 - bbox.left() + bbox.right()) / Geohash.lonWidthInDegrees(precision)) + 1;
+        } else {
+            hashesX = (long)((bbox.right() - bbox.left()) / Geohash.lonWidthInDegrees(precision)) + 1;
+        }
+        this.maxHashes = hashesX * hashesY;
+    }
+
+    @Override
+    protected long getMaxCells() {
+        return maxHashes;
     }
 
     @Override
     protected boolean validHash(String hash) {
-        Rectangle rectangle = Geohash.toBoundingBox(hash);
-        if (bbox.top() >= rectangle.getMinY() && bbox.bottom() <= rectangle.getMaxY()) {
+        final Rectangle rectangle = Geohash.toBoundingBox(hash);
+        // touching hashes are excluded
+        if (bbox.top() > rectangle.getMinY() && bbox.bottom() < rectangle.getMaxY()) {
             if (crossesDateline) {
-                return bbox.left() <= rectangle.getMaxX() || bbox.right() >= rectangle.getMinX();
+                return bbox.left() < rectangle.getMaxX() || bbox.right() > rectangle.getMinX();
             } else {
-                return bbox.left() <= rectangle.getMaxX() && bbox.right() >= rectangle.getMinX();
+                return bbox.left() < rectangle.getMaxX() && bbox.right() > rectangle.getMinX();
             }
         }
         return false;

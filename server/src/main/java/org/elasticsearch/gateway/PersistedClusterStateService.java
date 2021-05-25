@@ -126,7 +126,7 @@ public class PersistedClusterStateService {
     public static final Setting<TimeValue> SLOW_WRITE_LOGGING_THRESHOLD = Setting.timeSetting("gateway.slow_write_logging_threshold",
         TimeValue.timeValueSeconds(10), TimeValue.ZERO, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    private final Path[] dataPaths;
+    private final Path dataPath;
     private final String nodeId;
     private final NamedXContentRegistry namedXContentRegistry;
     private final BigArrays bigArrays;
@@ -136,13 +136,13 @@ public class PersistedClusterStateService {
 
     public PersistedClusterStateService(NodeEnvironment nodeEnvironment, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
                                         ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier) {
-        this(nodeEnvironment.nodeDataPaths(), nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, clusterSettings,
+        this(nodeEnvironment.nodeDataPath(), nodeEnvironment.nodeId(), namedXContentRegistry, bigArrays, clusterSettings,
             relativeTimeMillisSupplier);
     }
 
-    public PersistedClusterStateService(Path[] dataPaths, String nodeId, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
+    public PersistedClusterStateService(Path dataPath, String nodeId, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays,
                                         ClusterSettings clusterSettings, LongSupplier relativeTimeMillisSupplier) {
-        this.dataPaths = dataPaths;
+        this.dataPath = dataPath;
         this.nodeId = nodeId;
         this.namedXContentRegistry = namedXContentRegistry;
         this.bigArrays = bigArrays;
@@ -167,14 +167,12 @@ public class PersistedClusterStateService {
         final List<Closeable> closeables = new ArrayList<>();
         boolean success = false;
         try {
-            for (final Path path : dataPaths) {
-                final Directory directory = createDirectory(path.resolve(METADATA_DIRECTORY_NAME));
-                closeables.add(directory);
+            final Directory directory = createDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
+            closeables.add(directory);
 
-                final IndexWriter indexWriter = createIndexWriter(directory, false);
-                closeables.add(indexWriter);
-                metadataIndexWriters.add(new MetadataIndexWriter(directory, indexWriter));
-            }
+            final IndexWriter indexWriter = createIndexWriter(directory, false);
+            closeables.add(indexWriter);
+            metadataIndexWriters.add(new MetadataIndexWriter(directory, indexWriter));
             success = true;
         } finally {
             if (success == false) {
@@ -199,13 +197,11 @@ public class PersistedClusterStateService {
     }
 
     /**
-     * Remove all persisted cluster states from the given data paths, for use in tests. Should only be called when there is no open
-     * {@link Writer} on these paths.
+     * Remove all persisted cluster states from the given data path, for use in tests. Should only be called when there is no open
+     * {@link Writer} on this path.
      */
-    public static void deleteAll(Path[] dataPaths) throws IOException {
-        for (Path dataPath : dataPaths) {
-            Lucene.cleanLuceneIndex(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)));
-        }
+    public static void delete(Path dataPath) throws IOException {
+        Lucene.cleanLuceneIndex(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)));
     }
 
     // exposed for tests
@@ -216,8 +212,8 @@ public class PersistedClusterStateService {
         return new SimpleFSDirectory(path);
     }
 
-    public Path[] getDataPaths() {
-        return dataPaths;
+    public Path getDataPath() {
+        return dataPath;
     }
 
     public static class OnDiskState {
@@ -243,38 +239,27 @@ public class PersistedClusterStateService {
     }
 
     /**
-     * Returns the node metadata for the given data paths, and checks if the node ids are unique
-     * @param dataPaths the data paths to scan
+     * Returns the node metadata for the given data path, and checks if the node ids are unique
+     * @param dataPath the data path to scan
      */
     @Nullable
-    public static NodeMetadata nodeMetadata(Path... dataPaths) throws IOException {
-        String nodeId = null;
-        Version version = null;
-        for (final Path dataPath : dataPaths) {
-            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
-            if (Files.exists(indexPath)) {
-                try (DirectoryReader reader = DirectoryReader.open(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
-                    final Map<String, String> userData = reader.getIndexCommit().getUserData();
-                    assert userData.get(NODE_VERSION_KEY) != null;
+    public static NodeMetadata nodeMetadata(Path dataPath) throws IOException {
+        final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+        if (Files.exists(indexPath)) {
+            try (DirectoryReader reader = DirectoryReader.open(new SimpleFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME)))) {
+                final Map<String, String> userData = reader.getIndexCommit().getUserData();
+                assert userData.get(NODE_VERSION_KEY) != null;
 
-                    final String thisNodeId = userData.get(NODE_ID_KEY);
-                    assert thisNodeId != null;
-                    if (nodeId != null && nodeId.equals(thisNodeId) == false) {
-                        throw new IllegalStateException("unexpected node ID in metadata, found [" + thisNodeId +
-                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
-                    } else if (nodeId == null) {
-                        nodeId = thisNodeId;
-                        version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
-                    }
-                } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
-                }
+                final String nodeId = userData.get(NODE_ID_KEY);
+                assert nodeId != null;
+                final Version version = Version.fromId(Integer.parseInt(userData.get(NODE_VERSION_KEY)));
+                return new NodeMetadata(nodeId, version);
+
+            } catch (IndexNotFoundException e) {
+                logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
             }
         }
-        if (nodeId == null) {
-            return null;
-        }
-        return new NodeMetadata(nodeId, version);
+        return null;
     }
 
     /**
@@ -303,67 +288,27 @@ public class PersistedClusterStateService {
     }
 
     /**
-     * Loads the best available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
+     * Loads the available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
      */
-    public OnDiskState loadBestOnDiskState() throws IOException {
-        String committedClusterUuid = null;
-        Path committedClusterUuidPath = null;
-        OnDiskState bestOnDiskState = OnDiskState.NO_ON_DISK_STATE;
-        OnDiskState maxCurrentTermOnDiskState = bestOnDiskState;
+    public OnDiskState loadOnDiskState() throws IOException {
+        OnDiskState onDiskState = OnDiskState.NO_ON_DISK_STATE;
 
-        // We use a write-all-read-one strategy: metadata is written to every data path when accepting it, which means it is mostly
-        // sufficient to read _any_ copy. "Mostly" sufficient because the user can change the set of data paths when restarting, and may
-        // add a data path containing a stale copy of the metadata. We deal with this by using the freshest copy we can find.
-        for (final Path dataPath : dataPaths) {
-            final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
-            if (Files.exists(indexPath)) {
-                try (Directory directory = createDirectory(indexPath);
-                     DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                    final OnDiskState onDiskState = loadOnDiskState(dataPath, directoryReader);
+        final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
+        if (Files.exists(indexPath)) {
+            try (Directory directory = createDirectory(indexPath);
+                 DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                onDiskState = loadOnDiskState(dataPath, directoryReader);
 
-                    if (nodeId.equals(onDiskState.nodeId) == false) {
-                        throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
-                    }
-
-                    if (onDiskState.metadata.clusterUUIDCommitted()) {
-                        if (committedClusterUuid == null) {
-                            committedClusterUuid = onDiskState.metadata.clusterUUID();
-                            committedClusterUuidPath = dataPath;
-                        } else if (committedClusterUuid.equals(onDiskState.metadata.clusterUUID()) == false) {
-                            throw new IllegalStateException("mismatched cluster UUIDs in metadata, found [" + committedClusterUuid +
-                                "] in [" + committedClusterUuidPath + "] and [" + onDiskState.metadata.clusterUUID() + "] in ["
-                                + dataPath + "]");
-                        }
-                    }
-
-                    if (maxCurrentTermOnDiskState.empty() || maxCurrentTermOnDiskState.currentTerm < onDiskState.currentTerm) {
-                        maxCurrentTermOnDiskState = onDiskState;
-                    }
-
-                    long acceptedTerm = onDiskState.metadata.coordinationMetadata().term();
-                    long maxAcceptedTerm = bestOnDiskState.metadata.coordinationMetadata().term();
-                    if (bestOnDiskState.empty()
-                        || acceptedTerm > maxAcceptedTerm
-                        || (acceptedTerm == maxAcceptedTerm
-                            && (onDiskState.lastAcceptedVersion > bestOnDiskState.lastAcceptedVersion
-                                || (onDiskState.lastAcceptedVersion == bestOnDiskState.lastAcceptedVersion)
-                                    && onDiskState.currentTerm > bestOnDiskState.currentTerm))) {
-                        bestOnDiskState = onDiskState;
-                    }
-                } catch (IndexNotFoundException e) {
-                    logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
+                if (nodeId.equals(onDiskState.nodeId) == false) {
+                    throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
+                        "] in [" + dataPath + "] but expected [" + nodeId + "]");
                 }
+            } catch (IndexNotFoundException e) {
+                logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);
             }
         }
 
-        if (bestOnDiskState.currentTerm != maxCurrentTermOnDiskState.currentTerm) {
-            throw new IllegalStateException("inconsistent terms found: best state is from [" + bestOnDiskState.dataPath +
-                "] in term [" + bestOnDiskState.currentTerm + "] but there is a stale state in [" + maxCurrentTermOnDiskState.dataPath +
-                "] with greater term [" + maxCurrentTermOnDiskState.currentTerm + "]");
-        }
-
-        return bestOnDiskState;
+        return onDiskState;
     }
 
     private OnDiskState loadOnDiskState(Path dataPath, DirectoryReader reader) throws IOException {
@@ -388,7 +333,6 @@ public class PersistedClusterStateService {
         }
 
         logger.trace("got global metadata, now reading index metadata");
-
         final Set<String> indexUUIDs = new HashSet<>();
         consumeFromType(searcher, INDEX_TYPE_NAME, bytes ->
         {

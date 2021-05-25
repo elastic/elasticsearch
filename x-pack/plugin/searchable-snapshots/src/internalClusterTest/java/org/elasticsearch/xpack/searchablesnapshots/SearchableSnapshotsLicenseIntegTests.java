@@ -89,6 +89,9 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
 
         assertAcked(client().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest()).get());
         assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+
+        ensureClusterSizeConsistency();
+        ensureClusterStateConsistency();
     }
 
     public void testMountRequiresLicense() {
@@ -150,6 +153,10 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
                 client().admin().cluster().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
             )
         );
+
+        waitNoPendingTasksOnAll();
+        ensureClusterStateConsistency();
+
         // add a valid license again
         // This is a bit of a hack in tests, as we can't readd a trial license
         // We force this by clearing the existing basic license first
@@ -158,6 +165,10 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
                 .metadata(Metadata.builder(currentState.metadata()).removeCustom(LicensesMetadata.TYPE).build())
                 .build()
         );
+
+        waitNoPendingTasksOnAll();
+        ensureClusterStateConsistency();
+
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName())
             .acknowledge(true);
         PostStartTrialResponse resp = client().execute(PostStartTrialAction.INSTANCE, startTrialRequest).get();

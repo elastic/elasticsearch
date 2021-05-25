@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.util.Util;

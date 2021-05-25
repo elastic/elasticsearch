@@ -193,7 +193,7 @@ public class ClusterDeprecationChecks {
             );
     }
 
-    static DeprecationIssue checkAutoFollowedSystemIndices(ClusterState state) {
+    static DeprecationIssue checkFollowedSystemIndices(ClusterState state) {
         Set<String> systemIndexFollowers = new HashSet<>();
         for (ObjectObjectCursor<String, IndexMetadata> indexEntry : state.metadata().getIndices()) {
             final IndexMetadata indexMetadata = indexEntry.value;

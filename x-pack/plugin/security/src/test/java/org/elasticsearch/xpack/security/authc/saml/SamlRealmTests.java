@@ -85,6 +85,7 @@ import static org.mockito.Mockito.when;
 /**
  * Basic unit tests for the SAMLRealm
  */
+@SamlTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73314")
 public class SamlRealmTests extends SamlTestCase {
 
     public static final String TEST_IDP_ENTITY_ID = "http://demo_josso_1.josso.dev.docker:8081/IDBUS/JOSSO-TUTORIAL/IDP1/SAML2/MD";

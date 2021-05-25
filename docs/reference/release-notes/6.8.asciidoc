@@ -1,3 +1,32 @@
+[[release-notes-6.8.16]]
+== {es} version 6.8.16
+
+Also see <<breaking-changes-6.8,Breaking changes in 6.8>>.
+
+[[enhancement-6.8.16]]
+[discrete]
+=== Enhancements
+
+Infra/Core::
+* Update joda dependency to latest 2.10.10 {es-pull}72052[#72052] (issue: {es-issue}72028[#72028])
+
+[[bug-6.8.16]]
+[discrete]
+=== Bug fixes
+
+CCR::
+* Handle failure to get remote client in unfollow {es-pull}71928[#71928] (issue: {es-issue}71885[#71885])
+
+Features/Stats::
+* Avoid return of negative value in `CounterMetric` {es-pull}71446[#71446] (issues: {es-issue}52411[#52411], {es-issue}70968[#70968])
+
+Network::
+* Validate IP filter settings {es-pull}72195[#72195] (issue: {es-issue}72192[#72192])
+
+Search::
+* Fix scroll contexts counter in `SearchService` {es-pull}71354[#71354] (issues: {es-issue}53449[#53449], {es-issue}56202[#56202])
+
+
 [[release-notes-6.8.15]]
 == {es} version 6.8.15
 

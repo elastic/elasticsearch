@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.apache.lucene.index.IndexWriter;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,6 +72,11 @@ public class RolloverAction implements LifecycleAction {
         if (maxSize == null && maxPrimaryShardSize == null && maxAge == null && maxDocs == null) {
             throw new IllegalArgumentException("At least one rollover condition must be set.");
         }
+
+        if (maxDocs != null && maxDocs > IndexWriter.MAX_DOCS) {
+            throw new IllegalArgumentException("max_docs cannot exceed Lucene limit.");
+        }
+
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;

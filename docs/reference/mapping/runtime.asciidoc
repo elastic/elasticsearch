@@ -177,13 +177,7 @@ data is loaded from Lucene.
 However, there are cases where retrieving fields from `_source` is necessary.
 For example, `text` fields do not have `doc_values` available by default, so you
 have to retrieve values from `_source`. In other instances, you might choose to
-not index specific fields or choose to disable `doc_values` on an index.
-
-With `doc_values` disabled, you could have a field in your index mapping where
-`index` is `true` and `doc_values` is `false`. This combination can be
-confusing because although the field isn't indexed, it is _searchable_. In this
-case, define a runtime field without a script to retrieve values directly
-from `_source`.
+disable `doc_values` on a specific field.
 
 NOTE: You can alternatively prefix the field you want to retrieve values for
 with `params._source` (such as `params._source.day_of_week`). For simplicity,

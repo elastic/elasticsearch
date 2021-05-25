@@ -63,8 +63,7 @@ Currently, user configured realms can also be given a name with a leading unders
 This creates confusion since realm names are meant to be unique for a node.
 
 *Impact* +
-Configuring a realm name with a leading underscore is deprecated. In 8.0.0,
+Configuring a realm name with a leading underscore is deprecated. In a future releases of {es}
 it will result in an error on startup if any user configured realm has a name
 with a leading underscore.
 ====
-

@@ -1029,12 +1029,11 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
     }
 
     static String openPointInTime(String userName, TimeValue keepAlive, String... indices) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
-            indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, keepAlive, null, null);
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client()
             .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(userName, USERS_PASSWD)))
             .execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
-        return response.getSearchContextId();
+        return response.getPointInTimeId();
     }
 
     public void testPointInTimeId() throws Exception {

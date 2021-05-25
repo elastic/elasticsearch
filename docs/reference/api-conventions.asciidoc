@@ -47,21 +47,19 @@ string parameter:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-NOTE: Single index APIs, such as the <<docs>> and
-<<indices-aliases,single-index `alias` APIs>>, do not support multi-target
-syntax.
+NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
+not support multi-target syntax.
 
-[[hidden-indices]]
+[[hidden]]
 ==== Hidden data streams and indices
 
 For most APIs, wildcard expressions do not match hidden data streams and indices
 by default. To match hidden data streams and indices using a wildcard
 expression, you must specify the `expand_wildcards` query parameter.
 
-You can create hidden data streams by setting
-<<data-stream-hidden,`data_stream.hidden`>> to `true` in the stream's matching
-index template. You can hide indices using the <<index-hidden,`index.hidden`>>
-index setting.
+You can create hidden data streams by setting `data_stream.hidden` to `true` in
+the stream's matching <<indices-put-template,index template>>. You can hide
+indices using the <<index-hidden,`index.hidden`>> index setting.
 
 The backing indices for data streams are hidden automatically. Some features,
 such as {ml}, store information in hidden indices.

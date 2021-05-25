@@ -483,8 +483,10 @@ public final class SamlRealm extends Realm implements Releasable {
         final String name = resolveSingleValueAttribute(attributes, nameAttribute, NAME_ATTRIBUTE.name(config));
         final String mail = resolveSingleValueAttribute(attributes, mailAttribute, MAIL_ATTRIBUTE.name(config));
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
+        logger.debug("SAML attribute mapping = [{}]", userData);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
+            logger.debug("SAML user = [{}]", user);
             wrappedListener.onResponse(AuthenticationResult.success(user));
         }, wrappedListener::onFailure));
     }
@@ -761,7 +763,15 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         List<String> getAttribute(SamlAttributes attributes) {
-            return parser.apply(attributes);
+            final List<String> attrValue = parser.apply(attributes);
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Parser [{}] generated values [{}]",
+                    name,
+                    Strings.collectionToCommaDelimitedString(attrValue)
+                )
+            );
+            return attrValue;
         }
 
         @Override

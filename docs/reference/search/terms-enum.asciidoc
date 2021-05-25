@@ -1,5 +1,8 @@
 [[search-terms-enum]]
 === Terms enum API
+++++
+<titleabbrev>Terms enum</titleabbrev>
+++++
 
 The terms enum API can be used to discover terms in the index that match
 a partial string. This is used for auto-complete:
@@ -44,7 +47,7 @@ set of terms examined was not the full set of available values.
 [[search-terms-enum-api-desc]]
 ==== {api-description-title}
 
-The termsenum API  can be used to discover terms in the index that begin with the provided
+The terms_enum API  can be used to discover terms in the index that begin with the provided
 string. It is designed for low-latency look-ups used in auto-complete scenarios.
 
 
@@ -69,8 +72,9 @@ Which field to match
 
 [[terms-enum-string-param]]
 `string`::
-(Mandatory, string)
-The string to match at the start of indexed terms
+(Optional, string)
+The string to match at the start of indexed terms. If not provided, all terms in the field
+are considered.
 
 [[terms-enum-size-param]]
 `size`::
@@ -94,4 +98,11 @@ Defaults to false.
 `index_filter`::
 (Optional,  <<query-dsl,query object>> Allows to filter an index shard if the provided
 query rewrites to `match_none`.
+
+[[terms-enum-search_after-param]]
+`string`::
+(Optional, string)
+The string after which terms in the index should be returned. Allows for a form of
+pagination if the last result from one request is passed as the search_after
+parameter for a subsequent request.
 

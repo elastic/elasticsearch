@@ -607,7 +607,7 @@ end::memory[]
 tag::bulk-require-alias[]
 `require_alias`::
 (Optional, Boolean)
-If `true`, the action must target an <<aliases,index alias>>. Defaults to
+If `true`, the action must target an <<alias,index alias>>. Defaults to
 `false`.
 end::bulk-require-alias[]
 

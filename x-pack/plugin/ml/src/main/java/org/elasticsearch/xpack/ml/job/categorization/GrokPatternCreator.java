@@ -124,7 +124,11 @@ public final class GrokPatternCreator {
                 // the message was very long, and the example was truncated.  In this
                 // case we will have appended an ellipsis to indicate truncation.
                 assert example.endsWith("...") : exampleProcessor.pattern() + " did not match non-truncated example " + example;
-                logger.warn("[{}] Pattern [{}] did not match example [{}]", jobId, exampleProcessor.pattern(), example);
+                if (example.endsWith("...")) {
+                    logger.trace("[{}] Pattern [{}] did not match truncated example", jobId, exampleProcessor.pattern());
+                } else {
+                    logger.warn("[{}] Pattern [{}] did not match non-truncated example [{}]", jobId, exampleProcessor.pattern(), example);
+                }
             }
         }
 

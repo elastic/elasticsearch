@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers;
+package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import joptsimple.internal.Strings;
 

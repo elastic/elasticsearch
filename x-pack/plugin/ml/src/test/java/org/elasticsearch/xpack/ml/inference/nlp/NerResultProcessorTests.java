@@ -5,13 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,7 +53,7 @@ public class NerResultProcessorTests extends ESTestCase {
         BertTokenizer tokenizer = BertTokenizer.builder(vocab)
             .setDoLowerCase(true)
             .build();
-        TokenizationResult tokenizationResult = tokenizer.tokenize(input, false);
+        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input, false);
         return new NerResultProcessor(tokenizationResult);
     }
 }

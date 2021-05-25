@@ -5,19 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-class FillMaskResultProcessor implements NlpPipeline.ResultProcessor {
+class FillMaskResultProcessor implements NlpTask.ResultProcessor {
 
     private final BertTokenizer.TokenizationResult tokenization;
 

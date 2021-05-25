@@ -5,9 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -15,17 +15,17 @@ import java.util.Locale;
 public enum TaskType {
 
     TOKEN_CLASSIFICATION {
-        public NlpPipeline.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
             return new NerProcessor(tokenizer);
         }
     },
     FILL_MASK {
-        public NlpPipeline.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
             return new FillMaskProcessor(tokenizer);
         }
     };
 
-    public NlpPipeline.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+    public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
         throw new UnsupportedOperationException("json request must be specialised for task type [" + this.name() + "]");
     }
 

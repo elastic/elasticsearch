@@ -5,20 +5,20 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
+package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
 
-public class NerProcessor extends NlpPipeline.Processor {
+public class NerProcessor extends NlpTask.Processor {
 
     public enum Entity implements Writeable {
         NONE, MISC, PERSON, ORGANISATION, LOCATION;
@@ -75,12 +75,12 @@ public class NerProcessor extends NlpPipeline.Processor {
     }
 
     @Override
-    public NlpPipeline.RequestBuilder getRequestBuilder() {
+    public NlpTask.RequestBuilder getRequestBuilder() {
         return this::buildRequest;
     }
 
     @Override
-    public NlpPipeline.ResultProcessor getResultProcessor() {
+    public NlpTask.ResultProcessor getResultProcessor() {
         return new NerResultProcessor(tokenization);
     }
 

@@ -35,8 +35,9 @@ import static org.elasticsearch.xpack.ml.aggs.MlBucketsHelper.extractDoubleBucke
 
 public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
 
-    private static final int NUM_ITERATIONS = 10;
-    private static final double EPS = Math.ulp(1.0);
+    private static final int NUM_ITERATIONS = 20;
+    // 23 is chosen as that is ~ half of the typical number of CDF points (55)
+    private static final int MINIMUM_NUMBER_OF_DOCS = 23;
 
     private final double[] fractions;
     private final EnumSet<Alternative> alternatives;
@@ -74,6 +75,12 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
         DoubleArray.divMut(fX, fX[fX.length - 1]);
         double[] fY = DoubleArray.cumulativeSum(fractions);
         if (fY[fY.length - 1] <= 0) {
+            return alternatives.stream().map(Alternative::toString).collect(Collectors.toMap(Function.identity(), a -> Double.NaN));
+        }
+        // Yes, this is "magic" but in testing it seems that sampling on exceptionally sparse data
+        // gives us unreliable statistics.
+        // TODO bootstrap to support sparse data
+        if (nSamples < MINIMUM_NUMBER_OF_DOCS) {
             return alternatives.stream().map(Alternative::toString).collect(Collectors.toMap(Function.identity(), a -> Double.NaN));
         }
         DoubleArray.divMut(fY, fY[fY.length - 1]);

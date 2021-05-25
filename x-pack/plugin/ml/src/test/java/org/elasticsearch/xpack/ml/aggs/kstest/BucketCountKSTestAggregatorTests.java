@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -26,26 +27,22 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BucketCountKSTestAggregatorTests extends ESTestCase {
 
     private static final double[] UNIFORM_FRACTIONS = new double[] { 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 };
-    // The distribution is more uniform on the lower tail of this distribution
     private static final MlBucketsHelper.DoubleBucketValues LOWER_TAILED_VALUES = new MlBucketsHelper.DoubleBucketValues(
-        new long[] { 400, 600, 200, 100, 300, 10, 10, 10, 10, 10 },
-        new double[] { 400, 600, 200, 100, 300, 10, 10, 10, 10, 10 }
+        new long[] { 40, 60, 20, 30, 30, 10, 10, 10, 10, 10 },
+        new double[] { 40, 60, 20, 30, 30, 10, 10, 10, 10, 10 }
     );
-    // This is a sparser distribution based on count, but is consequently a more UNIFORM distribution (notice magnitudes between values)
     private static final MlBucketsHelper.DoubleBucketValues LOWER_TAILED_VALUES_SPARSE = new MlBucketsHelper.DoubleBucketValues(
         new long[] { 4, 6, 2, 3, 3, 2, 1, 1, 1, 1 },
         new double[] { 4, 6, 2, 3, 3, 2, 1, 1, 1, 1 }
     );
 
-    // This distribution is more uniform on the upper tail
     final MlBucketsHelper.DoubleBucketValues UPPER_TAILED_VALUES = new MlBucketsHelper.DoubleBucketValues(
-        new long[] { 40, 10, 1, 400, 400, 200, 400, 300, 300, 400 },
-        new double[] { 40, 10, 1, 400, 400, 200, 400, 300, 300, 400 }
+        new long[] { 10, 10, 10, 40, 40, 40, 40, 40, 40, 40 },
+        new double[] { 10, 10, 10, 40, 40, 40, 40, 40, 40, 40 }
     );
-    // Sparser distribution where the upper tail is more uniform. Consequently, the overall distribution is more uniform.
     final MlBucketsHelper.DoubleBucketValues UPPER_TAILED_VALUES_SPARSE = new MlBucketsHelper.DoubleBucketValues(
-        new long[] { 1, 2, 3, 6, 7, 7, 7, 6, 6, 7 },
-        new double[] { 1, 2, 3, 6, 7, 7, 7, 6, 6, 7 }
+        new long[] { 1, 2, 2, 6, 7, 7, 7, 6, 6, 7 },
+        new double[] { 1, 2, 2, 6, 7, 7, 7, 6, 6, 7 }
     );
 
     private static Map<String, Double> runKsTestAndValidate(
@@ -111,20 +108,22 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
             greaterThanOrEqualTo(lessValsLowerSampled.get(Alternative.LESS.toString()))
         );
         assertThat(
-            lessValsUpperSampled.get(Alternative.GREATER.toString()),
-            lessThanOrEqualTo(lessValsLowerSampled.get(Alternative.GREATER.toString()))
-        );
-        assertThat(
             lessValsUniformSampled.get(Alternative.LESS.toString()),
             greaterThan(lessValsLowerSampled.get(Alternative.LESS.toString()))
         );
 
-        // The "sparse" distribution is closer to the uniform distribution, so is considered "more likely" to be sampled
-        // from the same population from which the uniform distribution is sampled.
+        // its difficult to make sure things are super close in the sparser case as the sparser data is more "uniform"
+        // Having error of 0.25 allows for this. But, the two values should be similar as the distributions are "close"
         for (String alternative : Arrays.stream(Alternative.values()).map(Alternative::toString).collect(Collectors.toList())) {
-            assertThat(lessValsLowerSampled.get(alternative), lessThanOrEqualTo(lessValsLowerSampledSparsed.get(alternative)));
-            assertThat(lessValsUpperSampled.get(alternative), lessThanOrEqualTo(lessValsUpperSampledSparsed.get(alternative)));
-            assertThat(lessValsUniformSampled.get(alternative), lessThanOrEqualTo(lessValsUniformSampledSparsed.get(alternative)));
+            assertThat(alternative,
+                lessValsLowerSampled.get(alternative),
+                closeTo(lessValsLowerSampledSparsed.get(alternative), 0.25));
+            assertThat(alternative,
+                lessValsUpperSampled.get(alternative),
+                closeTo(lessValsUpperSampledSparsed.get(alternative), 0.25));
+            assertThat(alternative,
+                lessValsUniformSampled.get(alternative),
+                closeTo(lessValsUniformSampledSparsed.get(alternative), 0.25));
         }
     }
 
@@ -158,12 +157,18 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
             greaterThan(greaterValsLowerSampled.get(Alternative.LESS.toString()))
         );
 
-        // The "sparse" distribution is closer to the uniform distribution, so is considered "more likely" to be sampled
-        // from the same population from which the uniform distribution is sampled.
+        // its difficult to make sure things are super close in the sparser case as the sparser data is more "uniform"
+        // Having error of 0.25 allows for this. But, the two values should be similar as the distributions are "close"
         for (String alternative : Arrays.stream(Alternative.values()).map(Alternative::toString).collect(Collectors.toList())) {
-            assertThat(greaterValsLowerSampled.get(alternative), lessThanOrEqualTo(greaterValsLowerSampledSparsed.get(alternative)));
-            assertThat(greaterValsUpperSampled.get(alternative), lessThanOrEqualTo(greaterValsUpperSampledSparsed.get(alternative)));
-            assertThat(greaterValsUniformSampled.get(alternative), lessThanOrEqualTo(greaterValsUniformSampledSparsed.get(alternative)));
+            assertThat(alternative,
+                greaterValsLowerSampled.get(alternative),
+                closeTo(greaterValsLowerSampledSparsed.get(alternative), 0.25));
+            assertThat(alternative,
+                greaterValsUpperSampled.get(alternative),
+                closeTo(greaterValsUpperSampledSparsed.get(alternative), 0.25));
+            assertThat(alternative,
+                greaterValsUniformSampled.get(alternative),
+                closeTo(greaterValsUniformSampledSparsed.get(alternative), 0.25));
         }
     }
 

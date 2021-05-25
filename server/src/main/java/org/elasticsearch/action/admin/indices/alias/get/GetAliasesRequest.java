@@ -102,4 +102,9 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     public ActionRequestValidationException validate() {
         return null;
     }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
 }

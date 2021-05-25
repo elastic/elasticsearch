@@ -34,11 +34,11 @@ index settings, aliases, mappings, and index templates.
 [discrete]
 [[alias-management]]
 === Alias management:
+* <<indices-aliases>>
 * <<indices-add-alias>>
-* <<indices-delete-alias>>
 * <<indices-get-alias>>
 * <<indices-alias-exists>>
-* <<indices-aliases>>
+* <<indices-delete-alias>>
 
 [discrete]
 [[index-settings]]
@@ -90,9 +90,8 @@ For more information, see <<index-templates, Index Templates>>.
 * <<dangling-index-delete>>
 
 
-
-include::indices/analyze.asciidoc[]
 include::indices/aliases.asciidoc[]
+include::indices/analyze.asciidoc[]
 include::indices/clearcache.asciidoc[]
 include::indices/clone-index.asciidoc[]
 include::indices/close.asciidoc[]
@@ -107,6 +106,7 @@ include::indices/delete-index.asciidoc[]
 include::indices/delete-alias.asciidoc[]
 include::indices/delete-index-template.asciidoc[]
 include::indices/delete-index-template-v1.asciidoc[]
+include::indices/indices-exists.asciidoc[]
 include::indices/flush.asciidoc[]
 include::indices/forcemerge.asciidoc[]
 include::indices/apis/freeze.asciidoc[]
@@ -120,7 +120,6 @@ include::indices/get-index-template-v1.asciidoc[]
 include::indices/get-mapping.asciidoc[]
 include::indices/dangling-index-import.asciidoc[]
 include::indices/alias-exists.asciidoc[]
-include::indices/indices-exists.asciidoc[]
 include::indices/recovery.asciidoc[]
 include::indices/segments.asciidoc[]
 include::indices/shard-stores.asciidoc[]

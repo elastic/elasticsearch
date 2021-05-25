@@ -17,6 +17,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -101,10 +103,14 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             indexName = snapshotIndexName;
         }
 
+        Settings.Builder settingsBuilder = Settings.builder();
+        settingsBuilder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+        // if we are mounting a searchable snapshot in the hot phase, then the index should be pinned to the hot nodes
+        if (TimeseriesLifecycleType.HOT_PHASE.equals(this.getKey().getPhase())) {
+            settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_HOT);
+        }
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(mountedIndexName,
-            snapshotRepository, snapshotName, indexName, Settings.builder()
-            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString())
-            .build(),
+            snapshotRepository, snapshotName, indexName, settingsBuilder.build(),
             // we captured the index metadata when we took the snapshot. the index likely had the ILM execution state in the metadata.
             // if we were to restore the lifecycle.name setting, the restored index would be captured by the ILM runner and,
             // depending on what ILM execution state was captured at snapshot time, make it's way forward from _that_ step forward in

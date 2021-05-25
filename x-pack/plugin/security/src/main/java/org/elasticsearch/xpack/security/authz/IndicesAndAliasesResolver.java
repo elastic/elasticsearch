@@ -134,7 +134,7 @@ class IndicesAndAliasesResolver {
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
                     for (String authorizedIndex : authorizedIndices) {
-                        if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata,
+                        if (IndexAbstractionResolver.isIndexVisible("*", authorizedIndex, indicesOptions, metadata, nameExpressionResolver,
                             indicesRequest.includeDataStreams())) {
                             resolvedIndicesBuilder.addLocal(authorizedIndex);
                         }

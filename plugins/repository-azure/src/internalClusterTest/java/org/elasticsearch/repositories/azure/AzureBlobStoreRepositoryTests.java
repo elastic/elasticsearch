@@ -210,7 +210,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     public void testLargeBlobCountDeletion() throws Exception {
         int numberOfBlobs = randomIntBetween(257, 2000);
         try (BlobStore store = newBlobStore()) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             for (int i = 0; i < numberOfBlobs; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
                 String blobName = randomAlphaOfLength(10);
@@ -224,7 +224,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     public void testDeleteBlobsIgnoringIfNotExists() throws Exception {
         try (BlobStore store = newBlobStore()) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             List<String> blobsToDelete = new ArrayList<>();
             for (int i = 0; i < 10; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
@@ -239,7 +239,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             Randomness.shuffle(blobsToDelete);
-            container.deleteBlobsIgnoringIfNotExists(blobsToDelete);
+            container.deleteBlobsIgnoringIfNotExists(blobsToDelete.iterator());
             assertThat(container.listBlobs(), is(anEmptyMap()));
         }
     }

@@ -190,7 +190,7 @@ class NodeDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
                 String.format(Locale.ROOT, "Found realm " + (reservedPrefixedRealmIdentifiers.size() == 1 ? "name" : "names")
                         + " with reserved prefix [%s]: [%s]. "
-                        + "In next major release, node will fail to start if any realm names start with reserved prefix.",
+                        + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
                     RESERVED_REALM_NAME_PREFIX,
                     reservedPrefixedRealmIdentifiers.stream()
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())

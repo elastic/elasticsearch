@@ -343,7 +343,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals("Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
                 + " with reserved prefix [_]: ["
                 + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ") + "]. "
-                + "In next major release, node will fail to start if any realm names start with reserved prefix.",
+                + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
             deprecationIssue.getDetails());
     }
 

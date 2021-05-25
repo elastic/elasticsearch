@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer.TokenizationResult;
 
@@ -24,7 +25,7 @@ public class NerResultProcessorTests extends ESTestCase {
 
     public void testProcessResults_GivenNoTokens() {
         NerResultProcessor processor = createProcessor(Collections.emptyList(), "");
-        NerResult result = (NerResult) processor.processResult(new PyTorchResult("test", null, null));
+        NerResults result = (NerResults) processor.processResult(new PyTorchResult("test", null, null));
         assertThat(result.getEntityGroups(), is(empty()));
     }
 
@@ -40,13 +41,13 @@ public class NerResultProcessorTests extends ESTestCase {
             { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // in
             { 0, 0, 0, 0, 0, 0, 0, 6, 0} // london
         };
-        NerResult result = (NerResult) processor.processResult(new PyTorchResult("1", scores, null));
+        NerResults result = (NerResults) processor.processResult(new PyTorchResult("1", scores, null));
 
         assertThat(result.getEntityGroups().size(), equalTo(2));
         assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
-        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION.toString()));
         assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
-        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION));
+        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
     }
 
     private static NerResultProcessor createProcessor(List<String> vocab, String input){

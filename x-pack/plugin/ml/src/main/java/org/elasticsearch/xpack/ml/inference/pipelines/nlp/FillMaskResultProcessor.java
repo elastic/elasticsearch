@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
 
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
 
@@ -27,7 +28,7 @@ class FillMaskResultProcessor implements NlpPipeline.ResultProcessor {
     @Override
     public InferenceResults processResult(PyTorchResult pyTorchResult) {
         if (tokenization.getTokens().isEmpty()) {
-            return new FillMaskResult(Collections.emptyList());
+            return new FillMaskResults(Collections.emptyList());
         }
         List<String> maskTokens = tokenization.getTokens().stream()
             .filter(t -> BertTokenizer.MASK_TOKEN.equals(t))
@@ -44,7 +45,7 @@ class FillMaskResultProcessor implements NlpPipeline.ResultProcessor {
         String predictedToken = tokenization.getFromVocab(predictionTokenId);
         double score = normalizedScores[maskTokenIndex][predictionTokenId];
         String sequence = tokenization.getInput().replace(BertTokenizer.MASK_TOKEN, predictedToken);
-        FillMaskResult.Result result = new FillMaskResult.Result(predictedToken, score, sequence);
-        return new FillMaskResult(Collections.singletonList(result));
+        FillMaskResults.Result result = new FillMaskResults.Result(predictedToken, score, sequence);
+        return new FillMaskResults(Collections.singletonList(result));
     }
 }

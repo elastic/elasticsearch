@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.pipelines.nlp;
 
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.ml.inference.pipelines.nlp.tokenizers.BertTokenizer;
 
 import java.util.ArrayList;
@@ -30,7 +31,7 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
     @Override
     public InferenceResults processResult(PyTorchResult pyTorchResult) {
         if (tokenization.getTokens().isEmpty()) {
-            return new NerResult(Collections.emptyList());
+            return new NerResults(Collections.emptyList());
         }
         // TODO It might be best to do the soft max after averaging scores for
         // sub-tokens. If we had a word that is "elastic" which is tokenized to
@@ -40,8 +41,8 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
         // which could easily be close to 1.
         double[][] normalizedScores = NlpHelpers.convertToProbabilitesBySoftMax(pyTorchResult.getInferenceResult());
         List<TaggedToken> taggedTokens = tagTokens(normalizedScores);
-        List<EntityGroup> entities = groupTaggedTokens(taggedTokens);
-        return new NerResult(entities);
+        List<NerResults.EntityGroup> entities = groupTaggedTokens(taggedTokens);
+        return new NerResults(entities);
     }
 
     /**
@@ -96,11 +97,11 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
      * When multiple tokens are grouped together, the entity score is the
      * mean score of the tokens.
      */
-    private List<EntityGroup> groupTaggedTokens(List<TaggedToken> tokens) {
+    private List<NerResults.EntityGroup> groupTaggedTokens(List<TaggedToken> tokens) {
         if (tokens.isEmpty()) {
             return Collections.emptyList();
         }
-        List<EntityGroup> entities = new ArrayList<>();
+        List<NerResults.EntityGroup> entities = new ArrayList<>();
         int startTokenIndex = 0;
         while (startTokenIndex < tokens.size()) {
             TaggedToken token = tokens.get(startTokenIndex);
@@ -123,7 +124,8 @@ class NerResultProcessor implements NlpPipeline.ResultProcessor {
                 scoreSum += endToken.score;
                 endTokenIndex++;
             }
-            entities.add(new EntityGroup(token.tag.getEntity(), scoreSum / (endTokenIndex - startTokenIndex), entityWord.toString()));
+            entities.add(new NerResults.EntityGroup(token.tag.getEntity().toString(),
+                scoreSum / (endTokenIndex - startTokenIndex), entityWord.toString()));
             startTokenIndex = endTokenIndex;
         }
 

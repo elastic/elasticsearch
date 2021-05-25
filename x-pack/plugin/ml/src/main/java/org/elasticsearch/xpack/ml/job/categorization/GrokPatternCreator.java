@@ -125,7 +125,7 @@ public final class GrokPatternCreator {
                 // case we will have appended an ellipsis to indicate truncation.
                 assert example.endsWith("...") : exampleProcessor.pattern() + " did not match non-truncated example " + example;
                 if (example.endsWith("...")) {
-                    logger.trace("[{}] Pattern [{}] did not match truncated example", jobId, exampleProcessor.pattern());
+                    logger.trace(() -> new ParameterizedMessage("[{}] Pattern [{}] did not match truncated example", jobId, exampleProcessor.pattern()));
                 } else {
                     logger.warn("[{}] Pattern [{}] did not match non-truncated example [{}]", jobId, exampleProcessor.pattern(), example);
                 }

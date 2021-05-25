@@ -2,9 +2,14 @@
 [[audit-event-types]]
 === Audit event types
 
-When you are <<enable-audit-logging,auditing security events>>, a single client request
-might generate multiple audit events, across multiple cluster nodes. The common
-`request.id` attribute can be used to correlate the associated events.
+When you are <<enable-audit-logging,auditing security events>>, a single client
+request might generate multiple audit events, across multiple cluster nodes.
+The common `request.id` attribute can be used to correlate the associated events.
+
+To specify the type of events you want to include in the auditing output, add
+one or more of the following values for
+<<xpack-sa-lf-events-include,`xpack.security.audit.logfile.events.include`>> in
+`elasticsearch.yml`.
 
 [[event-access-denied]]
 `access_denied`::
@@ -27,9 +32,14 @@ have the necessary <<security-privileges,privilege>> to perform.
 [[event-access-granted]]
 `access_granted`::
 Logged when an authenticated user attempts to execute an action they have the
-necessary privilege to perform. When the `system_access_granted` event is
-included, all system (internal) actions are also logged. The default setting
-does not log system actions to avoid cluttering the logs.
+necessary privilege to perform. These events will be logged only for non-system
+users.
++
+If you want to include `access_granted` events for all users (including
+internal users such as `_xpack`), add
+<<event-system-granted,`system_access_granted`>> to the list of
+event types in addition to `access_granted`. The `system_access_granted`
+privilege is not included by default to avoid cluttering the logs.
 +
 .Example
 [%collapsible%open]
@@ -218,6 +228,7 @@ delete a role.
 "delete":{"role":{"name":"my_admin_role"}}}
 ====
 
+[[event-delete-role-mapping]]
 `delete_role_mapping`::
 Logged when the <<security-api-delete-role-mapping,delete role mapping API>>
 is invoked to delete a role mapping.
@@ -227,10 +238,12 @@ is invoked to delete a role mapping.
 ====
 [source,js]
 {"type":"audit", "timestamp":"2020-12-31T00:12:09,349+0200", "node.id":
-"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g", 
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g", 
 "delete":{"role_mapping":{"name":"mapping1"}}}
 ====
 
+[[event-delete-user]]
 `delete_user`::
 Logged when the <<security-api-delete-user,delete user API>> is invoked to
 delete a specific native user.
@@ -245,6 +258,7 @@ delete a specific native user.
 "delete":{"user":{"name":"jacknich"}}}
 ====
 
+[[event-invalidate-apikeys]]
 `invalidate_apikeys`::
 Logged when the <<security-api-invalidate-api-key,invalidate API key API>> is
 invoked to invalidate one or more API keys.
@@ -260,6 +274,7 @@ action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ",
 "user":{"name":"myuser","realm":"native1"}}}}
 ====
 
+[[event-put-privileges]]
 `put_privileges`::
 Logged when the <<security-api-put-privileges,create or update privileges API>> is invoked
 to add or update one or more application privileges.
@@ -275,6 +290,7 @@ to add or update one or more application privileges.
 ["data:read/*","action:login"],"metadata":{"description":"Read access to myapp"}}]}}
 ====
 
+[[event-put-role]]
 `put_role`::
 Logged when the <<security-api-put-role,create or update role API>> is invoked to create or
 update a role.
@@ -293,6 +309,7 @@ update a role.
 {\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}
 ====
 
+[[event-put-role-mapping]]
 `put_role_mapping`::
 Logged when the <<security-api-put-role-mapping,create or update role mapping API>> is
 invoked to create or update a role mapping.
@@ -302,11 +319,13 @@ invoked to create or update a role mapping.
 ====
 [source,js]
 {"type":"audit", "timestamp":"2020-12-31T00:11:13,932+0200", "node.id":
-"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA", 
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA", 
 "put":{"role_mapping":{"name":"mapping1","roles":["user"],"rules":
 {"field":{"username":"*"}},"enabled":true,"metadata":{"version":1}}}}
 ====
 
+[[event-put-user]]
 `put_user`::
 Logged when the <<security-api-put-user,create or update user API>> is invoked to create or
 update a native user. Note that user updates can also change the
@@ -324,6 +343,7 @@ user's password.
 "has_password":true,"metadata":{"cunning":10}}}}
 ====
 
+[[event-realm-auth-failed]]
 `realm_authentication_failed`::
 Logged for every realm that fails to present a valid authentication token.
 +
@@ -339,6 +359,7 @@ Logged for every realm that fails to present a valid authentication token.
 "request.id":"POv8p_qeTl2tb5xoFl0HIg"}
 ====
 
+[[event-runas-denied]]
 `run_as_denied`::
 Logged when an authenticated user attempts to <<run-as-privilege,run as>>
 another user that they do not have the necessary
@@ -357,7 +378,7 @@ another user that they do not have the necessary
 "action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
 ====
 
-
+[[event-runas-granted]]
 `run_as_granted`::
 Logged when an authenticated user attempts to <<run-as-privilege,run as>>
 another user that they have the necessary privileges to do so.
@@ -375,6 +396,16 @@ another user that they have the necessary privileges to do so.
 "indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
 ====
 
+[[event-system-granted]]
+`system_access_granted`::
+Logs <<event-access-granted,`access_granted`>> events only for
+<<internal-users,internal users>>, such as `_xpack`. If you include this setting
+in addition to `access_granted`, then `access_granted` events are
+logged for _all_ users.
++
+NOTE: This event type is disabled by default to avoid cluttering the logs.
+
+[[event-tampered-request]]
 `tampered_request`::
 Logged when the {security-features} detect that the request has been tampered
 with. Typically relates to `search/scroll` requests when the scroll ID is

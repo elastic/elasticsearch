@@ -382,6 +382,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
                                                    Map<String, IndexMetadata> indices,
                                                    Map<String, IndexTemplateMetadata> legacyTemplates,
                                                    Map<String, ComposableIndexTemplate> composableTemplates) throws UnknownHostException {
+        assertTrue("Existing tests are written on the basis that the cluster supports hidden indices",
+            minNodeVersion.onOrAfter(HIDDEN_INTRODUCED_VERSION));
         InetAddress inetAddress1 = InetAddress.getByAddress(new byte[]{(byte) 192, (byte) 168, (byte) 0, (byte) 1});
         InetAddress inetAddress2 = InetAddress.getByAddress(new byte[]{(byte) 192, (byte) 168, (byte) 0, (byte) 2});
         return ClusterState.builder(ClusterName.DEFAULT)
@@ -394,8 +396,6 @@ public class MlIndexAndAliasTests extends ESTestCase {
                 .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().putAll(legacyTemplates).build())
                 .indexTemplates(composableTemplates)
                 .build())
-            .nodes(DiscoveryNodes.builder()
-                .add(new DiscoveryNode("", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), HIDDEN_INTRODUCED_VERSION)))
             .build();
     }
 

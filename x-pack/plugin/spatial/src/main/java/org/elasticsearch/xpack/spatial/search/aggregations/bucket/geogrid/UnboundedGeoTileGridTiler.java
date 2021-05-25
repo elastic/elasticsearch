@@ -33,13 +33,17 @@ public class UnboundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
 
     @Override
     protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
+        // For every level we go down, we half each dimension. The total number of splits is equal to 1 << (levelEnd - levelStart)
         final int splits = 1 << precision - zTile;
-        final int minX =xTile * splits;
-        final int maxX = xTile * splits + splits - 1;
+        // The start value of a dimension is calculated by multiplying the  value of that dimension at the start level
+        // by the number of splits
+        final int minX = xTile * splits;
         final int minY = yTile * splits;
-        final int maxY = yTile * splits + splits - 1;
-        for (int i = minX; i <= maxX; i++) {
-            for (int j = minY; j <= maxY; j++) {
+        // The end value of a dimension is calculated by adding to the start value the number of splits
+        final int maxX = minX + splits;
+        final int maxY = minY + splits;
+        for (int i = minX; i < maxX; i++) {
+            for (int j = minY; j < maxY; j++) {
                 assert validTile(i, j, precision);
                 values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
             }

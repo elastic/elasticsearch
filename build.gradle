@@ -500,6 +500,10 @@ tasks.named("checkPart1").configure {
   dependsOn gradle.includedBuild('build-tools-internal').task(':checkPart1')
 }
 
+tasks.named("assemble").configure {
+  dependsOn gradle.includedBuild('build-tools').task(':assemble')
+}
+
 subprojects {
   project.ext.disableTasks = { String... tasknames ->
     for (String taskname : tasknames) {

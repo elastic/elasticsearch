@@ -12,7 +12,10 @@ import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.testing.Test;
+
+import java.io.File;
 
 public class BasicBuildToolConventionsPlugin implements Plugin<Project> {
 
@@ -23,5 +26,9 @@ public class BasicBuildToolConventionsPlugin implements Plugin<Project> {
             test.onlyIf((t) -> Util.getBooleanProperty("tests.fips.enabled", false));
             test.setMaxParallelForks(defaultParallel);
         });
+        // we put all our distributable files under distributions
+        project.getTasks().withType(Jar.class).configureEach(j ->
+                j.getDestinationDirectory().set(new File(project.getBuildDir(), "distributions"))
+        );
     }
 }

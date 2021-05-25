@@ -130,8 +130,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         getAliasesRequest = new Request("GET", "/_aliases");
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        assertEquals(Map.of(), getAliasesResponse);
         expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/logs/_search")));
 
         // Add logs-* -> logs
@@ -155,8 +154,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
 
         getAliasesRequest = new Request("GET", "/_aliases");
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp1.aliases", getAliasesResponse));
-        assertEquals(Map.of(), XContentMapValues.extractValue("logs-myapp2.aliases", getAliasesResponse));
+        assertEquals(Map.of(), getAliasesResponse);
         expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/logs/_search")));
     }
 
@@ -195,4 +193,47 @@ public class DataStreamsRestIT extends ESRestTestCase {
         getAliasesRequest = new Request("GET", "/logs-*/_alias");
         assertThat(entityAsMap(client().performRequest(getAliasesRequest)), equalTo(Map.of()));
     }
+
+    public void testGetAliasApiFilterByDataStreamAlias() throws Exception {
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/1");
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\"logs-*\"], \"data_stream\": {}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
+
+        Request createDocRequest = new Request("POST", "/logs-emea/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        createDocRequest = new Request("POST", "/logs-nasa/_doc?refresh=true");
+        createDocRequest.setJsonEntity("{ \"@timestamp\": \"2022-12-12\"}");
+        assertOK(client().performRequest(createDocRequest));
+
+        Request updateAliasesRequest = new Request("POST", "/_aliases");
+        updateAliasesRequest.setJsonEntity(
+            "{\"actions\":[{\"add\":{\"index\":\"logs-emea\",\"alias\":\"emea\"}}," +
+                "{\"add\":{\"index\":\"logs-nasa\",\"alias\":\"nasa\"}}]}");
+        assertOK(client().performRequest(updateAliasesRequest));
+
+        Response response = client().performRequest(new Request("GET", "/_alias"));
+        assertOK(response);
+        Map<String, Object> getAliasesResponse = entityAsMap(response);
+        assertThat(getAliasesResponse.size(), equalTo(2));
+        assertEquals(Map.of("emea", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+        assertEquals(Map.of("nasa", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
+
+        response = client().performRequest(new Request("GET", "/_alias/emea"));
+        assertOK(response);
+        getAliasesResponse = entityAsMap(response);
+        assertThat(getAliasesResponse.size(), equalTo(1));
+        assertEquals(Map.of("emea", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
+
+        ResponseException exception =
+            expectThrows(ResponseException.class, () -> client().performRequest(new Request("GET", "/_alias/wrong_name")));
+        response = exception.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(404));
+        getAliasesResponse = entityAsMap(response);
+        assertThat(getAliasesResponse.size(), equalTo(2));
+        assertEquals("alias [wrong_name] missing", getAliasesResponse.get("error"));
+        assertEquals(404, getAliasesResponse.get("status"));
+    }
+
 }

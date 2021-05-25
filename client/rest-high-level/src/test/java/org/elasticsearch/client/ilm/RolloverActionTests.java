@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.client.ilm;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -40,7 +41,7 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
         TimeValue maxAge = randomBoolean()
             ? null : TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
         Long maxDocs = (maxSize == null && maxPrimaryShardSize == null && maxAge == null || randomBoolean())
-            ? randomNonNegativeLong() : null;
+            ? randomLongBetween(0, IndexWriter.MAX_DOCS) : null;
         return new RolloverAction(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
     }
 
@@ -48,5 +49,12 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> new RolloverAction(null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
+    }
+
+    public void testMaxDocsLimit() {
+        Long maxDocsLimit =  Long.valueOf(IndexWriter.MAX_DOCS);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new org.elasticsearch.xpack.core.ilm.RolloverAction(null, null, null,  maxDocsLimit + 1));
+        assertEquals("max_docs cannot exceed Lucene limit.", exception.getMessage());
     }
 }

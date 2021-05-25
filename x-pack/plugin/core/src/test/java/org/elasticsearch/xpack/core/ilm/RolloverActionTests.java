@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -83,6 +84,13 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> new RolloverAction(null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
+    }
+
+    public void testMaxDocsLimit() {
+        Long maxDocsLimit =  Long.valueOf(IndexWriter.MAX_DOCS);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+            () -> new RolloverAction(null, null, null,  maxDocsLimit + 1));
+        assertEquals("max_docs cannot exceed Lucene limit.", exception.getMessage());
     }
 
     public void testToSteps() {

@@ -83,6 +83,10 @@ public final class AnomalyDetectorsIndex {
             finalListener);
     }
 
+    public static String wrappedResultsMapping() {
+        return "{\n\"_doc\" : " + resultsMapping() + "\n}";
+    }
+
     public static String resultsMapping() {
         return TemplateUtils.loadTemplate(RESOURCE_PATH + "results_index_mappings.json",
             Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE);

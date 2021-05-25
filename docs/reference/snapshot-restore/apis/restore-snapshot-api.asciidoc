@@ -99,6 +99,16 @@ Name of the repository to restore a snapshot from.
 (Required, string)
 Name of the snapshot to restore.
 
+[[restore-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request returns a response when the restore
+operation completes. If `false`, the request returns a response when the restore
+operation initializes. Defaults to `false`.
+
 [role="child_attributes"]
 [[restore-snapshot-api-request-body]]
 ==== {api-request-body-title}
@@ -203,14 +213,6 @@ include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=rename-rest
 `rename_replacement`::
 (Optional, string)
 Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern,`rename_pattern`>> for more information.
-
-`wait_for_completion`::
-(Optional, Boolean)
-If `false`, the request returns a response when the restore operation initializes.
-Defaults to `false`.
-+
-If `true`, the request returns a response when the restore operation
-completes.
 
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}

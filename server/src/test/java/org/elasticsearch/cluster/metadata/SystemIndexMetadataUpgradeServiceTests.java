@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.util.List;
 import java.util.Map;
@@ -37,23 +38,45 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         .setOrigin("FAKE_ORIGIN")
         .build();
 
+    private SystemIndexMetadataUpgradeService service;
+
+    @Before
+    public void setUpTest() {
+        // set up a system index upgrade service
+        this.service = new SystemIndexMetadataUpgradeService(
+            new SystemIndices(
+                Map.of("MyIndex", new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
+            mock(ClusterService.class)
+            );
+    }
+
     /**
      * When we upgrade Elasticsearch versions, existing indices may be newly
      * defined as system indices. If such indices are set to "hidden," we need
      * to remove that setting.
      */
     public void testUpgradeHiddenIndexToSystemIndex() throws Exception {
-        // set up a system index upgrade service
-        SystemIndexMetadataUpgradeService service = new SystemIndexMetadataUpgradeService(
-            new SystemIndices(
-                Map.of("MyIndex", new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
-            mock(ClusterService.class)
-        );
-
         // create an initial cluster state with a hidden index that matches the system index descriptor
         IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(false)
             .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
 
+        assertSystemUpgradeRemovesHiddenSetting(hiddenIndexMetadata);
+    }
+
+    /**
+     * If a system index erroneously is set to hidden, we should remedy that situation.
+     */
+    public void testHiddenSettingRemovedFromSystemIndices() throws Exception {
+        // create an initial cluster state with a hidden index that matches the system index descriptor
+        IndexMetadata.Builder hiddenIndexMetadata = IndexMetadata.builder(SYSTEM_INDEX_NAME)
+            .system(true)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+
+        assertSystemUpgradeRemovesHiddenSetting(hiddenIndexMetadata);
+    }
+
+    private void assertSystemUpgradeRemovesHiddenSetting(IndexMetadata.Builder hiddenIndexMetadata) throws Exception {
         Metadata.Builder clusterMetadata = new Metadata.Builder();
         clusterMetadata.put(hiddenIndexMetadata);
 

@@ -85,16 +85,20 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                     final boolean isSystem = systemIndices.isSystemIndex(cursor.value.getIndex()) ||
                         systemIndices.isSystemIndexBackingDataStream(cursor.value.getIndex().getName());
                     IndexMetadata.Builder builder = IndexMetadata.builder(cursor.value);
+                    boolean updated = false;
                     if (isSystem != cursor.value.isSystem()) {
                         builder.system(cursor.value.isSystem() == false);
-                        if (isSystem && cursor.value.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
-                            builder.settings(Settings.builder()
-                                .put(cursor.value.getSettings())
-                                .put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
-                        }
+                        updated = true;
+                    }
+                    if (isSystem && cursor.value.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
+                        builder.settings(Settings.builder()
+                            .put(cursor.value.getSettings())
+                            .put(IndexMetadata.SETTING_INDEX_HIDDEN, false));
+                        updated = true;
+                    }
+                    if (updated) {
                         updatedMetadata.add(builder.build());
                     }
-
                 }
             }
 

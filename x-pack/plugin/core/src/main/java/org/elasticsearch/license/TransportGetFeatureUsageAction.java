@@ -46,7 +46,7 @@ public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFe
             XPackLicenseState.Feature feature = entry.getKey();
             String name = feature.name().toLowerCase(Locale.ROOT);
             ZonedDateTime lastUsedTime = Instant.ofEpochMilli(entry.getValue()).atZone(ZoneOffset.UTC);
-            String licenseLevel = feature.minimumOperationMode.name().toLowerCase(Locale.ROOT);
+            String licenseLevel = feature.feature.minimumOperationMode.name().toLowerCase(Locale.ROOT);
             usageInfos.add(new GetFeatureUsageResponse.FeatureUsageInfo(name, lastUsedTime, licenseLevel));
         }
         listener.onResponse(new GetFeatureUsageResponse(usageInfos));

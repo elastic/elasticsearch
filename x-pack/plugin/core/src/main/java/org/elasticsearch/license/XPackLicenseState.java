@@ -89,13 +89,14 @@ public class XPackLicenseState {
 
         AUTOSCALING(OperationMode.ENTERPRISE, true);
 
-        final OperationMode minimumOperationMode;
-        final boolean needsActive;
+        // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
+        // Embedding the feature instance here is a stopgap to allow smaller initial PR,
+        // followed by PRs to convert the current consumers of the license state.
+        final LicensedFeature feature;
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
             assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
-            this.minimumOperationMode = minimumOperationMode;
-            this.needsActive = needsActive;
+            this.feature = new LicensedFeature(minimumOperationMode, needsActive);
         }
     }
 
@@ -510,7 +511,7 @@ public class XPackLicenseState {
             maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
         }
 
-        if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
+        if (feature.feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
             LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);
             final String expiryMessage = (days == 0 && diff > 0)? "expires today":
@@ -529,7 +530,7 @@ public class XPackLicenseState {
      * This method should only be used when serializing whether a feature is allowed for telemetry.
      */
     public boolean isAllowed(Feature feature) {
-        return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
+        return isAllowedByLicense(feature.feature.minimumOperationMode, feature.feature.needsActive);
     }
 
     /**

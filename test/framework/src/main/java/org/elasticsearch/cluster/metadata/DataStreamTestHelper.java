@@ -31,6 +31,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomList;
 
 public final class DataStreamTestHelper {
 
@@ -147,9 +149,11 @@ public final class DataStreamTestHelper {
     }
 
     public static DataStreamAlias randomAliasInstance() {
+        List<String> dataStreams = List.of(generateRandomStringArray(5, 5, false));
         return new DataStreamAlias(
             randomAlphaOfLength(5),
-            List.of(generateRandomStringArray(5, 5, false))
+            dataStreams,
+            randomBoolean() ? randomFrom(dataStreams) : null
         );
     }
 

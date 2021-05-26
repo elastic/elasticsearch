@@ -129,7 +129,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 switch (action.actionType()) {
                     case ADD:
                         for (String dataStreamName : concreteDataStreams) {
-                            finalActions.add(new AliasAction.AddDataStreamAlias(action.aliases()[0], dataStreamName));
+                            finalActions.add(new AliasAction.AddDataStreamAlias(action.aliases()[0], dataStreamName, action.writeIndex()));
                         }
                         break;
                     case REMOVE:

@@ -319,7 +319,10 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
         assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds"));
-        assertThat(getAliasesResponse.getDataStreamAliases().get("ds"), equalTo(List.of(new DataStreamAlias("my-alias", List.of("ds")))));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("ds"),
+            equalTo(List.of(new DataStreamAlias("my-alias", List.of("ds"), null)))
+        );
 
         assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
     }

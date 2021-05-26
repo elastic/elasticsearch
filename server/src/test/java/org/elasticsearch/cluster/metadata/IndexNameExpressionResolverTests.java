@@ -2131,10 +2131,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
             .put(new DataStream(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())))
             .put(new DataStream(dataStream3, createTimestampField("@timestamp"), List.of(index5.getIndex(), index6.getIndex())));
-        mdBuilder.put(dataStreamAlias1, dataStream1);
-        mdBuilder.put(dataStreamAlias1, dataStream2);
-        mdBuilder.put(dataStreamAlias2, dataStream2);
-        mdBuilder.put(dataStreamAlias3, dataStream3);
+        mdBuilder.put(dataStreamAlias1, dataStream1, null);
+        mdBuilder.put(dataStreamAlias1, dataStream2, null);
+        mdBuilder.put(dataStreamAlias2, dataStream2, null);
+        mdBuilder.put(dataStreamAlias3, dataStream3, null);
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {

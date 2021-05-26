@@ -701,7 +701,7 @@ public class DataStreamIT extends ESIntegTestCase {
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
         assertThat(
             response.getDataStreamAliases(),
-            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo")))))
+            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo"), null))))
         );
     }
 

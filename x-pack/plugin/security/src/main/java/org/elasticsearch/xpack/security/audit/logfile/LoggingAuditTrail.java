@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -105,6 +106,7 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ANONYMOUS_ACCESS_DENIED;
@@ -148,6 +150,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final String PRINCIPAL_RUN_AS_REALM_FIELD_NAME = "user.run_as.realm";
     public static final String API_KEY_ID_FIELD_NAME = "apikey.id";
     public static final String API_KEY_NAME_FIELD_NAME = "apikey.name";
+    public static final String SERVICE_TOKEN_NAME_FIELD_NAME = "authentication.token.name";
     public static final String PRINCIPAL_ROLES_FIELD_NAME = "user.roles";
     public static final String AUTHENTICATION_TYPE_FIELD_NAME = "authentication.type";
     public static final String REALM_FIELD_NAME = "realm";
@@ -396,18 +399,21 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             final Optional<String[]> indices = indices(transportRequest);
             if (eventFilterPolicyRegistry.ignorePredicate()
                     .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices, Optional.of(action))) == false) {
-                new LogEntryBuilder()
-                        .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
-                        .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
-                        .with(ACTION_FIELD_NAME, action)
-                        .with(PRINCIPAL_FIELD_NAME, token.principal())
-                        .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
-                        .withRequestId(requestId)
-                        .withRestOrTransportOrigin(transportRequest, threadContext)
-                        .with(INDICES_FIELD_NAME, indices.orElse(null))
-                        .withOpaqueId(threadContext)
-                        .withXForwardedFor(threadContext)
-                        .build();
+                final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
+                    .with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
+                    .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
+                    .with(ACTION_FIELD_NAME, action)
+                    .with(PRINCIPAL_FIELD_NAME, token.principal())
+                    .with(REQUEST_NAME_FIELD_NAME, transportRequest.getClass().getSimpleName())
+                    .withRequestId(requestId)
+                    .withRestOrTransportOrigin(transportRequest, threadContext)
+                    .with(INDICES_FIELD_NAME, indices.orElse(null))
+                    .withOpaqueId(threadContext)
+                    .withXForwardedFor(threadContext);
+                if (token instanceof ServiceAccountToken) {
+                    logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
+                }
+                logEntryBuilder.build();
             }
         }
     }
@@ -453,17 +459,20 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request) {
         if (events.contains(AUTHENTICATION_FAILED) && eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), Optional.empty(), Optional.empty())) == false) {
-            new LogEntryBuilder()
-                    .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
-                    .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
-                    .with(PRINCIPAL_FIELD_NAME, token.principal())
-                    .withRestUriAndMethod(request)
-                    .withRestOrigin(request)
-                    .withRequestBody(request)
-                    .withRequestId(requestId)
-                    .withOpaqueId(threadContext)
-                    .withXForwardedFor(threadContext)
-                    .build();
+            final LogEntryBuilder logEntryBuilder = new LogEntryBuilder()
+                .with(EVENT_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
+                .with(EVENT_ACTION_FIELD_NAME, "authentication_failed")
+                .with(PRINCIPAL_FIELD_NAME, token.principal())
+                .withRestUriAndMethod(request)
+                .withRestOrigin(request)
+                .withRequestBody(request)
+                .withRequestId(requestId)
+                .withOpaqueId(threadContext)
+                .withXForwardedFor(threadContext);
+            if (token instanceof ServiceAccountToken) {
+                logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
+            }
+            logEntryBuilder.build();
         }
     }
 
@@ -1265,6 +1274,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
+            }
+            if (authentication.isServiceAccount()) {
+                logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD));
             }
             return this;
         }

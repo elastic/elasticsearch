@@ -22,10 +22,10 @@ step-by-step example, see <<ecommerce-transforms>>.
 == Finding your best customers
 
 This example uses the eCommerce orders sample data set to find the customers who 
-spent the most in a hypothetical webshop. Let's transform the data such that the 
-destination index contains the number of orders, the total price of the orders, 
-the amount of unique products and the average price per order, and the total 
-amount of ordered products for each customer.
+spent the most in a hypothetical webshop. Let's use the `pivot` type of 
+{transform} such that the destination index contains the number of orders, the 
+total price of the orders, the amount of unique products and the average price 
+per order, and the total amount of ordered products for each customer.
 
 [role="screenshot"]
 image::images/transform-ex1-1.jpg["Finding your best customers with {transforms} in {kib}"]

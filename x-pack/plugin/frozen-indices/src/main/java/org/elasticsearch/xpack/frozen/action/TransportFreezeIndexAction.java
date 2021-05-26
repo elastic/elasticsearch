@@ -41,6 +41,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -153,26 +154,28 @@ public final class TransportFreezeIndexAction extends
                 final Metadata.Builder builder = Metadata.builder(currentState.metadata());
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 for (Index index : concreteIndices) {
-                    IndexMetadata meta = currentState.metadata().getIndexSafe(index);
-                    if (meta.getState() != IndexMetadata.State.CLOSE) {
+                    final IndexMetadata indexMetadata = currentState.metadata().getIndexSafe(index);
+                    if (indexMetadata.getState() != IndexMetadata.State.CLOSE) {
                         throw new IllegalStateException("index [" + index.getName() + "] is not closed");
                     }
-                    final IndexMetadata.Builder imdBuilder = IndexMetadata.builder(meta);
-                    imdBuilder.settingsVersion(meta.getSettingsVersion() + 1);
-                    final Settings.Builder settingsBuilder =
-                        Settings.builder()
-                            .put(currentState.metadata().index(index).getSettings())
-                            .put(FrozenEngine.INDEX_FROZEN.getKey(), request.freeze())
-                            .put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), request.freeze());
+                    final Settings.Builder settingsBuilder = Settings.builder().put(indexMetadata.getSettings());
                     if (request.freeze()) {
+                        settingsBuilder.put(FrozenEngine.INDEX_FROZEN.getKey(), true);
+                        settingsBuilder.put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), true);
                         settingsBuilder.put("index.blocks.write", true);
                         blocks.addIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
                     } else {
-                        settingsBuilder.remove("index.blocks.write");
-                        blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
+                        settingsBuilder.remove(FrozenEngine.INDEX_FROZEN.getKey());
+                        settingsBuilder.remove(IndexSettings.INDEX_SEARCH_THROTTLED.getKey());
+                        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
+                            settingsBuilder.remove("index.blocks.write");
+                            blocks.removeIndexBlock(index.getName(), IndexMetadata.INDEX_WRITE_BLOCK);
+                        }
                     }
-                    imdBuilder.settings(settingsBuilder);
-                    builder.put(imdBuilder.build(), true);
+                    builder.put(IndexMetadata.builder(indexMetadata)
+                        .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                        .settings(settingsBuilder)
+                        .build(), true);
                 }
                 return ClusterState.builder(currentState).blocks(blocks).metadata(builder).build();
             }

@@ -343,15 +343,21 @@ that have been previously described:
                             uses the <<run-as-privilege, run as authorization functionality>>.
   `authentication.type`::   Method used to authenticate the user.
                             Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
-  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+  `apikey.id`          ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+  `apikey.name`        ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
 
 * `authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
                              If the request authentication token is invalid or
                              unparsable, this information might be missing.
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+                                 If the request authentication token is invalid or unparsable,
+                                 this information might be missing.
 
 * `realm_authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
@@ -360,7 +366,10 @@ that have been previously described:
                              in the chain.**
 
 * `run_as_denied` and `run_as_granted`:
-  `user.roles`         ::    The role names of the user as an array.
+  `user.roles`         ::    The role names as an array of the _authenticated_ user which is being
+                             granted or denied the _impersonation_ action.
+                             If authenticated as a <<service-accounts,service account>>,
+                             this is always an empty array.
   `user.name`          ::    The name of the _authenticated_ user which is being
                              granted or denied the _impersonation_ action.
   `user.realm`         ::    The realm name that the _authenticated_ user belongs to.
@@ -372,6 +381,8 @@ that have been previously described:
   `user.roles`         ::    The role names of the user as an array. If authenticated
                              using an API key, this contains the
                              role names of the API key owner.
+                             If authenticated as a <<service-accounts,service account>>,
+                             this is always an empty array.
   `user.name`          ::    The name of the _effective_ user. This is usually the
                              same as the _authenticated_ user, but if using the
                              <<run-as-privilege, run as authorization functionality>>
@@ -391,7 +402,9 @@ that have been previously described:
                              (_impersonator_) user belongs to.
   `authentication.type`::   Method used to authenticate the user.
                             Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
-  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+  `apikey.id`          ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+  `apikey.name`        ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.

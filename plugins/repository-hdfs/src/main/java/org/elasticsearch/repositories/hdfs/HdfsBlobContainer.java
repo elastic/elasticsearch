@@ -35,8 +35,8 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 final class HdfsBlobContainer extends AbstractBlobContainer {
@@ -68,9 +68,10 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void deleteBlobsIgnoringIfNotExists(final List<String> blobNames) throws IOException {
+    public void deleteBlobsIgnoringIfNotExists(final Iterator<String> blobNames) throws IOException {
         IOException ioe = null;
-        for (String blobName : blobNames) {
+        while (blobNames.hasNext()) {
+            final String blobName = blobNames.next();
             try {
                 store.execute(fileContext -> fileContext.delete(new Path(path, blobName), true));
             } catch (final FileNotFoundException ignored) {

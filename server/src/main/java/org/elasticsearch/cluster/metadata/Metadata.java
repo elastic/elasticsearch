@@ -14,6 +14,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.cluster.Diff;
@@ -270,6 +271,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 return false;
             }
             if (otherIndex.getAliases().equals(thisIndex.getAliases()) == false) {
+                return false;
+            }
+        }
+
+        if (other.dataStreamAliases().size() != dataStreamAliases().size()) {
+            return false;
+        }
+        for (DataStreamAlias otherAlias : other.dataStreamAliases().values()) {
+            DataStreamAlias thisAlias = dataStreamAliases().get(otherAlias.getName());
+            if (thisAlias == null) {
+                return false;
+            }
+            if (thisAlias.equals(otherAlias) == false) {
                 return false;
             }
         }
@@ -550,7 +564,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (writeIndex == null) {
             throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
         }
-        return resolveRouting(routing, aliasOrIndex, writeIndex.getAliases().get(result.getName()));
+        AliasMetadata writeIndexAliasMetadata = writeIndex.getAliases().get(result.getName());
+        if (writeIndexAliasMetadata != null) {
+            return resolveRouting(routing, aliasOrIndex, writeIndexAliasMetadata);
+        } else {
+            return routing;
+        }
     }
 
     /**
@@ -679,6 +698,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public Map<String, DataStream> dataStreams() {
         return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
             .map(DataStreamMetadata::dataStreams)
+            .orElse(Collections.emptyMap());
+    }
+
+    public Map<String, DataStreamAlias> dataStreamAliases() {
+        return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
+            .map(DataStreamMetadata::getDataStreamAliases)
             .orElse(Collections.emptyMap());
     }
 
@@ -1123,11 +1148,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public DataStream dataStream(String dataStreamName) {
-            return ((DataStreamMetadata) customs.get(DataStreamMetadata.TYPE)).dataStreams().get(dataStreamName);
+            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
+            if (dataStreamMetadata != null) {
+                return dataStreamMetadata.dataStreams().get(dataStreamName);
+            } else {
+                return null;
+            }
         }
 
-        public Builder dataStreams(Map<String, DataStream> dataStreams) {
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams));
+        public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
             return this;
         }
 
@@ -1138,8 +1168,44 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
                     .orElse(new HashMap<>());
             existingDataStreams.put(dataStream.getName(), dataStream);
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
+            Map<String, DataStreamAlias> existingDataStreamAliases =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
+                .orElse(new HashMap<>());
+
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));
             return this;
+        }
+
+        public boolean put(String aliasName, String dataStream) {
+            Map<String, DataStream> existingDataStream =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
+                    .orElse(new HashMap<>());
+            Map<String, DataStreamAlias> dataStreamAliases =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
+                    .orElse(new HashMap<>());
+
+            if (existingDataStream.containsKey(dataStream) == false) {
+                throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
+            }
+
+            DataStreamAlias alias = dataStreamAliases.get(aliasName);
+            if (alias == null) {
+                alias = new DataStreamAlias(aliasName, List.of(dataStream));
+            } else {
+                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
+                boolean added = dataStreams.add(dataStream);
+                if (added == false) {
+                    return false;
+                }
+                alias = new DataStreamAlias(aliasName, List.copyOf(dataStreams));
+            }
+            dataStreamAliases.put(aliasName, alias);
+
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
+            return true;
         }
 
         public Builder removeDataStream(String name) {
@@ -1148,8 +1214,63 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
                     .orElse(new HashMap<>());
             existingDataStreams.remove(name);
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams));
+
+            Map<String, DataStreamAlias> existingDataStreamAliases =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
+                    .orElse(new HashMap<>());
+
+            Set<String> aliasesToDelete = new HashSet<>();
+            List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
+            for (var alias : existingDataStreamAliases.values()) {
+                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
+                if (dataStreams.contains(name)) {
+                    dataStreams.remove(name);
+                    if (dataStreams.isEmpty()) {
+                        aliasesToDelete.add(alias.getName());
+                    } else {
+                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams)));
+                    }
+                }
+            }
+            for (DataStreamAlias alias : aliasesToUpdate) {
+                existingDataStreamAliases.put(alias.getName(), alias);
+            }
+            for (String aliasToDelete : aliasesToDelete) {
+                existingDataStreamAliases.remove(aliasToDelete);
+            }
+
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));
             return this;
+        }
+
+        public boolean removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
+            Map<String, DataStreamAlias> dataStreamAliases =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
+                    .orElse(new HashMap<>());
+
+            DataStreamAlias existing = dataStreamAliases.get(aliasName);
+            if (mustExist && existing == null) {
+                throw new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
+            } else if (existing == null) {
+                return false;
+            }
+            Set<String> dataStreams = new HashSet<>(existing.getDataStreams());
+            dataStreams.remove(dataStreamName);
+            if (dataStreams.isEmpty()) {
+                dataStreamAliases.remove(aliasName);
+            } else {
+                dataStreamAliases.put(aliasName,
+                    new DataStreamAlias(existing.getName(), List.copyOf(dataStreams)));
+            }
+
+            Map<String, DataStream> existingDataStream =
+                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
+                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
+                    .orElse(new HashMap<>());
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
+            return true;
         }
 
         public Custom getCustom(String type) {
@@ -1394,6 +1515,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }
                 }
+                for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
+                    List<IndexMetadata> allIndicesOfAllDataStreams = alias.getDataStreams().stream()
+                        .map(name -> dataStreamMetadata.dataStreams().get(name))
+                        .flatMap(ds -> ds.getIndices().stream())
+                        .map(index -> indices.get(index.getName()))
+                        .collect(Collectors.toList());
+                    IndexAbstraction existing = indicesLookup.put(alias.getName(),
+                        new IndexAbstraction.DataStreamAlias(alias, allIndicesOfAllDataStreams));
+                    assert existing == null : "duplicate data stream alias for " + alias.getName();
+                }
             }
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
@@ -1442,6 +1573,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 // Sanity check, because elsewhere a more user friendly error should have occurred:
                 List<String> conflictingAliases = indicesLookup.values().stream()
                     .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
+                    .filter(ia -> ia instanceof IndexAbstraction.Alias) // TODO: a nicer to only select index aliases?
                     .filter(ia -> {
                         for (IndexMetadata index : ia.getIndices()) {
                             if (indicesLookup.get(index.getIndex().getName()).getParentDataStream() != null) {

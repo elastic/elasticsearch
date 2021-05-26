@@ -1259,10 +1259,6 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(otherSnapshot);
     }
 
-    private static String startDataNodeWithLargeSnapshotPool() {
-        return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
-    }
-
     private static void assertSnapshotStatusCountOnRepo(String otherBlockedRepoName, int count) {
         final SnapshotsStatusResponse snapshotsStatusResponse =
             client().admin().cluster().prepareSnapshotStatus(otherBlockedRepoName).get();

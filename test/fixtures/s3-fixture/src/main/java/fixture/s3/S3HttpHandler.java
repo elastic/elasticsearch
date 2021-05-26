@@ -10,8 +10,6 @@ package fixture.s3;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
@@ -27,11 +25,9 @@ import org.elasticsearch.rest.RestUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -45,8 +41,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.CheckedInputStream;
-import java.util.zip.Checksum;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -341,14 +335,7 @@ public class S3HttpHandler implements HttpHandler {
                             "[bytes read=" + bytesReference.length() + ", expected=" + headerDecodedContentLength + "]");
                 }
             }
-
-            final MessageDigest digest = MessageDigests.md5();
-            BytesRef ref;
-            final BytesRefIterator iterator = bytesReference.iterator();
-            while ((ref = iterator.next()) != null) {
-                digest.update(ref.bytes, ref.offset, ref.length);
-            }
-            return Tuple.tuple(MessageDigests.toHexString(digest.digest()), bytesReference);
+            return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
         } catch (Exception e) {
             exchange.sendResponseHeaders(500, 0);
             try (PrintStream printStream = new PrintStream(exchange.getResponseBody())) {

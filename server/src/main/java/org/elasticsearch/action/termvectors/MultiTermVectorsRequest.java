@@ -102,7 +102,7 @@ public class MultiTermVectorsRequest extends ActionRequest
                                 throw new IllegalArgumentException("docs array element should include an object");
                             }
                             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
-                            TermVectorsRequest.parseRequest(termVectorsRequest, parser);
+                            TermVectorsRequest.parseRequest(termVectorsRequest, parser, parser.getRestApiVersion());
                             add(termVectorsRequest);
                         }
                     } else if ("ids".equals(currentFieldName)) {
@@ -117,7 +117,7 @@ public class MultiTermVectorsRequest extends ActionRequest
                     }
                 } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
                     if ("parameters".equals(currentFieldName)) {
-                        TermVectorsRequest.parseRequest(template, parser);
+                        TermVectorsRequest.parseRequest(template, parser, parser.getRestApiVersion());
                     } else {
                         throw new ElasticsearchParseException("no parameter named [{}] and type OBJECT", currentFieldName);
                     }

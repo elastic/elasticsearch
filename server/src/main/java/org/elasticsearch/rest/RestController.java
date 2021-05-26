@@ -57,8 +57,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
-    private static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-Elastic-Product";
-    private static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
+    static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-Elastic-Product";
+    static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     private static final String ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     private static final BytesReference FAVICON_RESPONSE;

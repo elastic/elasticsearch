@@ -171,7 +171,8 @@ The API returns the following result:
           "description" : "indices[test], types[test], search_type[QUERY_THEN_FETCH], source[{\"query\":...}]",
           "start_time_in_millis" : 1483478610008,
           "running_time_in_nanos" : 13991383,
-          "cancellable" : true
+          "cancellable" : true,
+          "cancelled" : false
         }
       }
     }
@@ -242,6 +243,13 @@ nodes `nodeId1` and `nodeId2`.
 --------------------------------------------------
 POST _tasks/_cancel?nodes=nodeId1,nodeId2&actions=*reindex
 --------------------------------------------------
+
+A task may continue to run for some time after it has been cancelled because it
+may not be able to safely stop its current activity straight away. The list
+tasks API will continue to list these cancelled tasks until they complete. The
+`cancelled` flag in the response to the list tasks API indicates that the
+cancellation command has been processed and the task will stop as soon as
+possible.
 
 ===== Task Grouping
 

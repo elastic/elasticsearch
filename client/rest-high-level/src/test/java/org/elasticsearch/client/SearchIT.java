@@ -12,15 +12,20 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -66,6 +71,7 @@ import org.elasticsearch.search.aggregations.metrics.WeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -1368,6 +1374,43 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertSearchHeader(searchResponse);
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("1"));
+    }
+
+    public void testPointInTime() throws Exception {
+        int numDocs = between(50, 100);
+        for (int i = 0; i < numDocs; i++) {
+            IndexRequest indexRequest = new IndexRequest("test-index").id(Integer.toString(i)).source("field", i);
+            highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
+        }
+        highLevelClient().indices().refresh(new RefreshRequest("test-index"), RequestOptions.DEFAULT);
+
+        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest("test-index").keepAlive(TimeValue.timeValueMinutes(between(1, 5)));
+        String pitID = execute(openRequest, highLevelClient()::openPointInTime, highLevelClient()::openPointInTimeAsync).getPointInTimeId();
+        try {
+            int totalHits = 0;
+            SearchResponse searchResponse = null;
+            do {
+                SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(between(5, 10)).sort("field");
+                PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(pitID);
+                if (randomBoolean()) {
+                    pointInTimeBuilder.setKeepAlive(TimeValue.timeValueMinutes(between(1, 5)));
+                }
+                searchSourceBuilder.pointInTimeBuilder(pointInTimeBuilder);
+                if (searchResponse != null) {
+                    SearchHit last = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length - 1];
+                    searchSourceBuilder.searchAfter(last.getSortValues());
+                }
+                SearchRequest searchRequest = new SearchRequest().source(searchSourceBuilder);
+                searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+                assertThat(searchResponse.pointInTimeId(), equalTo(pitID));
+                totalHits += searchResponse.getHits().getHits().length;
+            } while (searchResponse.getHits().getHits().length > 0);
+            assertThat(totalHits, equalTo(numDocs));
+        } finally {
+            ClosePointInTimeResponse closeResponse = execute(new ClosePointInTimeRequest(pitID),
+                highLevelClient()::closePointInTime, highLevelClient()::closePointInTimeAsync);
+            assertTrue(closeResponse.isSucceeded());
+        }
     }
 
     private static void assertCountHeader(CountResponse countResponse) {

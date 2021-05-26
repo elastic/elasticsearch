@@ -630,10 +630,14 @@ public class AuthorizationServiceTests extends ESTestCase {
                     "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*"),
                 "other_cluster:" + randomFrom(randomAlphaOfLength(5), "*", randomAlphaOfLength(4) + "*")
             };
-            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(
-                indices, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS, TimeValue.timeValueMinutes(randomLongBetween(1, 10)),
-                randomAlphaOfLength(5), randomAlphaOfLength(5)
-            );
+            final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indices)
+                .keepAlive(TimeValue.timeValueMinutes(randomLongBetween(1, 10)));
+            if (randomBoolean()) {
+                openPointInTimeRequest.routing(randomAlphaOfLength(5));
+            }
+            if (randomBoolean()) {
+                openPointInTimeRequest.preference(randomAlphaOfLength(5));
+            }
             if (hasLocalIndices) {
                 assertThrowsAuthorizationException(
                     () -> authorize(authentication, OpenPointInTimeAction.NAME, openPointInTimeRequest),
@@ -697,7 +701,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final User serviceUser = new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
         final Authentication authentication = new Authentication(serviceUser,
-            new RealmRef("service_account", "service_account", randomAlphaOfLengthBetween(3, 8)),
+            new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
@@ -1826,7 +1830,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
             @Override
             public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                              Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
+                                              Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
 

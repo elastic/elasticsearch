@@ -112,16 +112,12 @@ public final class QueryParserHelper {
      */
     static Map<String, Float> resolveMappingField(SearchExecutionContext context, String fieldOrPattern, float weight,
                                                   boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
-        Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
+        Set<String> allFields = context.getMatchingFieldNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
 
         for (String fieldName : allFields) {
-            if (fieldSuffix != null && context.getFieldType(fieldName + fieldSuffix) != null) {
+            if (fieldSuffix != null && context.isFieldMapped(fieldName + fieldSuffix)) {
                 fieldName = fieldName + fieldSuffix;
-            }
-
-            if (context.isFieldMapped(fieldName) == false) {
-                continue;
             }
 
             MappedFieldType fieldType = context.getFieldType(fieldName);

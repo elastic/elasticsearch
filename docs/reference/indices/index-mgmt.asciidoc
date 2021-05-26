@@ -43,7 +43,7 @@ Open {kib}'s main menu and click *Stack Management > Index Management*.
 image::images/index-mgmt/management_index_labels.png[Index Management UI]
 
 The *Index Management* page contains an overview of your indices.
-Badges indicate if an index is <<frozen-indices,frozen>>, a
+Badges indicate if an index is <<freeze-index-api,frozen>>, a
 <<ccr-put-follow,follower index>>, or a
 <<rollup-get-rollup-index-caps,rollup index>>.
 

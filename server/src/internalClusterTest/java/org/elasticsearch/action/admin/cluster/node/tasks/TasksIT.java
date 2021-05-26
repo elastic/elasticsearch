@@ -819,8 +819,19 @@ public class TasksIT extends ESIntegTestCase {
         CyclicBarrier b = new CyclicBarrier(2);
         TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
         resultsService.storeResult(new TaskResult(
-                new TaskInfo(new TaskId("fake", 1), "test", "test", "", null, 0, 0, false, TaskId.EMPTY_TASK_ID, Collections.emptyMap()),
-                new RuntimeException("test")),
+                    new TaskInfo(
+                            new TaskId("fake", 1),
+                            "test",
+                            "test",
+                            "",
+                            null,
+                            0,
+                            0,
+                            false,
+                            false,
+                            TaskId.EMPTY_TASK_ID,
+                            Collections.emptyMap()),
+                     new RuntimeException("test")),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void response) {

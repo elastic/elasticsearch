@@ -31,6 +31,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
 
     private String field;
     private String string;
+    private String searchAfter;
     private int size = DEFAULT_SIZE;
     private boolean caseInsensitive;
     long taskStartTimeMillis;
@@ -44,6 +45,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         super(in);
         field = in.readString();
         string = in.readString();
+        searchAfter = in.readOptionalString();
         caseInsensitive = in.readBoolean();
         size = in.readVInt();
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -103,6 +105,20 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     public String string() {
         return string;
     }
+    
+    /**
+     * The string after which to find matching field values (enables pagination of previous request)
+     */
+    public String searchAfter() {
+        return searchAfter;
+    }
+
+    /**
+     * The string after which to find matching field values (enables pagination of previous request)
+     */
+    public void searchAfter(String searchAfter) {
+        this.searchAfter = searchAfter;
+    }
 
     /**
      *  The number of terms to return
@@ -148,6 +164,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         super.writeTo(out);
         out.writeString(field);
         out.writeString(string);
+        out.writeOptionalString(searchAfter);
         out.writeBoolean(caseInsensitive);
         out.writeVInt(size);
         out.writeOptionalNamedWriteable(indexFilter);
@@ -157,14 +174,20 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     public String toString() {
         return "[" + Arrays.toString(indices) + "] field[" + field + "], string[" + string + "] "  + " size=" + size + " timeout="
             + timeout().getMillis() + " case_insensitive="
-            + caseInsensitive + " indexFilter = "+ indexFilter;
+            + caseInsensitive + " indexFilter = "+ indexFilter +
+            " searchAfter[" + searchAfter + "]" ;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("field", field);
-        builder.field("string", string);
+        if (string != null) {
+            builder.field("string", string);
+        }
+        if (searchAfter != null) {
+            builder.field("search_after", searchAfter);            
+        }
         builder.field("size", size);
         builder.field("timeout", timeout().getMillis());
         builder.field("case_insensitive", caseInsensitive);

@@ -95,7 +95,7 @@ This may disrupt any in-flight searches that use fielddata.
 
 [source,console]
 ----
-POST _all/_cache/clear?fielddata=true
+POST _cache/clear?fielddata=true
 ----
 // TEST[s/^/PUT my-index\n/]
 
@@ -162,7 +162,7 @@ setting.
 
 [source,console]
 ----
-PUT _all/_settings
+PUT _settings
 {
   "index.max_result_window": 5000
 }
@@ -331,7 +331,7 @@ primary.
 
 [source,console]
 ----
-PUT _all/_settings
+PUT _settings
 {
   "index.number_of_replicas": 1
 }

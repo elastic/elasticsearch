@@ -85,11 +85,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public TransportShardBulkAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                     IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
                                     MappingUpdatedAction mappingUpdatedAction, UpdateHelper updateHelper, ActionFilters actionFilters,
-                                    IndexingPressure indexingPressure, SystemIndices systemIndices,
-                                    ExecutorSelector executorSelector) {
+                                    IndexingPressure indexingPressure, SystemIndices systemIndices) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
             BulkShardRequest::new, BulkShardRequest::new, ExecutorSelector::getWriteExecutorForShard, false,
-            indexingPressure, systemIndices, executorSelector);
+            indexingPressure, systemIndices);
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
     }

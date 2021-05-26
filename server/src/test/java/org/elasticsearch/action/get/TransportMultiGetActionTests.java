@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -138,7 +137,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
         when(clusterService.operationRouting()).thenReturn(operationRouting);
 
         shardAction = new TransportShardMultiGetAction(clusterService, transportService, mock(IndicesService.class), threadPool,
-            new ActionFilters(emptySet()), new Resolver(), new ExecutorSelector(EmptySystemIndices.INSTANCE)) {
+            new ActionFilters(emptySet()), new Resolver(), EmptySystemIndices.INSTANCE.getExecutorSelector()) {
             @Override
             protected void doExecute(Task task, MultiGetShardRequest request, ActionListener<MultiGetShardResponse> listener) {
             }

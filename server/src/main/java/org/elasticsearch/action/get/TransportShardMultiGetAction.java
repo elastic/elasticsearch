@@ -42,8 +42,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     @Inject
     public TransportShardMultiGetAction(ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver,
-                                        ExecutorSelector executorSelector) {
+                                        IndexNameExpressionResolver indexNameExpressionResolver, ExecutorSelector executorSelector) {
         super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiGetShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;

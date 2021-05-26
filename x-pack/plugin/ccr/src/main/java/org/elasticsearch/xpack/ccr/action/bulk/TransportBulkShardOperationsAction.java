@@ -67,8 +67,7 @@ public class TransportBulkShardOperationsAction
             ExecutorSelector::getWriteExecutorForShard,
             false,
             indexingPressure,
-            systemIndices,
-            executorSelector
+            systemIndices
         );
     }
 

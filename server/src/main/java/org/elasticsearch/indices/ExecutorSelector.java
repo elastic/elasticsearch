@@ -23,7 +23,13 @@ public class ExecutorSelector {
 
     private final SystemIndices systemIndices;
 
-    public ExecutorSelector(SystemIndices systemIndices) {
+    /**
+     * Package-private constructor; in general it's best to get an ExecutorSelector
+     * from {@link SystemIndices#getExecutorSelector()}.
+     * @param systemIndices A system indices object that this ExecutorSelector will
+     *                      use to match system index names to system index descriptors.
+     */
+    ExecutorSelector(SystemIndices systemIndices) {
         this.systemIndices = systemIndices;
     }
 

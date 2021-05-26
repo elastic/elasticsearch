@@ -625,6 +625,10 @@ public class SystemIndices {
             plugin::cleanUpFeature);
     }
 
+    public ExecutorSelector getExecutorSelector() {
+        return new ExecutorSelector(this);
+    }
+
     /**
      * A class that gathers the names of thread pools that should be used for a
      * particular system index or system data stream. This object is used both by

@@ -427,7 +427,7 @@ public class Node implements Closeable {
                     plugin -> SystemIndices.pluginToFeature(plugin, settings)
                 ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
-            final ExecutorSelector executorSelector = new ExecutorSelector(systemIndices);
+            final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
 
             ModulesBuilder modules = new ModulesBuilder();
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);

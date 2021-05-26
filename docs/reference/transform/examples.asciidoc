@@ -31,7 +31,7 @@ amount of ordered products for each customer.
 image::images/transform-ex1-1.jpg["Finding your best customers with {transforms} in {kib}"]
 
 Alternatively, you can use the <<preview-transform, preview {transform}>> and 
-the <<put-transform, create {transform API}>>.
+the <<put-transform, create {transform} API>>.
 
 .API example
 [%collapsible]

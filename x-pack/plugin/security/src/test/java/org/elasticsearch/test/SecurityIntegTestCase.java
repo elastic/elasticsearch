@@ -95,6 +95,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         BOOTSTRAP_PASSWORD = TEST_PASSWORD_SECURE_STRING.clone();
     }
 
+    public String getSecPluginName() { return LocalStateSecurity.class.getName(); }
+
     //UnicastZen requires the number of nodes in a cluster to generate the unicast configuration.
     //The number of nodes is randomized though, but we can predict what the maximum number of nodes will be
     //and configure them all in unicast.hosts
@@ -230,8 +232,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
             Collection<String> pluginNames =
                 nodeInfo.getInfo(PluginsAndModules.class).getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
-            assertThat("plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]", pluginNames,
-                hasItem(LocalStateSecurity.class.getName()));
+            assertThat("plugin [" + getSecPluginName() + "] not found in [" + pluginNames + "]", pluginNames,
+                hasItem(getSecPluginName()));
         }
     }
 

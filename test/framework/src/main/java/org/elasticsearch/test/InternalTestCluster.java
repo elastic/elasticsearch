@@ -462,9 +462,10 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Class<? extends Plugin>> getPlugins() {
-        Set<Class<? extends Plugin>> plugins = new HashSet<>(nodeConfigurationSource.nodePlugins());
+        Collection<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.addAll(nodeConfigurationSource.nodePlugins());
         plugins.addAll(mockPlugins);
-        return plugins;
+        return Collections.unmodifiableCollection(plugins);
     }
 
     private static Settings getRandomNodeSettings(long seed) {

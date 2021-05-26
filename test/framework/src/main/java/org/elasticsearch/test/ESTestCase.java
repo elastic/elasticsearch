@@ -148,9 +148,11 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -424,6 +426,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         } finally {
             resetDeprecationLogger();
         }
+    }
+
+    protected void ensureNoDeprecationOnSecurityPlugin() {
+        final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
+        assertThat("A Deprecation Warning found, but it shouldn't be.", warnings, not(hasItem(containsString("plugin " +
+            "installs a custom REST wrapper. This functionality is deprecated and will not be possible in Elasticsearch 8.0. If this " +
+            "plugin is intended to provide security features for Elasticsearch then you should switch to using the built-in " +
+            "Elasticsearch features instead."))));
     }
 
     protected List<String> filteredWarnings() {

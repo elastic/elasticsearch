@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 final class EnrichProcessorFactory implements Processor.Factory, Consumer<ClusterState> {
 
@@ -44,11 +43,8 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        Supplier<EnrichPolicy> supplier = () -> {
-            EnrichMetadata enrichMetadata = metadata.custom(EnrichMetadata.TYPE);
-            return enrichMetadata.getPolicies().get(policyName);
-        };
-        EnrichPolicy enrichPolicy = supplier.get();
+        EnrichMetadata enrichMetadata = metadata.custom(EnrichMetadata.TYPE);
+        EnrichPolicy enrichPolicy = enrichMetadata != null ? enrichMetadata.getPolicies().get(policyName) : null;
         if (enrichPolicy == null) {
             throw new IllegalArgumentException("enrich policy [" + policyName + "] does not exist");
         }
@@ -88,7 +84,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                     description,
                     client,
                     policyName,
-                    supplier,
+                    enrichPolicy,
                     field,
                     targetField,
                     overrideEnabled,
@@ -106,7 +102,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
                     description,
                     client,
                     policyName,
-                    supplier,
+                    enrichPolicy,
                     field,
                     targetField,
                     overrideEnabled,

@@ -99,7 +99,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
             null,
             mockSearch,
             "_name",
-            () -> createPolicy(EnrichPolicy.GEO_MATCH_TYPE),
+            createPolicy(EnrichPolicy.GEO_MATCH_TYPE),
             str("location"),
             str("entry"),
             false,

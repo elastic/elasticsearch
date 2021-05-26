@@ -30,14 +30,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
     private final String policyName;
-    private final Supplier<EnrichPolicy> supplier;
+    // Enrich policies can't be updated after creation, so it is ok to keep a reference of a policy around here.
+    private final EnrichPolicy enrichPolicy;
     private final BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner;
     private final TemplateScript.Factory field;
     private final TemplateScript.Factory targetField;
@@ -51,7 +51,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String description,
         Client client,
         String policyName,
-        Supplier<EnrichPolicy> supplier,
+        EnrichPolicy enrichPolicy,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
         boolean ignoreMissing,
@@ -64,7 +64,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
             description,
             createSearchRunner(client),
             policyName,
-            supplier,
+            enrichPolicy,
             field,
             targetField,
             ignoreMissing,
@@ -79,7 +79,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
         String description,
         BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
         String policyName,
-        Supplier<EnrichPolicy> supplier,
+        EnrichPolicy enrichPolicy,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
         boolean ignoreMissing,
@@ -89,7 +89,7 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     ) {
         super(tag, description);
         this.policyName = policyName;
-        this.supplier = supplier;
+        this.enrichPolicy = enrichPolicy;
         this.searchRunner = searchRunner;
         this.field = field;
         this.targetField = targetField;
@@ -114,7 +114,6 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
 
             SearchRequest req;
             QueryBuilder queryBuilder = getQueryBuilder(value);
-            EnrichPolicy enrichPolicy = supplier.get();
             if (enrichPolicy.isInstant()) {
                 SearchSourceBuilder searchBuilder = new SearchSourceBuilder();
                 BoolQueryBuilder boolQuery = new BoolQueryBuilder();

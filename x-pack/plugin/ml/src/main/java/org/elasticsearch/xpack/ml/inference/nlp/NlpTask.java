@@ -40,16 +40,8 @@ public class NlpTask {
         InferenceResults processResult(PyTorchResult pyTorchResult);
     }
 
-
-    public abstract static class Processor {
-
-        protected static final String REQUEST_ID = "request_id";
-        protected static final String TOKENS = "tokens";
-        protected static final String ARG1 = "arg_1";
-        protected static final String ARG2 = "arg_2";
-        protected static final String ARG3 = "arg_3";
-
-        public abstract RequestBuilder getRequestBuilder();
-        public abstract ResultProcessor getResultProcessor();
+    public interface Processor {
+        RequestBuilder getRequestBuilder();
+        ResultProcessor getResultProcessor();
     }
 }

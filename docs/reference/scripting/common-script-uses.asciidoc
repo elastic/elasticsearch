@@ -15,7 +15,7 @@ There are two options at your disposal:
 * <<grok-basics,Grok>> is a regular expression dialect that supports aliased
 expressions that you can reuse. Because Grok sits on top of regular expressions
 (regex), any regular expressions are valid in grok as well.
-* <<dissect-processor,Dissect>> extracts structured fields out of text, using
+* <<dissect,Dissect>> extracts structured fields out of text, using
 delimiters to define the matching pattern. Unlike grok, dissect doesn't use regular
 expressions.
 

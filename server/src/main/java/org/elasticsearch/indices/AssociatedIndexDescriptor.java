@@ -27,7 +27,7 @@ import java.util.Objects;
  * in the snapshot, and, likewise, we want an associated index to be restored
  * when a feature snapshot is restored.
  */
-public class AssociatedIndexDescriptor implements IndexDescriptor {
+public class AssociatedIndexDescriptor implements IndexPatternMatcher {
     /** A pattern, either with a wildcard or simple regex.*/
     private final String indexPattern;
 
@@ -82,7 +82,6 @@ public class AssociatedIndexDescriptor implements IndexDescriptor {
     /**
      * @return A short description of the purpose of this system index.
      */
-    @Override
     public String getDescription() {
         return description;
     }

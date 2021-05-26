@@ -582,8 +582,8 @@ public class SystemIndices {
          * @param listener A listener to return success or failure of cleanup
          */
         public static void cleanUpFeature(
-            Collection<? extends IndexDescriptor> indexDescriptors,
-            Collection<? extends IndexDescriptor> associatedIndexDescriptors,
+            Collection<? extends IndexPatternMatcher> indexDescriptors,
+            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
             String name,
             ClusterService clusterService,
             Client client,

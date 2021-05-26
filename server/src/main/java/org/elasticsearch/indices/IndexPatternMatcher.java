@@ -13,20 +13,16 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import java.util.List;
 
 /**
- * An IndexDescriptor is an object that
+ * An IndexPatternMatcher holds an index pattern in a string and, given a
+ * {@link Metadata} object, can return a list of index names matching that pattern.
  */
-public interface IndexDescriptor {
+public interface IndexPatternMatcher {
     /**
      * @return A pattern, either with a wildcard or simple regex, describing indices that are
      * related to a system feature. Such indices may be system indices or associated
      * indices.
      */
     String getIndexPattern();
-
-    /**
-     * @return A text description of the purpose of the indices covered by this descriptor.
-     */
-    String getDescription();
 
     /**
      * Retrieves a list of all indices which match this descriptor's pattern. Implementations

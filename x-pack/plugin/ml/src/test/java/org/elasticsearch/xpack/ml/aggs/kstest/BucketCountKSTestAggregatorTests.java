@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.aggs.MlBucketsHelper;
+import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -27,26 +27,26 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class BucketCountKSTestAggregatorTests extends ESTestCase {
 
     private static final double[] UNIFORM_FRACTIONS = new double[] { 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1 };
-    private static final MlBucketsHelper.DoubleBucketValues LOWER_TAILED_VALUES = new MlBucketsHelper.DoubleBucketValues(
+    private static final MlAggsHelper.DoubleBucketValues LOWER_TAILED_VALUES = new MlAggsHelper.DoubleBucketValues(
         new long[] { 40, 60, 20, 30, 30, 10, 10, 10, 10, 10 },
         new double[] { 40, 60, 20, 30, 30, 10, 10, 10, 10, 10 }
     );
-    private static final MlBucketsHelper.DoubleBucketValues LOWER_TAILED_VALUES_SPARSE = new MlBucketsHelper.DoubleBucketValues(
+    private static final MlAggsHelper.DoubleBucketValues LOWER_TAILED_VALUES_SPARSE = new MlAggsHelper.DoubleBucketValues(
         new long[] { 4, 6, 2, 3, 3, 2, 1, 1, 1, 1 },
         new double[] { 4, 6, 2, 3, 3, 2, 1, 1, 1, 1 }
     );
 
-    final MlBucketsHelper.DoubleBucketValues UPPER_TAILED_VALUES = new MlBucketsHelper.DoubleBucketValues(
+    private static final MlAggsHelper.DoubleBucketValues UPPER_TAILED_VALUES = new MlAggsHelper.DoubleBucketValues(
         new long[] { 10, 10, 10, 40, 40, 40, 40, 40, 40, 40 },
         new double[] { 10, 10, 10, 40, 40, 40, 40, 40, 40, 40 }
     );
-    final MlBucketsHelper.DoubleBucketValues UPPER_TAILED_VALUES_SPARSE = new MlBucketsHelper.DoubleBucketValues(
+    private static final MlAggsHelper.DoubleBucketValues UPPER_TAILED_VALUES_SPARSE = new MlAggsHelper.DoubleBucketValues(
         new long[] { 1, 2, 2, 6, 7, 7, 7, 6, 6, 7 },
         new double[] { 1, 2, 2, 6, 7, 7, 7, 6, 6, 7 }
     );
 
     private static Map<String, Double> runKsTestAndValidate(
-        MlBucketsHelper.DoubleBucketValues bucketValues,
+        MlAggsHelper.DoubleBucketValues bucketValues,
         SamplingMethod samplingMethod
     ) {
         Map<String, Double> ksTestValues = BucketCountKSTestAggregator.ksTest(
@@ -80,7 +80,7 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
         );
         Map<String, Double> ksValues = BucketCountKSTestAggregator.ksTest(
             fracs,
-            new MlBucketsHelper.DoubleBucketValues(counts, vals),
+            new MlAggsHelper.DoubleBucketValues(counts, vals),
             EnumSet.of(Alternative.GREATER, Alternative.LESS, Alternative.TWO_SIDED),
             samplingMethod
         );
@@ -89,7 +89,7 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
             allOf(hasKey(Alternative.GREATER.toString()), hasKey(Alternative.LESS.toString()), hasKey(Alternative.TWO_SIDED.toString()))
         );
         // Since these two distributions are the "same" (both uniform)
-        // Assume that the p-value is greater than 0.9
+        // assume that the p-value is greater than 0.9
         assertThat(ksValues.get("less"), greaterThan(0.9));
         assertThat(ksValues.get("greater"), greaterThan(0.9));
         assertThat(ksValues.get("two_sided"), greaterThan(0.9));
@@ -178,7 +178,7 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
 
         Map<String, Double> nanVals = BucketCountKSTestAggregator.ksTest(
             UNIFORM_FRACTIONS,
-            new MlBucketsHelper.DoubleBucketValues(counts, values),
+            new MlAggsHelper.DoubleBucketValues(counts, values),
             EnumSet.of(Alternative.GREATER, Alternative.LESS, Alternative.TWO_SIDED),
             randomFrom(new SamplingMethod.UpperTail(), new SamplingMethod.LowerTail(), new SamplingMethod.Uniform())
         );
@@ -196,7 +196,7 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
 
         nanVals = BucketCountKSTestAggregator.ksTest(
             percentiles,
-            new MlBucketsHelper.DoubleBucketValues(counts, values),
+            new MlAggsHelper.DoubleBucketValues(counts, values),
             EnumSet.of(Alternative.GREATER, Alternative.LESS, Alternative.TWO_SIDED),
             randomFrom(new SamplingMethod.UpperTail(), new SamplingMethod.LowerTail(), new SamplingMethod.Uniform())
         );

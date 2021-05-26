@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.xpack.ml.aggs.DoubleArray;
-import org.elasticsearch.xpack.ml.aggs.MlBucketsHelper;
+import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ml.aggs.MlBucketsHelper.extractDoubleBucketedValues;
+import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.extractDoubleBucketedValues;
 
 public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
 
@@ -59,7 +59,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
 
     static Map<String, Double> ksTest(
         double[] fractions,
-        MlBucketsHelper.DoubleBucketValues bucketsValue,
+        MlAggsHelper.DoubleBucketValues bucketsValue,
         EnumSet<Alternative> alternatives,
         SamplingMethod samplingMethod
     ) {
@@ -223,7 +223,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
 
     @Override
     public InternalAggregation doReduce(Aggregations aggregations, InternalAggregation.ReduceContext context) {
-        Optional<MlBucketsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(bucketsPaths()[0], aggregations).map(
+        Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(bucketsPaths()[0], aggregations).map(
             bucketValue -> {
                 double[] values = new double[bucketValue.getValues().length + 1];
                 long[] counts = new long[bucketValue.getDocCounts().length + 1];
@@ -231,7 +231,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
                 counts[0] = 0;
                 System.arraycopy(bucketValue.getValues(), 0, values, 1, values.length - 1);
                 System.arraycopy(bucketValue.getDocCounts(), 0, counts, 1, counts.length - 1);
-                return new MlBucketsHelper.DoubleBucketValues(counts, values);
+                return new MlAggsHelper.DoubleBucketValues(counts, values);
             }
         );
         if (maybeBucketsValue.isPresent() == false) {
@@ -239,7 +239,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
                 "unable to find valid bucket values in bucket path [" + bucketsPaths()[0] + "] for agg [" + name() + "]"
             );
         }
-        final MlBucketsHelper.DoubleBucketValues bucketsValue = maybeBucketsValue.get();
+        final MlAggsHelper.DoubleBucketValues bucketsValue = maybeBucketsValue.get();
         double[] fractions = this.fractions == null
             ? DoubleStream.concat(
                 DoubleStream.of(0.0),

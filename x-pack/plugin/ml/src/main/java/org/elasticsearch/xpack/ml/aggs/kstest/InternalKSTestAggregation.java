@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.ml.aggs.kstest;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
-import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.invalidPathException;
 
 public class InternalKSTestAggregation extends InternalAggregation {
 
@@ -53,13 +53,7 @@ public class InternalKSTestAggregation extends InternalAggregation {
         } else if (path.size() == 1) {
             return modeValues.get(path.get(0));
         }
-        throw invalidPathException(path);
-    }
-
-    private InvalidAggregationPathException invalidPathException(List<String> path) {
-        return new InvalidAggregationPathException(
-            "unknown property " + path + " for " + InferencePipelineAggregationBuilder.NAME + " aggregation [" + getName() + "]"
-        );
+        throw invalidPathException(path, BucketCountKSTestAggregationBuilder.NAME.getPreferredName(), getName());
     }
 
     @Override

@@ -13,7 +13,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.xpack.ml.aggs.MlBucketsHelper;
+import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 
 import java.util.Map;
 import java.util.stream.LongStream;
@@ -32,7 +32,7 @@ public class BucketCorrelationAggregator extends SiblingPipelineAggregator {
 
     @Override
     public InternalAggregation doReduce(Aggregations aggregations, InternalAggregation.ReduceContext context) {
-        CountCorrelationIndicator bucketPathValue = MlBucketsHelper.extractDoubleBucketedValues(bucketsPaths()[0], aggregations)
+        CountCorrelationIndicator bucketPathValue = MlAggsHelper.extractDoubleBucketedValues(bucketsPaths()[0], aggregations)
             .map(doubleBucketValues ->
                 new CountCorrelationIndicator(
                     doubleBucketValues.getValues(),

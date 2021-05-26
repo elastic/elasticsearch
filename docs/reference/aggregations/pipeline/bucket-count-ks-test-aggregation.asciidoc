@@ -9,7 +9,7 @@
 experimental::[]
 
 A sibling pipeline aggregation which executes a two sample Kolmogorov–Smirnov test
-(referred to as a "K-S test" from now own) against a provided distribution and
+(referred to as a "K-S test" from now on) against a provided distribution and
 the distribution of documents counts in the configured sibling aggregation.
 
 This test is useful to determine if two samples (represented by `fractions` and `buckets_path`) are
@@ -24,10 +24,11 @@ Path to the buckets that contain one set of values to correlate. Must be a `_cou
 For syntax, see <<buckets-path-syntax>>.
 
 `alternative`::
-(Required, list)
+(Optional, list)
 A list of string values indicating which K-S test alternative to calculate.
 The valid values are: "greater", "less", "two_sided". This parameter is key for
-determining the K-S statistic used when calculating the K-S test.
+determining the K-S statistic used when calculating the K-S test. Default value is
+all possible alternative hypothesis.
 
 `fractions`::
 (Optional, list)
@@ -58,8 +59,8 @@ A `bucket_count_ks_test` aggregation looks like this in isolation:
 --------------------------------------------------
 // NOTCONSOLE
 <1> The buckets containing the values to test against.
-<2> The alternatives to calculate
-<3> The sampling method for the K-S statistic
+<2> The alternatives to calculate.
+<3> The sampling method for the K-S statistic.
 
 
 [[bucket-count-ks-test-agg-example]]
@@ -87,7 +88,7 @@ POST correlate_latency/_search?size=0&filter_path=aggregations
           "range": { <2>
             "field": "latency",
             "ranges": [
-              { "to": 0.0 },
+              { "to": 0 },
               { "from": 0, "to": 105 },
               { "from": 105, "to": 225 },
               { "from": 225, "to": 445 },
@@ -117,8 +118,8 @@ POST correlate_latency/_search?size=0&filter_path=aggregations
 <1> The term buckets containing a range aggregation and the bucket correlation aggregation. Both are utilized to calculate
     the correlation of the term values with the latency.
 <2> The range aggregation on the latency field. The ranges were created referencing the percentiles of the latency field.
-<3> The bucket count K-S test aggregation that determines if the count samples are from the same distribution as the uniform
-    distribution.
+<3> The bucket count K-S test aggregation that tests if the bucket counts comes from the same distribution as `fractions`;
+    where `fractions` is a uniform distribution.
 
 And the following may be the response:
 

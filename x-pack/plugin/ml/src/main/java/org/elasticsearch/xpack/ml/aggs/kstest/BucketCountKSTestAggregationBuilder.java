@@ -91,16 +91,16 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
         if (alternative == null) {
             this.alternative = EnumSet.allOf(Alternative.class);
         } else {
-            List<Alternative> alternativeEnums = alternative.stream().map(Alternative::fromString).collect(Collectors.toList());
-            if (alternativeEnums.isEmpty()) {
+            if (alternative.isEmpty()) {
                 throw new IllegalArgumentException("[alternative] must not be empty for aggregation [" + name + "]");
             }
+            List<Alternative> alternativeEnums = alternative.stream().map(Alternative::fromString).collect(Collectors.toList());
             this.alternative = EnumSet.copyOf(alternativeEnums);
         }
         this.samplingMethod = samplingMethod == null ? new SamplingMethod.UpperTail() : samplingMethod;
         if (gapPolicy != null && gapPolicy.equals(BucketHelpers.GapPolicy.INSERT_ZEROS) == false) {
             throw new IllegalArgumentException(
-                "only [gap_policy] of [" + BucketHelpers.GapPolicy.INSERT_ZEROS.getName() + "] is supported"
+                "only [" + GAP_POLICY.getPreferredName() + "] of [" + BucketHelpers.GapPolicy.INSERT_ZEROS.getName() + "] is supported"
             );
         }
     }
@@ -173,7 +173,7 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
             context.addValidationError("[alternative] must not be empty for aggregation [" + name + "]");
         }
         if (bucketsPaths[0].endsWith("_count") == false) {
-            context.addBucketPathValidationError("[bucket_count_ks_test] requires that bucket_path points to bucket [_count]");
+            context.addBucketPathValidationError("[bucket_count_ks_test] requires that buckets_path points to bucket [_count]");
         }
     }
 

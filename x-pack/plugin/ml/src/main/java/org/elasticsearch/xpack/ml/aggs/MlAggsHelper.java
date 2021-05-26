@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.ml.aggs;
 
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -17,9 +19,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-public final class MlBucketsHelper {
+public final class MlAggsHelper {
 
-    private MlBucketsHelper() { }
+    private MlAggsHelper() { }
+
+    public static InvalidAggregationPathException invalidPathException(List<String> path, String aggType, String aggName) {
+        return new InvalidAggregationPathException(
+            "unknown property " + path + " for " + aggType + " aggregation [" + aggName + "]"
+        );
+    }
 
     /**
      * This extracts the bucket values as doubles from the passed aggregations.
@@ -45,10 +53,17 @@ public final class MlBucketsHelper {
                         sublistedPath,
                         BucketHelpers.GapPolicy.INSERT_ZEROS
                     );
-                    if (bucketValue != null && Double.isNaN(bucketValue) == false) {
-                        values.add(bucketValue);
-                        docCounts.add(bucket.getDocCount());
+                    if (bucketValue == null || Double.isNaN(bucketValue)) {
+                        throw new AggregationExecutionException(
+                            "missing or invalid bucket value found for path ["
+                                + bucketPath
+                                + "] in bucket ["
+                                + bucket.getKeyAsString()
+                                + "]"
+                        );
                     }
+                    values.add(bucketValue);
+                    docCounts.add(bucket.getDocCount());
                 }
                 return Optional.of(new DoubleBucketValues(
                     docCounts.stream().mapToLong(Long::longValue).toArray(),
@@ -60,15 +75,15 @@ public final class MlBucketsHelper {
     }
 
     /**
-     * utility class for holding an unboxed double value and the document count for a bucket
+     * Utility class for holding an unboxed double value and the document count for a bucket
      */
     public static class DoubleBucketValues {
         private final long[] docCounts;
         private final double[] values;
 
-        public DoubleBucketValues(long[] docCount, double[] value) {
-            this.docCounts = docCount;
-            this.values = value;
+        public DoubleBucketValues(long[] docCounts, double[] values) {
+            this.docCounts = docCounts;
+            this.values = values;
         }
 
         public long[] getDocCounts() {

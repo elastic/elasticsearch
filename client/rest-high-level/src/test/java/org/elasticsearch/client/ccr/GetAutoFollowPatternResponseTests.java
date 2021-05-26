@@ -39,7 +39,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractResponseTestCase<
         for (int i = 0; i < numPatterns; i++) {
             String remoteCluster = randomAlphaOfLength(4);
             List<String> leaderIndexPatterns = Collections.singletonList(randomAlphaOfLength(4));
-            List<String> leaderIndexExclusionsPatterns = Collections.singletonList(randomAlphaOfLength(4));
+            List<String> leaderIndexExclusionsPatterns = randomList(0, randomIntBetween(1, 10), () -> randomAlphaOfLength(4));
             String followIndexNamePattern = randomAlphaOfLength(4);
             final Settings settings =
                 Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build();

@@ -204,7 +204,6 @@
         body:
           remote_cluster: local
           leader_index_patterns: ['logs-*']
-          leader_index_exclusion_patterns: ['logs-excluded']
           max_outstanding_read_requests: 2
   - is_true: acknowledged
 
@@ -233,7 +232,6 @@
   - match: { patterns.0.name: 'pattern_test' }
   - match: { patterns.0.pattern.remote_cluster: 'local' }
   - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
-  - match: { patterns.0.pattern.leader_index_exclusion_patterns: ['logs-excluded'] }
   - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
   - match: { patterns.0.pattern.active: false }
 
@@ -253,7 +251,6 @@
   - match: { patterns.0.name: 'pattern_test' }
   - match: { patterns.0.pattern.remote_cluster: 'local' }
   - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
-  - match: { patterns.0.pattern.leader_index_exclusion_patterns: ['logs-excluded'] }
   - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
   - match: { patterns.0.pattern.active: true }
 

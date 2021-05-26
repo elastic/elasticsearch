@@ -522,23 +522,21 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"}, Collections.singletonList("logs-2018*"));
 
+        createLeaderIndex("logs-201801", leaderIndexSettings);
+        AutoFollowStats autoFollowStats = getAutoFollowStats();
+        assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
+        assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
+        assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
+
         createLeaderIndex("logs-201701", leaderIndexSettings);
         assertLongBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
-            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
-            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+            AutoFollowStats autoFollowStatsResponse = getAutoFollowStats();
+            assertThat(autoFollowStatsResponse.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStatsResponse.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(0L));
+            assertThat(autoFollowStatsResponse.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
         });
         assertTrue(ESIntegTestCase.indexExists("copy-logs-201701", followerClient()));
-
-        createLeaderIndex("logs-201801", leaderIndexSettings);
-        assertLongBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
-            assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(0L));
-            assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
-        });
-
         assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
     }
 

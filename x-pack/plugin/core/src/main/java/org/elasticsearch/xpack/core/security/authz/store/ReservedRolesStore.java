@@ -63,9 +63,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("monitoring_user", new RoleDescriptor("monitoring_user",
                         new String[] { "cluster:monitor/main", "cluster:monitor/xpack/info", RemoteInfoAction.NAME },
                         new RoleDescriptor.IndicesPrivileges[] {
-                            RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(".monitoring-*").privileges("read", "read_cross_cluster").build()
-                        },
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices("metricbeat-*").privileges("read", "read_cross_cluster").build() },
                         new RoleDescriptor.ApplicationResourcePrivileges[] {
                             RoleDescriptor.ApplicationResourcePrivileges.builder()
                                 .application("kibana-*").resources("*").privileges("reserved_monitoring").build()

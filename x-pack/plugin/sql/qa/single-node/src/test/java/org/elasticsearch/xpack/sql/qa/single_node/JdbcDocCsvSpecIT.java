@@ -30,9 +30,9 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.specParser;
  * gets reflected in the dataset structure.
  * The doc tests while redundant, try to be expressive first and foremost and sometimes
  * the dataset isn't exactly convenient.
- * 
+ *
  * Also looking around for the tests across the test files isn't trivial.
- * 
+ *
  * That's not to say the two cannot be merged however that felt like too much of an effort
  * at this stage and, to not keep things stalling, started with this approach.
  */
@@ -69,7 +69,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
         // uncomment this to printout the result set and create new CSV tests
         //
         //JdbcTestUtils.logLikeCLI(elastic, log);
-        JdbcAssert.assertResultSets(expected, elastic, log, true, false);
+        JdbcAssert.assertResultSets(expected, elastic, log, true, true);
     }
 
     @Override

@@ -31,7 +31,8 @@ public class TestClasspathUtils {
     }
 
     public static void setupJarJdkClasspath(File projectRoot, String errorMessage) {
-        generateJdkJarHellCheck(projectRoot, ExceptionMethod.throwing(IllegalStateException.class, errorMessage));
+        generateJdkJarHellCheck(projectRoot,
+                ExceptionMethod.throwing(IllegalStateException.class, errorMessage));
     }
 
     private static void generateJdkJarHellCheck(File projectRoot, Implementation mainImplementation) {

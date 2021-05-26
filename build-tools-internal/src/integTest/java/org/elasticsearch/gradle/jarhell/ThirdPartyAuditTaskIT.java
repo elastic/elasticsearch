@@ -85,7 +85,10 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
     }
 
     public void testJarHellWithJDK() {
-        setupJarJdkClasspath(getProjectDir(), "    * java.lang.String");
+        setupJarJdkClasspath(getProjectDir(), "> Audit of third party dependencies failed:" +
+                "   Jar Hell with the JDK:" +
+                "    * java.lang.String"
+        );
         BuildResult result = getGradleRunner().withArguments(
                 ":clean",
                 ":absurd",

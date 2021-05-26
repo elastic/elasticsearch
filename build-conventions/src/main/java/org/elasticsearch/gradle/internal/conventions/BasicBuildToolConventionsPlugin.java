@@ -23,7 +23,7 @@ public class BasicBuildToolConventionsPlugin implements Plugin<Project> {
     public void apply(Project project) {
         int defaultParallel = ParallelDetector.findDefaultParallel(project);
         project.getTasks().withType(Test.class).configureEach(test -> {
-            test.onlyIf((t) -> Util.getBooleanProperty("tests.fips.enabled", false));
+            test.onlyIf((t) -> Util.getBooleanProperty("tests.fips.enabled", false) == false);
             test.setMaxParallelForks(defaultParallel);
         });
         // we put all our distributable files under distributions

@@ -46,11 +46,8 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
 
     public void testLicenseAndNotice() throws IOException {
         BuildResult result = getGradleRunner().withArguments("clean", "assemble").build();
-
         assertTaskSuccessful(result, ":assemble");
-
         assertBuildFileExists(result, projectName(), "distributions/elasticsearch.build.jar");
-
         try (ZipFile zipFile = new ZipFile(new File(getBuildDir(projectName()), "distributions/elasticsearch.build.jar"))) {
             ZipEntry licenseEntry = zipFile.getEntry("META-INF/LICENSE.txt");
             ZipEntry noticeEntry = zipFile.getEntry("META-INF/NOTICE.txt");

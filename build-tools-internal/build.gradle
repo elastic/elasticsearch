@@ -177,14 +177,14 @@ sourceSets {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
 
-    // workaround for having JarHellCheck available without relying
-    // on elasticsearch build subpoject
-    java {
-      srcDirs '../libs/core/src/main/java'
-      include 'org/elasticsearch/bootstrap/JdkJarHellCheck.java'
-      include 'org/elasticsearch/common/SuppressForbidden.java'
-      include 'org/elasticsearch/gradle/**'
-    }
+//    // workaround for having JarHellCheck available without relying
+//    // on elasticsearch build subpoject
+//    java {
+//      srcDirs '../libs/core/src/main/java'
+//      include 'org/elasticsearch/bootstrap/JdkJarHellCheck.java'
+//      include 'org/elasticsearch/common/SuppressForbidden.java'
+//      include 'org/elasticsearch/gradle/**'
+//    }
   }
 }
 
@@ -249,10 +249,12 @@ dependencies {
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }
+  testFixturesApi("net.bytebuddy:byte-buddy:1.11.0") {
+    because 'Generating dynamic mocks of internal libraries like JdkJarHell'
+  }
   testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {
     because 'allows JUnit 3 and JUnit 4 tests to run'
   }
-
   integTestRuntimeOnly("org.junit.platform:junit-platform-launcher") {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }

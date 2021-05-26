@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -32,6 +33,7 @@ import java.util.Collections;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -371,8 +373,10 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             assert false == user.isRunAs() : "cannot run-as service account";
             final Authentication.RealmRef authBy =
                 new Authentication.RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
+            final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
             return new Authentication(user, authBy, null, Version.CURRENT, AuthenticationType.TOKEN,
-                org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName()));
+                org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName(),
+                    "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         } else {
             final Authentication.RealmRef lookupBy;
             final String nodeName = randomAlphaOfLengthBetween(3, 8);

@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
@@ -2255,7 +2256,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 lookedUpBy = null;
                 authBy = new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
                 authenticationType = AuthenticationType.TOKEN;
-                authMetadata = org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName());
+                final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
+                authMetadata = org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName(),
+                    "_token_source", tokenSource.name().toLowerCase(Locale.ROOT));
         }
         return new Authentication(user, authBy, lookedUpBy, Version.CURRENT, authenticationType, authMetadata);
     }

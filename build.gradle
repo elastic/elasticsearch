@@ -42,7 +42,7 @@ plugins {
   id 'elasticsearch.fips'
   id 'elasticsearch.internal-testclusters'
   id 'elasticsearch.run'
-  id "com.diffplug.spotless" version "5.12.0" apply false
+  id "com.diffplug.spotless" version "5.12.5" apply false
 }
 
 

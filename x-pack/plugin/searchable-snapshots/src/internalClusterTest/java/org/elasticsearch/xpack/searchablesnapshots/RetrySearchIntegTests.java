@@ -141,16 +141,10 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, indexSettings);
         ensureGreen(indexName);
 
-        final String pitId = client().execute(
-            OpenPointInTimeAction.INSTANCE,
-            new OpenPointInTimeRequest(
-                new String[] { indexName },
-                IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
-                TimeValue.timeValueMinutes(2),
-                null,
-                null
-            )
-        ).actionGet().getSearchContextId();
+        final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
+            IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
+        ).keepAlive(TimeValue.timeValueMinutes(2));
+        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openRequest).actionGet().getPointInTimeId();
         try {
             SearchResponse resp = client().prepareSearch()
                 .setIndices(indexName)

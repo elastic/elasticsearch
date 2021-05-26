@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,7 +23,6 @@ import java.util.Objects;
  * {@link #indices(String...)} method
  */
 public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycleRequest> {
-    private static final Version FILTERS_INTRODUCED_VERSION = Version.V_7_4_0;
 
     private boolean onlyErrors = false;
     private boolean onlyManaged = false;
@@ -35,19 +33,15 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
 
     public ExplainLifecycleRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(FILTERS_INTRODUCED_VERSION)) {
-            onlyErrors = in.readBoolean();
-            onlyManaged = in.readBoolean();
-        }
+        onlyErrors = in.readBoolean();
+        onlyManaged = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(FILTERS_INTRODUCED_VERSION)) {
-            out.writeBoolean(onlyErrors);
-            out.writeBoolean(onlyManaged);
-        }
+        out.writeBoolean(onlyErrors);
+        out.writeBoolean(onlyManaged);
     }
 
     public boolean onlyErrors() {

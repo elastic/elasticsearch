@@ -25,26 +25,18 @@ end::index-alias[]
 
 tag::aliases[]
 `aliases`::
-(Optional, <<indices-aliases,alias object>>) <<indices-aliases,Index aliases>>
-which include the index. Index alias names support <<date-math-index-names,date
-math>>.
+(Optional, <<alias,alias object>>) Index aliases which include the index. Index
+alias names support <<date-math-index-names,date math>>.
 end::aliases[]
-
-tag::target-index-aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>)
-<<indices-aliases,Index aliases>> which include the target index. Index alias
-names support <<date-math-index-names,date math>>.
-end::target-index-aliases[]
 
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)
 If `false`, the request returns an error if any wildcard expression,
-<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
-indices. This behavior applies even if the request targets other open indices.
-For example, a request targeting `foo*,bar*` returns an error if an index
-starts with `foo` but no index starts with `bar`.
+<<alias,index alias>>, or `_all` value targets only missing or closed indices.
+This behavior applies even if the request targets other open indices. For
+example, a request targeting `foo*,bar*` returns an error if an index starts
+with `foo` but no index starts with `bar`.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]
@@ -224,7 +216,7 @@ Type of data stream that wildcard expressions can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::
-Match any data stream, including <<hidden-indices,hidden>> ones.
+Match any data stream, including <<hidden,hidden>> ones.
 
 `open`, `closed`::
 Matches any non-hidden data stream. Data streams cannot be closed.
@@ -245,7 +237,7 @@ hidden data streams. Supports comma-separated values, such as `open,hidden`.
 Valid values are:
 
 `all`::
-Match any data stream or index, including <<hidden-indices,hidden>> ones.
+Match any data stream or index, including <<hidden,hidden>> ones.
 
 `open`::
 Match open, non-hidden indices. Also matches any non-hidden data stream.
@@ -615,15 +607,14 @@ end::memory[]
 tag::bulk-require-alias[]
 `require_alias`::
 (Optional, Boolean)
-If `true`, the action must target an <<indices-aliases,index alias>>. Defaults
-to `false`.
+If `true`, the action must target an <<alias,index alias>>. Defaults to
+`false`.
 end::bulk-require-alias[]
 
 tag::require-alias[]
 `require_alias`::
-(Optional, Boolean)
-If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults to
-`false`.
+(Optional, Boolean) If `true`, the destination must be an <<alias,index alias>>.
+Defaults to `false`.
 end::require-alias[]
 
 tag::bulk-dynamic-templates[]
@@ -798,15 +789,9 @@ end::requests_per_second[]
 
 tag::routing[]
 `routing`::
-(Optional, string) Target the specified primary shard.
-end::routing[]
-
-tag::index-routing[]
-`routing`::
 (Optional, string)
-Custom <<mapping-routing-field, routing value>>
-used to route operations to a specific shard.
-end::index-routing[]
+Custom value used to route operations to a specific shard.
+end::routing[]
 
 tag::cat-s[]
 `s`::

@@ -33,8 +33,8 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings settings = super.nodeSettings(nodeOrdinal);
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings settings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(settings.filter(k -> k.startsWith("xpack.security.transport.ssl.") == false), false);
         Path keyPath;

@@ -8,8 +8,7 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.apache.commons.codec.binary.Hex;
-import org.elasticsearch.gradle.precommit.LicenseAnalyzer;
-import org.elasticsearch.gradle.precommit.LicenseAnalyzer.LicenseInfo;
+import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
@@ -120,15 +119,15 @@ public class DependencyLicensesTask extends DefaultTask {
      * the LICENSE and NOTICE file for that jar.
      */
     public void mapping(Map<String, String> props) {
-        String from = props.remove("from");
+        String from = props.get("from");
         if (from == null) {
             throw new InvalidUserDataException("Missing \"from\" setting for license name mapping");
         }
-        String to = props.remove("to");
+        String to = props.get("to");
         if (to == null) {
             throw new InvalidUserDataException("Missing \"to\" setting for license name mapping");
         }
-        if (props.isEmpty() == false) {
+        if (props.size() > 2) {
             throw new InvalidUserDataException("Unknown properties for mapping on dependencyLicenses: " + props.keySet());
         }
         mappings.put(from, to);

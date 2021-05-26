@@ -22,14 +22,14 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotInfoTests;
+import org.elasticsearch.snapshots.SnapshotInfoTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
 
-import java.util.HashSet;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singleton;
-import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -70,11 +70,10 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
     public void testDeleteSnapshotting() {
         String index = randomAlphaOfLength(5);
         Snapshot snapshot = new Snapshot("doesn't matter", new SnapshotId("snapshot name", "snapshot uuid"));
-        SnapshotsInProgress snaps = SnapshotsInProgress.of(
-            org.elasticsearch.common.collect.List.of(new SnapshotsInProgress.Entry(snapshot, true, false,
-                SnapshotsInProgress.State.INIT, singletonList(new IndexId(index, "doesn't matter")),
+        SnapshotsInProgress snaps = SnapshotsInProgress.of(Collections.singletonList(new SnapshotsInProgress.Entry(snapshot, true, false,
+                SnapshotsInProgress.State.INIT, singletonMap(index, new IndexId(index, "doesn't matter")),
                 Collections.emptyList(), Collections.emptyList(), System.currentTimeMillis(), (long) randomIntBetween(0, 1000),
-                ImmutableOpenMap.of(), null, SnapshotInfoTests.randomUserMetadata(), VersionUtils.randomVersion(random()))));
+                ImmutableOpenMap.of(), null, SnapshotInfoTestUtils.randomUserMetadata(), VersionUtils.randomVersion(random()))));
         ClusterState state = ClusterState.builder(clusterState(index))
                 .putCustom(SnapshotsInProgress.TYPE, snaps)
                 .build();

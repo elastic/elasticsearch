@@ -8,7 +8,8 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.docker.DockerSupportService;
+import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.gradle.api.Action;
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;

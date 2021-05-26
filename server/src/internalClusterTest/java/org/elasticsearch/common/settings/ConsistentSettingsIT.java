@@ -21,7 +21,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class ConsistentSettingsIT extends ESIntegTestCase {
@@ -31,7 +31,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
     static final AffixSetting<SecureString> DUMMY_AFFIX_STRING_CONSISTENT_SETTING = Setting.affixKeySetting(
             "dummy.consistent.secure.string.affix.setting.", "suffix",
             key -> SecureSetting.secureString(key, null, Setting.Property.Consistent));
-    private final AtomicReference<Function<Integer, Settings>> nodeSettingsOverride = new AtomicReference<>(null);
+    private final AtomicReference<BiFunction<Integer, Settings, Settings>> nodeSettingsOverride = new AtomicReference<>(null);
 
     public void testAllConsistentOnAllNodesSuccess() throws Exception {
         for (String nodeName : internalCluster().getNodeNames()) {
@@ -56,8 +56,8 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
     }
 
     public void testConsistencyFailures() throws Exception {
-        nodeSettingsOverride.set(nodeOrdinal -> {
-            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        nodeSettingsOverride.set((n, s) -> {
+            Settings.Builder builder = Settings.builder().put(super.nodeSettings(n, s));
             MockSecureSettings secureSettings = new MockSecureSettings();
             if (randomBoolean()) {
                 // different value
@@ -90,8 +90,8 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
         assertFalse("All secure settings are NOT consistent [" + clusterService.state().metadata().hashesOfConsistentSettings() + "].",
                 new ConsistentSettingsService(environment.settings(), clusterService,
                         Arrays.asList(DUMMY_STRING_CONSISTENT_SETTING, DUMMY_AFFIX_STRING_CONSISTENT_SETTING)).areAllConsistent());
-        nodeSettingsOverride.set(nodeOrdinal -> {
-            Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        nodeSettingsOverride.set((n, s) -> {
+            Settings.Builder builder = Settings.builder().put(super.nodeSettings(n, s));
             MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
             if (randomBoolean()) {
@@ -138,15 +138,15 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Function<Integer, Settings> nodeSettingsOverrideFunction = nodeSettingsOverride.get();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        BiFunction<Integer, Settings, Settings> nodeSettingsOverrideFunction = nodeSettingsOverride.get();
         if (nodeSettingsOverrideFunction != null) {
-            final Settings overrideSettings = nodeSettingsOverrideFunction.apply(nodeOrdinal);
+            final Settings overrideSettings = nodeSettingsOverrideFunction.apply(nodeOrdinal, otherSettings);
             if (overrideSettings != null) {
                 return overrideSettings;
             }
         }
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("dummy.consistent.secure.string.setting", "string_value");
         secureSettings.setString("dummy.consistent.secure.string.affix.setting." + "affix1" + ".suffix", "affix_value_1");

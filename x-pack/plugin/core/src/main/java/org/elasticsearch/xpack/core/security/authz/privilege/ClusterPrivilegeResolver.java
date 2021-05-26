@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
@@ -60,6 +61,8 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_TOKEN_PATTERN = Collections.singleton("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Collections.singleton("cluster:admin/xpack/security/api_key/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Collections.singleton(GrantApiKeyAction.NAME + "*");
+    private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN =
+        Collections.singleton("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> MONITOR_PATTERN = Collections.singleton("cluster:monitor/*");
     private static final Set<String> MONITOR_TEXT_STRUCTURE_PATTERN = Collections.singleton("cluster:monitor/text_structure/*");
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Collections.unmodifiableSet(
@@ -137,6 +140,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_SERVICE_ACCOUNT = new ActionClusterPrivilege("manage_service_account",
+        MANAGE_SERVICE_ACCOUNT_PATTERN);
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline",
         Collections.singleton("cluster:admin/ingest/pipeline/*"));
@@ -161,7 +166,7 @@ public class ClusterPrivilegeResolver {
         Collections.unmodifiableSet(Sets.newHashSet("cluster:admin/logstash/pipeline/*")));
 
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task",
-        Collections.unmodifiableSet(Sets.newHashSet("cluster:admin/tasks/cancel")));
+        Collections.unmodifiableSet(Sets.newHashSet(CancelTasksAction.NAME + "*")));
 
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(Arrays.asList(
         NONE,
@@ -188,6 +193,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_OIDC,
         MANAGE_API_KEY,
         GRANT_API_KEY,
+        MANAGE_SERVICE_ACCOUNT,
         MANAGE_PIPELINE,
         MANAGE_ROLLUP,
         MANAGE_AUTOSCALING,

@@ -146,7 +146,6 @@ public class ScriptScoreQuery extends Query {
                 final ScoreScript scoreScript = scriptBuilder.newInstance(context);
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
-                scoreScript._setIndexVersion(indexVersion);
                 return scoreScript;
             }
 

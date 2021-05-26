@@ -11,15 +11,19 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,6 +39,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -67,6 +72,7 @@ public final class TransformInternalIndex {
      *                  checkpoint::checkpoint
      * version 5 (7.7): stats::processing_time_in_ms, stats::processing_total
      * version 6 (7.12):stats::delete_time_in_ms, stats::documents_deleted
+     * version 7 (7.13):add mapping for config::pivot, config::latest, config::retention_policy and config::sync
      */
 
     // constants for mappings
@@ -86,6 +92,7 @@ public final class TransformInternalIndex {
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
+    public static final String FLATTENED = "flattened";
 
     public static final Version HIDDEN_INTRODUCED_VERSION = Version.V_7_7_0;
 
@@ -326,6 +333,18 @@ public final class TransformInternalIndex {
             .endObject()
             .startObject(TransformField.CREATE_TIME.getPreferredName())
             .field(TYPE, DATE)
+            .endObject()
+            .startObject(TransformConfig.Function.PIVOT.getParseField().getPreferredName())
+            .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformConfig.Function.LATEST.getParseField().getPreferredName())
+            .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformField.RETENTION_POLICY.getPreferredName())
+            .field(TYPE, FLATTENED)
+            .endObject()
+            .startObject(TransformField.SYNC.getPreferredName())
+            .field(TYPE, FLATTENED)
             .endObject();
     }
 
@@ -379,12 +398,32 @@ public final class TransformInternalIndex {
         );
     }
 
-    protected static boolean haveLatestVersionedIndex(ClusterState state) {
+    protected static boolean hasLatestVersionedIndex(ClusterState state) {
         return state.getMetadata().getIndicesLookup().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
-    protected static boolean haveLatestAuditIndexTemplate(ClusterState state) {
+    protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state) {
+        IndexRoutingTable indexRouting = state.routingTable().index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+
+        return indexRouting != null && indexRouting.allPrimaryShardsActive();
+    }
+
+    protected static boolean hasLatestAuditIndexTemplate(ClusterState state) {
         return state.getMetadata().getTemplates().containsKey(TransformInternalIndexConstants.AUDIT_INDEX);
+    }
+
+    private static void waitForLatestVersionedIndexShardsActive(Client client, ActionListener<Void> listener) {
+        ClusterHealthRequest request = new ClusterHealthRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
+            // cluster health does not wait for active shards per default
+            .waitForActiveShards(ActiveShardCount.ONE);
+        ActionListener<ClusterHealthResponse> innerListener = ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure);
+        executeAsyncWithOrigin(
+            client.threadPool().getThreadContext(),
+            TRANSFORM_ORIGIN,
+            request,
+            innerListener,
+            client.admin().cluster()::health
+        );
     }
 
     protected static void createLatestVersionedIndexIfRequired(
@@ -392,10 +431,15 @@ public final class TransformInternalIndex {
         Client client,
         ActionListener<Void> listener
     ) {
-
-        // The check for existence of the template is against local cluster state, so very cheap
-        if (haveLatestVersionedIndex(clusterService.state())) {
-            listener.onResponse(null);
+        ClusterState state = clusterService.state();
+        // The check for existence is against local cluster state, so very cheap
+        if (hasLatestVersionedIndex(state)) {
+            if (allPrimaryShardsActiveForLatestVersionedIndex(state)) {
+                listener.onResponse(null);
+                return;
+            }
+            // the index exists but is not ready yet
+            waitForLatestVersionedIndexShardsActive(client, listener);
             return;
         }
 
@@ -406,14 +450,22 @@ public final class TransformInternalIndex {
                 .mapping(MapperService.SINGLE_MAPPING_NAME, mappings())
                 // BWC: for mixed clusters with nodes < 7.5, we need the alias to make new docs visible for them
                 .alias(new Alias(".data-frame-internal-3"))
-                .origin(TRANSFORM_ORIGIN);
+                .origin(TRANSFORM_ORIGIN)
+                // explicitly wait for the primary shard (although this might be default)
+                .waitForActiveShards(ActiveShardCount.ONE);
             ActionListener<CreateIndexResponse> innerListener = ActionListener.wrap(
                 r -> listener.onResponse(null),
                 e -> {
                     // It's not a problem if the index already exists - another node could be running
                     // this method at the same time as this one, and also have created the index
+                    // check if shards are active
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        listener.onResponse(null);
+                        if (allPrimaryShardsActiveForLatestVersionedIndex(clusterService.state())) {
+                            listener.onResponse(null);
+                            return;
+                        }
+                        // the index exists but is not ready yet
+                        waitForLatestVersionedIndexShardsActive(client, listener);
                     } else {
                         listener.onFailure(e);
                     }
@@ -438,7 +490,7 @@ public final class TransformInternalIndex {
     ) {
 
         // The check for existence of the template is against local cluster state, so very cheap
-        if (haveLatestAuditIndexTemplate(clusterService.state())) {
+        if (hasLatestAuditIndexTemplate(clusterService.state())) {
             listener.onResponse(null);
             return;
         }

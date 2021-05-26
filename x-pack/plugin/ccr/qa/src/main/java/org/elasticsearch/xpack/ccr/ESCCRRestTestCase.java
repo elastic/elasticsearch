@@ -311,12 +311,20 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         Map<String, ?> response = toMap(client.performRequest(request));
         List<?> retrievedDataStreams = (List<?>) response.get("data_streams");
         assertThat(retrievedDataStreams, hasSize(1));
-        List<?> actualBackingIndices = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
-        assertThat(actualBackingIndices, hasSize(expectedBackingIndices.length));
+        List<?> actualBackingIndexItems = (List<?>) ((Map<?, ?>) retrievedDataStreams.get(0)).get("indices");
+        assertThat(actualBackingIndexItems, hasSize(expectedBackingIndices.length));
         for (int i = 0; i < expectedBackingIndices.length; i++) {
-            Map<?, ?> actualBackingIndex = (Map<?, ?>) actualBackingIndices.get(i);
+            Map<?, ?> actualBackingIndexItem = (Map<?, ?>) actualBackingIndexItems.get(i);
+            String actualBackingIndex = (String) actualBackingIndexItem.get("index_name");
             String expectedBackingIndex = expectedBackingIndices[i];
-            assertThat(actualBackingIndex.get("index_name"), equalTo(expectedBackingIndex));
+
+            String actualDataStreamName = actualBackingIndex.substring(5, actualBackingIndex.indexOf('-', 5));
+            String expectedDataStreamName = expectedBackingIndex.substring(5, expectedBackingIndex.indexOf('-', 5));
+            assertThat(actualDataStreamName, equalTo(expectedDataStreamName));
+
+            int actualGeneration = Integer.parseInt(actualBackingIndex.substring(actualBackingIndex.lastIndexOf('-')));
+            int expectedGeneration = Integer.parseInt(expectedBackingIndex.substring(expectedBackingIndex.lastIndexOf('-')));
+            assertThat(actualGeneration, equalTo(expectedGeneration));
         }
     }
 

@@ -52,10 +52,10 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         logger.info("--> use SSL? {}", useSSL);
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal));
+                .put(super.nodeSettings(nodeOrdinal, otherSettings));
         addSSLSettingsForNodePEMFiles(builder, "xpack.security.http.", true);
         builder.put("xpack.security.http.ssl.enabled", useSSL);
         return builder.build();

@@ -44,6 +44,8 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -59,8 +61,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.index.mapper.KeywordScriptFieldType;
-import org.elasticsearch.index.mapper.LongScriptFieldType;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -74,6 +75,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -85,7 +87,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -327,7 +331,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -348,14 +352,22 @@ public class SearchExecutionContextTests extends ESTestCase {
             runtimeMappings);
         assertTrue(context.isFieldMapped("cat"));
         assertThat(context.getFieldType("cat"), instanceOf(KeywordScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("cat"), equalTo(Collections.singleton("cat")));
+        assertThat(context.getMatchingFieldNames("cat"), equalTo(Collections.singleton("cat")));
         assertTrue(context.isFieldMapped("dog"));
         assertThat(context.getFieldType("dog"), instanceOf(LongScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("dog"), equalTo(Collections.singleton("dog")));
+        assertThat(context.getMatchingFieldNames("dog"), equalTo(Collections.singleton("dog")));
         assertTrue(context.isFieldMapped("pig"));
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("pig"), equalTo(org.elasticsearch.common.collect.Set.of("pig")));
-        assertThat(context.simpleMatchToIndexNames("*"), equalTo(org.elasticsearch.common.collect.Set.of("cat", "dog", "pig")));
+        assertThat(context.getMatchingFieldNames("pig"), equalTo(Collections.singleton("pig")));
+        assertThat(context.getMatchingFieldNames("*"), containsInAnyOrder("cat", "dog", "pig"));
+
+        // test that shadowed fields aren't returned by getMatchingFieldTypes
+        Collection<MappedFieldType> matches = context.getMatchingFieldTypes("ca*");
+        assertThat(matches, hasSize(1));
+        assertThat(matches.iterator().next(), instanceOf(KeywordScriptFieldType.class));
+
+        matches = context.getAllFieldTypes();
+        assertThat(matches, hasSize(3));
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {
@@ -455,7 +467,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             indexSettings.getIndexVersionCreated(),
             searchExecutionContextSupplier,
             null,
-            null,
+            ScriptCompiler.NONE,
             indexAnalyzers,
             indexSettings,
             () -> true

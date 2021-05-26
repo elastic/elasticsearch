@@ -61,14 +61,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 b -> {
                     minimalMapping(b);
                     b.field("script", "test");
-                    b.field("on_script_error", "reject");
+                    b.field("on_script_error", "fail");
                 },
                 b -> {
                     minimalMapping(b);
                     b.field("script", "test");
-                    b.field("on_script_error", "ignore");
+                    b.field("on_script_error", "continue");
                 },
-                m -> assertThat(((NumberFieldMapper)m).onScriptError(), equalTo("ignore")));
+                m -> assertThat((m).onScriptError, equalTo("continue")));
         }
     }
 
@@ -258,10 +258,10 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     @SuppressWarnings("unchecked")
     protected <T> T compileScript(Script script, ScriptContext<T> context) {
         if (context == LongFieldScript.CONTEXT) {
-            return (T) LongScriptFieldType.PARSE_FROM_SOURCE;
+            return (T) LongFieldScript.PARSE_FROM_SOURCE;
         }
         if (context == DoubleFieldScript.CONTEXT) {
-            return (T) DoubleScriptFieldType.PARSE_FROM_SOURCE;
+            return (T) DoubleFieldScript.PARSE_FROM_SOURCE;
         }
         throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
     }

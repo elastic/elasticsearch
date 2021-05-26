@@ -120,8 +120,16 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
 
     protected void cleanUpTransforms() throws IOException {
         for (TransformConfig config : transformConfigs.values()) {
-            stopTransform(config.getId());
-            deleteTransform(config.getId());
+            try {
+                stopTransform(config.getId());
+                deleteTransform(config.getId());
+            } catch (ElasticsearchStatusException ex) {
+                if (ex.status().equals(RestStatus.NOT_FOUND)) {
+                    logger.info("tried to cleanup already deleted transform [{}]", config.getId());
+                } else {
+                    throw ex;
+                }
+            }
         }
         transformConfigs.clear();
     }

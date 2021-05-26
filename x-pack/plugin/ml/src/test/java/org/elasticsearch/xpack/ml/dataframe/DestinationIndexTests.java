@@ -404,6 +404,14 @@ public class DestinationIndexTests extends ESTestCase {
         verifyZeroInteractions(client);
     }
 
+    public void testReadMetadata_GivenNull() {
+        DestinationIndex.Metadata metadata = DestinationIndex.readMetadata("test_id", null);
+
+        assertThat(metadata.hasMetadata(), is(false));
+        expectThrows(UnsupportedOperationException.class, () -> metadata.isCompatible());
+        expectThrows(UnsupportedOperationException.class, () -> metadata.getVersion());
+    }
+
     public void testReadMetadata_GivenNoMeta() {
         Map<String, Object> mappings = new HashMap<>();
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);

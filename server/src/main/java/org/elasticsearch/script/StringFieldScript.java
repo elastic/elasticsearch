@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public abstract class StringFieldScript extends AbstractFieldScript {
     /**
@@ -22,7 +23,21 @@ public abstract class StringFieldScript extends AbstractFieldScript {
      */
     public static final long MAX_CHARS = 1024 * 1024;
 
-    public static final ScriptContext<Factory> CONTEXT = newContext("string_script_field", Factory.class);
+    public static final ScriptContext<Factory> CONTEXT = newContext("keyword_field", Factory.class);
+
+    public static final StringFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (StringFieldScript.LeafFactory) ctx -> new StringFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -56,7 +71,18 @@ public abstract class StringFieldScript extends AbstractFieldScript {
         return results;
     }
 
-    protected final void emit(String v) {
+    public final void runForDoc(int docId, Consumer<String> consumer) {
+        resultsForDoc(docId).forEach(consumer);
+    }
+
+    @Override
+    protected void emitFromObject(Object v) {
+        if (v != null) {
+            emit(v.toString());
+        }
+    }
+
+    public final void emit(String v) {
         checkMaxSize(results.size());
         chars += v.length();
         if (chars > MAX_CHARS) {

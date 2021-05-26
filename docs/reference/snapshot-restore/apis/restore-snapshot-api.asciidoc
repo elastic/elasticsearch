@@ -99,6 +99,16 @@ Name of the repository to restore a snapshot from.
 (Required, string)
 Name of the snapshot to restore.
 
+[[restore-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+`wait_for_completion`::
+(Optional, Boolean) If `true`, the request returns a response when the restore
+operation completes. If `false`, the request returns a response when the restore
+operation initializes. Defaults to `false`.
+
 [role="child_attributes"]
 [[restore-snapshot-api-request-body]]
 ==== {api-request-body-title}
@@ -138,9 +148,14 @@ The global state includes:
 * Ingest pipelines
 * {ilm-init} lifecycle policies
 * For snapshots taken after 7.12.0, data stored in system indices, such as Watches and task records, replacing any existing configuration (configurable via `feature_states`)
+
+If `include_global_state` is `true` then the restore operation merges the
+legacy index templates in your cluster with the templates contained in the
+snapshot, replacing any existing ones whose name matches one in the snapshot.
+It completely removes all persistent settings, non-legacy index templates,
+ingest pipelines and {ilm-init} lifecycle policies that exist in your cluster
+and replaces them with the corresponding items from the snapshot.
 --
-+
-IMPORTANT: By default, the entire restore operation will fail if one or more indices included in the snapshot do not have all primary shards available. You can change this behavior by setting <<restore-snapshot-api-partial,`partial`>> to `true`.
 
 [[restore-snapshot-api-feature-states]]
 `feature_states`::
@@ -198,14 +213,6 @@ include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=rename-rest
 `rename_replacement`::
 (Optional, string)
 Defines the rename replacement string. See <<restore-snapshot-api-rename-pattern,`rename_pattern`>> for more information.
-
-`wait_for_completion`::
-(Optional, Boolean)
-If `false`, the request returns a response when the restore operation initializes.
-Defaults to `false`.
-+
-If `true`, the request returns a response when the restore operation
-completes.
 
 [[restore-snapshot-api-example]]
 ==== {api-examples-title}

@@ -26,9 +26,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 public class StressSearchServiceReaperIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // very frequent checks
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(SearchService.KEEPALIVE_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(1)).build();
     }
 

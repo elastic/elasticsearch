@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.ShardId;
@@ -84,15 +83,15 @@ public class TransportGetFieldMappingsIndexAction
         Predicate<String> metadataFieldPredicate = (f) -> indexService.mapperService().isMetadataField(f);
         Predicate<String> fieldPredicate = metadataFieldPredicate.or(indicesService.getFieldFilter().apply(shardId.getIndexName()));
 
-        DocumentMapper mapper = indexService.mapperService().documentMapper();
+        MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
         Collection<String> typeIntersection;
         if (request.types().length == 0) {
-            typeIntersection = mapper == null
-                    ? Collections.emptySet()
-                    : Collections.singleton(mapper.type());
+            typeIntersection = mappingLookup.hasMappings()
+                    ? Collections.singleton(mappingLookup.getType())
+                    : Collections.emptySet();
         } else {
-            typeIntersection = mapper != null && Regex.simpleMatch(request.types(), mapper.type())
-                    ? Collections.singleton(mapper.type())
+            typeIntersection = mappingLookup.hasMappings() && Regex.simpleMatch(request.types(), mappingLookup.getType())
+                    ? Collections.singleton(mappingLookup.getType())
                     : Collections.emptySet();
             if (typeIntersection.isEmpty()) {
                 throw new TypeMissingException(shardId.getIndex(), request.types());
@@ -101,8 +100,8 @@ public class TransportGetFieldMappingsIndexAction
 
         Map<String, Map<String, FieldMappingMetadata>> typeMappings = new HashMap<>();
         for (String type : typeIntersection) {
-            DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            Map<String, FieldMappingMetadata> fieldMapping = findFieldMappingsByType(fieldPredicate, documentMapper, request);
+            MappingLookup mappers = indexService.mapperService().documentMapper(type).mappers();
+            Map<String, FieldMappingMetadata> fieldMapping = findFieldMappingsByType(fieldPredicate, mappers, request);
             if (fieldMapping.isEmpty() == false) {
                 typeMappings.put(type, fieldMapping);
             }
@@ -158,12 +157,11 @@ public class TransportGetFieldMappingsIndexAction
     };
 
     private static Map<String, FieldMappingMetadata> findFieldMappingsByType(Predicate<String> fieldPredicate,
-                                                                             DocumentMapper documentMapper,
-                                                                             GetFieldMappingsIndexRequest request) {
+                                                                       MappingLookup mappingLookup,
+                                                                       GetFieldMappingsIndexRequest request) {
         //TODO the logic here needs to be reworked to also include runtime fields. Though matching is against mappers rather
         // than field types, and runtime fields are mixed with ordinary fields in FieldTypeLookup
         Map<String, FieldMappingMetadata> fieldMappings = new HashMap<>();
-        final MappingLookup mappingLookup = documentMapper.mappers();
         for (String field : request.fields()) {
             if (Regex.isMatchAllPattern(field)) {
                 for (Mapper fieldMapper : mappingLookup.fieldMappers()) {

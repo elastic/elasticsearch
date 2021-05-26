@@ -26,8 +26,8 @@ import java.util.concurrent.CountDownLatch;
 public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return customSettings(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return customSettings(super.nodeSettings(nodeOrdinal, otherSettings));
     }
 
     @Override

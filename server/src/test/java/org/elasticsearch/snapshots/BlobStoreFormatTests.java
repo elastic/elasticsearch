@@ -17,13 +17,11 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.translog.BufferedChecksumStreamOutput;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,6 +29,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -89,7 +88,7 @@ public class BlobStoreFormatTests extends ESTestCase {
 
     public void testBlobStoreOperations() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
 
         // Write blobs in different formats
@@ -106,7 +105,7 @@ public class BlobStoreFormatTests extends ESTestCase {
 
     public void testCompressionIsApplied() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         StringBuilder veryRedundantText = new StringBuilder();
         for (int i = 0; i < randomIntBetween(100, 300); i++) {
             veryRedundantText.append("Blah ");
@@ -122,7 +121,7 @@ public class BlobStoreFormatTests extends ESTestCase {
 
     public void testBlobCorruption() throws IOException {
         BlobStore blobStore = createTestBlobStore();
-        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.cleanPath());
+        BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         String testString = randomAlphaOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
@@ -145,24 +144,24 @@ public class BlobStoreFormatTests extends ESTestCase {
     }
 
     protected void randomCorruption(BlobContainer blobContainer, String blobName) throws IOException {
-        byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(blobName).get(blobName).length()];
-        long originalChecksum = checksum(buffer);
+        final byte[] buffer = new byte[(int) blobContainer.listBlobsByPrefix(blobName).get(blobName).length()];
         try (InputStream inputStream = blobContainer.readBlob(blobName)) {
             Streams.readFully(inputStream, buffer);
         }
-        do {
-            int location = randomIntBetween(0, buffer.length - 1);
-            buffer[location] = (byte) (buffer[location] ^ 42);
-        } while (originalChecksum == checksum(buffer));
-        blobContainer.writeBlob(blobName, new BytesArray(buffer), false);
+        final BytesArray corruptedBytes;
+        final int location = randomIntBetween(0, buffer.length - 1);
+        if (randomBoolean()) {
+            // flipping bits in a single byte will always invalidate the file: CRC-32 certainly detects all eight-bit-burst errors; we don't
+            // checksum the last 8 bytes but we do verify that they contain the checksum preceded by 4 zero bytes so in any case this will
+            // be a detectable error:
+            buffer[location] = (byte) (buffer[location] ^ between(1, 255));
+            corruptedBytes = new BytesArray(buffer);
+        } else {
+            // truncation will invalidate the file: the last 12 bytes should start with 8 zero bytes but by construction we won't have
+            // another sequence of 8 zero bytes anywhere in the file, let alone such a sequence followed by a correct checksum.
+            corruptedBytes = new BytesArray(buffer, 0, location);
+        }
+        blobContainer.writeBlob(blobName, corruptedBytes, false);
     }
 
-    private long checksum(byte[] buffer) throws IOException {
-        try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
-            try (BufferedChecksumStreamOutput checksumOutput = new BufferedChecksumStreamOutput(streamOutput)) {
-                checksumOutput.write(buffer);
-                return checksumOutput.getChecksum();
-            }
-        }
-    }
 }

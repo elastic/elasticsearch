@@ -87,7 +87,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final boolean prewarmEnabled = randomBoolean();
                 final BlobContainer singleBlobContainer = singleSplitBlobContainer(blobName, input, partSize);
                 final BlobContainer blobContainer;
-                if (input.length == partSize && input.length <= cacheService.getCacheSize() && prewarmEnabled == false) {
+                if (input.length == partSize && prewarmEnabled == false) {
                     blobContainer = new CountingBlobContainer(singleBlobContainer);
                 } else {
                     blobContainer = singleBlobContainer;

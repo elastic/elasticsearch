@@ -11,9 +11,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +18,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -30,6 +28,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 
@@ -105,10 +104,18 @@ public final class DataStreamTestHelper {
         return randomInstance(System::currentTimeMillis);
     }
 
+    public static DataStream randomInstance(String name) {
+        return randomInstance(name, System::currentTimeMillis);
+    }
+
     public static DataStream randomInstance(LongSupplier timeProvider) {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        return randomInstance(dataStreamName, timeProvider);
+    }
+
+    public static DataStream randomInstance(String dataStreamName, LongSupplier timeProvider) {
         List<Index> indices = randomIndexInstances();
         long generation = indices.size() + ESTestCase.randomLongBetween(1, 128);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(LuceneTestCase.random())));
         Map<String, Object> metadata = null;
         if (randomBoolean()) {
@@ -116,7 +123,14 @@ public final class DataStreamTestHelper {
             metadata.put("key", "value");
         }
         return new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, metadata,
-            randomBoolean(), randomBoolean(), timeProvider);
+            randomBoolean(), randomBoolean(), false, timeProvider);
+    }
+
+    public static DataStreamAlias randomAliasInstance() {
+        return new DataStreamAlias(
+            randomAlphaOfLength(5),
+            Arrays.asList(generateRandomStringArray(5, 5, false))
+        );
     }
 
     /**

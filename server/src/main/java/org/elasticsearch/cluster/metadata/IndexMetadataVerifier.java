@@ -25,6 +25,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.AbstractMap;
@@ -50,15 +51,15 @@ public class IndexMetadataVerifier {
     private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
-    private final ScriptService scriptService;
+    private final ScriptCompiler scriptService;
 
     public IndexMetadataVerifier(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                 IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
+                                 IndexScopedSettings indexScopedSettings, ScriptCompiler scriptCompiler) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
-        this.scriptService = scriptService;
+        this.scriptService = scriptCompiler;
     }
 
     /**

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -457,6 +459,23 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
     }
 
+    public void testCheckBootstrapSystemCallFilterSetting() {
+        final boolean boostrapSystemCallFilter = randomBoolean();
+        final Settings settings =
+            Settings.builder().put(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(), boostrapSystemCallFilter).build();
+        final PluginsAndModules pluginsAndModules =
+            new PluginsAndModules(org.elasticsearch.common.collect.List.of(), org.elasticsearch.common.collect.List.of());
+        final List<DeprecationIssue> issues =
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+        final DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            "setting [bootstrap.system_call_filter] is deprecated and will be removed in the next major version",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-system-call-filter-setting",
+            "the setting [bootstrap.system_call_filter] is currently set to [" + boostrapSystemCallFilter + "], remove this setting");
+        assertThat(issues, hasItem(expected));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{BootstrapSettings.SYSTEM_CALL_FILTER_SETTING});
+    }
+
     public void testRemovedSettingNotSet() {
         final Settings settings = Settings.EMPTY;
         final Setting<?> removedSetting = Setting.simpleString("node.removed_setting");
@@ -510,5 +529,65 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     private String randomRealmTypeOtherThanFileOrNative() {
         return randomValueOtherThanMany(t -> org.elasticsearch.common.collect.Set.of("file", "native").contains(t),
             () -> randomAlphaOfLengthBetween(4, 12));
+    }
+
+    public void testMultipleDataPaths() {
+        final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(
+            issue.getMessage(),
+            equalTo("multiple [path.data] entries are deprecated, use a single data directory"));
+        assertThat(
+            issue.getDetails(),
+            equalTo("Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks."));
+        String url =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoMultipleDataPaths() {
+        Settings settings = Settings.builder().put("path.data", "data").build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        assertThat(issue, nullValue());
+    }
+
+    public void testDataPathsList() {
+        final Settings settings = Settings.builder().putList("path.data", "d1").build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(
+            issue.getMessage(),
+            equalTo("[path.data] in a list is deprecated, use a string value"));
+        assertThat(
+            issue.getDetails(),
+            equalTo("Configuring [path.data] with a list is deprecated. Instead specify as a string value."));
+        String url =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoDataPathsListDefault() {
+        final Settings settings = Settings.builder().build();
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null);
+        assertThat(issue, nullValue());
+    }
+
+    public void testSharedDataPathSetting() {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null);
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "setting [path.shared_data] is deprecated and will be removed in a future version",
+                expectedUrl,
+                "Found shared data path configured. Discontinue use of this setting."
+            )));
     }
 }

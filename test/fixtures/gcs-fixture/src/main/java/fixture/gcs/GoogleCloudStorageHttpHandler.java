@@ -21,6 +21,9 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
@@ -29,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLDecoder;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -76,7 +80,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         try {
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
-            if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
+            if (request.equals("GET /") &&
+                "Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
+                // the SDK checks this endpoint to determine if it's running within Google Compute Engine
+                exchange.getResponseHeaders().add("Metadata-Flavor", "Google");
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+            } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o/*", request)) {
                 final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
                 final BytesReference blob = blobs.get(key);
                 if (blob == null) {
@@ -197,6 +206,11 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 blobs.put(blobName, BytesArray.EMPTY);
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
+                if (Paths.get(blobName).getFileName().toString().startsWith(BlobStoreRepository.UPLOADED_DATA_BLOB_PREFIX) == false) {
+                    final Map<String, Object> parsedBody = XContentHelper.convertToMap(requestBody, false, XContentType.JSON).v2();
+                    assert parsedBody.get("md5Hash") != null :
+                            "file [" + blobName + "] is not a data blob but did not come with a md5 checksum";
+                }
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.getResponseHeaders().add("Location", httpServerUrl(exchange) + "/upload/storage/v1/b/" + bucket + "/o?"
                     + "uploadType=resumable"

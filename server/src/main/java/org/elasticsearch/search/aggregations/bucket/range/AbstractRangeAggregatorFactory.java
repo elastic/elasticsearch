@@ -15,7 +15,6 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -30,17 +29,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final boolean keyed;
     private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
     private final RangeAggregatorSupplier aggregatorSupplier;
-
-    public static void registerAggregators(
-        ValuesSourceRegistry.Builder builder,
-        ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey
-    ) {
-        builder.register(
-            registryKey,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            RangeAggregator::build,
-                true);
-    }
 
     public AbstractRangeAggregatorFactory(String name,
                                           ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,

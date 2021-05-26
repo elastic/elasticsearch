@@ -67,7 +67,6 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -140,7 +139,6 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -255,7 +253,6 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 

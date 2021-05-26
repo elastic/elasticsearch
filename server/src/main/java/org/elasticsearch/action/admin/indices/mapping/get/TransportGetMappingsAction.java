@@ -20,10 +20,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.CancellationException;
 
 public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMappingsRequest, GetMappingsResponse> {
 
@@ -41,15 +44,22 @@ public class TransportGetMappingsAction extends TransportClusterInfoAction<GetMa
     }
 
     @Override
-    protected void doMasterOperation(final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
+    protected void doMasterOperation(Task task, final GetMappingsRequest request, String[] concreteIndices, final ClusterState state,
                                      final ActionListener<GetMappingsResponse> listener) {
         logger.trace("serving getMapping request based on version {}", state.version());
         try {
             ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetadata>> result =
-                    state.metadata().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter());
+                state.metadata().findMappings(concreteIndices, request.types(), indicesService.getFieldFilter(),
+                    () -> checkCancellation(task));
             listener.onResponse(new GetMappingsResponse(result));
         } catch (IOException e) {
             listener.onFailure(e);
+        }
+    }
+
+    private void checkCancellation(Task task) {
+        if (task instanceof CancellableTask && ((CancellableTask) task).isCancelled()) {
+            throw new CancellationException("Task cancelled");
         }
     }
 }

@@ -63,9 +63,10 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -653,10 +654,11 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private GetResult getFromTranslog(Get get, Translog.Index index, DocumentMapper mapper,
+    private GetResult getFromTranslog(Get get, Translog.Index index, MappingLookup mappingLookup, DocumentParser documentParser,
                                       Function<Searcher, Searcher> searcherWrapper) throws IOException {
         assert get.isReadFromTranslog();
-        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mapper, config().getAnalyzer());
+        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mappingLookup, documentParser,
+            config().getAnalyzer());
         final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
             config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
@@ -675,7 +677,8 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, DocumentMapper mapper, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
+    public GetResult get(Get get, MappingLookup mappingLookup, DocumentParser documentParser,
+                         Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
         assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
@@ -706,7 +709,7 @@ public class InternalEngine extends Engine {
                             try {
                                 final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
                                 if (operation != null) {
-                                    return getFromTranslog(get, (Translog.Index) operation, mapper, searcherWrapper);
+                                    return getFromTranslog(get, (Translog.Index) operation, mappingLookup, documentParser, searcherWrapper);
                                 }
                             } catch (IOException e) {
                                 maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
@@ -1467,7 +1470,7 @@ public class InternalEngine extends Engine {
         assert assertMaxSeqNoOfUpdatesIsAdvanced(delete.uid(), delete.seqNo(), false, false);
         try {
             if (softDeleteEnabled) {
-                final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newDeleteTombstoneDoc(delete.type(), delete.id());
+                final ParsedDocument tombstone = ParsedDocument.deleteTombstone(delete.type(), delete.id());
                 assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
                 tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
                 tombstone.version().setLongValue(plan.versionOfDeletion);
@@ -1604,7 +1607,7 @@ public class InternalEngine extends Engine {
                 markSeqNoAsSeen(noOp.seqNo());
                 if (softDeleteEnabled && hasBeenProcessedBefore(noOp) == false) {
                     try {
-                        final ParsedDocument tombstone = engineConfig.getTombstoneDocSupplier().newNoopTombstoneDoc(noOp.reason());
+                        final ParsedDocument tombstone = ParsedDocument.noopTombstone(noOp.reason());
                         tombstone.updateSeqID(noOp.seqNo(), noOp.primaryTerm());
                         // A noop tombstone does not require a _version but it's added to have a fully dense docvalues for the version
                         // field. 1L is selected to optimize the compression because it might probably be the most common value in

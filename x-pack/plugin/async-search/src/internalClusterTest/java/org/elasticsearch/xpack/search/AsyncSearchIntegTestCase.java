@@ -12,6 +12,10 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +36,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.async.AsyncResultsIndexPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskMaintenanceService;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
@@ -40,16 +46,10 @@ import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
-import org.elasticsearch.xpack.core.XPackClientPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.junit.After;
 import org.junit.Before;
@@ -138,9 +138,9 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(0))
+            .put(super.nodeSettings(0, otherSettings))
             .put(ASYNC_SEARCH_CLEANUP_INTERVAL_SETTING.getKey(), TimeValue.timeValueMillis(100))
             .build();
     }
@@ -237,13 +237,8 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         final String pitId;
         final SubmitAsyncSearchRequest request;
         if (randomBoolean()) {
-            OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(
-                new String[]{indexName},
-                OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS,
-                TimeValue.timeValueMinutes(between(5, 10)),
-                null,
-                null);
-            pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getSearchContextId();
+            OpenPointInTimeRequest openPIT = new OpenPointInTimeRequest(indexName).keepAlive(TimeValue.timeValueMinutes(between(5, 10)));
+            pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPIT).actionGet().getPointInTimeId();
             final PointInTimeBuilder pit = new PointInTimeBuilder(pitId);
             if (randomBoolean()) {
                 pit.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 3600)));

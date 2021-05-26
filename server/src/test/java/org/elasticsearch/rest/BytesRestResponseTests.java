@@ -111,16 +111,15 @@ public class BytesRestResponseTests extends ESTestCase {
 
     public void testGuessRootCause() throws IOException {
         RestRequest request = new FakeRestRequest();
-        RestChannel channel = new DetailedExceptionRestChannel(request);
         {
             Exception e = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-            BytesRestResponse response = new BytesRestResponse(channel, e);
+            BytesRestResponse response = new BytesRestResponse(new DetailedExceptionRestChannel(request), e);
             String text = response.content().utf8ToString();
             assertThat(text, containsString("{\"root_cause\":[{\"type\":\"exception\",\"reason\":\"an error occurred reading data\"}]"));
         }
         {
             Exception e = new FileNotFoundException("/foo/bar");
-            BytesRestResponse response = new BytesRestResponse(channel, e);
+            BytesRestResponse response = new BytesRestResponse(new DetailedExceptionRestChannel(request), e);
             String text = response.content().utf8ToString();
             assertThat(text, containsString("{\"root_cause\":[{\"type\":\"file_not_found_exception\",\"reason\":\"/foo/bar\"}]"));
         }

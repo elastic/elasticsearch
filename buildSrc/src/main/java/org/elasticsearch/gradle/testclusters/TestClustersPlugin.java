@@ -9,13 +9,13 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
-import org.elasticsearch.gradle.Jdk;
-import org.elasticsearch.gradle.JdkDownloadPlugin;
+import org.elasticsearch.gradle.internal.Jdk;
+import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;
-import org.elasticsearch.gradle.info.BuildParams;
-import org.elasticsearch.gradle.info.GlobalBuildInfoPlugin;
+import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;

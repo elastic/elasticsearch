@@ -20,11 +20,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -150,7 +151,7 @@ public class RestClusterStateAction extends BaseRestHandler {
         static final String CLUSTER_NAME = "cluster_name";
     }
 
-    private static class RestClusterStateResponse implements ToXContentObject {
+    private static class RestClusterStateResponse implements StatusToXContentObject {
 
         private final ClusterStateRequest request;
         private final ClusterStateResponse response;
@@ -182,6 +183,11 @@ public class RestClusterStateAction extends BaseRestHandler {
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.OK;
         }
     }
 

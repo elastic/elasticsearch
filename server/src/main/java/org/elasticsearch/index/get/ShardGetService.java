@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -125,7 +126,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, fields);
-            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult, mapperService);
+            GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, fetchSourceContext, engineGetResult);
             if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -159,8 +160,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
         if (type == null || type.equals("_all")) {
-            DocumentMapper mapper = mapperService.documentMapper();
-            type = mapper == null ? null : mapper.type();
+            MappingLookup mappingLookup = mapperService.mappingLookup();
+            type = mappingLookup.hasMappings() ? mappingLookup.getType() : null;
         }
 
         Engine.GetResult get = null;
@@ -180,23 +181,24 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
-            return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
+            return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get);
         } finally {
             get.close();
         }
     }
 
     private GetResult innerGetLoadFromStoredFields(String type, String id, String[] storedFields, FetchSourceContext fetchSourceContext,
-                                                   Engine.GetResult get, MapperService mapperService) {
+                                                   Engine.GetResult get) {
         assert get.exists() : "method should only be called if document could be retrieved";
 
         // check first if stored fields to be loaded don't contain an object field
         DocumentMapper docMapper = mapperService.documentMapper();
+        MappingLookup mappingLookup = docMapper.mappers();
         if (storedFields != null) {
             for (String field : storedFields) {
-                Mapper fieldMapper = docMapper.mappers().getMapper(field);
+                Mapper fieldMapper = mappingLookup.getMapper(field);
                 if (fieldMapper == null) {
-                    if (docMapper.mappers().objectMappers().get(field) != null) {
+                    if (mappingLookup.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
@@ -235,8 +237,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                     // Slow path: recreate stored fields from original source
                     assert source != null : "original source in translog must exist";
                     SourceToParse sourceToParse = new SourceToParse(shardId.getIndexName(), type, id, source,
-                        XContentHelper.xContentType(source), fieldVisitor.routing());
-                    ParsedDocument doc = indexShard.mapperService().documentMapper().parse(sourceToParse);
+                        XContentHelper.xContentType(source), fieldVisitor.routing(), Collections.emptyMap());
+                    MapperService mapperService = indexShard.mapperService();
+                    ParsedDocument doc = mapperService.documentParser().parseDocument(sourceToParse, mapperService.mappingLookup());
                     assert doc.dynamicMappingsUpdate() == null : "mapping updates should not be required on already-indexed doc";
                     // update special fields
                     doc.updateSeqID(docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
@@ -270,8 +273,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             // put stored fields into result objects
             if (fieldVisitor.fields().isEmpty() == false) {
-                fieldVisitor.postProcess(mapperService::fieldType,
-                    mapperService.documentMapper() == null ? null : mapperService.documentMapper().type());
+                fieldVisitor.postProcess(mapperService::fieldType, mappingLookup.hasMappings() ? mappingLookup.getType() : null);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {

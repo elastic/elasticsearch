@@ -9,21 +9,27 @@
 package fixture.geoip;
 
 import com.sun.net.httpserver.HttpServer;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.geoip.GeoIpCli;
 
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 public class GeoIpHttpFixture {
 
     private final HttpServer server;
 
     GeoIpHttpFixture(final String[] args) throws Exception {
+        copyFiles();
         byte[] bytes = new byte[4096];
         int read;
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
@@ -57,6 +63,41 @@ public class GeoIpHttpFixture {
                 }
             }
         });
+        this.server.createContext("/cli", exchange -> {
+            String fileName = exchange.getRequestURI().getPath().replaceAll(".*/cli/", "");
+            Path target = new File("target").toPath().resolve(fileName);
+            if (Files.isRegularFile(target)) {
+                try (OutputStream outputStream = exchange.getResponseBody();
+                     InputStream db = Files.newInputStream(target)) {
+                    exchange.sendResponseHeaders(200, 0);
+                    int read3;
+                    while((read3 = db.read(bytes)) != -1) {
+                        outputStream.write(bytes, 0, read3);
+                    }
+                } catch (Exception e) {
+                    exchange.sendResponseHeaders(500, 0);
+                    exchange.getResponseBody().close();
+                }
+            } else {
+                exchange.sendResponseHeaders(404, 0);
+                exchange.getResponseBody().close();
+            }
+        });
+    }
+
+    private void copyFiles() throws Exception {
+        Path source = new File("source").toPath();
+        Files.createDirectory(source);
+
+        Path target = new File("target").toPath();
+        Files.createDirectory(target);
+
+        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-ASN.tgz"), source.resolve("GeoLite2-ASN.tgz"));
+        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-City.mmdb"), source.resolve("GeoLite2-City.mmdb"));
+        Files.copy(GeoIpHttpFixture.class.getResourceAsStream("/GeoLite2-Country.mmdb"), source.resolve("GeoLite2-Country.mmdb"));
+
+        new GeoIpCli().main(new String[]{"-s", source.toAbsolutePath().toString(), "-t", target.toAbsolutePath().toString()},
+            Terminal.DEFAULT);
     }
 
     final void start() throws Exception {

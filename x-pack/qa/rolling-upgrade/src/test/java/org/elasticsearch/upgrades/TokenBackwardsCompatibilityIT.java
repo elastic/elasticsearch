@@ -16,6 +16,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.junit.After;
 import org.junit.Before;
@@ -77,6 +78,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 template.endObject();
                 Request createTemplate = new Request("PUT", "/_template/gen-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
+                createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                 client().performRequest(createTemplate);
             }
         }
@@ -121,6 +123,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 template.endObject();
                 Request createTemplate = new Request("PUT", "/_template/refresh-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
+                createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                 client().performRequest(createTemplate);
             }
         }
@@ -166,6 +169,7 @@ public class TokenBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                 template.endObject();
                 Request createTemplate = new Request("PUT", "/_template/invalid-tokens-old-cluster-template");
                 createTemplate.setJsonEntity(Strings.toString(template));
+                createTemplate.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
                 client().performRequest(createTemplate);
             }
         }

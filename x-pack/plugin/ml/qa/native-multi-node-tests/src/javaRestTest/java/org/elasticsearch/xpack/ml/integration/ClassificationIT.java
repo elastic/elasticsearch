@@ -160,8 +160,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -217,8 +217,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -267,8 +267,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -334,8 +334,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -425,8 +425,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, expectedMappingTypeForPredictedField);
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),
@@ -475,7 +475,6 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "classification_training_percent_is_50_boolean", BOOLEAN_FIELD, BOOLEAN_FIELD_VALUES, "boolean");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67581")
     public void testStopAndRestart() throws Exception {
         initialize("classification_stop_and_restart");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -863,8 +862,8 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "keyword");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [classification]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [classification]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             expectedDestIndexAuditMessage(),

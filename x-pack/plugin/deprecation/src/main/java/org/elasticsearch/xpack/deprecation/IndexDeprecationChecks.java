@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -260,6 +261,18 @@ public class IndexDeprecationChecks {
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
                         "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)");
             }
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkIndexDataPath(IndexMetadata indexMetadata) {
+        if (IndexMetadata.INDEX_DATA_PATH_SETTING.exists(indexMetadata.getSettings())) {
+            final String message = String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in a future version", IndexMetadata.INDEX_DATA_PATH_SETTING.getKey());
+            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
+                "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String details = "Found index data path configured. Discontinue use of this setting.";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
         }
         return null;
     }

@@ -6,12 +6,15 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
@@ -25,7 +28,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
@@ -74,6 +76,7 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -124,6 +127,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
             IndexLifecycle.class,
+            // The feature reset API touches transform custom cluster state so we need this plugin to understand it
+            Transform.class,
             DataStreamsPlugin.class);
     }
 
@@ -170,7 +175,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         setUpgradeModeTo(false);
         deleteAllDataStreams();
         cleanUpResources();
-        waitForPendingTasks();
     }
 
     @Override
@@ -185,18 +189,8 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         ));
     }
 
-    protected abstract void cleanUpResources();
-
-    private void waitForPendingTasks() {
-        ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setWaitForCompletion(true);
-        listTasksRequest.setDetailed(true);
-        listTasksRequest.setTimeout(TimeValue.timeValueSeconds(10));
-        try {
-            admin().cluster().listTasks(listTasksRequest).get();
-        } catch (Exception e) {
-            throw new AssertionError("Failed to wait for pending tasks to complete", e);
-        }
+    protected void cleanUpResources(){
+        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
     }
 
     protected void setUpgradeModeTo(boolean enabled) {
@@ -244,6 +238,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
+            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class,
+                TransformMetadata.TYPE,
+                TransformMetadata.TransformMetadataDiff::new));
+            entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, TransformMetadata.TYPE, TransformMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
                 (in) -> TimeseriesLifecycleType.INSTANCE));

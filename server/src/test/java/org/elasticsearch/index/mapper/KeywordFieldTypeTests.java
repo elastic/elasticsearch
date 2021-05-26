@@ -39,6 +39,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -183,7 +184,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         assertEquals(Collections.singletonList("42"), fetchSourceValue(ignoreAboveMapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(ignoreAboveMapper, true));
 
-        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers()).normalizer("lowercase")
+        MappedFieldType normalizerMapper = new KeywordFieldMapper.Builder("field", createIndexAnalyzers(), ScriptCompiler.NONE)
+            .normalizer("lowercase")
             .build(new ContentPath())
             .fieldType();
         assertEquals(Collections.singletonList("value"), fetchSourceValue(normalizerMapper, "VALUE"));

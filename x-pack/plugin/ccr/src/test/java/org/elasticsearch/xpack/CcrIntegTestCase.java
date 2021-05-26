@@ -291,7 +291,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
         return new NodeConfigurationSource() {
             @Override
-            public Settings nodeSettings(int nodeOrdinal) {
+            public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 return builder.build();
             }
 
@@ -318,6 +318,13 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 return Arrays.asList(LocalStateCcr.class, getTestTransportPlugin());
             }
         };
+    }
+
+    @Override
+    public List<String> filteredWarnings() {
+        return Stream.concat(super.filteredWarnings().stream(),
+            Stream.of("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
+            "multiple disks. This feature will be removed in 8.0.")).collect(Collectors.toList());
     }
 
     @AfterClass

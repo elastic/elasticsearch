@@ -45,13 +45,18 @@ public class ClientYamlTestExecutionContext {
 
     private final Stash stash = new Stash();
     private final ClientYamlTestClient clientYamlTestClient;
+    private final ClientYamlTestCandidate clientYamlTestCandidate;
 
     private ClientYamlTestResponse response;
 
     private final boolean randomizeContentType;
 
-    ClientYamlTestExecutionContext(ClientYamlTestClient clientYamlTestClient, boolean randomizeContentType) {
+    ClientYamlTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient,
+        boolean randomizeContentType) {
         this.clientYamlTestClient = clientYamlTestClient;
+        this.clientYamlTestCandidate = clientYamlTestCandidate;
         this.randomizeContentType = randomizeContentType;
     }
 
@@ -258,5 +263,9 @@ public class ClientYamlTestExecutionContext {
 
     public String os() {
         return clientYamlTestClient.getOs();
+    }
+
+    public ClientYamlTestCandidate getClientYamlTestCandidate() {
+        return clientYamlTestCandidate;
     }
 }

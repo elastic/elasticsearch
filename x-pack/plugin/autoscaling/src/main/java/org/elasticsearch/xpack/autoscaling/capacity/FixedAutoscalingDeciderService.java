@@ -30,13 +30,10 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
     public static final Setting<ByteSizeValue> STORAGE = Setting.byteSizeSetting("storage", ByteSizeValue.ofBytes(-1));
     public static final Setting<ByteSizeValue> MEMORY = Setting.byteSizeSetting("memory", ByteSizeValue.ofBytes(-1));
     public static final Setting<Integer> NODES = Setting.intSetting("nodes", 1, 0);
-    private final List<DiscoveryNodeRole> appliesToRoles;
 
     @Inject
     public FixedAutoscalingDeciderService() {
-        ArrayList<DiscoveryNodeRole> appliesToRoles = new ArrayList<>(DiscoveryNode.getPossibleRoles());
-        appliesToRoles.add(EMPTY_ROLES);
-        this.appliesToRoles = Collections.unmodifiableList(appliesToRoles);
+
     }
 
     @Override
@@ -77,7 +74,12 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return appliesToRoles;
+        return Collections.unmodifiableList(new ArrayList<>(DiscoveryNode.getPossibleRoles()));
+    }
+
+    @Override
+    public boolean appliesToEmptyRoles() {
+        return true;
     }
 
     @Override

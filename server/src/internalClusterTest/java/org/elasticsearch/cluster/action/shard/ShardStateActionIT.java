@@ -32,8 +32,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShardStateActionIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (randomBoolean()) {
             builder.put(ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING.getKey(), randomPriority());
         }

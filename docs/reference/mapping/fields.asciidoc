@@ -66,6 +66,10 @@ some of these metadata fields can be customized when a mapping type is created.
 
     Application specific metadata.
 
+<<mapping-tier-field,`_tier`>>::
+
+    The current data tier preference of the index to which the document belongs.
+
 include::fields/doc-count-field.asciidoc[]
 
 include::fields/field-names-field.asciidoc[]
@@ -82,5 +86,6 @@ include::fields/routing-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
 
-include::fields/type-field.asciidoc[]
+include::fields/tier-field.asciidoc[]
 
+include::fields/type-field.asciidoc[]

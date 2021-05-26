@@ -53,7 +53,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean allowsStore() {
+    protected boolean supportsStoredFields() {
         return false;
     }
 
@@ -155,5 +155,10 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
             return randomFrom("alpha", "beta", "prerelease", "whatever");
         }
         return randomFrom("alpha", "beta", "") + randomVersionNumber();
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

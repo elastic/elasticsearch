@@ -10,9 +10,7 @@ package org.elasticsearch.index.cache.query;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.DocIdSet;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -58,17 +56,6 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
         missCount += stats.missCount;
         cacheCount += stats.cacheCount;
         cacheSize += stats.cacheSize;
-
-        // log only the first time a negative value is encountered for query cache size
-        // see: https://github.com/elastic/elasticsearch/issues/55434
-        if (ramBytesUsed < -1 && (ramBytesUsed + stats.ramBytesUsed >= 0)) {
-            logger.debug(() -> new ParameterizedMessage(
-                "negative query cache size [{}] on thread [{}] with stats [{}] and stack trace:\n{}",
-                ramBytesUsed,
-                Thread.currentThread().getName(),
-                stats.ramBytesUsed,
-                ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace())));
-        }
     }
 
     public long getMemorySizeInBytes() {

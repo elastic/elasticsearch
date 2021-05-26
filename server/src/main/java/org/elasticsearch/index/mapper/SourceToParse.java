@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 import org.elasticsearch.common.Nullable;
@@ -28,8 +30,10 @@ public class SourceToParse {
     private final @Nullable String routing;
 
     private final XContentType xContentType;
+    private final Map<String, String> dynamicTemplates;
 
-    public SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType, @Nullable String routing) {
+    public SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType, @Nullable String routing,
+                         Map<String, String> dynamicTemplates) {
         this.index = Objects.requireNonNull(index);
         this.type = Objects.requireNonNull(type);
         this.id = Objects.requireNonNull(id);
@@ -38,10 +42,11 @@ public class SourceToParse {
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.xContentType = Objects.requireNonNull(xContentType);
         this.routing = routing;
+        this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
     }
 
     public SourceToParse(String index, String type, String id, BytesReference source, XContentType xContentType) {
-        this(index, type, id, source, xContentType, null);
+        this(index, type, id, source, xContentType, null, Collections.emptyMap());
     }
 
     public BytesReference source() {
@@ -62,6 +67,13 @@ public class SourceToParse {
 
     public @Nullable String routing() {
         return this.routing;
+    }
+
+    /**
+     * Returns a map from the full path (i.e. foo.bar) of field names to the names of dynamic mapping templates.
+     */
+    public Map<String, String> dynamicTemplates() {
+        return dynamicTemplates;
     }
 
     public XContentType getXContentType() {

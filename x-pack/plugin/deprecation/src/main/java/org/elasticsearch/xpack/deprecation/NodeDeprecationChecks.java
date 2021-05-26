@@ -12,6 +12,7 @@ import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -269,6 +270,14 @@ class NodeDeprecationChecks {
         );
     }
 
+    static DeprecationIssue checkBootstrapSystemCallFilterSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkRemovedSetting(
+            settings,
+            BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-system-call-filter-setting"
+        );
+    }
+
     private static DeprecationIssue checkDeprecatedSetting(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,
@@ -379,4 +388,36 @@ class NodeDeprecationChecks {
         return null;
     }
 
+    static DeprecationIssue checkMultipleDataPaths(Settings nodeSettings, PluginsAndModules plugins) {
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
+        if (dataPaths.size() > 1) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "multiple [path.data] entries are deprecated, use a single data directory",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
+                "Multiple data paths are deprecated. Instead, use RAID or other system level features to utilize multiple disks.");
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkDataPathsList(Settings nodeSettings, PluginsAndModules plugins) {
+        if (Environment.dataPathUsesList(nodeSettings)) {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "[path.data] in a list is deprecated, use a string value",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
+                "Configuring [path.data] with a list is deprecated. Instead specify as a string value.");
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkSharedDataPathSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        if (Environment.PATH_SHARED_DATA_SETTING.exists(settings)) {
+            final String message = String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in a future version", Environment.PATH_SHARED_DATA_SETTING.getKey());
+            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
+                "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String details = "Found shared data path configured. Discontinue use of this setting.";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+        }
+        return null;
+    }
 }

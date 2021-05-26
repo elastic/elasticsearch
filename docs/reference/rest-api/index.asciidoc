@@ -21,6 +21,7 @@ not be included yet.
 * <<enrich-apis,Enrich APIs>>
 * <<graph-explore-api,Graph explore API>>
 * <<find-structure,Find structure API>>
+* <<fleet-apis,Fleet APIs>>
 * <<indices, Index APIs>>
 * <<index-lifecycle-management-api,Index lifecycle management APIs>>
 * <<ingest-apis,Ingest APIs>>
@@ -33,6 +34,7 @@ not be included yet.
 * <<indices-reload-analyzers,Reload search analyzers API>>
 * <<repositories-metering-apis,Repositories metering APIs>>
 * <<rollup-apis,Rollup APIs>>
+* <<script-apis,Script APIs>>
 * <<search, Search APIs>>
 * <<searchable-snapshots-apis, Searchable snapshots APIs>>
 * <<security-api,Security APIs>>
@@ -52,6 +54,7 @@ include::{es-repo-dir}/data-streams/data-stream-apis.asciidoc[]
 include::{es-repo-dir}/docs.asciidoc[]
 include::{es-repo-dir}/ingest/apis/enrich/index.asciidoc[]
 include::{es-repo-dir}/features/apis/features-apis.asciidoc[]
+include::{es-repo-dir}/fleet/index.asciidoc[]
 include::{es-repo-dir}/text-structure/apis/find-structure.asciidoc[leveloffset=+1]
 include::{es-repo-dir}/graph/explore.asciidoc[]
 include::{es-repo-dir}/indices.asciidoc[]
@@ -66,6 +69,7 @@ include::{es-repo-dir}/migration/migration.asciidoc[]
 include::{es-repo-dir}/indices/apis/reload-analyzers.asciidoc[]
 include::{es-repo-dir}/repositories-metering-api/repositories-metering-apis.asciidoc[]
 include::{es-repo-dir}/rollup/rollup-apis.asciidoc[]
+include::{es-repo-dir}/scripting/apis/script-apis.asciidoc[]
 include::{es-repo-dir}/search.asciidoc[]
 include::{es-repo-dir}/searchable-snapshots/apis/searchable-snapshots-apis.asciidoc[]
 include::{xes-repo-dir}/rest-api/security.asciidoc[]

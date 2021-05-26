@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,6 +36,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
+    private SystemDataStreamDescriptor systemDataStreamDescriptor;
 
     private Settings settings = Settings.Builder.EMPTY_SETTINGS;
 
@@ -95,6 +97,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    public CreateIndexClusterStateUpdateRequest systemDataStreamDescriptor(SystemDataStreamDescriptor systemDataStreamDescriptor) {
+        this.systemDataStreamDescriptor = systemDataStreamDescriptor;
+        return this;
+    }
+
     public String cause() {
         return cause;
     }
@@ -121,6 +128,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public Index recoverFrom() {
         return recoverFrom;
+    }
+
+    public SystemDataStreamDescriptor systemDataStreamDescriptor() {
+        return systemDataStreamDescriptor;
     }
 
     /**
@@ -178,6 +189,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             ", aliases=" + aliases +
             ", blocks=" + blocks +
             ", waitForActiveShards=" + waitForActiveShards +
+            ", systemDataStreamDescriptor=" + systemDataStreamDescriptor +
             '}';
     }
 }

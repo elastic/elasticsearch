@@ -148,6 +148,37 @@ public class UriPartsProcessorTests extends ESTestCase {
         );
     }
 
+    public void testUrlWithCharactersNotToleratedByUri()  throws Exception {
+        testUriParsing(
+            "http://www.google.com/path with spaces",
+            Map.of("scheme", "http", "domain", "www.google.com", "path", "/path with spaces")
+        );
+
+        testUriParsing(
+            "https://user:pw@testing.google.com:8080/foo with space/bar?foo1=bar1&foo2=bar2#anchorVal",
+            Map.of(
+                "scheme",
+                "https",
+                "domain",
+                "testing.google.com",
+                "fragment",
+                "anchorVal",
+                "path",
+                "/foo with space/bar",
+                "port",
+                8080,
+                "username",
+                "user",
+                "password",
+                "pw",
+                "user_info",
+                "user:pw",
+                "query",
+                "foo1=bar1&foo2=bar2"
+            )
+        );
+    }
+
     public void testRemoveIfSuccessfulDoesNotRemoveTargetField() throws Exception {
         String field = "field";
         UriPartsProcessor processor = new UriPartsProcessor(null, null, field, field, true, false);

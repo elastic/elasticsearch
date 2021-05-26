@@ -38,9 +38,9 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkUserAgentPipelines,
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
             ClusterDeprecationChecks::checkPollIntervalTooLow,
-            ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled
+            ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
+            ClusterDeprecationChecks::checkTemplatesWithMultipleTypes
         ));
-
 
     static final List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS;
 
@@ -82,7 +82,11 @@ public class DeprecationChecks {
                     (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
                         XPackSettings.TRANSFORM_ENABLED),
                     (settings, pluginsAndModules) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.VECTORS_ENABLED)
+                        XPackSettings.VECTORS_ENABLED),
+                    NodeDeprecationChecks::checkMultipleDataPaths,
+                    NodeDeprecationChecks::checkDataPathsList,
+                    NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
+                    NodeDeprecationChecks::checkSharedDataPathSetting
                 )
             ).collect(Collectors.toList());
         }
@@ -94,9 +98,9 @@ public class DeprecationChecks {
             IndexDeprecationChecks::chainedMultiFieldsCheck,
             IndexDeprecationChecks::deprecatedDateTimeFormat,
             IndexDeprecationChecks::translogRetentionSettingCheck,
-            IndexDeprecationChecks::fieldNamesDisabledCheck
+            IndexDeprecationChecks::fieldNamesDisabledCheck,
+            IndexDeprecationChecks::checkIndexDataPath
         ));
-
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.
@@ -109,4 +113,5 @@ public class DeprecationChecks {
     static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
         return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
     }
+
 }

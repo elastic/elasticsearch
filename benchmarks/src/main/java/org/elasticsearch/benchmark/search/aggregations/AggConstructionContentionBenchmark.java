@@ -222,7 +222,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public Collection<MappedFieldType> getFieldTypes() {
+        public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
             throw new UnsupportedOperationException();
         }
 
@@ -258,6 +258,11 @@ public class AggConstructionContentionBenchmark {
 
         @Override
         public Query buildQuery(QueryBuilder builder) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Query filterQuery(Query query) {
             throw new UnsupportedOperationException();
         }
 

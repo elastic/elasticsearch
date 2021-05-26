@@ -376,8 +376,7 @@ public class PercolatorFieldMapper extends FieldMapper {
                 try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
                     out.setVersion(indexVersion);
                     out.writeNamedWriteable(queryBuilder);
-                    byte[] queryBuilderAsBytes = stream.toByteArray();
-                    qbField.parse(context.createExternalValueContext(queryBuilderAsBytes));
+                    qbField.indexValue(context, stream.toByteArray());
                 }
             }
         } else {
@@ -434,7 +433,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, INDEXED_KEYWORD));
         }
 
-        createFieldNamesField(context);
+        context.addToFieldNames(fieldType().name());
         if (indexVersionCreated.onOrAfter(Version.V_6_1_0)) {
             doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
         }

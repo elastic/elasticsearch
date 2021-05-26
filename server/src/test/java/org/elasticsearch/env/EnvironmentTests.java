@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Simple unit-tests for Environment.java
@@ -198,6 +199,54 @@ public class EnvironmentTests extends ESTestCase {
         }
     }
 
+    public void testSingleDataPathListCheck() {
+        {
+            final Settings settings = Settings.builder().build();
+            assertThat(Environment.dataPathUsesList(settings), is(false));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            assertThat(Environment.dataPathUsesList(settings), is(true));
+        }
+    }
+
+    public void testLegacyDataPathListPropagation() {
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .build();
+            Environment env = new Environment(settings, null);
+            assertThat(Environment.dataPathUsesList(env.settings()), is(false));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString(), createTempDir().toString()).build();
+            Environment env = new Environment(settings, null);
+            assertThat(Environment.dataPathUsesList(env.settings()), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            Environment env = new Environment(settings, null);
+            assertThat(Environment.dataPathUsesList(env.settings()), is(true));
+        }
+        {
+            final Settings settings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toString()).build();
+            Environment env = new Environment(settings, null);
+            assertThat(Environment.dataPathUsesList(env.settings()), is(false));
+        }
+    }
+
     private void assertPath(final String actual, final Path expected) {
         assertIsAbsolute(actual);
         assertIsNormalized(actual);
@@ -211,5 +260,4 @@ public class EnvironmentTests extends ESTestCase {
     private void assertIsNormalized(final String path) {
         assertThat("path [" + path + "] is not normalized", PathUtils.get(path), equalTo(PathUtils.get(path).normalize()));
     }
-
 }

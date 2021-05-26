@@ -57,7 +57,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean allowsStore() {
+    protected boolean supportsStoredFields() {
         return false;
     }
 
@@ -111,7 +111,7 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
             decodedValues,
             0.001f
         );
-        float decodedMagnitude = VectorEncoderDecoder.decodeVectorMagnitude(indexVersion, vectorBR);
+        float decodedMagnitude = VectorEncoderDecoder.decodeMagnitude(indexVersion, vectorBR);
         assertEquals(expectedMagnitude, decodedMagnitude, 0.001f);
 
         assertWarnings(SparseVectorFieldMapper.DEPRECATION_MESSAGE);
@@ -245,5 +245,22 @@ public class SparseVectorFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("doesn't support docvalues_fetcher", true);
         return null;
+    }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;
+    }
+
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("vectors");
+            minimalMapping(b);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [vectors] of type [sparse_vector] can't be used in multifields"));
     }
 }

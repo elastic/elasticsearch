@@ -47,6 +47,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -65,6 +66,7 @@ public class ExtractedFieldsDetector {
     private final int docValueFieldsLimit;
     private final FieldCapabilitiesResponse fieldCapabilitiesResponse;
     private final Map<String, Long> cardinalitiesForFieldsWithConstraints;
+    private final List<String> topNestedFieldPrefixes;
 
     ExtractedFieldsDetector(DataFrameAnalyticsConfig config,
                             int docValueFieldsLimit,
@@ -74,6 +76,26 @@ public class ExtractedFieldsDetector {
         this.docValueFieldsLimit = docValueFieldsLimit;
         this.fieldCapabilitiesResponse = Objects.requireNonNull(fieldCapabilitiesResponse);
         this.cardinalitiesForFieldsWithConstraints = Objects.requireNonNull(cardinalitiesForFieldsWithConstraints);
+        this.topNestedFieldPrefixes = findTopNestedFieldPrefixes(fieldCapabilitiesResponse);
+    }
+
+    private List<String> findTopNestedFieldPrefixes(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+        List<String> sortedNestedFieldPrefixes = fieldCapabilitiesResponse.get().keySet().stream()
+            .filter(field -> isNested(getMappingTypes(field)))
+            .map(field -> field + ".")
+            .sorted()
+            .collect(Collectors.toList());
+        Iterator<String> iterator = sortedNestedFieldPrefixes.iterator();
+        String previousNestedFieldPrefix = null;
+        while (iterator.hasNext()) {
+            String nestedFieldPrefix = iterator.next();
+            if (previousNestedFieldPrefix != null && nestedFieldPrefix.startsWith(previousNestedFieldPrefix)) {
+                iterator.remove();
+            } else {
+                previousNestedFieldPrefix = nestedFieldPrefix;
+            }
+        }
+        return Collections.unmodifiableList(sortedNestedFieldPrefixes);
     }
 
     public Tuple<ExtractedFields, List<FieldSelection>> detect() {
@@ -139,7 +161,14 @@ public class ExtractedFieldsDetector {
         }
         removeObjects(fieldsForProcessor);
         if (fieldsForProcessor.size() < processorFields.size()) {
-            throw ExceptionsHelper.badRequestException("fields for feature_processors must not be objects");
+            throw ExceptionsHelper.badRequestException("fields for feature_processors must not be objects or nested");
+        }
+        for (String field : fieldsForProcessor) {
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                throw ExceptionsHelper.badRequestException("nested fields [{}] cannot be used in a feature_processor",
+                    matchingNestedFieldPattern.get());
+            }
         }
         Collection<String> errorFields = new ArrayList<>();
         for (String fieldName : fieldsForProcessor) {
@@ -190,7 +219,7 @@ public class ExtractedFieldsDetector {
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
             Set<String> types = getMappingTypes(field);
-            if (isObject(types)) {
+            if (isObject(types) || isNested(types)) {
                 fieldsIterator.remove();
             }
         }
@@ -210,6 +239,11 @@ public class ExtractedFieldsDetector {
         fieldSelection.add(FieldSelection.excluded(field, getMappingTypes(field), reason));
     }
 
+    private void addExcludedNestedPattern(String pattern, Set<FieldSelection> fieldSelection) {
+        fieldSelection.add(FieldSelection.excluded(
+            pattern, Collections.singleton(ObjectMapper.NESTED_CONTENT_TYPE), "nested fields are not supported"));
+    }
+
     private Set<String> getMappingTypes(String field) {
         Map<String, FieldCapabilities> fieldCaps = fieldCapabilitiesResponse.getField(field);
         return fieldCaps == null ? Collections.emptySet() : fieldCaps.keySet();
@@ -219,7 +253,11 @@ public class ExtractedFieldsDetector {
         Iterator<String> fieldsIterator = fields.iterator();
         while (fieldsIterator.hasNext()) {
             String field = fieldsIterator.next();
-            if (hasCompatibleType(field) == false) {
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                addExcludedNestedPattern(matchingNestedFieldPattern.get(), fieldSelection);
+                fieldsIterator.remove();
+            } else if (hasCompatibleType(field) == false) {
                 addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
                 fieldsIterator.remove();
             }
@@ -255,6 +293,10 @@ public class ExtractedFieldsDetector {
         }
         supportedTypes.add(BooleanFieldMapper.CONTENT_TYPE);
         return supportedTypes;
+    }
+
+    private Optional<String> findMatchingNestedFieldPattern(String field) {
+        return topNestedFieldPrefixes.stream().filter(prefix -> field.startsWith(prefix)).map(prefix -> prefix + "*").findFirst();
     }
 
     private void includeAndExcludeFields(Set<String> fields, Set<FieldSelection> fieldSelection) {
@@ -294,10 +336,10 @@ public class ExtractedFieldsDetector {
 
     private void checkIncludesExcludesAreNotObjects(FetchSourceContext analyzedFields) {
         List<String> objectFields = Stream.concat(Arrays.stream(analyzedFields.includes()), Arrays.stream(analyzedFields.excludes()))
-            .filter(field -> isObject(getMappingTypes(field)))
+            .filter(field -> isObject(getMappingTypes(field)) || isNested(getMappingTypes(field)))
             .collect(Collectors.toList());
         if (objectFields.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("{} must not include or exclude object fields: {}",
+            throw ExceptionsHelper.badRequestException("{} must not include or exclude object or nested fields: {}",
                 DataFrameAnalyticsConfig.ANALYZED_FIELDS.getPreferredName(), objectFields);
         }
     }
@@ -317,10 +359,15 @@ public class ExtractedFieldsDetector {
                 }
             } else {
                 fieldsIterator.remove();
-                if (hasCompatibleType(field)) {
-                    addExcludedField(field, "field not in includes list", fieldSelection);
-                } else {
+                if (hasCompatibleType(field) == false) {
                     addExcludedField(field, "unsupported type; supported types are " + getSupportedTypes(), fieldSelection);
+                } else {
+                    Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+                    if (matchingNestedFieldPattern.isPresent()) {
+                        addExcludedNestedPattern(matchingNestedFieldPattern.get(), fieldSelection);
+                    } else {
+                        addExcludedField(field, "field not in includes list", fieldSelection);
+                    }
                 }
             }
         }
@@ -336,6 +383,10 @@ public class ExtractedFieldsDetector {
             if (hasCompatibleType(field) == false) {
                 throw ExceptionsHelper.badRequestException("field [{}] has unsupported type {}. Supported types are {}.", field,
                     fieldCaps.keySet(), getSupportedTypes());
+            }
+            Optional<String> matchingNestedFieldPattern = findMatchingNestedFieldPattern(field);
+            if (matchingNestedFieldPattern.isPresent()) {
+                throw ExceptionsHelper.badRequestException("nested fields [{}] are not supported", matchingNestedFieldPattern.get());
             }
         }
     }
@@ -601,7 +652,11 @@ public class ExtractedFieldsDetector {
         return types.size() == 1 && types.contains(BooleanFieldMapper.CONTENT_TYPE);
     }
 
-    private boolean isObject(Set<String> types) {
+    private static boolean isObject(Set<String> types) {
         return types.size() == 1 && types.contains(ObjectMapper.CONTENT_TYPE);
+    }
+
+    private static boolean isNested(Set<String> types) {
+        return types.size() == 1 && types.contains(ObjectMapper.NESTED_CONTENT_TYPE);
     }
 }

@@ -472,6 +472,7 @@ public class Docker {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
+            "elasticsearch-service-tokens",
             "x-pack-env",
             "x-pack-security-env",
             "x-pack-watcher-env"
@@ -580,5 +581,12 @@ public class Docker {
 
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
+    }
+
+    /**
+     * Restarts the current docker container.
+     */
+    public static void restartContainer() {
+        sh.run("docker restart " + containerId);
     }
 }

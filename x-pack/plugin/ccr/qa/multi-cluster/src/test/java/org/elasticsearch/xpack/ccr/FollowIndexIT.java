@@ -12,7 +12,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
@@ -231,5 +233,13 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                 "cross-cluster replication purpose"));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 }

@@ -17,6 +17,7 @@ tasks.named("integTest").configure {
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
+  setting 'xpack.security.enabled', 'false'
 }
 
 restResources {

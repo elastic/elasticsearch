@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteStep> {
@@ -80,25 +79,11 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
                 return null;
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
-
-        assertThat(actionCompleted.get(), equalTo(true));
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -120,25 +105,12 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
             return null;
         }).when(indicesClient).delete(Mockito.any(), Mockito.any());
 
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         DeleteStep step = createRandomInstance();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(indexMetadata, true).build()
         ).build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("Unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertEquals(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-
-        assertThat(exceptionThrown.get(), equalTo(true));
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+            f -> step.performAction(indexMetadata, clusterState, null, f))));
     }
 
     public void testPerformActionThrowsExceptionIfIndexIsTheDataStreamWriteIndex() {
@@ -157,9 +129,9 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         ).build();
 
         IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-            () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new AsyncActionStep.Listener() {
+            () -> createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<Boolean>() {
                 @Override
-                public void onResponse(boolean complete) {
+                public void onResponse(Boolean complete) {
                     fail("unexpected listener callback");
                 }
 

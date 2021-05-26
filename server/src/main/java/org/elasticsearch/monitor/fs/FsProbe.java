@@ -19,6 +19,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -85,6 +86,7 @@ public class FsProbe {
                     final long sectorsRead = Long.parseLong(fields[5]);
                     final long writesCompleted = Long.parseLong(fields[7]);
                     final long sectorsWritten = Long.parseLong(fields[9]);
+                    final long ioTime = Long.parseLong(fields[12]);
                     final FsInfo.DeviceStats deviceStats =
                             new FsInfo.DeviceStats(
                                     majorDeviceNumber,
@@ -94,6 +96,7 @@ public class FsProbe {
                                     sectorsRead,
                                     writesCompleted,
                                     sectorsWritten,
+                                    ioTime,
                                     deviceMap.get(Tuple.tuple(majorDeviceNumber, minorDeviceNumber)));
                     devicesStats.add(deviceStats);
                 }
@@ -133,12 +136,16 @@ public class FsProbe {
         // NOTE: we use already cached (on node startup) FileStore and spins
         // since recomputing these once per second (default) could be costly,
         // and they should not change:
-        fsPath.total = adjustForHugeFilesystems(nodePath.fileStore.getTotalSpace());
+        fsPath.total = getTotal(nodePath.fileStore);
         fsPath.free = adjustForHugeFilesystems(nodePath.fileStore.getUnallocatedSpace());
         fsPath.available = adjustForHugeFilesystems(nodePath.fileStore.getUsableSpace());
         fsPath.type = nodePath.fileStore.type();
         fsPath.mount = nodePath.fileStore.toString();
         return fsPath;
+    }
+
+    public static long getTotal(FileStore fileStore) throws IOException {
+        return adjustForHugeFilesystems(fileStore.getTotalSpace());
     }
 
 }

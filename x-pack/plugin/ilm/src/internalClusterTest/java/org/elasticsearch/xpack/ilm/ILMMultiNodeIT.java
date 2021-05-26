@@ -54,8 +54,8 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .put(XPackSettings.WATCHER_ENABLED.getKey(), false)

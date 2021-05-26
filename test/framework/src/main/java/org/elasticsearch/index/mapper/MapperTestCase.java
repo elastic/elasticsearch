@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.anyOf;
@@ -475,7 +476,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * any unique and interesting failure case. See the tests for
      * {@link DateFieldMapper} for some examples.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71053")
     public final void testFetchMany() throws IOException {
         MapperService mapperService = randomFetchTestMapper();
         try {
@@ -561,6 +561,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 }
                 return o;
             }).collect(toList());
+
+            if (dedupAfterFetch()) {
+                fromNative = fromNative.stream().distinct().collect(Collectors.toList());
+            }
             /*
              * Doc values sort according to something appropriate to the field
              * and the native fetchers usually don't sort. We're ok with this
@@ -568,6 +572,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
              */
             assertThat("fetching " + value, fromNative, containsInAnyOrder(fromDocValues.toArray()));
         });
+    }
+
+    /**
+     * A few field types (e.g. keyword fields) don't allow duplicate values, so in those cases we need to de-dup our expected values.
+     * Field types where this is the case should overwrite this. The default is to not de-duplicate though.
+     */
+    protected boolean dedupAfterFetch() {
+        return false;
     }
 
     /**
@@ -619,8 +631,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         });
     }
 
-    protected boolean allowsStore() {
+    protected boolean supportsStoredFields() {
         return true;
+    }
+
+    protected void minimalStoreMapping(XContentBuilder b) throws IOException {
+        minimalMapping(b);
+        b.field("store", true);
     }
 
     /**
@@ -629,19 +646,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     public final void testIndexTimeStoredFieldsAccess() throws IOException {
 
-        assumeTrue("FieldMapper implementation does not allow stored fields", allowsStore());
-        MapperService mapperService;
-        try {
-            mapperService = createMapperService(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("store", true);
-            }));
-            assertParseMinimalWarnings();
-        } catch (MapperParsingException e) {
-            assertParseMinimalWarnings();
-            assumeFalse("Field type does not support stored fields", true);
-            return;
-        }
+        assumeTrue("Field type does not support stored fields", supportsStoredFields());
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalStoreMapping));
+        assertParseMinimalWarnings();
 
         MappedFieldType fieldType = mapperService.fieldType("field");
         SourceToParse source = source(this::writeField);
@@ -671,5 +678,20 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return (mft, lookupSource) -> mft
             .fielddataBuilder("test", lookupSource)
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+    }
+
+    public final void testNullInput() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+        if (allowsNullValues()) {
+            ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
+            assertThat(doc.docs().get(0).getFields("field").length, equalTo(0));
+            assertThat(doc.docs().get(0).getFields("_field_names").length, equalTo(0));
+        } else {
+            expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
+        }
+    }
+
+    protected boolean allowsNullValues() {
+        return true;
     }
 }

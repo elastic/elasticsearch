@@ -13,6 +13,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -65,6 +66,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -80,6 +82,7 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -88,6 +91,8 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -107,8 +112,10 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -168,6 +175,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private ThreadContext threadContext;
     private TokenService tokenService;
     private ApiKeyService apiKeyService;
+    private ServiceAccountService serviceAccountService;
     private SecurityIndexManager securityIndex;
     private Client client;
     private InetSocketAddress remoteAddress;
@@ -261,11 +269,18 @@ public class AuthenticationServiceTests extends ESTestCase {
                                           mock(CacheInvalidatorRegistry.class), threadPool);
         tokenService = new TokenService(settings, Clock.systemUTC(), client, licenseState, securityContext, securityIndex, securityIndex,
             clusterService);
+        serviceAccountService = mock(ServiceAccountService.class);
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+            listener.onResponse(null);
+            return null;
+        }).when(serviceAccountService).authenticateToken(any(), any(), any());
 
         operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, new AnonymousUser(settings), tokenService, apiKeyService,
+            threadPool, new AnonymousUser(settings), tokenService, apiKeyService, serviceAccountService,
             operatorPrivilegesService);
     }
 
@@ -505,7 +520,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             .build();
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(Settings.EMPTY),
-            tokenService, apiKeyService, operatorPrivilegesService);
+            tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
         User user = new User("_username", "r1");
         when(firstRealm.supports(token)).thenReturn(true);
         mockAuthenticate(firstRealm, token, null);
@@ -874,7 +889,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ThreadContext threadContext1 = threadPool1.getThreadContext();
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrailService,
                 new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool1, new AnonymousUser(Settings.EMPTY),
-                tokenService, apiKeyService, operatorPrivilegesService);
+                tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {
@@ -915,7 +930,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             try (ThreadContext.StoredContext ignore = threadContext2.stashContext()) {
                 service = new AuthenticationService(Settings.EMPTY, realms, auditTrailService,
                     new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool2, new AnonymousUser(Settings.EMPTY),
-                    tokenService, apiKeyService, operatorPrivilegesService);
+                    tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
                 threadContext2.putHeader(AuthenticationField.AUTHENTICATION_KEY, authHeaderRef.get());
 
                 BytesStreamOutput output = new BytesStreamOutput();
@@ -929,7 +944,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             threadPool2.getThreadContext().putHeader(AuthenticationField.AUTHENTICATION_KEY, header);
             service = new AuthenticationService(Settings.EMPTY, realms, auditTrailService,
                 new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool2, new AnonymousUser(Settings.EMPTY),
-                tokenService, apiKeyService, operatorPrivilegesService);
+                tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
             service.authenticate("_action", new InternalRequest(), SystemUser.INSTANCE, ActionListener.wrap(result -> {
                     if (requestIdAlreadyPresent) {
                         assertThat(expectAuditRequestId(threadPool2.getThreadContext()), is(reqId.get()));
@@ -983,7 +998,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(anonymousEnabledSettings);
         service = new AuthenticationService(anonymousEnabledSettings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser,
-            tokenService, apiKeyService, operatorPrivilegesService);
+            tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -1017,7 +1032,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(anonymousEnabledSettings);
         service = new AuthenticationService(anonymousEnabledSettings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser,
-            tokenService, apiKeyService, operatorPrivilegesService);
+            tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
         doAnswer(invocationOnMock -> {
             final GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
             final ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
@@ -1058,7 +1073,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService, operatorPrivilegesService);
+            threadPool, anonymousUser, tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
         RestRequest request = new FakeRestRequest();
 
         Tuple<Authentication, String> result = authenticateBlocking(request);
@@ -1085,7 +1100,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService, operatorPrivilegesService);
+            threadPool, anonymousUser, tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
         RestRequest request = new FakeRestRequest();
 
         PlainActionFuture<Authentication> future = new PlainActionFuture<>();
@@ -1109,7 +1124,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService, operatorPrivilegesService);
+            threadPool, anonymousUser, tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
         InternalRequest message = new InternalRequest();
         boolean requestIdAlreadyPresent = randomBoolean();
         SetOnce<String> reqId = new SetOnce<>();
@@ -1138,7 +1153,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         service = new AuthenticationService(settings, realms, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
-            threadPool, anonymousUser, tokenService, apiKeyService, operatorPrivilegesService);
+            threadPool, anonymousUser, tokenService, apiKeyService, serviceAccountService, operatorPrivilegesService);
 
         InternalRequest message = new InternalRequest();
         boolean requestIdAlreadyPresent = randomBoolean();
@@ -1894,6 +1909,71 @@ public class AuthenticationServiceTests extends ESTestCase {
             }
             assertEquals(RestStatus.UNAUTHORIZED, e.status());
             verifyZeroInteractions(operatorPrivilegesService);
+        }
+    }
+
+    public void testCanAuthenticateServiceAccount() throws ExecutionException, InterruptedException {
+        Mockito.reset(serviceAccountService);
+        final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
+        final Authentication authentication = new Authentication(
+            new User("elastic/fleet-server"),
+            new RealmRef("_service_account", "_service_account", "foo"), null,
+            Version.CURRENT, AuthenticationType.TOKEN,
+            org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName(),
+                "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+            boolean requestIdAlreadyPresent = randomBoolean();
+            SetOnce<String> reqId = new SetOnce<>();
+            if (requestIdAlreadyPresent) {
+                reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
+            }
+            threadContext.putHeader("Authorization", "Bearer AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3");
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+                listener.onResponse(authentication);
+                return null;
+            }).when(serviceAccountService).authenticateToken(any(), any(), any());
+            final Tuple<Authentication, String> result = authenticateBlocking("_action", transportRequest, null);
+            if (requestIdAlreadyPresent) {
+                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+            }
+            assertThat(expectAuditRequestId(threadContext), is(result.v2()));
+            assertThat(result.v1(), is(authentication));
+            verify(auditTrail).authenticationSuccess(eq(result.v2()), same(authentication), eq("_action"), same(transportRequest));
+            verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result.v1()), eq(threadContext));
+            verifyNoMoreInteractions(auditTrail);
+        }
+    }
+
+    public void testServiceAccountFailureWillNotFallthrough() throws IOException {
+        Mockito.reset(serviceAccountService);
+        final ElasticsearchSecurityException bailOut = new ElasticsearchSecurityException("bail out", RestStatus.UNAUTHORIZED);
+        try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
+            boolean requestIdAlreadyPresent = randomBoolean();
+            SetOnce<String> reqId = new SetOnce<>();
+            if (requestIdAlreadyPresent) {
+                reqId.set(AuditUtil.getOrGenerateRequestId(threadContext));
+            }
+            final String bearerString = "AAEAAWVsYXN0aWMvZmxlZXQtc2VydmVyL3Rva2VuMTpyNXdkYmRib1FTZTl2R09Ld2FKR0F3";
+            threadContext.putHeader("Authorization", "Bearer " + bearerString);
+            doAnswer(invocationOnMock -> {
+                @SuppressWarnings("unchecked")
+                final ActionListener<Authentication> listener = (ActionListener<Authentication>) invocationOnMock.getArguments()[2];
+                listener.onFailure(bailOut);
+                return null;
+            }).when(serviceAccountService).authenticateToken(any(), any(), any());
+            final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
+                () -> authenticateBlocking("_action", transportRequest, null));
+            if (requestIdAlreadyPresent) {
+                assertThat(expectAuditRequestId(threadContext), is(reqId.get()));
+            } else {
+                reqId.set(expectAuditRequestId(threadContext));
+            }
+            assertThat(e, sameInstance(bailOut));
+            verifyZeroInteractions(operatorPrivilegesService);
+            final ServiceAccountToken serviceToken = ServiceAccountToken.fromBearerString(new SecureString(bearerString.toCharArray()));
+            verify(auditTrail).authenticationFailed(eq(reqId.get()), eq(serviceToken), eq("_action"), eq(transportRequest));
         }
     }
 

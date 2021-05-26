@@ -33,8 +33,6 @@ please see <<removal-of-types>>.
 
 `PUT /<target>/_mapping`
 
-`PUT /_mapping`
-
 [[put-mapping-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -51,7 +49,7 @@ privilege.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
+(Required, string)
 Comma-separated list of data streams, indices, and index aliases used to limit
 the request. Wildcard expressions (`*`) are supported.
 +
@@ -402,7 +400,7 @@ POST /_reindex
 
 // tag::rename-field[]
 Renaming a field would invalidate data already indexed under the old field name.
-Instead, add an <<alias, `alias`>> field to create an alternate field name.
+Instead, add an <<field-alias, `alias`>> field to create an alternate field name.
 // end::rename-field[]
 
 For example,

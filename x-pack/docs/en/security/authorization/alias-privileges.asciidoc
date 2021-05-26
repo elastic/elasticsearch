@@ -3,7 +3,7 @@
 === Granting privileges for data streams and index aliases
 
 {es} {security-features} allow you to secure operations executed against
-<<data-streams,data streams>> and <<indices-aliases,index aliases>>.
+<<data-streams,data streams>> and <<alias,aliases>>.
 
 [[data-stream-privileges]]
 ==== Data stream privileges

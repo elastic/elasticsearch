@@ -189,6 +189,7 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(ioStats.getTotalReadOperations(), deserializedIoStats.getTotalReadOperations());
                     assertEquals(ioStats.getTotalWriteKilobytes(), deserializedIoStats.getTotalWriteKilobytes());
                     assertEquals(ioStats.getTotalWriteOperations(), deserializedIoStats.getTotalWriteOperations());
+                    assertEquals(ioStats.getTotalIOTimeMillis(), deserializedIoStats.getTotalIOTimeMillis());
                     assertEquals(ioStats.getDevicesStats().length, deserializedIoStats.getDevicesStats().length);
                     for (int i = 0; i < ioStats.getDevicesStats().length; i++) {
                         FsInfo.DeviceStats deviceStats = ioStats.getDevicesStats()[i];
@@ -198,6 +199,7 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(deviceStats.readOperations(), deserializedDeviceStats.readOperations());
                         assertEquals(deviceStats.writeKilobytes(), deserializedDeviceStats.writeKilobytes());
                         assertEquals(deviceStats.writeOperations(), deserializedDeviceStats.writeOperations());
+                        assertEquals(deviceStats.ioTimeInMillis(), deserializedDeviceStats.ioTimeInMillis());
                     }
                 }
                 if (nodeStats.getTransport() == null) {
@@ -416,10 +418,12 @@ public class NodeStatsTests extends ESTestCase {
             for (int i = 0; i < numDeviceStats; i++) {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean() ? null :
                         new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10),
-                                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), null);
+                            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                            randomNonNegativeLong(), null);
                 deviceStatsArray[i] =
                     new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), previousDeviceStats);
+                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        previousDeviceStats);
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);
@@ -480,21 +484,34 @@ public class NodeStatsTests extends ESTestCase {
             : null;
         IngestStats ingestStats = null;
         if (frequently()) {
-            IngestStats.Stats totalStats = new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
-                    randomNonNegativeLong());
             int numPipelines = randomIntBetween(0, 10);
             int numProcessors = randomIntBetween(0, 10);
+            long maxStatValue = Long.MAX_VALUE / Math.max(1, numPipelines) / Math.max(1, numProcessors);
+            IngestStats.Stats totalStats = new IngestStats.Stats(
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue)
+            );
             List<IngestStats.PipelineStat> ingestPipelineStats = new ArrayList<>(numPipelines);
             Map<String, List<IngestStats.ProcessorStat>> ingestProcessorStats = new HashMap<>(numPipelines);
             for (int i = 0; i < numPipelines; i++) {
                 String pipelineId = randomAlphaOfLengthBetween(3, 10);
-                ingestPipelineStats.add(new IngestStats.PipelineStat(pipelineId,  new IngestStats.Stats
-                    (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())));
+                ingestPipelineStats.add(new IngestStats.PipelineStat(pipelineId,  new IngestStats.Stats(
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue),
+                    randomLongBetween(0, maxStatValue))
+                ));
 
                 List<IngestStats.ProcessorStat> processorPerPipeline = new ArrayList<>(numProcessors);
                 for (int j =0; j < numProcessors;j++) {
-                    IngestStats.Stats processorStats = new IngestStats.Stats
-                        (randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+                    IngestStats.Stats processorStats = new IngestStats.Stats(
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue),
+                        randomLongBetween(0, maxStatValue)
+                    );
                     processorPerPipeline.add(new IngestStats.ProcessorStat(randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10), processorStats));
                 }

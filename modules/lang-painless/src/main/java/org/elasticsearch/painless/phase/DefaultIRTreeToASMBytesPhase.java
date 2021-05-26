@@ -523,12 +523,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeCast(irForEachSubArrayNode.getDecorationValue(IRDCast.class));
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
 
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), irForEachSubArrayNode.getLocation());
-        }
-
         visit(irForEachSubArrayNode.getBlockNode(), writeScope.newLoopScope(begin, end));
 
         methodWriter.goTo(begin);
@@ -573,12 +567,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.invokeInterface(ITERATOR_TYPE, ITERATOR_NEXT);
         methodWriter.writeCast(irForEachSubIterableNode.getDecorationValue(IRDCast.class));
         methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
-
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), irForEachSubIterableNode.getLocation());
-        }
 
         visit(irForEachSubIterableNode.getBlockNode(), writeScope.newLoopScope(begin, end));
         methodWriter.goTo(begin);

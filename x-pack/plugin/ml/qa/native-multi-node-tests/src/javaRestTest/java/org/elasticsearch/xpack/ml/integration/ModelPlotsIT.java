@@ -75,11 +75,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testPartitionFieldWithoutTerms() throws Exception {
         Job.Builder job = jobWithPartitionUser("model-plots-it-test-partition-field-without-terms");
         job.setModelPlotConfig(new ModelPlotConfig());
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
@@ -97,11 +95,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testPartitionFieldWithTerms() throws Exception {
         Job.Builder job = jobWithPartitionUser("model-plots-it-test-partition-field-with-terms");
         job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3", false));
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());
@@ -119,11 +115,9 @@ public class ModelPlotsIT extends MlNativeAutodetectIntegTestCase {
     public void testByFieldWithTerms() throws Exception {
         Job.Builder job = jobWithByUser("model-plots-it-test-by-field-with-terms");
         job.setModelPlotConfig(new ModelPlotConfig(true, "user_2,user_3", false));
-        registerJob(job);
         putJob(job);
         String datafeedId = job.getId() + "-feed";
         DatafeedConfig datafeed = newDatafeed(datafeedId, job.getId());
-        registerDatafeed(datafeed);
         putDatafeed(datafeed);
         openJob(job.getId());
         startDatafeed(datafeedId, 0, System.currentTimeMillis());

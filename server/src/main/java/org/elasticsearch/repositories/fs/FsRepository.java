@@ -95,7 +95,7 @@ public class FsRepository extends BlobStoreRepository {
         } else {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
         }
-        this.basePath = BlobPath.cleanPath();
+        this.basePath = BlobPath.EMPTY;
     }
 
     private static boolean calculateCompress(RepositoryMetadata metadata, Environment environment) {

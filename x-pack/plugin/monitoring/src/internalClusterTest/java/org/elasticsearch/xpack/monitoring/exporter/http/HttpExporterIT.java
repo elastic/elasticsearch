@@ -107,10 +107,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private MockSecureSettings mockSecureSettings  = new MockSecureSettings();
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
 
         Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
             // we do this by default in core, but for monitoring this isn't needed and only adds noise.
             .put("indices.lifecycle.history_index_enabled", false)

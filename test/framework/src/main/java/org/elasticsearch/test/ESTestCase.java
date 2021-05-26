@@ -46,6 +46,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -65,7 +66,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -124,6 +124,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -381,7 +382,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @After
     public final void after() throws Exception {
-        checkStaticState(false);
+        checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
         // because after methods are still called in the event that before
         // methods failed, in which case threadContext might not have been
@@ -411,19 +412,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
             if (warnings != null) {
-                List<String> filteredWarnings = new ArrayList<>(warnings);
-                if (enableJodaDeprecationWarningsCheck() == false) {
-                    filteredWarnings = filterJodaDeprecationWarnings(filteredWarnings);
-                }
-                if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-                    // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
-                    filteredWarnings = filteredWarnings
-                        .stream()
-                        .filter(k -> k.contains(
-                            "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release"
-                        ) == false)
-                        .collect(Collectors.toList());
-                }
+                // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
+                final List<String> filteredWarnings = warnings
+                    .stream()
+                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
+                    .collect(Collectors.toList());
                 assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
                 assertNull("unexpected warning headers", warnings);
@@ -431,6 +424,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         } finally {
             resetDeprecationLogger();
         }
+    }
+
+    protected List<String> filteredWarnings() {
+        List<String> filtered = new ArrayList<>();
+        if (enableJodaDeprecationWarningsCheck()) {
+            filtered.add(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
+        }
+        if (JvmInfo.jvmInfo().getBundledJdk() == false) {
+            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
+        }
+        return filtered;
     }
 
     /**
@@ -490,24 +494,23 @@ public abstract class ESTestCase extends LuceneTestCase {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
         try {
-            final List<String> actualWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> rawWarnings = threadContext.getResponseHeaders().get("Warning");
+            final List<String> actualWarnings;
+            if (rawWarnings == null) {
+                actualWarnings = Collections.emptyList();
+            } else {
+                actualWarnings = rawWarnings.stream()
+                    .filter(k -> filteredWarnings().stream().noneMatch(s -> s.contains(k)))
+                    .collect(Collectors.toList());
+            }
             if ((expectedWarnings == null || expectedWarnings.length == 0)) {
-                assertNull("expected 0 warnings, actual: " + actualWarnings, actualWarnings);
-            } else if (actualWarnings != null && enableJodaDeprecationWarningsCheck() == false) {
-                List<String> filteredWarnings = filterJodaDeprecationWarnings(actualWarnings);
-                assertWarnings(stripXContentPosition, filteredWarnings, expectedWarnings);
+                assertThat("expected 0 warnings, actual: " + actualWarnings, actualWarnings, empty());
             } else {
                 assertWarnings(stripXContentPosition, actualWarnings, expectedWarnings);
             }
         } finally {
             resetDeprecationLogger();
         }
-    }
-
-    private List<String> filterJodaDeprecationWarnings(List<String> actualWarnings) {
-        return actualWarnings.stream()
-                             .filter(m -> m.contains(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS) == false)
-                             .collect(Collectors.toList());
     }
 
     private void assertWarnings(boolean stripXContentPosition, List<String> actualWarnings, String[] expectedWarnings) {
@@ -550,11 +553,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
-    protected static void checkStaticState(boolean afterClass) throws Exception {
+    protected static void checkStaticState() throws Exception {
         LeakTracker.INSTANCE.reportLeak();
-        if (afterClass) {
-            MockPageCacheRecycler.ensureAllPagesAreReleased();
-        }
         MockBigArrays.ensureAllArraysAreReleased();
 
         // ensure no one changed the status logger level on us
@@ -878,6 +878,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
+    public static <K, V> Map<K, V> randomMap(int minListSize, int maxListSize, Supplier<Tuple<K, V>> valueConstructor) {
+        final int size = randomIntBetween(minListSize, maxListSize);
+        Map<K, V> list = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            Tuple<K, V> entry = valueConstructor.get();
+            list.put(entry.v1(), entry.v2());
+        }
+        return list;
+    }
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 

@@ -80,9 +80,9 @@ public class ContextAndHeaderTransportIT extends HttpSmokeTestCase {
     private String lookupIndex = "lookup-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .build();
     }
 

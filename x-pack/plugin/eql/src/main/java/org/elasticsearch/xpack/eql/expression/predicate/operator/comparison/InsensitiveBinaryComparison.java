@@ -53,11 +53,6 @@ public abstract class InsensitiveBinaryComparison extends BinaryOperator<Object,
     protected abstract String regularOperatorSymbol();
 
     @Override
-    protected Expression canonicalize() {
-        return left().hashCode() > right().hashCode() ? swapLeftAndRight() : this;
-    }
-
-    @Override
     public DataType dataType() {
         return DataTypes.BOOLEAN;
     }

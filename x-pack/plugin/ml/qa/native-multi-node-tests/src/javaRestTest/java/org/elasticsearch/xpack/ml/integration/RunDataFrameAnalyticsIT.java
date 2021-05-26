@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -130,8 +131,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-few-docs-results]",
@@ -223,8 +224,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-enough-docs-to-scroll-results]",
@@ -307,8 +308,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-more-fields-than-docvalue-limit-results]",
@@ -369,8 +370,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         }
 
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-stop-outlier-detection-with-enough-docs-to-scroll-results]",
@@ -434,8 +435,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-multiple-source-indices-results]",
@@ -455,9 +456,13 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
             .get();
 
-        client().admin().indices().prepareCreate(destIndex)
-            .addMapping("_doc", "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword")
-            .get();
+        CreateIndexRequestBuilder createDestIndexBuilder = client().admin().indices().prepareCreate(destIndex);
+        // Test with and without mappings in the dest index
+        if (randomBoolean()) {
+            createDestIndexBuilder.addMapping("_doc",
+                "numeric_1", "type=double", "numeric_2", "type=float", "categorical_1", "type=keyword");
+        }
+        createDestIndexBuilder.get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -495,8 +500,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Using existing destination index [test-outlier-detection-with-pre-existing-dest-index-results]",
@@ -594,8 +599,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         waitUntilAnalyticsIsStopped(id);
 
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "No node found to start analytics. Reasons [persistent task is awaiting node assignment.]",
             "Started analytics",
             "Stopped analytics");
@@ -743,8 +748,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [test-outlier-detection-with-custom-params-results]",
@@ -839,8 +844,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + sourceIndex + "-results]",
@@ -945,8 +950,8 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         assertProgressComplete(id);
         assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
         assertThatAuditMessagesMatch(id,
-            "Created analytics with analysis type [outlier_detection]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [outlier_detection]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + sourceIndex + "-results]",

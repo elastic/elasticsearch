@@ -617,4 +617,88 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(),
             Matchers.containsString("[copy_to] may not be used to copy from a multi-field: [field.bar]"));
     }
+
+    public void testCopyToDateRangeFailure() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
+                b.startObject("properties");
+                {
+                    b.startObject("date_copy")
+                        .field("type", "date_range")
+                    .endObject()
+                    .startObject("date")
+                        .field("type", "date_range")
+                        .array("copy_to", "date_copy")
+                    .endObject();
+                }
+                b.endObject();
+              }));
+
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> docMapper.parse(source(b ->
+            b.startObject("date")
+                .field("gte", "2019-11-10T01:00:00.000Z")
+                .field("lt", "2019-11-11T01:00:00.000Z")
+            .endObject()
+        )));
+        assertEquals(
+            "Cannot copy field [date] to fields [date_copy]. Copy-to currently only works for value-type fields, not objects.",
+            ex.getMessage()
+        );
+    }
+
+    public void testCopyToGeoPoint() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
+                b.startObject("properties");
+                {
+                    b.startObject("geopoint_copy")
+                        .field("type", "geo_point")
+                    .endObject()
+                    .startObject("geopoint")
+                        .field("type", "geo_point")
+                        .array("copy_to", "geopoint_copy")
+                    .endObject();
+                }
+                b.endObject();
+              }));
+        // copy-to works for value-type representations
+        {
+            for (String value : Arrays.asList("41.12,-71.34", "drm3btev3e86", "POINT (-71.34 41.12)")) {
+                String json = BytesReference.bytes(jsonBuilder().startObject().field("geopoint", value).endObject()).utf8ToString();
+
+                ParseContext.Document doc = docMapper.parse(source(json)).rootDoc();
+
+                IndexableField[] fields = doc.getFields("geopoint");
+                assertThat(fields.length, equalTo(2));
+
+                fields = doc.getFields("geopoint_copy");
+                assertThat(fields.length, equalTo(2));
+            }
+        }
+        // check failure for object/array type representations
+        {
+            String json = BytesReference.bytes(
+                jsonBuilder().startObject().startObject("geopoint").field("lat", 41.12).field("lon", -71.34).endObject().endObject()
+            ).utf8ToString();
+
+            MapperParsingException ex = expectThrows(
+                MapperParsingException.class,
+                () -> docMapper.parse(source(json)));
+            assertEquals(
+                "Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
+                ex.getMessage()
+            );
+        }
+        {
+            String json = BytesReference.bytes(
+                jsonBuilder().startObject().array("geopoint", new double[] { -71.34, 41.12 }).endObject()
+            ).utf8ToString();
+
+            MapperParsingException ex = expectThrows(
+                MapperParsingException.class,
+                () -> docMapper.parse(source(json)));
+            assertEquals(
+                "Cannot copy field [geopoint] to fields [geopoint_copy]. Copy-to currently only works for value-type fields, not objects.",
+                ex.getMessage()
+            );
+        }
+    }
 }

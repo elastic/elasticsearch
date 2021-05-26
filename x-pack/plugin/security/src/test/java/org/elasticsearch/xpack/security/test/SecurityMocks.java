@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.get.GetAction;
@@ -90,6 +91,7 @@ public final class SecurityMocks {
         when(securityIndexManager.isAvailable()).thenReturn(available);
         when(securityIndexManager.aliasName()).thenReturn(alias);
         when(securityIndexManager.freeze()).thenReturn(securityIndexManager);
+        when(securityIndexManager.getInstallableMappingVersion()).thenReturn(Version.CURRENT);
         return securityIndexManager;
     }
 

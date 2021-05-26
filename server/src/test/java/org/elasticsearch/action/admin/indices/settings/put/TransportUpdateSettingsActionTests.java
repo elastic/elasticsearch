@@ -19,18 +19,16 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.List;
+import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
-
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -93,7 +91,7 @@ public class TransportUpdateSettingsActionTests extends ESTestCase {
         @SuppressWarnings("unchecked")
         ActionListener<AcknowledgedResponse> mockListener = mock(ActionListener.class);
 
-        action.masterOperation(mock(Task.class), request, CLUSTER_STATE, mockListener);
+        action.masterOperation(request, CLUSTER_STATE, mockListener);
 
         ArgumentCaptor<Exception> exceptionArgumentCaptor = ArgumentCaptor.forClass(Exception.class);
         verify(mockListener, times(0)).onResponse(any());

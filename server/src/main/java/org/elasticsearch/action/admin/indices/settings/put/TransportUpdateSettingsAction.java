@@ -172,7 +172,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
         // Requests that a cluster generates itself are permitted to have a difference in settings
         // so that rolling upgrade scenarios still work. We check this via the request's origin.
         if (request.settings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false) == false) {
-            return List.of();
+            return Collections.emptyList();
         }
 
         final List<String> systemPatterns = new ArrayList<>();

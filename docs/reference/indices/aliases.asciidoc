@@ -363,6 +363,8 @@ POST /_aliases
 }
 --------------------------------------------------
 
+// TEST[continued]
+
 Multi filters can be used to create alias that uses a filters on field `customer_last_name` and `customer_gender`:
 
 [source,console]
@@ -387,8 +389,6 @@ POST _aliases
   ]
 }
 --------------------------------------------------
-
-// TEST[continued]
 
 [[aliases-routing]]
 ===== Routing

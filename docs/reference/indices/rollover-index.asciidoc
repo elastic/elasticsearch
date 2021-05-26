@@ -4,8 +4,7 @@
 <titleabbrev>Rollover</titleabbrev>
 ++++
 
-Creates a new index for a <<data-streams,data stream>> or
-<<indices-add-alias,index alias>>.
+Creates a new index for a <<data-streams,data stream>> or <<alias,index alias>>.
 
 [source,console]
 ----
@@ -52,7 +51,7 @@ See <<convert-index-alias-to-data-stream>>.
 ====
 
 If an index alias points to multiple indices, one of the indices must be a
-<<aliases-write-index,write index>>. The rollover API creates a new write index
+<<write-index,write index>>. The rollover API creates a new write index
 for the alias with `is_write_index` set to `true`. The API also sets
 `is_write_index` to `false` for the previous write index.
 

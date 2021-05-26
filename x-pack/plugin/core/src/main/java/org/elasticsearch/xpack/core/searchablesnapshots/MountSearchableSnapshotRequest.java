@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
@@ -106,6 +107,22 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             this.storage = Storage.readFromStream(in);
         } else {
             this.storage = Storage.FULL_COPY;
+        }
+    }
+
+    /**
+     * Returns the preference for new searchable snapshot indices. When
+     * performing a full mount the preference is cold - warm - hot. When
+     * performing a partial mount the preference is only frozen
+     */
+    public static String getDataTiersPreference(Storage type) {
+        switch (type) {
+            case FULL_COPY:
+                return String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
+            case SHARED_CACHE:
+                return DataTier.DATA_FROZEN;
+            default:
+                throw new IllegalArgumentException("unknown searchable snapshot type [" + type + "]");
         }
     }
 

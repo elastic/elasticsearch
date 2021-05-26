@@ -54,7 +54,7 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
         assertNotNull(steps);
         assertEquals(1, steps.size());
         StepKey expectedFirstStepKey = new StepKey(phase, SetPriorityAction.NAME, SetPriorityAction.NAME);
@@ -70,7 +70,7 @@ public class SetPriorityActionTests extends AbstractActionTestCase<SetPriorityAc
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
         assertNotNull(steps);
         assertEquals(1, steps.size());
         StepKey expectedFirstStepKey = new StepKey(phase, SetPriorityAction.NAME, SetPriorityAction.NAME);

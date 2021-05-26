@@ -106,9 +106,9 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
     }
 
     public void testReadStepKeys() {
-        assertNull(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, "{}", "phase"));
-        assertNull(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, "aoeu", "phase"));
-        assertNull(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, "", "phase"));
+        assertNull(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, "{}", "phase", null));
+        assertNull(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, "aoeu", "phase", null));
+        assertNull(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, "", "phase", null));
 
         assertThat(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, "{\n" +
             "        \"policy\": \"my_lifecycle3\",\n" +
@@ -122,7 +122,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             "        },\n" +
             "        \"version\": 3, \n" +
             "        \"modified_date_in_millis\": 1539609701576 \n" +
-            "      }", "phase"),
+            "      }", "phase", null),
             contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
                 new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
@@ -144,7 +144,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
                 "        },\n" +
                 "        \"version\" : 1,\n" +
                 "        \"modified_date_in_millis\" : 1578521007076\n" +
-                "      }", "phase"),
+                "      }", "phase", null),
             contains(new Step.StepKey("phase", "rollover", WaitForRolloverReadyStep.NAME),
                 new Step.StepKey("phase", "rollover", RolloverStep.NAME),
                 new Step.StepKey("phase", "rollover", WaitForActiveShardsStep.NAME),
@@ -160,7 +160,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         String phaseDef = Strings.toString(pei);
         logger.info("--> phaseDef: {}", phaseDef);
 
-        assertThat(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, phaseDef, "phase"),
+        assertThat(TransportPutLifecycleAction.readStepKeys(REGISTRY, client, phaseDef, "phase", null),
             contains(
                 new Step.StepKey("phase", "freeze", FreezeAction.CONDITIONAL_SKIP_FREEZE_STEP),
                 new Step.StepKey("phase", "freeze", CheckNotDataStreamWriteIndexStep.NAME),
@@ -212,7 +212,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
 
         // Failure case, can't update because the step we're currently on has been removed in the new policy
@@ -249,7 +249,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
 
         // Failure case, can't update because the future step has been deleted
@@ -286,7 +286,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
 
         // Failure case, index doesn't have enough info to check
@@ -321,7 +321,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
 
         // Failure case, the phase JSON is unparseable
@@ -344,7 +344,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
             LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
 
-            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+            assertFalse(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
         }
     }
 
@@ -436,7 +436,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
-        assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy));
+        assertTrue(TransportPutLifecycleAction.isIndexPhaseDefinitionUpdatable(REGISTRY, client, meta, newPolicy, null));
 
         ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
@@ -446,7 +446,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
 
         logger.info("--> update for unchanged policy");
         ClusterState updatedState = TransportPutLifecycleAction.updateIndicesForPolicy(existingState, REGISTRY,
-            client, oldPolicy, policyMetadata);
+            client, oldPolicy, policyMetadata, null);
 
         // No change, because the policies were identical
         assertThat(updatedState, equalTo(existingState));
@@ -460,7 +460,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
         policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
 
         logger.info("--> update with changed policy, but not configured in settings");
-        updatedState = TransportPutLifecycleAction.updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata);
+        updatedState = TransportPutLifecycleAction.updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         // No change, because the index doesn't have a lifecycle.name setting for this policy
         assertThat(updatedState, equalTo(existingState));
@@ -481,7 +481,7 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             .build();
 
         logger.info("--> update with changed policy and this index has the policy");
-        updatedState = TransportPutLifecycleAction.updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata);
+        updatedState = TransportPutLifecycleAction.updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         IndexMetadata newIdxMeta = updatedState.metadata().index(index);
         LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);

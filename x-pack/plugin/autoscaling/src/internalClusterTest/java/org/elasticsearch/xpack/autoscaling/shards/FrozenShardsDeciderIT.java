@@ -18,7 +18,10 @@ public class FrozenShardsDeciderIT extends org.elasticsearch.xpack.autoscaling.A
         return 1;
     }
 
-    public void testScale() {
+    public void testScale() throws Exception {
+        setupRepoAndPolicy();
+        createAndMountIndex();
+
         assertThat(
             capacity().results().get("frozen").requiredCapacity().total().memory(),
             equalTo(FrozenShardsDeciderService.DEFAULT_MEMORY_PER_SHARD)

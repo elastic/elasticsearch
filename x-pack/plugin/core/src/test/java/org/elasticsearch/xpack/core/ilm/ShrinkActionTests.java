@@ -81,7 +81,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
         BranchingStep step = ((BranchingStep) steps.get(0));
 
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, Collections.singletonMap("warm",
@@ -116,7 +116,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
         BranchingStep step = ((BranchingStep) steps.get(0));
 
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, Collections.singletonMap("warm",
@@ -147,7 +147,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
         assertThat(steps.size(), equalTo(16));
         StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
         StepKey expectedSecondKey = new StepKey(phase, ShrinkAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);

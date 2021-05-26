@@ -107,7 +107,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             randomNonNegativeLong(), randomNonNegativeLong()));
         policyMap.put(invalidPolicyName, new LifecyclePolicyMetadata(invalidPolicy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong()));
-        policyStepsRegistry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client);
+        policyStepsRegistry = new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, client, null);
 
         indexName = randomAlphaOfLength(5);
         lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);

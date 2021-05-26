@@ -60,7 +60,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
             randomAlphaOfLengthBetween(1, 10));
         {
             MigrateAction action = new MigrateAction();
-            List<Step> steps = action.toSteps(null, phase, nextStepKey);
+            List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
             assertNotNull(steps);
             assertEquals(3, steps.size());
             StepKey expectedFirstStepKey = new StepKey(phase, MigrateAction.NAME, MigrateAction.CONDITIONAL_SKIP_MIGRATE_STEP);
@@ -78,7 +78,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
 
         {
             MigrateAction disabledMigrateAction = new MigrateAction(false);
-            List<Step> steps = disabledMigrateAction.toSteps(null, phase, nextStepKey);
+            List<Step> steps = disabledMigrateAction.toSteps(null, phase, nextStepKey, null);
             assertEquals(0, steps.size());
         }
     }
@@ -96,19 +96,19 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
             randomAlphaOfLengthBetween(1, 10));
         MigrateAction action = new MigrateAction();
         {
-            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
+            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey, null);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
             assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(firstStep.getSettings()),
                 is(DATA_HOT));
         }
         {
-            List<Step> steps = action.toSteps(null, WARM_PHASE, nextStepKey);
+            List<Step> steps = action.toSteps(null, WARM_PHASE, nextStepKey, null);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
             assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(firstStep.getSettings()),
                 is(DATA_WARM + "," + DATA_HOT));
         }
         {
-            List<Step> steps = action.toSteps(null, COLD_PHASE, nextStepKey);
+            List<Step> steps = action.toSteps(null, COLD_PHASE, nextStepKey, null);
             UpdateSettingsStep firstStep = (UpdateSettingsStep) steps.get(1);
             assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(firstStep.getSettings()),
                 is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
@@ -132,7 +132,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
                 .metadata(Metadata.builder().put(indexMetadata, true).build())
                 .build();
 
-            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
+            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey, null);
             BranchingStep firstStep = (BranchingStep) steps.get(0);
             UpdateSettingsStep secondStep = (UpdateSettingsStep) steps.get(1);
             firstStep.performAction(indexMetadata.getIndex(), clusterState);
@@ -154,7 +154,7 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
                 .metadata(Metadata.builder().put(indexMetadata, true).build())
                 .build();
 
-            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey);
+            List<Step> steps = action.toSteps(null, HOT_PHASE, nextStepKey, null);
             BranchingStep firstStep = (BranchingStep) steps.get(0);
             firstStep.performAction(indexMetadata.getIndex(), clusterState);
 

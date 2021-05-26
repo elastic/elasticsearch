@@ -129,7 +129,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         } else {
                             try {
                                 return updateIndicesForPolicy(nonRefreshedState, xContentRegistry, client,
-                                    oldPolicy.getPolicy(), lifecyclePolicyMetadata);
+                                    oldPolicy.getPolicy(), lifecyclePolicyMetadata, licenseState);
                             } catch (Exception e) {
                                 logger.warn(new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]",
                                     oldPolicy.getName()), e);
@@ -171,7 +171,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      */
     @Nullable
     static Set<Step.StepKey> readStepKeys(final NamedXContentRegistry xContentRegistry, final Client client,
-                                          final String phaseDef, final String currentPhase) {
+                                          final String phaseDef, final String currentPhase, XPackLicenseState licenseState) {
         final PhaseExecutionInfo phaseExecutionInfo;
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {
@@ -187,7 +187,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         return phaseExecutionInfo.getPhase().getActions().values().stream()
-            .flatMap(a -> a.toSteps(client, phaseExecutionInfo.getPhase().getName(), null).stream())
+            .flatMap(a -> a.toSteps(client, phaseExecutionInfo.getPhase().getName(), null, licenseState).stream())
             .map(Step::getKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
     }
@@ -196,7 +196,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * Returns 'true' if the index's cached phase JSON can be safely reread, 'false' otherwise.
      */
     static boolean isIndexPhaseDefinitionUpdatable(final NamedXContentRegistry xContentRegistry, final Client client,
-                                                   final IndexMetadata metadata, final LifecyclePolicy newPolicy) {
+                                                   final IndexMetadata metadata, final LifecyclePolicy newPolicy,
+                                                   final XPackLicenseState licenseState) {
         final String index = metadata.getIndex().getName();
         if (eligibleToCheckForRefresh(metadata) == false) {
             logger.debug("[{}] does not contain enough information to check for eligibility of refreshing phase", index);
@@ -208,7 +209,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         final Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(executionState);
         final String currentPhase = currentStepKey.getPhase();
 
-        final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(client).stream()
+        final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(client, licenseState).stream()
             .map(Step::getKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
 
@@ -221,7 +222,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         }
 
         final String phaseDef = executionState.getPhaseDefinition();
-        final Set<Step.StepKey> oldStepKeys = readStepKeys(xContentRegistry, client, phaseDef, currentPhase);
+        final Set<Step.StepKey> oldStepKeys = readStepKeys(xContentRegistry, client, phaseDef, currentPhase, licenseState);
         if (oldStepKeys == null) {
             logger.debug("[{}] unable to parse phase definition for cached policy [{}], policy phase will not be refreshed",
                 index, policyId);
@@ -235,7 +236,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         final PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policyId, newPolicy.getPhases().get(currentPhase), 1L, 1L);
         final String peiJson = Strings.toString(phaseExecutionInfo);
 
-        final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase);
+        final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase, licenseState);
         if (newPhaseStepKeys == null) {
             logger.debug(new ParameterizedMessage("[{}] unable to parse phase definition for policy [{}] " +
                 "to determine if it could be refreshed", index, policyId));
@@ -280,7 +281,8 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
      * For the given new policy, returns a new cluster with all updateable indices' phase JSON refreshed.
      */
     static ClusterState updateIndicesForPolicy(final ClusterState state, final NamedXContentRegistry xContentRegistry, final Client client,
-                                               final LifecyclePolicy oldPolicy, final LifecyclePolicyMetadata newPolicy) {
+                                               final LifecyclePolicy oldPolicy, final LifecyclePolicyMetadata newPolicy,
+                                               final XPackLicenseState licenseState) {
         assert oldPolicy.getName().equals(newPolicy.getName()) : "expected both policies to have the same id but they were: [" +
             oldPolicy.getName() + "] vs. [" + newPolicy.getName() + "]";
 
@@ -293,7 +295,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
         final List<String> indicesThatCanBeUpdated =
             StreamSupport.stream(Spliterators.spliteratorUnknownSize(state.metadata().indices().valuesIt(), 0), false)
                 .filter(meta -> newPolicy.getName().equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
-                .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy()))
+                .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy(), licenseState))
                 .map(meta -> meta.getIndex().getName())
                 .collect(Collectors.toList());
 

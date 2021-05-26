@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.license.XPackLicenseState;
 
 import java.util.List;
 
@@ -26,9 +27,10 @@ public interface LifecycleAction extends ToXContentObject, NamedWriteable {
      * @param nextStepKey the next step to execute after this action's steps. If null, then there are no further
      *                    steps to run. It is the responsibility of each {@link LifecycleAction} to implement this
      *                    correctly and not forget to link to this final step so that the policy can continue.
+     * @param licenseState
      * @return an ordered list of steps that represent the execution plan of the action
      */
-    List<Step> toSteps(Client client, String phase, @Nullable Step.StepKey nextStepKey);
+    List<Step> toSteps(Client client, String phase, @Nullable Step.StepKey nextStepKey, XPackLicenseState licenseState);
 
     /**
      * @return true if this action is considered safe. An action is not safe if

@@ -36,7 +36,7 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
             randomAlphaOfLengthBetween(1, 10));
         {
             DeleteAction action = new DeleteAction(true);
-            List<Step> steps = action.toSteps(null, phase, nextStepKey);
+            List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
             assertNotNull(steps);
             assertEquals(3, steps.size());
             StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
@@ -54,7 +54,7 @@ public class DeleteActionTests extends AbstractActionTestCase<DeleteAction> {
 
         {
             DeleteAction actionKeepsSnapshot = new DeleteAction(false);
-            List<Step> steps = actionKeepsSnapshot.toSteps(null, phase, nextStepKey);
+            List<Step> steps = actionKeepsSnapshot.toSteps(null, phase, nextStepKey, null);
             StepKey expectedFirstStepKey = new StepKey(phase, DeleteAction.NAME, WaitForNoFollowersStep.NAME);
             StepKey expectedSecondStepKey = new StepKey(phase, DeleteAction.NAME, DeleteStep.NAME);
             assertEquals(2, steps.size());

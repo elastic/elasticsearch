@@ -54,7 +54,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
             randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey);
+        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
         assertNotNull(steps);
         assertEquals(4, steps.size());
         assertThat(steps.get(0).getKey().getName(), equalTo(CheckNotDataStreamWriteIndexStep.NAME));

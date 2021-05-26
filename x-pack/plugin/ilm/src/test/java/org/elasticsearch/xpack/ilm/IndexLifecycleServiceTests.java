@@ -118,7 +118,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         threadPool = new TestThreadPool("test");
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
-            clock, () -> now, null, null);
+            clock, () -> now, null, null, null);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
@@ -208,7 +208,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
     public void testRequestedStopInShrinkActionButNotShrinkStep() {
         // test all the shrink action steps that ILM can be stopped during (basically all of them minus the actual shrink)
         ShrinkAction action = new ShrinkAction(1, null);
-        action.toSteps(mock(Client.class), "warm", randomStepKey()).stream()
+        action.toSteps(mock(Client.class), "warm", randomStepKey(), null).stream()
             .map(sk -> sk.getKey().getName())
             .filter(name -> name.equals(ShrinkStep.NAME) == false)
             .forEach(this::verifyCanStopWithStep);
@@ -455,7 +455,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testClusterChangedWaitsForTheStateToBeRecovered() {
         IndexLifecycleService ilmService = new IndexLifecycleService(Settings.EMPTY, mock(Client.class), clusterService, threadPool,
-            systemUTC(), () -> now, null, null) {
+            systemUTC(), () -> now, null, null, null) {
 
             @Override
             void onMaster(ClusterState clusterState) {

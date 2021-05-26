@@ -45,7 +45,7 @@ public class ExecutorSelectorTests extends ESTestCase {
                         .setDescription("critical system indices")
                         .setIndexPattern(".critical-system-*")
                         .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
-                        .setThreadPools(SystemIndices.DescriptorThreadPoolNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+                        .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
                         .build()
                 ))
             )
@@ -96,7 +96,7 @@ public class ExecutorSelectorTests extends ESTestCase {
                                 new ComposableIndexTemplate.DataStreamTemplate()),
                             Map.of(),
                             Collections.singletonList("test"),
-                            new SystemIndices.DescriptorThreadPoolNames(
+                            new ExecutorNames(
                                 ThreadPool.Names.SYSTEM_CRITICAL_READ, ThreadPool.Names.SYSTEM_READ, ThreadPool.Names.SYSTEM_WRITE)
                         )
                     )
@@ -114,12 +114,12 @@ public class ExecutorSelectorTests extends ESTestCase {
         String searchThreadPool = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet());
         String writeThreadPool = randomFrom(ThreadPool.THREAD_POOL_TYPES.keySet());
 
-        SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames =
-            new SystemIndices.DescriptorThreadPoolNames(getThreadPool, searchThreadPool, writeThreadPool);
+        ExecutorNames executorNames =
+            new ExecutorNames(getThreadPool, searchThreadPool, writeThreadPool);
 
-        assertThat(descriptorThreadPoolNames.getGetPoolName(), equalTo(getThreadPool));
-        assertThat(descriptorThreadPoolNames.getSearchPoolName(), equalTo(searchThreadPool));
-        assertThat(descriptorThreadPoolNames.getWritePoolName(), equalTo(writeThreadPool));
+        assertThat(executorNames.threadPoolForGet(), equalTo(getThreadPool));
+        assertThat(executorNames.threadPoolForSearch(), equalTo(searchThreadPool));
+        assertThat(executorNames.threadPoolForWrite(), equalTo(writeThreadPool));
     }
 
     public void testInvalidThreadPoolNames() {
@@ -129,19 +129,19 @@ public class ExecutorSelectorTests extends ESTestCase {
 
         {
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndices.DescriptorThreadPoolNames(invalidThreadPool, ThreadPool.Names.SEARCH, ThreadPool.Names.WRITE));
+                () -> new ExecutorNames(invalidThreadPool, ThreadPool.Names.SEARCH, ThreadPool.Names.WRITE));
 
             assertThat(exception.getMessage(), containsString(invalidThreadPool + " is not a valid thread pool"));
         }
         {
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndices.DescriptorThreadPoolNames(ThreadPool.Names.GET, invalidThreadPool, ThreadPool.Names.WRITE));
+                () -> new ExecutorNames(ThreadPool.Names.GET, invalidThreadPool, ThreadPool.Names.WRITE));
 
             assertThat(exception.getMessage(), containsString(invalidThreadPool + " is not a valid thread pool"));
         }
         {
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndices.DescriptorThreadPoolNames(ThreadPool.Names.GET, ThreadPool.Names.SEARCH, invalidThreadPool));
+                () -> new ExecutorNames(ThreadPool.Names.GET, ThreadPool.Names.SEARCH, invalidThreadPool));
 
             assertThat(exception.getMessage(), containsString(invalidThreadPool + " is not a valid thread pool"));
         }

@@ -34,10 +34,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
-import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -271,7 +271,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
                 composableIndexTemplate,
                 Map.of(),
                 ALLOWED_PRODUCTS,
-                SystemIndices.DescriptorThreadPoolNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
             );
         } catch (IOException e) {
             throw new UncheckedIOException(e);

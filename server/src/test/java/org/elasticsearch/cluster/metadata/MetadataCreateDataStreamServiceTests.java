@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemp
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
 import org.elasticsearch.indices.SystemIndices;
@@ -221,6 +222,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             new ComposableIndexTemplate(List.of(".system-data-stream"), null, null, null, null, null, new DataStreamTemplate()),
             Map.of(),
             List.of("stack"),
-            SystemIndices.DescriptorThreadPoolNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS);
+            ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS);
     }
 }

@@ -28,7 +28,7 @@ public class SystemDataStreamDescriptor {
     private final ComposableIndexTemplate composableIndexTemplate;
     private final Map<String, ComponentTemplate> componentTemplates;
     private final List<String> allowedElasticProductOrigins;
-    private final SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames;
+    private final ExecutorNames executorNames;
 
     /**
      * Creates a new descriptor for a system data descriptor
@@ -41,12 +41,12 @@ public class SystemDataStreamDescriptor {
      *                           {@link ComposableIndexTemplate}
      * @param allowedElasticProductOrigins a list of product origin values that are allowed to access this data stream if the
      *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
-     * @param descriptorThreadPoolNames thread pools that should be used for operations on the system data stream
+     * @param executorNames thread pools that should be used for operations on the system data stream
      */
     public SystemDataStreamDescriptor(String dataStreamName, String description, Type type,
                                       ComposableIndexTemplate composableIndexTemplate, Map<String, ComponentTemplate> componentTemplates,
                                       List<String> allowedElasticProductOrigins,
-                                      SystemIndices.DescriptorThreadPoolNames descriptorThreadPoolNames) {
+                                      ExecutorNames executorNames) {
         this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
         this.description = Objects.requireNonNull(description, "description must be specified");
         this.type = Objects.requireNonNull(type, "type must be specified");
@@ -57,9 +57,9 @@ public class SystemDataStreamDescriptor {
         if (type == Type.EXTERNAL && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system data stream without allowed products is not a valid combination");
         }
-        this.descriptorThreadPoolNames = Objects.nonNull(descriptorThreadPoolNames)
-            ? descriptorThreadPoolNames
-            : SystemIndices.DescriptorThreadPoolNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
+        this.executorNames = Objects.nonNull(executorNames)
+            ? executorNames
+            : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
     }
 
     public String getDataStreamName() {
@@ -94,8 +94,8 @@ public class SystemDataStreamDescriptor {
      * Get the names of the thread pools that should be used for operations on this data stream.
      * @return Names for get, search, and write executors.
      */
-    public SystemIndices.DescriptorThreadPoolNames getThreadPoolNames() {
-        return this.descriptorThreadPoolNames;
+    public ExecutorNames getThreadPoolNames() {
+        return this.executorNames;
     }
 
     public enum Type {

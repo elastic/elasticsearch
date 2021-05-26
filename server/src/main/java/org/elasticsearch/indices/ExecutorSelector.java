@@ -41,12 +41,12 @@ public class ExecutorSelector {
     public String executorForGet(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
-            return indexDescriptor.getThreadPoolNames().getGetPoolName();
+            return indexDescriptor.getThreadPoolNames().threadPoolForGet();
         }
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
         if (Objects.nonNull(dataStreamDescriptor)) {
-            return dataStreamDescriptor.getThreadPoolNames().getGetPoolName();
+            return dataStreamDescriptor.getThreadPoolNames().threadPoolForGet();
         }
 
         return ThreadPool.Names.GET;
@@ -60,12 +60,12 @@ public class ExecutorSelector {
     public String executorForSearch(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
-            return indexDescriptor.getThreadPoolNames().getSearchPoolName();
+            return indexDescriptor.getThreadPoolNames().threadPoolForSearch();
         }
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
         if (Objects.nonNull(dataStreamDescriptor)) {
-            return dataStreamDescriptor.getThreadPoolNames().getSearchPoolName();
+            return dataStreamDescriptor.getThreadPoolNames().threadPoolForSearch();
         }
 
         return ThreadPool.Names.SEARCH;
@@ -80,12 +80,12 @@ public class ExecutorSelector {
     public String executorForWrite(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
-            return indexDescriptor.getThreadPoolNames().getWritePoolName();
+            return indexDescriptor.getThreadPoolNames().threadPoolForWrite();
         }
 
         SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(indexName);
         if (Objects.nonNull(dataStreamDescriptor)) {
-            return dataStreamDescriptor.getThreadPoolNames().getWritePoolName();
+            return dataStreamDescriptor.getThreadPoolNames().threadPoolForWrite();
         }
 
         return ThreadPool.Names.WRITE;

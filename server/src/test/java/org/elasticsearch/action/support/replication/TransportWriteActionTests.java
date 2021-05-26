@@ -37,7 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.ExecutorSelectorService;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -359,7 +359,7 @@ public class TransportWriteActionTests extends ESTestCase {
                     x -> null, null, Collections.emptySet()), TransportWriteActionTests.this.clusterService, null, null, null,
                 new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, (service, ignore) -> ThreadPool.Names.SAME, false,
                 new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE,
-                new ExecutorSelectorService(EmptySystemIndices.INSTANCE));
+                new ExecutorSelector(EmptySystemIndices.INSTANCE));
             this.withDocumentFailureOnPrimary = withDocumentFailureOnPrimary;
             this.withDocumentFailureOnReplica = withDocumentFailureOnReplica;
         }
@@ -371,7 +371,7 @@ public class TransportWriteActionTests extends ESTestCase {
                 new ActionFilters(new HashSet<>()), TestRequest::new, TestRequest::new, (service, ignore) -> ThreadPool.Names.SAME,
                 false,
                 new IndexingPressure(settings), EmptySystemIndices.INSTANCE,
-                new ExecutorSelectorService(EmptySystemIndices.INSTANCE));
+                new ExecutorSelector(EmptySystemIndices.INSTANCE));
             this.withDocumentFailureOnPrimary = false;
             this.withDocumentFailureOnReplica = false;
         }

@@ -96,7 +96,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.indices.ExecutorSelectorService;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -427,7 +427,7 @@ public class Node implements Closeable {
                     plugin -> SystemIndices.pluginToFeature(plugin, settings)
                 ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
-            final ExecutorSelectorService executorSelectorService = new ExecutorSelectorService(systemIndices);
+            final ExecutorSelector executorSelector = new ExecutorSelector(systemIndices);
 
             ModulesBuilder modules = new ModulesBuilder();
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -613,7 +613,7 @@ public class Node implements Closeable {
 
             final SearchService searchService = newSearchService(clusterService, indicesService,
                 threadPool, scriptService, bigArrays, searchModule.getFetchPhase(),
-                responseCollectorService, circuitBreakerService, executorSelectorService);
+                responseCollectorService, circuitBreakerService, executorSelector);
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
                 .filterPlugins(PersistentTaskPlugin.class).stream()
@@ -689,7 +689,7 @@ public class Node implements Closeable {
                     b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                     b.bind(FsHealthService.class).toInstance(fsHealthService);
                     b.bind(SystemIndices.class).toInstance(systemIndices);
-                    b.bind(ExecutorSelectorService.class).toInstance(executorSelectorService);
+                    b.bind(ExecutorSelector.class).toInstance(executorSelector);
                 }
             );
             injector = modules.createInjector();
@@ -1146,10 +1146,10 @@ public class Node implements Closeable {
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
                                              FetchPhase fetchPhase, ResponseCollectorService responseCollectorService,
-                                             CircuitBreakerService circuitBreakerService, ExecutorSelectorService executorSelectorService) {
+                                             CircuitBreakerService circuitBreakerService, ExecutorSelector executorSelector) {
         return new SearchService(clusterService, indicesService, threadPool,
             scriptService, bigArrays, fetchPhase, responseCollectorService, circuitBreakerService,
-            executorSelectorService);
+            executorSelector);
     }
 
     /**

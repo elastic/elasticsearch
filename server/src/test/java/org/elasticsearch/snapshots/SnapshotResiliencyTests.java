@@ -145,7 +145,7 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.ExecutorSelectorService;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -1526,7 +1526,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             actionFilters,
                             new IndexingPressure(settings),
                             EmptySystemIndices.INSTANCE,
-                            new ExecutorSelectorService(EmptySystemIndices.INSTANCE))),
+                            new ExecutorSelector(EmptySystemIndices.INSTANCE))),
                     RetentionLeaseSyncer.EMPTY,
                     client);
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
@@ -1556,7 +1556,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(settings, transportService,
                     clusterService, indicesService, threadPool, shardStateAction, mappingUpdatedAction, new UpdateHelper(scriptService),
                     actionFilters, indexingMemoryLimits, EmptySystemIndices.INSTANCE,
-                    new ExecutorSelectorService(EmptySystemIndices.INSTANCE));
+                    new ExecutorSelector(EmptySystemIndices.INSTANCE));
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(
                     clusterService, repositoriesService, allocationService,
@@ -1581,14 +1581,14 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
                 final SearchService searchService = new SearchService(clusterService, indicesService, threadPool, scriptService,
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService(),
-                    new ExecutorSelectorService(EmptySystemIndices.INSTANCE));
+                    new ExecutorSelector(EmptySystemIndices.INSTANCE));
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,
                     new TransportSearchAction(threadPool, new NoneCircuitBreakerService(), transportService, searchService,
                         searchTransportService, searchPhaseController, clusterService,
                         actionFilters, indexNameExpressionResolver, namedWriteableRegistry,
-                        new ExecutorSelectorService(EmptySystemIndices.INSTANCE)));
+                        new ExecutorSelector(EmptySystemIndices.INSTANCE)));
                 actions.put(RestoreSnapshotAction.INSTANCE,
                     new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters,
                         indexNameExpressionResolver));

@@ -26,7 +26,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.ExecutorSelectorService;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -52,7 +52,7 @@ public class TransportBulkShardOperationsAction
             final ActionFilters actionFilters,
             final IndexingPressure indexingPressure,
             final SystemIndices systemIndices,
-            final ExecutorSelectorService executorSelectorService) {
+            final ExecutorSelector executorSelector) {
         super(
             settings,
             BulkShardOperationsAction.NAME,
@@ -64,11 +64,11 @@ public class TransportBulkShardOperationsAction
             actionFilters,
             BulkShardOperationsRequest::new,
             BulkShardOperationsRequest::new,
-            ExecutorSelectorService::getWriteExecutorForShard,
+            ExecutorSelector::getWriteExecutorForShard,
             false,
             indexingPressure,
             systemIndices,
-            executorSelectorService
+            executorSelector
         );
     }
 

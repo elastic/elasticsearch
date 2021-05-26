@@ -19,11 +19,11 @@ import java.util.Objects;
  * should use the "system_critical_read" or "system_critical_write" thread pools
  * rather than the "system_read" or "system_write" thread pools.
  */
-public class ExecutorSelectorService {
+public class ExecutorSelector {
 
     private final SystemIndices systemIndices;
 
-    public ExecutorSelectorService(SystemIndices systemIndices) {
+    public ExecutorSelector(SystemIndices systemIndices) {
         this.systemIndices = systemIndices;
     }
 
@@ -32,7 +32,7 @@ public class ExecutorSelectorService {
      * @param indexName Name of the index
      * @return Name of the executor to use for a get operation.
      */
-    public String getGetExecutor(String indexName) {
+    public String executorForGet(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
             return indexDescriptor.getThreadPoolNames().getGetPoolName();
@@ -51,7 +51,7 @@ public class ExecutorSelectorService {
      * @param indexName Name of the index
      * @return Name of the executor to use for a search operation.
      */
-    public String getSearchExecutor(String indexName) {
+    public String executorForSearch(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
             return indexDescriptor.getThreadPoolNames().getSearchPoolName();
@@ -71,7 +71,7 @@ public class ExecutorSelectorService {
      * @param indexName Name of the index
      * @return Name of the executor to use for a search operation.
      */
-    public String getWriteExecutor(String indexName) {
+    public String executorForWrite(String indexName) {
         SystemIndexDescriptor indexDescriptor = systemIndices.findMatchingDescriptor(indexName);
         if (Objects.nonNull(indexDescriptor)) {
             return indexDescriptor.getThreadPoolNames().getWritePoolName();
@@ -88,11 +88,11 @@ public class ExecutorSelectorService {
     /**
      * This is a convenience method for the case when we need to find an executor for a shard.
      * Note that it can be passed to methods as a {@link java.util.function.BiFunction}.
-     * @param executorSelectorService An executor selector service.
+     * @param executorSelector An executor selector service.
      * @param shard A shard for which we need to find an executor.
      * @return Name of the executor that should be used for write operations on this shard.
      */
-    public static String getWriteExecutorForShard(ExecutorSelectorService executorSelectorService, IndexShard shard) {
-        return executorSelectorService.getWriteExecutor(shard.shardId().getIndexName());
+    public static String getWriteExecutorForShard(ExecutorSelector executorSelector, IndexShard shard) {
+        return executorSelector.executorForWrite(shard.shardId().getIndexName());
     }
 }

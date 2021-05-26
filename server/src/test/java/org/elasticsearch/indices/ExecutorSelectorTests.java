@@ -19,10 +19,10 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExecutorSelectorServiceTests extends ESTestCase {
+public class ExecutorSelectorTests extends ESTestCase {
 
     public void testNonCriticalSystemIndexThreadPools() {
-        ExecutorSelectorService service = new ExecutorSelectorService(new SystemIndices(
+        ExecutorSelector service = new ExecutorSelector(new SystemIndices(
             Map.of(
                 "normal system index",
                 new SystemIndices.Feature( "normal", "normal system index",
@@ -31,13 +31,13 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
             )
         ));
         String index = ".non-critical-system-index";
-        assertThat(service.getGetExecutor(index), equalTo(ThreadPool.Names.SYSTEM_READ));
-        assertThat(service.getSearchExecutor(index), equalTo(ThreadPool.Names.SYSTEM_READ));
-        assertThat(service.getWriteExecutor(index), equalTo(ThreadPool.Names.SYSTEM_WRITE));
+        assertThat(service.executorForGet(index), equalTo(ThreadPool.Names.SYSTEM_READ));
+        assertThat(service.executorForSearch(index), equalTo(ThreadPool.Names.SYSTEM_READ));
+        assertThat(service.executorForWrite(index), equalTo(ThreadPool.Names.SYSTEM_WRITE));
     }
 
     public void testCriticalSystemIndexThreadPools() {
-        ExecutorSelectorService service = new ExecutorSelectorService(new SystemIndices(
+        ExecutorSelector service = new ExecutorSelector(new SystemIndices(
             Map.of(
                 "critical system index",
                 new SystemIndices.Feature( "critical", "critical system index", Collections.singletonList(
@@ -51,13 +51,13 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
             )
         ));
         String index = ".critical-system-index";
-        assertThat(service.getGetExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
-        assertThat(service.getSearchExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
-        assertThat(service.getWriteExecutor(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_WRITE));
+        assertThat(service.executorForGet(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
+        assertThat(service.executorForSearch(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
+        assertThat(service.executorForWrite(index), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_WRITE));
     }
 
     public void testDefaultSystemDataStreamThreadPools() {
-        ExecutorSelectorService service = new ExecutorSelectorService(new SystemIndices(
+        ExecutorSelector service = new ExecutorSelector(new SystemIndices(
             Map.of(
             "normal system index",
                 new SystemIndices.Feature( "data stream", "data stream feature with default thread pools", Collections.emptyList(),
@@ -77,13 +77,13 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
             )
         ));
         String dataStream = ".test-data-stream";
-        assertThat(service.getGetExecutor(dataStream), equalTo(ThreadPool.Names.GET));
-        assertThat(service.getSearchExecutor(dataStream), equalTo(ThreadPool.Names.SEARCH));
-        assertThat(service.getWriteExecutor(dataStream), equalTo(ThreadPool.Names.WRITE));
+        assertThat(service.executorForGet(dataStream), equalTo(ThreadPool.Names.GET));
+        assertThat(service.executorForSearch(dataStream), equalTo(ThreadPool.Names.SEARCH));
+        assertThat(service.executorForWrite(dataStream), equalTo(ThreadPool.Names.WRITE));
     }
 
     public void testCustomSystemDataStreamThreadPools() {
-        ExecutorSelectorService service = new ExecutorSelectorService(new SystemIndices(
+        ExecutorSelector service = new ExecutorSelector(new SystemIndices(
             Map.of(
                 "normal system index",
                 new SystemIndices.Feature( "data stream", "data stream feature with custom thread pools", Collections.emptyList(),
@@ -104,9 +104,9 @@ public class ExecutorSelectorServiceTests extends ESTestCase {
             )
         ));
         String dataStream = ".test-data-stream";
-        assertThat(service.getGetExecutor(dataStream), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
-        assertThat(service.getSearchExecutor(dataStream), equalTo(ThreadPool.Names.SYSTEM_READ));
-        assertThat(service.getWriteExecutor(dataStream), equalTo(ThreadPool.Names.SYSTEM_WRITE));
+        assertThat(service.executorForGet(dataStream), equalTo(ThreadPool.Names.SYSTEM_CRITICAL_READ));
+        assertThat(service.executorForSearch(dataStream), equalTo(ThreadPool.Names.SYSTEM_READ));
+        assertThat(service.executorForWrite(dataStream), equalTo(ThreadPool.Names.SYSTEM_WRITE));
     }
 
     public void testCreateThreadPools() {

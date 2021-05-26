@@ -42,7 +42,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.ExecutorSelectorService;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -105,7 +105,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreaker circuitBreaker;
-    private final ExecutorSelectorService executorSelectorService;
+    private final ExecutorSelector executorSelector;
 
     @Inject
     public TransportSearchAction(ThreadPool threadPool,
@@ -118,7 +118,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                  ActionFilters actionFilters,
                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                  NamedWriteableRegistry namedWriteableRegistry,
-                                 ExecutorSelectorService executorSelectorService) {
+                                 ExecutorSelector executorSelector) {
         super(SearchAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchRequest>) SearchRequest::new);
         this.threadPool = threadPool;
         this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
@@ -130,7 +130,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.searchService = searchService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.executorSelectorService = executorSelectorService;
+        this.executorSelector = executorSelector;
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,
@@ -674,7 +674,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     Executor asyncSearchExecutor(final String[] indices) {
         final List<String> executorsForIndices = Arrays.stream(indices)
-            .map(executorSelectorService::getSearchExecutor)
+            .map(executorSelector::executorForSearch)
             .collect(Collectors.toList());
         if (executorsForIndices.size() == 1) { // all indices have same executor
             return threadPool.executor(executorsForIndices.get(0));

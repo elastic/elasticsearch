@@ -27,7 +27,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.ExecutorSelectorService;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -49,11 +49,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
                                             ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool,
                                             ShardStateAction shardStateAction, ActionFilters actionFilters,
                                             IndexingPressure indexingPressure, SystemIndices systemIndices,
-                                            ExecutorSelectorService executorSelectorService) {
+                                            ExecutorSelector executorSelector) {
         super(settings, ACTION_NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters,
-            ResyncReplicationRequest::new, ResyncReplicationRequest::new, ExecutorSelectorService::getWriteExecutorForShard,
+            ResyncReplicationRequest::new, ResyncReplicationRequest::new, ExecutorSelector::getWriteExecutorForShard,
             true, /* we should never reject resync because of thread pool capacity on primary */
-            indexingPressure, systemIndices, executorSelectorService);
+            indexingPressure, systemIndices, executorSelector);
     }
 
     @Override

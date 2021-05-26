@@ -34,7 +34,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.ExecutorSelectorService;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
@@ -73,7 +73,7 @@ public class RetentionLeaseSyncAction extends
         final ActionFilters actionFilters,
         final IndexingPressure indexingPressure,
         final SystemIndices systemIndices,
-        final ExecutorSelectorService executorSelectorService) {
+        final ExecutorSelector executorSelector) {
         super(
             settings,
             ACTION_NAME,
@@ -89,7 +89,7 @@ public class RetentionLeaseSyncAction extends
             false,
             indexingPressure,
             systemIndices,
-            executorSelectorService);
+            executorSelector);
     }
 
     @Override

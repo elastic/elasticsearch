@@ -55,7 +55,8 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubqueryAliases;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.ReplaceSubQueryAliases;
+import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer.PruneSubQueryAliases;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.ExtendedStats;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
@@ -149,6 +150,7 @@ import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class OptimizerTests extends ESTestCase {
@@ -179,11 +181,23 @@ public class OptimizerTests extends ESTestCase {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", INTEGER, emptyMap(), true));
     }
 
-    public void testPruneSubqueryAliases() {
+    public void testPruneSubQueryAliases() {
         ShowTables s = new ShowTables(EMPTY, null, null, false);
         SubQueryAlias plan = new SubQueryAlias(EMPTY, s, "show");
-        LogicalPlan result = new PruneSubqueryAliases().apply(plan);
+        LogicalPlan result = new PruneSubQueryAliases().apply(plan);
         assertEquals(result, s);
+    }
+
+    public void testReplaceSubQueryAliases() {
+        FieldAttribute firstField = new FieldAttribute(EMPTY, "field", new EsField("field", BYTE, emptyMap(), true));
+        EsRelation relation = new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false);
+        Aggregate agg = new Aggregate(EMPTY, relation, Collections.singletonList(firstField), Collections.singletonList(firstField));
+        SubQueryAlias subquery = new SubQueryAlias(EMPTY, agg, "subquery");
+        Project project = new Project(EMPTY, subquery, Collections.singletonList(firstField.withQualifier("subquery")));
+        LogicalPlan result = new ReplaceSubQueryAliases().apply(project);
+        assertThat(result, instanceOf(Project.class));
+        assertThat(((Project) result).projections().get(0), instanceOf(FieldAttribute.class));
+        assertEquals("table", ((FieldAttribute) ((Project) result).projections().get(0)).qualifier());
     }
 
     public void testCombineProjections() {
@@ -309,13 +323,13 @@ public class OptimizerTests extends ESTestCase {
     }
 
     public void testNullIfFolding() {
-        assertEquals(null, foldFunction(new NullIf(EMPTY, ONE, ONE)));
+        assertNull(foldFunction(new NullIf(EMPTY, ONE, ONE)));
         assertEquals(1, foldFunction(new NullIf(EMPTY, ONE, TWO)));
         assertEquals(2, foldFunction(new NullIf(EMPTY, TWO, ONE)));
 
         FieldAttribute fa = fieldAttribute();
         // works even if the expressions are not foldable
-        assertEquals(null, foldFunction(new NullIf(EMPTY, fa, fa)));
+        assertNull(foldFunction(new NullIf(EMPTY, fa, fa)));
     }
 
     private static Object foldFunction(Function f) {
@@ -1052,7 +1066,7 @@ public class OptimizerTests extends ESTestCase {
 
         Alias sumAlias = new Alias(EMPTY, "sum", sum);
 
-        Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), asList(sumAlias));
+        Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), singletonList(sumAlias));
         LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
         assertTrue(optimizedPlan instanceof Aggregate);
         Aggregate p = (Aggregate) optimizedPlan;
@@ -1087,7 +1101,7 @@ public class OptimizerTests extends ESTestCase {
 
         Alias sumAlias = new Alias(EMPTY, "sum", sum);
 
-        Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), asList(sumAlias));
+        Aggregate aggregate = new Aggregate(EMPTY, FROM(), emptyList(), singletonList(sumAlias));
         LogicalPlan optimizedPlan = new Optimizer().optimize(aggregate);
         assertTrue(optimizedPlan instanceof Aggregate);
         Aggregate p = (Aggregate) optimizedPlan;

@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UnaryString
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
@@ -78,6 +79,7 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -421,7 +423,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private void testDateRangeWithCurrentFunctions(String function, String pattern, Integer nanoPrecision, ZonedDateTime now) {
-        String operator = randomFrom(new String[] {">", ">=", "<", "<=", "=", "!="});
+        String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
@@ -463,8 +465,8 @@ public class QueryTranslatorTests extends ESTestCase {
             ZonedDateTime lowerValue,
             ZonedDateTime upperValue
     ) {
-        String lowerOperator = randomFrom(new String[] {"<", "<="});
-        String upperOperator = randomFrom(new String[] {">", ">="});
+        String lowerOperator = randomFrom("<", "<=");
+        String upperOperator = randomFrom(">", ">=");
         // use both date-only interval (1 DAY) and time-only interval (1 second) to cover CURRENT_TIMESTAMP and TODAY scenarios
         String interval = "(INTERVAL 1 DAY + INTERVAL 1 SECOND)";
 
@@ -2531,89 +2533,103 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals(expectedCondition, condition);
     }
 
-    public void testSubqueryBasicSelect() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
-            "( SELECT int FROM test )");
+    public void testSubqueryBasicSelect() {
+        optimizeAndPlan(
+            "SELECT int FROM " +
+            "  (SELECT int FROM test)");
     }
 
-    public void testSubquerySelectOnFieldAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
-            "( SELECT int AS i FROM test )");
+    public void testSubquerySelectOnFieldAlias() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
+            "  (SELECT int AS i FROM test)");
     }
 
-    public void testSubqueryGroupByNoAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
-            "( SELECT int FROM test ) " +
+    public void testSubqueryGroupByNoAlias() {
+        optimizeAndPlan(
+            "SELECT int FROM " +
+            "  ( SELECT int FROM test ) " +
             "GROUP BY int");
     }
 
-    public void testSubqueryGroupByOnFieldAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
-            "( SELECT int AS i FROM test ) " +
+    public void testSubqueryGroupByOnFieldAlias() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
+            "  ( SELECT int AS i FROM test ) " +
             "GROUP BY i");
     }
 
-    public void testSubqueryFilterOrderByAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+    public void testSubqueryFilterOrderByAlias() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
             "( SELECT int AS i FROM test ) " +
             "WHERE i IS NOT NULL " +
             "ORDER BY i");
     }
 
-    public void testSubqueryGroupByFilterAndOrderByByAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+    public void testSubqueryGroupByFilterAndOrderByByAlias() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
             "( SELECT int AS i FROM test ) " +
             "WHERE i IS NOT NULL " +
             "GROUP BY i " +
             "ORDER BY i");
     }
 
-    public void testSubqueryFilterByAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+    public void testSubqueryFilterByAlias() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
             "( SELECT int AS i FROM test ) " +
             "WHERE i > 10");
     }
 
-    public void testSubqueryOrderByAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+    public void testSubqueryOrderByAlias() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
             "( SELECT int AS i FROM test ) " +
             "ORDER BY i");
     }
 
-    public void testSubqueryWithAliasBasicSelect() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+    public void testSubqueryWithAliasBasicSelect() {
+        optimizeAndPlan(
+            "SELECT int FROM " +
             "( SELECT int FROM test ) AS s");
     }
 
-    public void testSubqueryWithAliasBasicQualifiedSelect() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT s.int FROM " +
+    public void testSubqueryWithAliasBasicQualifiedSelect() {
+        optimizeAndPlan(
+            "SELECT s.int FROM " +
             "( SELECT int FROM test ) AS s");
     }
 
-    public void testSubqueryWithAliasSelectOnFieldAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+    public void testSubqueryWithAliasSelectOnFieldAlias() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
             "( SELECT int AS i FROM test ) AS s");
     }
 
-    public void testSubqueryWithAliasQualifiedSelectOnFieldAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT s.i FROM " +
+    public void testSubqueryWithAliasQualifiedSelectOnFieldAlias() {
+        optimizeAndPlan(
+            "SELECT s.i FROM " +
             "( SELECT int AS i FROM test ) AS s");
     }
 
-    public void testSubqueryWithAliasGroupBy() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+    public void testSubqueryWithAliasGroupBy() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
             "( SELECT int AS i FROM test ) AS s " +
             "GROUP BY s.i");
     }
 
-    public void testSubqueryWithAliasFilterByAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+    public void testSubqueryWithAliasFilterByAlias() {
+        optimizeAndPlan("SELECT i FROM " +
             "( SELECT int AS i FROM test ) AS s " +
             "WHERE s.i > 10");
     }
 
-    public void testSubqueryWithAliasOrderByAlias() throws Exception {
-        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+    public void testSubqueryWithAliasOrderByAlias() {
+        optimizeAndPlan(
+            "SELECT i FROM " +
             "( SELECT int AS i FROM test ) AS s " +
             "ORDER BY s.i > 10");
     }
@@ -2660,5 +2676,76 @@ public class QueryTranslatorTests extends ESTestCase {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69758")
     public void testFilterAfterGroupBy() {
         optimizeAndPlan("SELECT j AS k FROM (SELECT i AS j FROM ( SELECT int AS i FROM test) GROUP BY j) WHERE j < 5");
+    }
+
+    public void testMultiLevelSubqueryWithoutRelation1() {
+        PhysicalPlan p = optimizeAndPlan(
+            "SELECT int FROM (" +
+                "  SELECT int FROM (" +
+                "    SELECT 1 AS int" +
+                "  ) AS subq1" +
+                ") AS subq2");
+        assertThat(p, instanceOf(LocalExec.class));
+        LocalExec le = (LocalExec) p;
+        assertThat(le.executable(), instanceOf(SingletonExecutable.class));
+        assertEquals(1, le.executable().output().size());
+        assertEquals("int", le.executable().output().get(0).name());
+    }
+
+    public void testMultiLevelSubqueryWithoutRelation2() {
+        PhysicalPlan p = optimizeAndPlan(
+            "SELECT i, string FROM (" +
+                "  SELECT * FROM (" +
+                "    SELECT int as i, str AS string FROM (" +
+                "      SELECT * FROM (" +
+                "        SELECT int, s AS str FROM (" +
+                "          SELECT 1 AS int, 'foo' AS s" +
+                "        ) AS subq1" +
+                "      )" +
+                "    ) AS subq2" +
+                "  ) AS subq3" +
+                ")");
+        assertThat(p, instanceOf(LocalExec.class));
+        LocalExec le = (LocalExec) p;
+        assertThat(le.executable(), instanceOf(SingletonExecutable.class));
+        assertEquals(2, le.executable().output().size());
+        assertEquals("i", le.executable().output().get(0).name());
+        assertEquals("string", le.executable().output().get(1).name());
+    }
+
+    public void testMultiLevelAliasedSubqueryGroupBy() {
+        optimizeAndPlan(
+            "SELECT int FROM (" +
+            "  SELECT int FROM (" +
+            "    SELECT int FROM test GROUP BY int" +
+            "  ) AS subq1" +
+            ") AS subq2");
+
+        optimizeAndPlan(
+            "SELECT * FROM (" +
+            "  SELECT int FROM (" +
+            "    SELECT * FROM (" +
+            "      SELECT int FROM test GROUP BY int" +
+            "    ) AS subq1" +
+            "  ) AS subq2" +
+            ") AS subq3");
+
+        optimizeAndPlan(
+            "SELECT subq3.int FROM (" +
+            "  SELECT int FROM (" +
+            "    SELECT subq1.int FROM (" +
+            "      SELECT int FROM test GROUP BY int" +
+            "    ) AS subq1" +
+            "  ) AS subq2" +
+            ") AS subq3");
+
+        optimizeAndPlan(
+            "SELECT subq3.int FROM (" +
+            "  SELECT subq2.i AS int FROM (" +
+            "    SELECT subq1.int AS i FROM (" +
+            "      SELECT int FROM test GROUP BY int" +
+            "    ) AS subq1" +
+            "  ) AS subq2" +
+            ") AS subq3");
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -232,6 +233,27 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         compat = descriptor.getDescriptorCompatibleWith(
             VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin));
         assertSame(prior, compat);
+    }
+
+    public void testSystemIndicesCannotAlsoBeHidden() {
+        SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system*")
+            .setDescription("system stuff")
+            .setPrimaryIndex(".system-1")
+            .setAliasName(".system")
+            .setType(Type.INTERNAL_MANAGED)
+            .setMappings(MAPPINGS)
+            .setVersionMetaKey("version")
+            .setOrigin("system");
+
+        builder.setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                    .build());
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+
+        assertThat(e.getMessage(), equalTo("System indices cannot have index.hidden set to true."));
     }
 
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {

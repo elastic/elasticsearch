@@ -233,17 +233,69 @@ setup:
           collapse: { field: numeric_group }
 
 ---
-"field collapsing and search_after":
-
+"field collapsing and search_after with invalid sort":
+  - skip:
+      version: " - 7.13.99"
+      reason: "support for collapsing with search_after was added in 7.14"
   - do:
-      catch:      /cannot use \`collapse\` in conjunction with \`search_after\`/
+      catch: /Cannot use \[collapse\] in conjunction with \[search_after\] unless the search is sorted on the same field. Multiple sort fields are not allowed./
       search:
-        rest_total_hits_as_int: true
         index: test
         body:
           collapse: { field: numeric_group }
           search_after: [6]
           sort: [{ sort: desc }]
+
+  - do:
+      catch: /Cannot use \[collapse\] in conjunction with \[search_after\] unless the search is sorted on the same field. Multiple sort fields are not allowed./
+      search:
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          search_after: [6, 42]
+          sort: [{ numeric_group: asc, sort: desc }]
+
+---
+"field collapsing and search_after":
+  - skip:
+      version: all
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/73316"
+      #version: " - 7.13.99"
+      #reason: "support for collapsing with search_after was added in 7.14"
+  - do:
+      search:
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc}]
+          size: 1
+
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 1 }
+
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0.fields.numeric_group: [25] }
+  - match: { hits.hits.0.sort: [25] }
+
+  - do:
+      search:
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc}]
+          search_after: [25]
+          size: 2
+
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 2 }
+
+  - match: { hits.hits.0._index: test }
+  - match: { hits.hits.0.fields.numeric_group: [3] }
+  - match: { hits.hits.0.sort: [3] }
+
+  - match: { hits.hits.1._index: test }
+  - match: { hits.hits.1.fields.numeric_group: [1] }
+  - match: { hits.hits.1.sort: [1] }
 
 ---
 "field collapsing and rescore":

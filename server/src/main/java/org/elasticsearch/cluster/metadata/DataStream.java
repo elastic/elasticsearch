@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
@@ -253,9 +252,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public DataStream(StreamInput in) throws IOException {
         this(in.readString(), new TimestampField(in), in.readList(Index::new), in.readVLong(),
-            in.readMap(), in.readBoolean(), in.readBoolean(),
-            in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean()
-        );
+            in.readMap(), in.readBoolean(), in.readBoolean(), in.readBoolean());
     }
 
     public static Diff<DataStream> readDiffFrom(StreamInput in) throws IOException {
@@ -271,9 +268,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         out.writeMap(metadata);
         out.writeBoolean(hidden);
         out.writeBoolean(replicated);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(system);
-        }
+        out.writeBoolean(system);
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");

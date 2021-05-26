@@ -119,6 +119,7 @@ Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
+[role="child_attributes"]
 [[put-component-template-api-request-body]]
 ==== {api-request-body-title}
 
@@ -126,14 +127,20 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 (Required, object)
 This is the template to be applied, may optionally include a `mappings`,
 `settings`, or `aliases` configuration.
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
 +
-NOTE: You cannot add data streams to an index alias.
+.Properties of `template`
+[%collapsible%open]
+====
+`aliases`::
+(Optional, object of objects) Aliases for the index. If an index template
+includes `data_stream`, this parameter is not supported.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+====
 
 `version`::
 (Optional, integer)

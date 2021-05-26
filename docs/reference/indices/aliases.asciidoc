@@ -362,6 +362,32 @@ POST /_aliases
   ]
 }
 --------------------------------------------------
+
+Multi filters can be used to create alias that uses a filters on field `customer_last_name` and `customer_gender`:
+
+[source,console]
+--------------------------------------------------
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": "kibana_sample_data_ecommerce",
+        "alias": "alias3",
+        "filter": {
+          "bool" : {
+            "filter" : [
+              { "wildcard": {"customer_last_name": {"value": "*Kin*"} }},
+              { "term":{"customer_gender": "FEMALE"} }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
 // TEST[continued]
 
 [[aliases-routing]]

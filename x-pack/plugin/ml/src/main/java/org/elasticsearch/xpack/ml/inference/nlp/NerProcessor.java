@@ -7,18 +7,14 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Locale;
 
-public class NerProcessor extends NlpTask.Processor {
+public class NerProcessor implements NlpTask.Processor {
 
     public enum Entity implements Writeable {
         NONE, MISC, PERSON, ORGANISATION, LOCATION;
@@ -62,46 +58,20 @@ public class NerProcessor extends NlpTask.Processor {
     }
 
 
-    private final BertTokenizer tokenizer;
-    private BertTokenizer.TokenizationResult tokenization;
+    private final BertRequestBuilder bertRequestBuilder;
 
     NerProcessor(BertTokenizer tokenizer) {
-        this.tokenizer = tokenizer;
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
     }
 
-    private BytesReference buildRequest(String requestId, String input) throws IOException {
-        tokenization = tokenizer.tokenize(input, true);
-        return jsonRequest(tokenization.getTokenIds(), requestId);
-    }
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
-        return this::buildRequest;
+        return bertRequestBuilder;
     }
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor() {
-        return new NerResultProcessor(tokenization);
-    }
-
-    static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        builder.field(REQUEST_ID, requestId);
-        builder.array(TOKENS, tokens);
-
-        int[] inputMask = new int[tokens.length];
-        Arrays.fill(inputMask, 1);
-        int[] segmentMask = new int[tokens.length];
-        Arrays.fill(segmentMask, 0);
-        int[] positionalIds = new int[tokens.length];
-        Arrays.setAll(positionalIds, i -> i);
-        builder.array(ARG1, inputMask);
-        builder.array(ARG2, segmentMask);
-        builder.array(ARG3, positionalIds);
-        builder.endObject();
-
-        // BytesReference.bytes closes the builder
-        return BytesReference.bytes(builder);
+        return new NerResultProcessor(bertRequestBuilder.getTokenization());
     }
 }

@@ -7,59 +7,55 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
-import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
-public class FillMaskProcessor extends NlpTask.Processor {
+public class FillMaskProcessor implements NlpTask.Processor {
 
-    private final BertTokenizer tokenizer;
-    private BertTokenizer.TokenizationResult tokenization;
+    private final BertRequestBuilder bertRequestBuilder;
 
     FillMaskProcessor(BertTokenizer tokenizer) {
-        this.tokenizer = tokenizer;
-    }
-
-    private BytesReference buildRequest(String requestId, String input) throws IOException {
-        tokenization = tokenizer.tokenize(input, true);
-        return jsonRequest(tokenization.getTokenIds(), requestId);
+        this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
     }
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
-        return this::buildRequest;
+        return bertRequestBuilder;
     }
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor() {
-        return new FillMaskResultProcessor(tokenization);
+        return this::processResult;
     }
 
-    static BytesReference jsonRequest(int[] tokens, String requestId) throws IOException {
-        // TODO the request here is identical is with NER
-        // refactor to reuse code when a proper name
-        // can be found for a base processor
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        builder.field(REQUEST_ID, requestId);
-        builder.array(TOKENS, tokens);
+    private InferenceResults processResult(PyTorchResult pyTorchResult) {
+        BertTokenizer.TokenizationResult tokenization = bertRequestBuilder.getTokenization();
 
-        int[] inputMask = new int[tokens.length];
-        Arrays.fill(inputMask, 1);
-        int[] segmentMask = new int[tokens.length];
-        Arrays.fill(segmentMask, 0);
-        int[] positionalIds = new int[tokens.length];
-        Arrays.setAll(positionalIds, i -> i);
-        builder.array(ARG1, inputMask);
-        builder.array(ARG2, segmentMask);
-        builder.array(ARG3, positionalIds);
-        builder.endObject();
-
-        // BytesReference.bytes closes the builder
-        return BytesReference.bytes(builder);
+        if (tokenization.getTokens().isEmpty()) {
+            return new FillMaskResults(Collections.emptyList());
+        }
+        List<String> maskTokens = tokenization.getTokens().stream()
+            .filter(BertTokenizer.MASK_TOKEN::equals)
+            .collect(Collectors.toList());
+        if (maskTokens.isEmpty()) {
+            throw new IllegalArgumentException("no [MASK] token could be found");
+        }
+        if (maskTokens.size() > 1) {
+            throw new IllegalArgumentException("only one [MASK] token should exist in the input");
+        }
+        int maskTokenIndex = tokenization.getTokens().indexOf(BertTokenizer.MASK_TOKEN);
+        double[][] normalizedScores = NlpHelpers.convertToProbabilitesBySoftMax(pyTorchResult.getInferenceResult());
+        int predictionTokenId = NlpHelpers.argmax(normalizedScores[maskTokenIndex]);
+        String predictedToken = tokenization.getFromVocab(predictionTokenId);
+        double score = normalizedScores[maskTokenIndex][predictionTokenId];
+        String sequence = tokenization.getInput().replace(BertTokenizer.MASK_TOKEN, predictedToken);
+        FillMaskResults.Result result = new FillMaskResults.Result(predictedToken, score, sequence);
+        return new FillMaskResults(Collections.singletonList(result));
     }
 }

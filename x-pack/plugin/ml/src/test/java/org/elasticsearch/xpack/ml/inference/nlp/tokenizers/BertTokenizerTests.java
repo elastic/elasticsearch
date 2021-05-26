@@ -34,7 +34,7 @@ public class BertTokenizerTests extends ESTestCase {
         assertArrayEquals(new int[] {3, 0, 1, 2, 4}, tokenization.getTokenIds());
         assertArrayEquals(new int[] {-1, 0, 0, 1, -1}, tokenization.getTokenMap());
     }
-    
+
     public void testNeverSplitTokens() {
         final String specialToken = "SP001";
 

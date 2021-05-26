@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -29,21 +32,13 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCRUD() throws Exception {
-        Request nodesRequest = new Request("GET", "_nodes");
-        Map<String, Object> nodesResponse = responseAsMap(client().performRequest(nodesRequest));
-        Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
-
-        String nodeIdToShutdown = randomFrom(nodesObject.keySet());
-        String reason = "testing node shutdown crud: " + randomAlphaOfLength(5);
+        String nodeIdToShutdown = getRandomNodeId();
         String type = randomFrom("RESTART", "REMOVE");
 
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
 
-        // Put a shutdown request
-        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
-        putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\"}");
-        assertOK(client().performRequest(putShutdown));
+        putNodeShutdown(nodeIdToShutdown, type);
 
         // Ensure we can read it back
         {
@@ -53,7 +48,7 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray, hasSize(1));
             assertThat(nodesArray.get(0).get("node_id"), equalTo(nodeIdToShutdown));
             assertThat(nodesArray.get(0).get("type"), equalTo(type));
-            assertThat(nodesArray.get(0).get("reason"), equalTo(reason));
+            assertThat(nodesArray.get(0).get("reason"), equalTo(this.getTestName()));
         }
 
         // Delete it and make sure it's deleted
@@ -67,20 +62,10 @@ public class NodeShutdownIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testAllocationPreventedForRemoval() throws Exception {
-        Request nodesRequest = new Request("GET", "_nodes");
-        Map<String, Object> nodesResponse = responseAsMap(client().performRequest(nodesRequest));
-        Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
+        String nodeIdToShutdown = getRandomNodeId();
+        putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
-        String nodeIdToShutdown = randomFrom(nodesObject.keySet());
-        String reason = "testing node shutdown allocation rules";
-        String type = "REMOVE";
-
-        // Put a shutdown request
-        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
-        putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\"}");
-        assertOK(client().performRequest(putShutdown));
-
-        // Create an index with 1s/2r
+        // Create an index with enough replicas to ensure one would normally be allocated to each node
         final String indexName = "test-idx";
         Request createIndexRequest = new Request("PUT", indexName);
         createIndexRequest.setJsonEntity("{\"settings\":  {\"number_of_shards\": 1, \"number_of_replicas\": 3}}");
@@ -140,12 +125,76 @@ public class NodeShutdownIT extends ESRestTestCase {
         );
     }
 
+    /**
+     * Checks that a reroute is started immediately after registering a node shutdown, so that shards will actually start moving off of
+     * the node immediately, rather than waiting for something to trigger it.
+     */
+    @SuppressWarnings("unchecked")
+    public void testRerouteStartedOnRemoval() throws Exception {
+        String nodeIdToShutdown = getRandomNodeId();
+
+        final String indexName = "test-idx";
+        Request createIndexRequest = new Request("PUT", indexName);
+        createIndexRequest.setJsonEntity("{\"settings\":  {\"number_of_shards\": 4, \"number_of_replicas\": 0}}");
+        assertOK(client().performRequest(createIndexRequest));
+
+        ensureGreen(indexName);
+
+        // Check to ensure there's a shard on the node we want to shut down
+        Request checkShardsRequest = new Request("GET", "_cat/shards/" + indexName);
+        checkShardsRequest.addParameter("format", "json");
+        checkShardsRequest.addParameter("h", "index,shard,prirep,id,state");
+
+        // Double check that there's actually a shard on the node we want to shut down
+        {
+            List<Object> shardsResponse = entityAsList(client().performRequest(checkShardsRequest));
+            final long shardsOnNodeToShutDown = shardsResponse.stream()
+                .map(shard -> (Map<String, Object>) shard)
+                .filter(shard -> nodeIdToShutdown.equals(shard.get("id")))
+                .filter(shard -> "STARTED".equals(shard.get("state")))
+                .count();
+            assertThat(shardsOnNodeToShutDown, is(1L));
+        }
+
+        // Register the shutdown
+        putNodeShutdown(nodeIdToShutdown, "REMOVE");
+
+        // assertBusy waiting for the shard to no longer be on that node
+        assertBusy(() -> {
+            List<Object> shardsResponse = entityAsList(client().performRequest(checkShardsRequest));
+            final long shardsOnNodeToShutDown = shardsResponse.stream()
+                .map(shard -> (Map<String, Object>) shard)
+                .filter(shard -> nodeIdToShutdown.equals(shard.get("id")))
+                .filter(shard -> "STARTED".equals(shard.get("state")))
+                .count();
+            assertThat(shardsOnNodeToShutDown, is(0L));
+        });
+    }
+
     @SuppressWarnings("unchecked")
     private void assertNoShuttingDownNodes(String nodeIdToShutdown) throws IOException {
         Request getShutdownStatus = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
         Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
         assertThat(nodesArray, empty());
+    }
+
+    private void putNodeShutdown(String nodeIdToShutdown, String type) throws IOException {
+        String reason = this.getTestName();
+
+        // Put a shutdown request
+        Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + reason + "\"}");
+        assertOK(client().performRequest(putShutdown));
+    }
+
+    @SuppressWarnings("unchecked")
+    private String getRandomNodeId() throws IOException {
+        Request nodesRequest = new Request("GET", "_nodes");
+        Map<String, Object> nodesResponse = responseAsMap(client().performRequest(nodesRequest));
+        Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
+
+        return randomFrom(nodesObject.keySet());
     }
 
     @Override

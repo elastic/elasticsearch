@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -20,6 +22,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -29,6 +32,8 @@ import java.util.HashMap;
 import java.util.Objects;
 
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<PutShutdownNodeAction.Request> {
+    private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
+
     @Inject
     public TransportPutShutdownNodeAction(
         TransportService transportService,
@@ -84,6 +89,32 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                                 .putCustom(NodesShutdownMetadata.TYPE, currentShutdownMetadata.putSingleNodeMetadata(newNodeMetadata))
                         )
                         .build();
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())) {
+                        clusterService.getRerouteService()
+                            .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
+                                @Override
+                                public void onResponse(ClusterState clusterState) {
+                                    logger.trace("started reroute after registering node [" + request.getNodeId() + "] for removal");
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.warn("failed to start reroute after registering node [" + request.getNodeId() + "] for removal");
+                                }
+                            });
+                    } else {
+                        logger.trace(
+                            "not starting reroute after registering node ["
+                                + request.getNodeId()
+                                + "] for shutdown of type ["
+                                + request.getType()
+                                + "]"
+                        );
+                    }
                 }
             }
         );

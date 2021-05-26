@@ -31,9 +31,8 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     /**
      * The version that the ML index templates were switched from legacy templates to composable templates.
-     * TODO: Change to V_7_14_0 on backport
      */
-    public static final Version COMPOSABLE_TEMPLATE_SWITCH_VERSION = Version.V_8_0_0;
+    public static final Version COMPOSABLE_TEMPLATE_SWITCH_VERSION = Version.V_7_14_0;
 
     private static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/";
     private static final String ANOMALY_DETECTION_PATH = ROOT_RESOURCE_PATH + "anomalydetection/";

@@ -123,14 +123,14 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties").startObject("location").field("type", "geo_point");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(xContentBuilder));
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", xContentBuilder));
         ensureGreen();
     }
 
     public void testRandomPoint() throws Exception {
         final double lat = GeometryTestUtils.randomLat();
         final double lon  = GeometryTestUtils.randomLon();
-        client().prepareIndex("test").setId("1")
+        client().prepareIndex("test", "_doc").setId("1")
             .setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
                 .field("location", new double[]{lon, lat})
@@ -174,7 +174,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
         XContentBuilder builder = jsonBuilder().startObject()
             .field("name", "TestPosition")
             .field("location", values).endObject();
-        client().prepareIndex("test").setId("1").setSource(builder).get();
+        client().prepareIndex("test", "_doc").setId("1").setSource(builder).get();
 
         client().admin().indices().prepareRefresh("test").get();
 
@@ -204,7 +204,7 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testNullPoint() throws Exception {
-        client().prepareIndex("test").setId("1")
+        client().prepareIndex("test", "_doc").setId("1")
             .setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
                 .nullField("location")

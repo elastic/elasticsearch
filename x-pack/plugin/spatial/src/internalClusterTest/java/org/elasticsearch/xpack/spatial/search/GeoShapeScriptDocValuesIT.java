@@ -133,7 +133,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("_doc")
             .startObject("properties").startObject("location").field("type", "geo_shape");
         xContentBuilder.endObject().endObject().endObject().endObject();
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping(xContentBuilder));
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", xContentBuilder));
         ensureGreen();
     }
 
@@ -147,7 +147,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
                 return true;
             }
         }, () -> GeometryTestUtils.randomGeometry(false)));
-        client().prepareIndex("test").setId("1")
+        client().prepareIndex("test", "_doc").setId("1")
             .setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
                 .field("location", WellKnownText.INSTANCE.toWKT(geometry))
@@ -173,7 +173,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
     }
 
     public void testNullShape() throws Exception {
-        client().prepareIndex("test").setId("1")
+        client().prepareIndex("test", "_doc").setId("1")
             .setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
                 .nullField("location")

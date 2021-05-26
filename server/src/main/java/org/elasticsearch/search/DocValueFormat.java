@@ -30,6 +30,7 @@ import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
@@ -207,6 +208,10 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         private DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution, boolean formatSortValues) {
+            if ((formatter.pattern() == "epoch_millis" || formatter.pattern() == "epoch_second")
+                && ZoneOffset.UTC.equals(timeZone) == false) {
+                throw new IllegalArgumentException("Cannot supply a non-UTC timezone with epoch based date format");
+            }
             this.formatter = formatter;
             this.timeZone = Objects.requireNonNull(timeZone);
             this.parser = formatter.toDateMathParser();

@@ -54,7 +54,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         if (isLong) {
             // we use specific format only for date histogram on a long/date field
             if (randomBoolean()) {
-                return new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), ZoneOffset.ofHours(1),
+                return new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), ZoneOffset.UTC,
                     DateFieldMapper.Resolution.MILLISECONDS);
             } else {
                 return DocValueFormat.RAW;
@@ -375,6 +375,17 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         ClassCastException exception = expectThrows(ClassCastException.class, () -> key1.compareTo(key2));
         assertThat(exception.getMessage(),
             containsString("java.lang.String cannot be cast to"));
+    }
+
+    public void testFormatObjectChecked() {
+        DocValueFormat weekYearMonth = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("YYYY-MM-dd"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        long epoch = 1622060077L; // May 25th 2021, evening
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> InternalComposite.formatObjectChecked(epoch, weekYearMonth));
     }
 
     private InternalComposite.ArrayMap createMap(List<String> fields, Comparable[] values) {

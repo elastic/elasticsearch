@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -28,9 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.REALM_TYPE;
-import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
-import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
 import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
 
 // TODO(hub-cap) Clean this up after moving User over - This class can re-inherit its field AUTHENTICATION_KEY in AuthenticationField.
@@ -110,7 +108,7 @@ public class Authentication implements ToXContentObject {
     }
 
     public boolean isServiceAccount() {
-        return REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
     }
 
     /**
@@ -227,11 +225,12 @@ public class Authentication implements ToXContentObject {
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
         if (isServiceAccount()) {
-            final String tokenName = (String) getMetadata().get(TOKEN_NAME_FIELD);
+            final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
-            final String tokenSource = (String) getMetadata().get(TOKEN_SOURCE_FIELD);
+            final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
-            builder.field(User.Fields.TOKEN.getPreferredName(), Map.of("name", tokenName, "type", REALM_TYPE + "_" + tokenSource));
+            builder.field(User.Fields.TOKEN.getPreferredName(),
+                Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource));
         }
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());

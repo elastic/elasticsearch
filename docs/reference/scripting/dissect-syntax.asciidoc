@@ -25,6 +25,7 @@ this:
 ----
 "message" : "247.37.0.0 - - [30/Apr/2020:14:31:22 -0500] \"GET /images/hm_nbg.jpg HTTP/1.0\" 304 0"
 ----
+// NOTCONSOLE
 
 You assign variables to each part of the data to construct a successful
 dissect pattern. Remember, tell dissect _exactly_ what you want you want to
@@ -44,6 +45,7 @@ this:
 
 %{clientip} %{ident} %{auth} [%{@timestamp}] <2>
 ----
+// NOTCONSOLE
 <1> The first chunks of data from the `message` field
 <2> Dissect pattern to match on the selected data chunks
 
@@ -58,6 +60,7 @@ as part of the pattern.
 
 "%{verb} %{request} HTTP/%{httpversion}" %{response} %{size}
 ----
+// NOTCONSOLE
 
 Combining the two patterns results in a dissect pattern that looks like this: 
 
@@ -65,17 +68,18 @@ Combining the two patterns results in a dissect pattern that looks like this:
 ----
 %{clientip} %{ident} %{auth} [%{@timestamp}] \"%{verb} %{request} HTTP/%{httpversion}\" %{status} %{size}
 ----
+// NOTCONSOLE
 
 Now that you have a dissect pattern, how do you test and use it?
 
 [[dissect-patterns-test]]
 ==== Test dissect patterns with Painless
 You can incorporate dissect patterns into Painless scripts to extract
-data. To test your script, use either the {painless}/painless-execute-api.html[field contexts] of the {painless}/painless-execute-api.html[Painless execute API] or
-create a runtime field that includes the script. Runtime fields offer greater
-flexibility and accept multiple documents, but the Painless execute API is a
-great option if you don't have write access on a cluster where you're testing a
-script.
+data. To test your script, use either the {painless}/painless-execute-api.html#painless-execute-runtime-field-context[field contexts] of the Painless
+execute API or create a runtime field that includes the script. Runtime fields
+offer greater flexibility and accept multiple documents, but the Painless execute
+API is a great option if you don't have write access on a cluster where you're
+testing a script.
 
 For example, test your dissect pattern with the Painless execute API by
 including your Painless script and a single document that matches your data.
@@ -97,7 +101,13 @@ PUT my-index
 
 If you want to retrieve the HTTP response code, add your dissect pattern to a
 Painless script that extracts the `response` value. To extract values from a
-field, use the `.extract(doc["<field_name>"].value)?.<field_value>` function.
+field, use this function:
+
+[source,painless]
+----
+`.extract(doc["<field_name>"].value)?.<field_value>`
+----
+
 In this example, `message` is the `<field_name>` and `response` is the
 `<field_value>`:
 
@@ -272,7 +282,6 @@ GET my-index/_search
     "hits" : [
       {
         "_index" : "my-index",
-        "_type" : "_doc",
         "_id" : "D47UqXkBByC8cgZrkbOm",
         "_score" : 1.0,
         "_source" : {

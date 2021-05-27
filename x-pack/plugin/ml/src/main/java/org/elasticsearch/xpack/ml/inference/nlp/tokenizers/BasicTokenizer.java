@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 /**
  * Basic tokenization of text by whitespace with optional extras:
@@ -88,12 +89,23 @@ public class BasicTokenizer {
 
         List<String> processedTokens = new ArrayList<>(tokens.length);
         for (String token : tokens) {
+
+            if (Strings.EMPTY.equals(token)) {
+                continue;
+            }
+
             if (neverSplit.contains(token)) {
                 processedTokens.add(token);
                 continue;
             }
 
-            if (Strings.EMPTY.equals(token)) {
+            // At this point text has been tokenized by whitespace
+            // but one of the special never split tokens could be adjacent
+            // to a punctuation character.
+            if (isCommonPunctuation(token.codePointAt(token.length() -1)) &&
+                    neverSplit.contains(token.substring(0, token.length() -1))) {
+                processedTokens.add(token.substring(0, token.length() -1));
+                processedTokens.add(token.substring(token.length() -1));
                 continue;
             }
 
@@ -148,12 +160,16 @@ public class BasicTokenizer {
     }
 
     static List<String> splitOnPunctuation(String word) {
+        return splitOnPredicate(word, BasicTokenizer::isPunctuationMark);
+    }
+
+    static List<String> splitOnPredicate(String word, Predicate<Integer> test) {
         List<String> split = new ArrayList<>();
         int [] codePoints = word.codePoints().toArray();
 
         int lastSplit = 0;
         for (int i=0; i<codePoints.length; i++) {
-            if (isPunctuation(codePoints[i])) {
+            if (test.test(codePoints[i])) {
                 int charCount = i - lastSplit;
                 if (charCount > 0) {
                     // add a new string for what has gone before
@@ -265,7 +281,7 @@ public class BasicTokenizer {
      * @param codePoint code point
      * @return true if is punctuation
      */
-    static boolean isPunctuation(int codePoint) {
+    static boolean isPunctuationMark(int codePoint) {
         if ((codePoint >= 33 && codePoint <= 47) ||
             (codePoint >= 58 && codePoint <= 64) ||
             (codePoint >= 91 && codePoint <= 96) ||
@@ -275,5 +291,20 @@ public class BasicTokenizer {
 
         int category = Character.getType(codePoint);
         return category >= Character.DASH_PUNCTUATION && category <= Character.OTHER_PUNCTUATION;
+    }
+
+    /**
+     * True if the code point is for a common punctuation character
+     * {@code ! " # $ % & ' ( ) * + , - . /   and : ; < = > ?}
+     * @param codePoint codepoint
+     * @return true if codepoint is punctuation
+     */
+    static boolean isCommonPunctuation(int codePoint) {
+        if ((codePoint >= 33 && codePoint <= 47) ||
+            (codePoint >= 58 && codePoint <= 64) ) {
+            return true;
+        }
+
+        return false;
     }
 }

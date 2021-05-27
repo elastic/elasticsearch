@@ -8,14 +8,14 @@
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.Assertions;
-
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,14 +34,17 @@ public class Maps {
      * @param <V>   the type of the values in the map
      * @return an immutable map that contains the items from the specified map and the concatenated entry
      */
+    @SuppressWarnings("unchecked")
     public static <K, V> Map<K, V> copyMapWithAddedEntry(final Map<K, V> map, final K key, final V value) {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
-        assertImmutableMap(map, key, value);
+        assert checkIsImmutableMap(map, key, value);
         assert map.containsKey(key) == false : "expected entry [" + key + "] to not already be present in map";
-        return Stream.concat(map.entrySet().stream(), Stream.of(entry(key, value)))
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        final Map.Entry<K, V>[] entries = new Map.Entry[map.size() + 1];
+        map.entrySet().toArray(entries);
+        entries[entries.length - 1] = Map.entry(key, value);
+        return Map.ofEntries(entries);
     }
 
     /**
@@ -59,9 +62,9 @@ public class Maps {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
-        assertImmutableMap(map, key, value);
+        assert checkIsImmutableMap(map, key, value);
         return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
@@ -77,22 +80,31 @@ public class Maps {
     public static <K, V> Map<K, V> copyMapWithRemovedEntry(final Map<K, V> map, final K key) {
         Objects.requireNonNull(map);
         Objects.requireNonNull(key);
-        assertImmutableMap(map, key, map.get(key));
+        assert checkIsImmutableMap(map, key, map.get(key));
         return map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false)
             .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    private static <K, V> void assertImmutableMap(final Map<K, V> map, final K key, final V value) {
-        if (Assertions.ENABLED) {
-            boolean immutable;
-            try {
-                map.put(key, value);
-                immutable = false;
-            } catch (final UnsupportedOperationException e) {
-                immutable = true;
-            }
-            assert immutable : "expected an immutable map but was [" + map.getClass() + "]";
+    // map classes that are known to be immutable, used to speed up immutability check in #assertImmutableMap
+    private static final Set<Class<?>> IMMUTABLE_MAP_CLASSES = Set.of(
+        Collections.emptyMap().getClass(),
+        Collections.unmodifiableMap(new HashMap<>()).getClass(),
+        Map.of().getClass(),
+        Map.of("a", "b").getClass()
+    );
+
+    private static <K, V> boolean checkIsImmutableMap(final Map<K, V> map, final K key, final V value) {
+        // check in the known immutable classes map first, most of the time we don't need to actually do the put and throw which is slow to
+        // the point of visibly slowing down internal cluster tests without this short-cut
+        if (IMMUTABLE_MAP_CLASSES.contains(map.getClass())) {
+            return true;
         }
+        try {
+            map.put(key, value);
+            return false;
+        } catch (final UnsupportedOperationException ignored) {
+        }
+        return true;
     }
 
     /**
@@ -125,7 +137,7 @@ public class Maps {
             return false;
         }
         return left.entrySet().stream()
-                .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
+            .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
     public static Map<String, Object> flatten(Map<String, Object> map, boolean flattenArrays, boolean ordered) {

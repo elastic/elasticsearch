@@ -10,15 +10,15 @@
 
 // tag::data-stream-security[]
 Use <<privileges-list-indices,index privileges>> to control access to a data
-stream. Any role or user granted privileges to a data stream are automatically
-granted the same privileges to its backing indices.
+stream. Granting privileges for a data stream grants the same privileges for its
+backing indices.
 // end::data-stream-security[]
 
 For example, `my-data-stream` consists of two backing indices:
 `.ds-my-data-stream-2099.03.07-000001` and
 `.ds-my-data-stream-2099.03.08-000002`.
 
-A user is granted the `read` privilege to `my-data-stream`.
+A user is granted the `read` privilege for `my-data-stream`.
 
 [source,js]
 --------------------------------------------------
@@ -29,7 +29,7 @@ A user is granted the `read` privilege to `my-data-stream`.
 --------------------------------------------------
 // NOTCONSOLE
 
-Because the user is automatically granted the same privileges to the stream's
+Because the user is automatically granted the same privileges for the stream's
 backing indices, the user can retrieve a document directly from
 `.ds-my-data-stream-2099.03.08-000002`:
 
@@ -66,15 +66,15 @@ GET .ds-my-data-stream-2099.03.09-000003/_doc/2
 ==== Alias privileges
 
 Use <<privileges-list-indices,index privileges>> to control access to an
-<<alias,alias>>. Privileges on an index or data stream do not grant privileges
-on its aliases.
+<<alias,alias>>. Privileges for an index or data stream do not grant privileges
+for its aliases. For information about managing aliases, see <<alias>>.
 
 IMPORTANT: Don't use <<filter-alias,filtered aliases>> in place of
 <<document-level-security,document level security>>. {es} doesn't always apply
 alias filters.
 
 For example, the `current_year` alias points only to the `2015` index. A user is
-granted the `read` privilege to the `2015` index.
+granted the `read` privilege for the `2015` index.
 
 [source,js]
 ----
@@ -94,7 +94,8 @@ GET current_year/_doc/1
 ----
 // TEST[s/^/PUT 2015\n{"aliases": {"current_year": {}}}\nPUT 2015\/_doc\/1\n{}\n/]
 
-To retrieve documents from `current_year`, the user must have the `read` index privilege for the alias.
+To retrieve documents from `current_year`, the user must have the `read` index
+privilege for the alias.
 
 [source,js]
 ----

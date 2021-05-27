@@ -135,8 +135,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
     }
 
     private String[] indices() {
-        String[] indices = client().admin().indices().prepareGetIndex().addIndices("index").get().indices();
-        return indices;
+        return client().admin().indices().prepareGetIndex().addIndices("index").get().indices();
     }
 
     private void assertMinimumCapacity(AutoscalingCapacity.AutoscalingResources resources) {

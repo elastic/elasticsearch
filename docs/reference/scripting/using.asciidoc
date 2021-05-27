@@ -566,3 +566,4 @@ DELETE /_ingest/pipeline/my_test_scores_pipeline
 
 ////
 
+include::grok-syntax.asciidoc[]

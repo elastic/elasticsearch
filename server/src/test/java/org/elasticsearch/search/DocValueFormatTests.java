@@ -20,6 +20,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -223,5 +224,24 @@ public class DocValueFormatTests extends ESTestCase {
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo(1415580798601L));
         dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo("2014-11-10 01:53:18"));
+    }
+
+    /**
+     * Test that epoch-based time formats cannot include a non-UTC time zone
+     */
+    public void testEpochTimeZoneForbidden() {
+        ZoneId zone = ZoneOffset.UTC;
+        while (zone.equals(ZoneOffset.UTC)) {
+            zone = randomZone();
+        }
+        final ZoneId thisIsDumb = zone;
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_millis"), thisIsDumb, Resolution.MILLISECONDS)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), thisIsDumb, Resolution.MILLISECONDS)
+        );
     }
 }

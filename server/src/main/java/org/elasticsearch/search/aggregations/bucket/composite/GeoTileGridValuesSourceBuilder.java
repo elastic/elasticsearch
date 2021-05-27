@@ -154,7 +154,9 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("precision", precision);
         if (geoBoundingBox.isUnbounded() == false) {
-            geoBoundingBox.toXContent(builder, params);
+            builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
+            geoBoundingBox.toXContentFragment(builder, true);
+            builder.endObject();
         }
     }
 

@@ -13,7 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -58,32 +60,36 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
         final boolean store1Success = randomBoolean();
         final boolean store2Success = randomBoolean();
         final boolean store3Success = randomBoolean();
+        final TokenSource tokenSource = randomFrom(TokenSource.values());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-            listener.onResponse(store1Success);
+            @SuppressWarnings("unchecked") final ActionListener<StoreAuthenticationResult> listener =
+                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            listener.onResponse(new StoreAuthenticationResult(store1Success, tokenSource));
             return null;
         }).when(store1).authenticate(eq(token), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-            listener.onResponse(store2Success);
+            final ActionListener<StoreAuthenticationResult> listener =
+                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            listener.onResponse(new StoreAuthenticationResult(store2Success, tokenSource));
             return null;
         }).when(store2).authenticate(eq(token), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<Boolean> listener = (ActionListener<Boolean>) invocationOnMock.getArguments()[1];
-            listener.onResponse(store3Success);
+            final ActionListener<StoreAuthenticationResult> listener =
+                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
+            listener.onResponse(new StoreAuthenticationResult(store3Success, tokenSource));
             return null;
         }).when(store3).authenticate(eq(token), any());
 
-        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+        final PlainActionFuture<StoreAuthenticationResult> future = new PlainActionFuture<>();
         compositeStore.authenticate(token, future);
         if (store1Success || store2Success || store3Success) {
-            assertThat(future.get(), is(true));
+            assertThat(future.get().isSuccess(), is(true));
+            assertThat(future.get().getTokenSource(), is(tokenSource));
             if (store1Success) {
                 verify(store1).authenticate(eq(token), any());
                 verifyZeroInteractions(store2);
@@ -98,7 +104,8 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
                 verify(store3).authenticate(eq(token), any());
             }
         } else {
-            assertThat(future.get(), is(false));
+            assertThat(future.get().isSuccess(), is(false));
+            assertThat(future.get().getTokenSource(), is(tokenSource));
             verify(store1).authenticate(eq(token), any());
             verify(store2).authenticate(eq(token), any());
             verify(store3).authenticate(eq(token), any());

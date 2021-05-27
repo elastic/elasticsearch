@@ -18,15 +18,12 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map.Entry;
@@ -172,10 +169,6 @@ public class PivotConfig implements Writeable, ToXContentObject {
         return Objects.hash(groups, aggregationConfig, maxPageSearchSize);
     }
 
-    public boolean isValid() {
-        return groups.isValid() && aggregationConfig.isValid();
-    }
-
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 10_000)) {
             validationException = addValidationError(
@@ -183,23 +176,16 @@ public class PivotConfig implements Writeable, ToXContentObject {
                 validationException
             );
         }
+        validationException = groups.validate(validationException);
+        validationException = aggregationConfig.validate(validationException);
 
-        for (String failure : aggFieldValidation()) {
+        List<String> usedNames = new ArrayList<>();
+        usedNames.addAll(groups.getUsedNames());
+        usedNames.addAll(aggregationConfig.getUsedNames());
+        for (String failure : aggFieldValidation(usedNames)) {
             validationException = addValidationError(failure, validationException);
         }
-
         return validationException;
-    }
-
-    public List<String> aggFieldValidation() {
-        if ((aggregationConfig.isValid() && groups.isValid()) == false) {
-            return Collections.emptyList();
-        }
-        List<String> usedNames = new ArrayList<>();
-        aggregationConfig.getAggregatorFactories().forEach(agg -> addAggNames("", agg, usedNames));
-        aggregationConfig.getPipelineAggregatorFactories().forEach(agg -> addAggNames("", agg, usedNames));
-        usedNames.addAll(groups.getGroups().keySet());
-        return aggFieldValidation(usedNames);
     }
 
     public static PivotConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
@@ -247,20 +233,5 @@ public class PivotConfig implements Writeable, ToXContentObject {
         }
 
         return validationFailures;
-    }
-
-    private static void addAggNames(String namePrefix, AggregationBuilder aggregationBuilder, Collection<String> names) {
-        if (aggregationBuilder.getSubAggregations().isEmpty() && aggregationBuilder.getPipelineAggregations().isEmpty()) {
-            names.add(namePrefix + aggregationBuilder.getName());
-            return;
-        }
-
-        String newNamePrefix = namePrefix + aggregationBuilder.getName() + ".";
-        aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(newNamePrefix, agg, names));
-        aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(newNamePrefix, agg, names));
-    }
-
-    private static void addAggNames(String namePrefix, PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
-        names.add(namePrefix + pipelineAggregationBuilder.getName());
     }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,7 +22,9 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
@@ -112,7 +115,9 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
 
         // lenient passes but reports invalid
         PivotConfig pivotConfig = createPivotConfigFromString(pivot, true);
-        assertFalse(pivotConfig.isValid());
+        ValidationException validationException = pivotConfig.validate(null);
+        assertThat(validationException, is(notNullValue()));
+        assertThat(validationException.getMessage(), containsString("pivot.aggregations must not be null"));
     }
 
     public void testEmptyGroupBy() throws IOException {
@@ -128,7 +133,9 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
 
         // lenient passes but reports invalid
         PivotConfig pivotConfig = createPivotConfigFromString(pivot, true);
-        assertFalse(pivotConfig.isValid());
+        ValidationException validationException = pivotConfig.validate(null);
+        assertThat(validationException, is(notNullValue()));
+        assertThat(validationException.getMessage(), containsString("pivot.groups must not be null"));
     }
 
     public void testMissingGroupBy() {
@@ -194,9 +201,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
             + "       \"field\": \"points\""
             + "} } } }";
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
-        assertTrue(pivotConfig.isValid());
-        List<String> fieldValidation = pivotConfig.aggFieldValidation();
-        assertTrue(fieldValidation.isEmpty());
+        assertNull(pivotConfig.validate(null));
     }
 
     public void testValidAggNamesNested() throws IOException {
@@ -237,9 +242,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
             + "} } } } } }";
 
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
-        assertTrue(pivotConfig.isValid());
-        List<String> fieldValidation = pivotConfig.aggFieldValidation();
-        assertTrue(Strings.collectionToCommaDelimitedString(fieldValidation), fieldValidation.isEmpty());
+        assertNull(pivotConfig.validate(null));
     }
 
     public void testValidAggNamesNestedTwice() throws IOException {
@@ -303,9 +306,7 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
             + "  }";
 
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
-        assertTrue(pivotConfig.isValid());
-        List<String> fieldValidation = pivotConfig.aggFieldValidation();
-        assertTrue(Strings.collectionToCommaDelimitedString(fieldValidation), fieldValidation.isEmpty());
+        assertNull(pivotConfig.validate(null));
     }
 
     public void testInValidAggNamesNestedTwice() throws IOException {
@@ -369,10 +370,9 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
             + "  }";
 
         PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
-        assertTrue(pivotConfig.isValid());
-        List<String> fieldValidation = pivotConfig.aggFieldValidation();
-
-        assertThat(fieldValidation, containsInAnyOrder("duplicate field [jp.us.os.dc] detected"));
+        ValidationException validationException = pivotConfig.validate(null);
+        assertThat(validationException, is(notNullValue()));
+        assertThat(validationException.getMessage(), containsString("duplicate field [jp.us.os.dc] detected"));
     }
 
     public void testAggNameValidationsWithoutIssues() {

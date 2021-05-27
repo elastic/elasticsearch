@@ -12,11 +12,14 @@ import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public class FillMaskProcessor implements NlpTask.Processor {
+
+    private static final int NUM_RESULTS = 5;
 
     private final BertRequestBuilder bertRequestBuilder;
 
@@ -50,12 +53,16 @@ public class FillMaskProcessor implements NlpTask.Processor {
             throw new IllegalArgumentException("only one [MASK] token should exist in the input");
         }
         int maskTokenIndex = tokenization.getTokens().indexOf(BertTokenizer.MASK_TOKEN);
-        double[][] normalizedScores = NlpHelpers.convertToProbabilitesBySoftMax(pyTorchResult.getInferenceResult());
-        int predictionTokenId = NlpHelpers.argmax(normalizedScores[maskTokenIndex]);
-        String predictedToken = tokenization.getFromVocab(predictionTokenId);
-        double score = normalizedScores[maskTokenIndex][predictionTokenId];
-        String sequence = tokenization.getInput().replace(BertTokenizer.MASK_TOKEN, predictedToken);
-        FillMaskResults.Result result = new FillMaskResults.Result(predictedToken, score, sequence);
-        return new FillMaskResults(Collections.singletonList(result));
+        double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[maskTokenIndex]);
+
+        int[] topKIds = NlpHelpers.topK(NUM_RESULTS, normalizedScores);
+        List<FillMaskResults.Result> results = new ArrayList<>(NUM_RESULTS);
+        for (int i=0; i<topKIds.length; i++) {
+            String predictedToken = tokenization.getFromVocab(topKIds[i]);
+            double score = normalizedScores[topKIds[i]];
+            String sequence = tokenization.getInput().replace(BertTokenizer.MASK_TOKEN, predictedToken);
+            results.add(new FillMaskResults.Result(predictedToken, score, sequence));
+        }
+        return new FillMaskResults(results);
     }
 }

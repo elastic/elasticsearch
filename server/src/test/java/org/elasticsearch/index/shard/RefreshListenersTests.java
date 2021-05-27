@@ -415,7 +415,7 @@ public class RefreshListenersTests extends ESTestCase {
                             assertNotNull("location listener never called", listener.forcedRefresh.get());
                             assertTrue("seqNo listener never called", seqNoListener.isDone.get());
                         }, 1, TimeUnit.MINUTES);
-                        if (threadCount < maxListeners) {
+                        if ((threadCount * 2) < maxListeners) {
                             assertFalse(listener.forcedRefresh.get());
                         }
                         listener.assertNoError();

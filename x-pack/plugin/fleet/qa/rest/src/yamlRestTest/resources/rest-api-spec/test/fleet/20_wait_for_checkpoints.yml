@@ -48,7 +48,7 @@ setup:
   - do:
       fleet.search:
         index: "test-timeout"
-        allow_partial_search_results: false
+        allow_partial_search_results: true
         wait_for_checkpoints: [0,0]
         timeout: "50ms"
         body: { query: { match_all: { } } }

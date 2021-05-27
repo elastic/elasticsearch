@@ -49,6 +49,13 @@ This is a possible response:
   "defaults" : {
     "anomaly_detectors" : {
       "categorization_analyzer" : {
+        "char_filter" : [
+          {
+            "type" : "pattern_replace",
+            "pattern" : "\\\\n.*",
+            "flags" : "DOTALL"
+          }
+        ],
         "tokenizer" : "ml_standard",
         "filter" : [
           {

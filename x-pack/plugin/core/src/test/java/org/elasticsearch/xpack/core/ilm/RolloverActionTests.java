@@ -36,7 +36,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue maxPrimaryShardSize = randomBoolean() ? null :
             new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
-        Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
+        Long maxDocs = randomBoolean() ? null : randomLongBetween(0, IndexWriter.MAX_DOCS);
         TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
             ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
             : null;

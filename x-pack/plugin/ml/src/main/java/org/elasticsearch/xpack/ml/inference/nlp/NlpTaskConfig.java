@@ -18,17 +18,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TaskConfig implements ToXContentObject {
+public class NlpTaskConfig implements ToXContentObject {
 
     public static final ParseField VOCAB = new ParseField("vocab");
     public static final ParseField TASK_TYPE = new ParseField("task_type");
     public static final ParseField LOWER_CASE = new ParseField("do_lower_case");
 
-    private static final ObjectParser<TaskConfig.Builder, Void> STRICT_PARSER = createParser(false);
-    private static final ObjectParser<TaskConfig.Builder, Void> LENIENT_PARSER = createParser(true);
+    private static final ObjectParser<NlpTaskConfig.Builder, Void> STRICT_PARSER = createParser(false);
+    private static final ObjectParser<NlpTaskConfig.Builder, Void> LENIENT_PARSER = createParser(true);
 
-    private static ObjectParser<TaskConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<TaskConfig.Builder, Void> parser = new ObjectParser<>("task_config",
+    private static ObjectParser<NlpTaskConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
+        ObjectParser<NlpTaskConfig.Builder, Void> parser = new ObjectParser<>("task_config",
             ignoreUnknownFields,
             Builder::new);
 
@@ -38,7 +38,7 @@ public class TaskConfig implements ToXContentObject {
         return parser;
     }
 
-    public static TaskConfig fromXContent(XContentParser parser, boolean lenient) {
+    public static NlpTaskConfig fromXContent(XContentParser parser, boolean lenient) {
         return lenient ? LENIENT_PARSER.apply(parser, null).build() : STRICT_PARSER.apply(parser, null).build();
     }
 
@@ -50,7 +50,7 @@ public class TaskConfig implements ToXContentObject {
     private final List<String> vocabulary;
     private final boolean doLowerCase;
 
-    TaskConfig(TaskType taskType, List<String> vocabulary, boolean doLowerCase) {
+    NlpTaskConfig(TaskType taskType, List<String> vocabulary, boolean doLowerCase) {
         this.taskType = taskType;
         this.vocabulary = vocabulary;
         this.doLowerCase = doLowerCase;
@@ -77,7 +77,7 @@ public class TaskConfig implements ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        TaskConfig that = (TaskConfig) o;
+        NlpTaskConfig that = (NlpTaskConfig) o;
         return taskType == that.taskType &&
             doLowerCase == that.doLowerCase &&
             Objects.equals(vocabulary, that.vocabulary);
@@ -118,8 +118,8 @@ public class TaskConfig implements ToXContentObject {
             return this;
         }
 
-        public TaskConfig build() {
-            return new TaskConfig(taskType, vocabulary, doLowerCase);
+        public NlpTaskConfig build() {
+            return new NlpTaskConfig(taskType, vocabulary, doLowerCase);
         }
     }
 }

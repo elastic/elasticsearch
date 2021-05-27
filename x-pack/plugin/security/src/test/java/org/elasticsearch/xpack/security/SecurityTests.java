@@ -558,7 +558,8 @@ public class SecurityTests extends ESTestCase {
                 @Override
                 public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                                                          IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+                                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes>
+                                                         nodesInCluster) {
                     return security.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                         indexNameExpressionResolver, nodesInCluster);
                 }
@@ -571,8 +572,8 @@ public class SecurityTests extends ESTestCase {
 
             ActionModule actionModule = new ActionModule(settingsModule.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(), threadPool,
-                Arrays.asList(xpackPlugin, xpackAction), null, null, usageService, null);
+                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
+                threadPool, Arrays.asList(xpackPlugin, xpackAction), null, null, usageService, null);
             actionModule.initRestHandlers(null);
 
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail

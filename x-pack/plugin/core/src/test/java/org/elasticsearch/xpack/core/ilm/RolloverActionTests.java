@@ -72,7 +72,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
                     () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test"));
                 break;
             case 3:
-                maxDocs = maxDocs == null ? randomNonNegativeLong() : maxDocs + 1;
+                maxDocs = maxDocs == null ? randomLongBetween(0, IndexWriter.MAX_DOCS) : maxDocs + 1;
                 break;
             default:
                 throw new AssertionError("Illegal randomisation branch");

@@ -11,6 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -29,11 +32,13 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
+import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -229,7 +234,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
         // Step 1. Delete the physical storage
         new JobDataDeleter(parentTaskClient, jobId).deleteJobDocuments(
-            jobId, jobConfigProvider, indexNameExpressionResolver, clusterService.state(), removeFromCalendarsHandler, listener::onFailure);
+            jobConfigProvider, indexNameExpressionResolver, clusterService.state(), removeFromCalendarsHandler, listener::onFailure);
     }
 
     private void forceDeleteJob(ParentTaskAssigningClient parentTaskClient, DeleteJobAction.Request request,
@@ -313,9 +318,48 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                                 + datafeedIds.iterator().next() + "] refers to it"));
                         return;
                     }
-                    jobConfigProvider.markJobAsDeleting(jobId, listener);
+                    cancelResetTaskIfExists(jobId, ActionListener.wrap(
+                        response -> jobConfigProvider.markJobAsDeleting(jobId, listener),
+                        listener::onFailure
+                    ));
                 },
                 listener::onFailure
         ));
+    }
+
+    private void cancelResetTaskIfExists(String jobId, ActionListener<Boolean> listener) {
+        ActionListener<ListTasksResponse> listTasksListener = ActionListener.wrap(
+            listTasksResponse -> {
+                List<TaskInfo> tasks = listTasksResponse.getTasks();
+                if (tasks.size() == 1) {
+                    logger.info("[{}] Cancelling reset task because delete was requested", jobId);
+                    TaskInfo resetTaskInfo = tasks.get(0);
+                    CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                    cancelTasksRequest.setReason("deleting job");
+                    cancelTasksRequest.setActions(ResetJobAction.NAME);
+                    cancelTasksRequest.setTaskId(resetTaskInfo.getTaskId());
+                    client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(
+                        cancelTasksResponse -> listener.onResponse(true),
+                        e -> {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                listener.onResponse(true);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    ));
+
+                } else {
+                    listener.onResponse(false);
+                }
+            },
+            listener::onFailure
+        );
+
+        ListTasksRequest listTasksRequest = new ListTasksRequest();
+        listTasksRequest.setActions(ResetJobAction.NAME);
+        listTasksRequest.setDescriptions(MlTasks.JOB_TASK_ID_PREFIX + jobId);
+        listTasksRequest.setDetailed(true);
+        client.admin().cluster().listTasks(listTasksRequest, listTasksListener);
     }
 }

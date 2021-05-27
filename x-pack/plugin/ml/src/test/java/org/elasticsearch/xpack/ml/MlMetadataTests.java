@@ -40,7 +40,9 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         MlMetadata.Builder builder = new MlMetadata.Builder();
         int numJobs = randomIntBetween(0, 10);
         for (int i = 0; i < numJobs; i++) {
-            Job job = JobTests.createRandomizedJob();
+            Job.Builder job = new Job.Builder(JobTests.createRandomizedJob());
+            job.setDeleting(false);
+            job.setBlockReason(null);
             if (randomBoolean()) {
                 AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig());
                 analysisConfig.setLatency(null);
@@ -49,11 +51,11 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
                 if (datafeedConfig.hasAggregations()) {
                     analysisConfig.setSummaryCountFieldName("doc_count");
                 }
-                job = new Job.Builder(job).setAnalysisConfig(analysisConfig).build();
-                builder.putJob(job, false);
+                job.setAnalysisConfig(analysisConfig).build();
+                builder.putJob(job.build(), false);
                 builder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             } else {
-                builder.putJob(job, false);
+                builder.putJob(job.build(), false);
             }
         }
         return builder.isResetMode(randomBoolean()).isUpgradeMode(randomBoolean()).build();
@@ -181,7 +183,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             if (datafeedConfig.hasAggregations()) {
                 analysisConfig.setSummaryCountFieldName("doc_count");
             }
-            randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).build();
+            randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).setDeleting(false).setBlockReason(null).build();
             metadataBuilder.putJob(randomJob, false);
             metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             break;

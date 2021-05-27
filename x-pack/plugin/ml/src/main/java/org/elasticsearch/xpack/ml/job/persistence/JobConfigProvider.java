@@ -60,9 +60,12 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.action.util.ExpandedIdsMatcher;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.BlockReason;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
@@ -76,6 +79,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -435,22 +439,54 @@ public class JobConfigProvider {
         updateRequest.retryOnConflict(3);
         updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         updateRequest.doc(Collections.singletonMap(Job.DELETING.getPreferredName(), Boolean.TRUE));
+        executeUpdateJobRequest(jobId, updateRequest, listener);
+    }
 
+    private void executeUpdateJobRequest(String jobId, UpdateRequest updateRequest, ActionListener<Boolean> listener) {
         executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, ActionListener.wrap(
-               response -> {
-                   assert (response.getResult() == DocWriteResponse.Result.UPDATED) ||
-                           (response.getResult() == DocWriteResponse.Result.NOOP);
-                   listener.onResponse(Boolean.TRUE);
-               },
-               e -> {
-                   ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(e);
-                   if (causes[0] instanceof DocumentMissingException) {
-                       listener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                   } else {
-                       listener.onFailure(e);
-                   }
-               }
+            response -> {
+                assert (response.getResult() == DocWriteResponse.Result.UPDATED) ||
+                    (response.getResult() == DocWriteResponse.Result.NOOP);
+                listener.onResponse(Boolean.TRUE);
+            },
+            e -> {
+                ElasticsearchException[] causes = ElasticsearchException.guessRootCauses(e);
+                if (causes[0] instanceof DocumentMissingException) {
+                    listener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                } else {
+                    listener.onFailure(e);
+                }
+            }
         ));
+    }
+
+    public void updateJobBlockReason(String jobId, @Nullable BlockReason blockReason, ActionListener<Boolean> listener) {
+        UpdateRequest updateRequest = new UpdateRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
+        updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        updateRequest.doc(Collections.singletonMap(Job.BLOCK_REASON.getPreferredName(),
+            blockReason == null ? null : blockReason.toString()));
+        executeUpdateJobRequest(jobId, updateRequest, listener);
+    }
+
+    public void updateJobAfterReset(String jobId, ActionListener<Boolean> listener) {
+
+        ActionListener<PutJobAction.Response> updateJobListener = ActionListener.wrap(
+            response -> {
+                UpdateRequest updateRequest = new UpdateRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
+                updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                Map<String, Object> update = new HashMap<>();
+                update.put(Job.BLOCK_REASON.getPreferredName(), null);
+                update.put(Job.MODEL_SNAPSHOT_ID.getPreferredName(), null);
+                updateRequest.doc(update);
+                executeUpdateJobRequest(jobId, updateRequest, listener);
+            },
+            listener::onFailure
+        );
+
+
+        JobUpdate jobUpdate = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateJobAction.INSTANCE, UpdateJobAction.Request.internal(jobId, jobUpdate),
+            updateJobListener);
     }
 
     /**

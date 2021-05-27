@@ -594,6 +594,21 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNull(Job.extractJobIdFromDocumentId("some_other_type-foo"));
     }
 
+    public void testDeletingAndBlockReasonAreSynced() {
+        {
+            Job job = buildJobBuilder(randomValidJobId())
+                .setDeleting(true)
+                .build();
+            assertThat(job.getBlockReason(), equalTo(BlockReason.DELETE));
+        }
+        {
+            Job job = buildJobBuilder(randomValidJobId())
+                .setBlockReason(BlockReason.DELETE)
+                .build();
+            assertThat(job.isDeleting(), is(true));
+        }
+    }
+
     public static Job.Builder buildJobBuilder(String id, Date date) {
         Job.Builder builder = new Job.Builder(id);
         builder.setCreateTime(date);
@@ -685,6 +700,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setAllowLazyOpen(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setBlockReason(randomFrom(BlockReason.values()));
         }
         return builder.build();
     }

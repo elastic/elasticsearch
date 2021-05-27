@@ -29,6 +29,8 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.job.config.BlockReason;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -87,32 +89,38 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 5. Revert the state
         ActionListener<Boolean> annotationsIndexUpdateListener = ActionListener.wrap(
             r -> {
-                PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-                JobState jobState = MlTasks.getJobState(jobId, tasks);
+                ActionListener<Job> jobListener = ActionListener.wrap(
+                    job -> {
+                        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                        JobState jobState = MlTasks.getJobState(job.getId(), tasks);
+                        if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
+                            listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
+                            return;
+                        }
+                        if (MlTasks.getSnapshotUpgraderTask(jobId, request.getSnapshotId(), tasks) != null) {
+                            listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                "Cannot revert job [{}] to snapshot [{}] as it is being upgraded",
+                                jobId,
+                                request.getSnapshotId()
+                            ));
+                            return;
+                        }
+                        if (job.getBlockReason() != null && job.getBlockReason() != BlockReason.REVERT) {
+                            listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                "cannot revert job [{}] to snapshot [{}] while it is blocked with [{}]",
+                                jobId, request.getSnapshotId(), job.getBlockReason())
+                            );
+                            return;
+                        }
+                        jobManager.updateJobBlockReason(jobId, BlockReason.REVERT, ActionListener.wrap(
+                            aBoolean -> revertSnapshot(jobId, request, listener),
+                            listener::onFailure
+                        ));
+                    },
+                    listener::onFailure
+                );
 
-                if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
-                    return;
-                }
-
-                if (MlTasks.getSnapshotUpgraderTask(jobId, request.getSnapshotId(), tasks) != null) {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(
-                        "Cannot revert job [{}] to snapshot [{}] as it is being upgraded",
-                        jobId,
-                        request.getSnapshotId()
-                    ));
-                    return;
-                }
-
-                getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
-                    ActionListener<RevertModelSnapshotAction.Response> wrappedListener = listener;
-                    if (request.getDeleteInterveningResults()) {
-                        wrappedListener = wrapDeleteOldAnnotationsListener(wrappedListener, modelSnapshot, jobId);
-                        wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, jobId);
-                        wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, jobId);
-                    }
-                    jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
-                }, listener::onFailure);
+                jobManager.getJob(jobId, jobListener);
             },
             listener::onFailure
         );
@@ -140,6 +148,30 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         // 1. Verify/Create the state index and its alias exists
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, request.masterNodeTimeout(),
             createStateIndexListener);
+    }
+
+    private void revertSnapshot(String jobId, RevertModelSnapshotAction.Request request,
+                                ActionListener<RevertModelSnapshotAction.Response> listener) {
+        ActionListener<RevertModelSnapshotAction.Response> finalListener = ActionListener.wrap(
+            r -> jobManager.updateJobBlockReason(jobId, null, ActionListener.wrap(
+                    aBoolean -> listener.onResponse(r),
+                    listener::onFailure
+                ))
+            , e -> jobManager.updateJobBlockReason(jobId, null, ActionListener.wrap(
+                aBoolean -> listener.onFailure(e),
+                listener::onFailure
+            ))
+        );
+
+        getModelSnapshot(request, jobResultsProvider, modelSnapshot -> {
+            ActionListener<RevertModelSnapshotAction.Response> wrappedListener = finalListener;
+            if (request.getDeleteInterveningResults()) {
+                wrappedListener = wrapDeleteOldAnnotationsListener(wrappedListener, modelSnapshot, jobId);
+                wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, jobId);
+                wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, jobId);
+            }
+            jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
+        }, listener::onFailure);
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,

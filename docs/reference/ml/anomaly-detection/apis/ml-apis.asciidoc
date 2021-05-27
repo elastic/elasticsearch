@@ -19,6 +19,7 @@ See also <<ml-df-analytics-apis>>.
 * <<ml-post-data,Post data to {anomaly-jobs}>>
 * <<ml-update-job,Update {anomaly-jobs}>>
 * <<ml-forecast,Create>> or <<ml-delete-forecast,delete forecasts>>
+* <<ml-reset-job,Reset {anomaly-jobs}>> 
 
 
 [discrete]

@@ -291,6 +291,9 @@
       "background_persist_interval" : {
         "type" : "keyword"
       },
+      "block_reason": {
+        "type" : "keyword"
+      },
       "chunking_config" : {
         "properties" : {
           "mode" : {

@@ -244,9 +244,9 @@ public class JobDataDeleter {
     /**
      * Deletes all documents associated with a job except user annotations and notifications
      */
-    public void deleteJobDocuments(String jobId, JobConfigProvider jobConfigProvider,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, ClusterState clusterState,
-                                   CheckedConsumer<Boolean, Exception> finishedHandler, Consumer<Exception> failureHandler) {
+    public void deleteJobDocuments(JobConfigProvider jobConfigProvider, IndexNameExpressionResolver indexNameExpressionResolver,
+                                   ClusterState clusterState, CheckedConsumer<Boolean, Exception> finishedHandler,
+                                   Consumer<Exception> failureHandler) {
 
         AtomicReference<String[]> indexNames = new AtomicReference<>();
 

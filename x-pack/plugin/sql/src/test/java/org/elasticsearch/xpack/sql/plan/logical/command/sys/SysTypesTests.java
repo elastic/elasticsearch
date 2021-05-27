@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
@@ -45,7 +46,7 @@ public class SysTypesTests extends ESTestCase {
 
     private Tuple<Command, SqlSession> sql(String sql, Mode mode, SqlVersion version) {
         SqlConfiguration configuration = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, mode, null, version, null, null, false, false);
+            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, null, mode, null, version, null, null, false, false);
         EsIndex test = new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json", true));
         Analyzer analyzer = new Analyzer(configuration, new FunctionRegistry(), IndexResolution.valid(test), null);
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql), false);
@@ -58,15 +59,15 @@ public class SysTypesTests extends ESTestCase {
         return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersion.fromId(Version.CURRENT.id));
     }
 
-    static final List<String> ALL_TYPES = asList("BYTE", "LONG", "BINARY", "NULL", "UNSIGNED_LONG", "INTEGER", "SHORT", "HALF_FLOAT",
-        "FLOAT", "DOUBLE", "SCALED_FLOAT", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
-        "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
-        "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
-        "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
-        "GEO_POINT", "GEO_SHAPE", "SHAPE", "UNSUPPORTED", "NESTED", "OBJECT");
-
     public void testSysTypes() {
         Tuple<Command, SqlSession> cmd = sql("SYS TYPES");
+
+        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "UNSIGNED_LONG", "INTEGER", "SHORT", "HALF_FLOAT",
+                "FLOAT", "DOUBLE", "SCALED_FLOAT", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
+                "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
+                "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
+                "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
+                "GEO_POINT", "GEO_SHAPE", "SHAPE", "UNSUPPORTED", "NESTED", "OBJECT");
 
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
@@ -81,7 +82,7 @@ public class SysTypesTests extends ESTestCase {
             assertFalse(r.column(11, Boolean.class));
 
             for (int i = 0; i < r.size(); i++) {
-                assertEquals(ALL_TYPES.get(i), r.column(0));
+                assertEquals(names.get(i), r.column(0));
                 r.advanceRow();
             }
 

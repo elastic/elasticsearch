@@ -1,5 +1,3 @@
-[role="xpack"]
-[testenv="basic"]
 [[point-in-time-api]]
 === Point in time API
 ++++
@@ -13,6 +11,19 @@ In some cases, it's preferred to perform multiple search requests using
 the same point in time. For example, if <<indices-refresh,refreshes>> happen between
 search_after requests, then the results of those requests might not be consistent as
 changes happening between searches are only visible to the more recent point in time.
+
+[[point-in-time-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
++
+To search a <<point-in-time-api,point in time (PIT)>> for an index alias, you
+must have the `read` index privilege for the alias's concrete indices.
+
+[[point-in-time-api-example]]
+==== {api-examples-title}
 
 A point in time must be opened explicitly before being used in search requests. The
 keep_alive parameter tells Elasticsearch how long it should keep a point in time alive,
@@ -49,7 +60,7 @@ POST /_search <1>
 and {ref}/search-request-body.html#request-body-search-preference[`preference`]
 as these parameters are copied from the point in time.
 <2> The `id` parameter tells Elasticsearch to execute the request using contexts
-from this point int time.
+from this point in time.
 <3> The `keep_alive` parameter tells Elasticsearch how long it should extend
 the time to live of the point in time.
 

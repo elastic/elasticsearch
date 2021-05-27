@@ -33,7 +33,7 @@ SELECT null, 'test1', 'name.keyword', 12, 'KEYWORD', 32766, 2147483647, null, nu
   null, null, 12, 0, 2147483647, 2, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL
 UNION ALL
-SELECT null, 'test2', 'date', 93, 'DATETIME', 29, 8, null, null,
+SELECT null, 'test2', 'date', 93, 'DATETIME', 34, 8, null, null,
   1, -- columnNullable
   null, null, 9, 3, null, 1, 'YES', null, null, null, null, 'NO', 'NO'
 FROM DUAL

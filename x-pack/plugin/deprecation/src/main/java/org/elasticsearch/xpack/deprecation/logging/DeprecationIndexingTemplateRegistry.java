@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.deprecation.logging;
@@ -88,5 +89,13 @@ public class DeprecationIndexingTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return DEPRECATION_ORIGIN;
+    }
+
+    @Override
+    protected boolean requiresMasterNode() {
+        // These installs a composable index template which is only supported from version 7.8
+        // In mixed cluster without this set to true can result in errors in the logs during rolling upgrades.
+        // If these template(s) are only installed via elected master node then composable templates are available.
+        return true;
     }
 }

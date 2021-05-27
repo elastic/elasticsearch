@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
@@ -35,14 +24,6 @@ import java.util.TreeSet;
 
 public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
 
-    private static SortedSet<String> extract(String path) {
-        SortedSet<String> set = new TreeSet<>();
-        for (String fieldName : FieldNamesFieldMapper.extractFieldNames(path)) {
-            set.add(fieldName);
-        }
-        return set;
-    }
-
     private static SortedSet<String> set(String... values) {
         return new TreeSet<>(Arrays.asList(values));
     }
@@ -50,16 +31,6 @@ public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
     void assertFieldNames(Set<String> expected, ParsedDocument doc) {
         String[] got = TermVectorsService.getValues(doc.rootDoc().getFields("_field_names"));
         assertEquals(expected, set(got));
-    }
-
-    public void testExtractFieldNames() {
-        assertEquals(set("abc"), extract("abc"));
-        assertEquals(set("a", "a.b"), extract("a.b"));
-        assertEquals(set("a", "a.b", "a.b.c"), extract("a.b.c"));
-        // and now corner cases
-        assertEquals(set("", ".a"), extract(".a"));
-        assertEquals(set("a", "a."), extract("a."));
-        assertEquals(set("", ".", ".."), extract(".."));
     }
 
     public void testFieldType() throws Exception {

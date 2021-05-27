@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gradle.fixtures
@@ -45,6 +34,12 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile << "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
     }
 
+    File addSubProject(String subProjectPath){
+        def subProjectBuild = file(subProjectPath.replace(":", "/") + "/build.gradle")
+        settingsFile << "include \"${subProjectPath}\"\n"
+        subProjectBuild
+    }
+
     GradleRunner gradleRunner(String... arguments) {
         return gradleRunner(testProjectDir.root, arguments)
     }
@@ -72,6 +67,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         return input.readLines()
                 .collect { it.replace('\\', '/') }
                 .collect {it.replace(normalizedPathPrefix , '.') }
+                .collect {it.replaceAll(/Gradle Test Executor \d/ , 'Gradle Test Executor 1') }
                 .join("\n")
     }
 
@@ -97,24 +93,24 @@ abstract class AbstractGradleFuncTest extends Specification {
         return jarFile;
     }
 
-    File internalBuild(File buildScript = buildFile, String major = "7.9.1", String minor = "7.10.0", String bugfix = "7.11.0") {
+    File internalBuild(File buildScript = buildFile, String bugfix = "7.10.1", String staged = "7.11.0", String minor = "7.12.0") {
         buildScript << """plugins {
           id 'elasticsearch.global-build-info'
         }
         import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.info.BuildParams
+        import org.elasticsearch.gradle.internal.info.BuildParams
 
         BuildParams.init { it.setIsInternal(true) }
 
-        import org.elasticsearch.gradle.BwcVersions
+        import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
 
         Version currentVersion = Version.fromString("8.0.0")
          def versionList = []
                versionList.addAll(
-            Arrays.asList(Version.fromString("$major"), Version.fromString("$minor"), Version.fromString("$bugfix"), currentVersion)
+            Arrays.asList(Version.fromString("$bugfix"), Version.fromString("$staged"), Version.fromString("$minor"), currentVersion)
         )
-        
+
         BwcVersions versions = new BwcVersions(new TreeSet<>(versionList), currentVersion)
         BuildParams.init { it.setBwcVersions(versions) }
         """

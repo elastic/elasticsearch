@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
@@ -960,6 +961,7 @@ public class ChainingInputStreamTests extends ESTestCase {
             verify(lastCurrentIn).close();
         }
         verify(currentIn).reset();
+        final InputStream firstResetStream = currentIn;
         // assert the "nextComponet" arg is the current component
         nextComponentArg.set(currentIn);
         // possibly skips over several components
@@ -990,7 +992,11 @@ public class ChainingInputStreamTests extends ESTestCase {
         if (lastCurrentIn != currentIn) {
             verify(lastCurrentIn).close();
         }
-        verify(currentIn).reset();
+        if (currentIn != firstResetStream) {
+            verify(currentIn).reset();
+        } else {
+            verify(currentIn, times(2)).reset();
+        }
     }
 
     public void testMarkAfterResetNoMock() throws Exception {

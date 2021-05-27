@@ -53,7 +53,7 @@
         body:
           # Notice that adding new default roles requires extending this list
           roles: ["master",
-                  "data", "data_content", "data_hot", "data_warm", "data_cold",
+                  "data", "data_content", "data_hot", "data_warm", "data_cold", "data_frozen",
                   "ingest", "ml", "transform", "remote_cluster_client"]
 
   - match: { "acknowledged": true }

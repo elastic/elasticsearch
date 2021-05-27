@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
@@ -76,12 +77,12 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         String indexName = indexNamePrefix != null ? indexNamePrefix + index.getName() : index.getName();
-        IndexMetadata indexMetadata = clusterState.metadata().index(index);
-
+        IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+        // check if the (potentially) derived index exists
         if (indexMetadata == null) {
-            String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but index no longer exists",
-                getKey().getAction(), indexName);
-            // Index must have been since deleted
+            String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but the target index [%s] " +
+                    "does not exist",
+                getKey().getAction(), index.getName(), indexName);
             logger.debug(errorMessage);
             return new Result(false, new Info(errorMessage));
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.enrich.action;
 
@@ -50,7 +51,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -105,12 +106,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         public Request(MultiSearchRequest multiSearchRequest) {
             super(multiSearchRequest.requests().get(0).indices()[0]);
             this.multiSearchRequest = multiSearchRequest;
-            assert multiSearchRequest.requests()
-                .stream()
-                .map(SearchRequest::indices)
-                .flatMap(Arrays::stream)
-                .distinct()
-                .count() == 1 : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
+            assert multiSearchRequest.requests().stream().map(SearchRequest::indices).flatMap(Arrays::stream).distinct().count() == 1
+                : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
             assert assertSearchSource();
         }
 
@@ -151,9 +148,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 copy.from(0);
                 copy.size(10);
                 copy.fetchSource(null);
-                assert EMPTY_SOURCE.equals(copy) : "search request ["
-                    + Strings.toString(copy)
-                    + "] is using features that is not supported";
+                assert EMPTY_SOURCE.equals(copy)
+                    : "search request [" + Strings.toString(copy) + "] is using features that is not supported";
             }
             return true;
         }
@@ -240,7 +236,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                  * any.
                  */
                 Map<String, Object> runtimeFields = emptyMap();
-                final QueryShardContext context = indexService.newQueryShardContext(
+                final SearchExecutionContext context = indexService.newSearchExecutionContext(
                     shardId.id(),
                     0,
                     searcher,

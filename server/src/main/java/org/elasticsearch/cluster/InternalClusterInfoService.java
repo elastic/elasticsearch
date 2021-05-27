@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
@@ -46,6 +35,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -147,7 +137,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         // Refresh if a data node was added
         for (DiscoveryNode addedNode : event.nodesDelta().addedNodes()) {
-            if (addedNode.isDataNode()) {
+            if (addedNode.canContainData()) {
                 refreshAsync(new PlainActionFuture<>());
                 break;
             }
@@ -241,18 +231,20 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
                     final ShardStats[] stats = indicesStatsResponse.getShards();
                     final ImmutableOpenMap.Builder<String, Long> shardSizeByIdentifierBuilder = ImmutableOpenMap.builder();
+                    final ImmutableOpenMap.Builder<ShardId, Long> shardDataSetSizeBuilder = ImmutableOpenMap.builder();
                     final ImmutableOpenMap.Builder<ShardRouting, String> dataPathByShardRoutingBuilder = ImmutableOpenMap.builder();
                     final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceBuilders = new HashMap<>();
-                    buildShardLevelInfo(stats, shardSizeByIdentifierBuilder, dataPathByShardRoutingBuilder, reservedSpaceBuilders);
+                    buildShardLevelInfo(stats, shardSizeByIdentifierBuilder, shardDataSetSizeBuilder,
+                        dataPathByShardRoutingBuilder, reservedSpaceBuilders);
 
                     final ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> rsrvdSpace
                             = ImmutableOpenMap.builder();
                     reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
 
                     indicesStatsSummary = new IndicesStatsSummary(
-                            shardSizeByIdentifierBuilder.build(),
-                            dataPathByShardRoutingBuilder.build(),
-                            rsrvdSpace.build());
+                        shardSizeByIdentifierBuilder.build(), shardDataSetSizeBuilder.build(),
+                        dataPathByShardRoutingBuilder.build(),
+                        rsrvdSpace.build());
                 }
 
                 @Override
@@ -367,7 +359,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     public ClusterInfo getClusterInfo() {
         final IndicesStatsSummary indicesStatsSummary = this.indicesStatsSummary; // single volatile read
         return new ClusterInfo(leastAvailableSpaceUsages, mostAvailableSpaceUsages,
-            indicesStatsSummary.shardSizes, indicesStatsSummary.shardRoutingToDataPath, indicesStatsSummary.reservedSpace);
+            indicesStatsSummary.shardSizes, indicesStatsSummary.shardDataSetSizes,
+            indicesStatsSummary.shardRoutingToDataPath, indicesStatsSummary.reservedSpace);
     }
 
     // allow tests to adjust the node stats on receipt
@@ -391,6 +384,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
     }
 
     static void buildShardLevelInfo(ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> shardSizes,
+                                    ImmutableOpenMap.Builder<ShardId, Long> shardDataSetSizeBuilder,
                                     ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath,
                                     Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace.Builder> reservedSpaceByShard) {
         for (ShardStats s : stats) {
@@ -402,12 +396,15 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 continue;
             }
             final long size = storeStats.sizeInBytes();
+            final long dataSetSize = storeStats.totalDataSetSizeInBytes();
             final long reserved = storeStats.getReservedSize().getBytes();
 
             final String shardIdentifier = ClusterInfo.shardIdentifierFromRouting(shardRouting);
             logger.trace("shard: {} size: {} reserved: {}", shardIdentifier, size, reserved);
             shardSizes.put(shardIdentifier, size);
-
+            if (dataSetSize > shardDataSetSizeBuilder.getOrDefault(shardRouting.shardId(), -1L)) {
+                shardDataSetSizeBuilder.put(shardRouting.shardId(), dataSetSize);
+            }
             if (reserved != StoreStats.UNKNOWN_RESERVED_BYTES) {
                 final ClusterInfo.ReservedSpace.Builder reservedSpaceBuilder = reservedSpaceByShard.computeIfAbsent(
                     new ClusterInfo.NodeAndPath(shardRouting.currentNodeId(), s.getDataPath()),
@@ -477,16 +474,19 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     private static class IndicesStatsSummary {
         static final IndicesStatsSummary EMPTY
-            = new IndicesStatsSummary(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
+            = new IndicesStatsSummary(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
 
         final ImmutableOpenMap<String, Long> shardSizes;
+        final ImmutableOpenMap<ShardId, Long> shardDataSetSizes;
         final ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath;
         final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace;
 
         IndicesStatsSummary(ImmutableOpenMap<String, Long> shardSizes,
+                            ImmutableOpenMap<ShardId, Long> shardDataSetSizes,
                             ImmutableOpenMap<ShardRouting, String> shardRoutingToDataPath,
                             ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace) {
             this.shardSizes = shardSizes;
+            this.shardDataSetSizes = shardDataSetSizes;
             this.shardRoutingToDataPath = shardRoutingToDataPath;
             this.reservedSpace = reservedSpace;
         }

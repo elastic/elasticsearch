@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.capacity;
@@ -186,9 +187,9 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         assertThat(context.info(), sameInstance(info));
         assertThat(context.snapshotShardSizeInfo(), sameInstance(snapshotShardSizeInfo));
 
-        Set<DiscoveryNodeRole> roles = roleNames.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toSet());
+        Set<DiscoveryNodeRole> roles = roleNames.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet());
         Set<DiscoveryNodeRole> otherRoles = mutateRoles(roleNames).stream()
-            .map(DiscoveryNode::getRoleFromRoleName)
+            .map(DiscoveryNodeRole::getRoleFromRoleName)
             .collect(Collectors.toSet());
         final long memory = between(0, 1000);
         state = ClusterState.builder(ClusterName.DEFAULT)
@@ -248,7 +249,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
         ImmutableOpenMap<String, DiskUsage> leastUsages = leastUsagesBuilder.build();
         ImmutableOpenMap<String, DiskUsage> mostUsages = mostUsagesBuilder.build();
-        info = new ClusterInfo(leastUsages, mostUsages, null, null, null);
+        info = new ClusterInfo(leastUsages, mostUsages, null, null, null, null);
         context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, n -> memory);
 
         assertThat(context.nodes(), equalTo(expectedNodes));
@@ -287,7 +288,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 )
             );
 
-            info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null);
+            info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null, null);
             context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, n -> memory);
             assertThat(context.nodes(), equalTo(expectedNodes));
             if (hasDataRole) {
@@ -316,10 +317,17 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
     public void testValidateDeciderRoles() {
         Set<String> roles = randomRoles();
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService() {
+
             @Override
             public List<DiscoveryNodeRole> roles() {
-                return roles.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toList());
+                return roles.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toList());
             }
+
+            @Override
+            public boolean appliesToEmptyRoles() {
+                return false;
+            }
+
         }));
         SortedSet<String> badRoles = new TreeSet<>(randomRoles());
         badRoles.removeAll(roles);
@@ -332,6 +340,21 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         assertThat(
             exception.getMessage(),
             equalTo("decider [" + FixedAutoscalingDeciderService.NAME + "] not applicable to policy with roles [ " + badRoles + "]")
+        );
+    }
+
+    public void testValidateNotEmptyDeciders() {
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
+        String policyName = randomAlphaOfLength(8);
+        AutoscalingPolicy policy = new AutoscalingPolicy(
+            policyName,
+            new TreeSet<>(randomBoolean() ? Set.of() : Set.of("master")),
+            new TreeMap<>()
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(
+            exception.getMessage(),
+            equalTo("no default nor user configured deciders for policy [" + policyName + "] with roles [" + policy.roles() + "]")
         );
     }
 

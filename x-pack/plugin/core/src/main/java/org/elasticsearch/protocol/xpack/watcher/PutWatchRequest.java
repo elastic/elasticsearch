@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.protocol.xpack.watcher;
 
@@ -189,7 +190,7 @@ public final class PutWatchRequest extends ActionRequest {
         if (source == null) {
             validationException = addValidationError("watch source is missing", validationException);
         }
-        if (xContentType == null) {
+        if (xContentType == null || (source != null && source.length() == 0)) {
             validationException = addValidationError("request body is missing", validationException);
         }
         if (ifSeqNo != UNASSIGNED_SEQ_NO && version != Versions.MATCH_ANY) {

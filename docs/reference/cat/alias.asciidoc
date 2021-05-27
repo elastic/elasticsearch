@@ -4,8 +4,8 @@
 <titleabbrev>cat aliases</titleabbrev>
 ++++
 
-Returns information about currently configured aliases to indices, including
-filter and routing information.
+Retrieves the cluster's <<alias,index aliases>>, including filter and routing
+information. The API does not return data stream aliases.
 
 
 [[cat-alias-api-request]]
@@ -14,6 +14,13 @@ filter and routing information.
 `GET /_cat/aliases/<alias>`
 
 `GET /_cat/aliases`
+
+[[cat-alias-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for any alias you retrieve.
 
 [[cat-alias-api-path-params]]
 ==== {api-path-parms-title}

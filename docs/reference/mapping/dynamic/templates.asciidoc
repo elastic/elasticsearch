@@ -14,6 +14,10 @@ name
 * <<path-match-unmatch,`path_match` and `path_unmatch`>> operate on the full
 dotted path to the field
 
+* If a dynamic template doesn't define `match_mapping_type`, `match`, or
+`path_match`, it won't match any field. You can still refer to the template by
+name in `dynamic_templates` section of a <<bulk,bulk request>>.
+
 Use the `{name}` and `{dynamic_type}` <<template-variables,template variables>>
 in the mapping specification as placeholders.
 
@@ -30,7 +34,7 @@ Dynamic templates are specified as an array of named objects:
   "dynamic_templates": [
     {
       "my_template_name": { <1>
-        ...  match conditions ... <2>
+        ... match conditions ... <2>
         "mapping": { ... } <3>
       }
     },
@@ -61,19 +65,19 @@ snippet may cause the update or validation of a dynamic template to fail under c
   at index time.
 
 Templates are processed in order -- the first matching template wins. When
-putting new dynamic templates through the <<indices-put-mapping, put mapping>> API,
+putting new dynamic templates through the <<indices-put-mapping, update mapping>> API,
 all existing templates are overwritten. This allows for dynamic templates to be
 reordered or deleted after they were initially added.
 
 [[dynamic-mapping-runtime-fields]]
 ==== Mapping runtime fields in a dynamic template
 If you want {es} to dynamically map new fields of a certain type as runtime
-fields, set `dynamic:runtime` in the index mappings. These fields are not
+fields, set `"dynamic":"runtime"` in the index mappings. These fields are not
 indexed, and are loaded from `_source` at query time.
 
 Alternatively, you can use the default dynamic mapping rules and then create
 dynamic templates to map specific fields as runtime fields. You set
-`dynamic:true` in your index mapping, and then create a dynamic template to map
+`"dynamic":"true"` in your index mapping, and then create a dynamic template to map
 new fields of a certain type as runtime fields.
 
 Let's say you have data where each of the fields start with `ip_`. Based on the
@@ -84,8 +88,8 @@ template that maps new strings as runtime fields of type `ip`.
 The following request defines a dynamic template named `strings_as_ip`. When
 {es} detects new `string` fields matching the `ip*` pattern, it maps those
 fields as runtime fields of type `ip`. Because `ip` fields aren't mapped
-dynamically, you can use this template with either `dynamic:true` or
-`dynamic:runtime`.
+dynamically, you can use this template with either `"dynamic":"true"` or
+`"dynamic":"runtime"`.
 
 [source,console]
 ----
@@ -287,7 +291,7 @@ PUT my-index-000001/_doc/2
 ==== Template variables
 
 The `{name}` and `{dynamic_type}` placeholders are replaced in the `mapping`
-with the field name and detected dynamic type.  The following example sets all
+with the field name and detected dynamic type. The following example sets all
 string fields to use an <<analyzer,`analyzer`>> with the same name as the
 field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 
@@ -337,7 +341,7 @@ Here are some examples of potentially useful dynamic templates:
 
 ===== Structured search
 
-When you set `dynamic:true`, {es} will map string fields as a `text` field with
+When you set `"dynamic":"true"`, {es} will map string fields as a `text` field with
 a `keyword` subfield. If you are only indexing structured content and not
 interested in full text search, you can make {es} map your fields
 only as `keyword` fields. However, you must search on the exact same value that

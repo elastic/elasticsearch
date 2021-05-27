@@ -15,8 +15,8 @@ Accepts a single value or an array of values.
 [options="header"]
 |======
 | Name      | Required  | Default  | Description
-| `field`  | yes       | -        | The field to be appended to. Supports <<accessing-template-fields,template snippets>>.
-| `value`  | yes       | -        | The value to be appended. Supports <<accessing-template-fields,template snippets>>.
+| `field`  | yes       | -        | The field to be appended to. Supports <<template-snippets,template snippets>>.
+| `value`  | yes       | -        | The value to be appended. Supports <<template-snippets,template snippets>>.
 | `allow_duplicates` | no | true  | If `false`, the processor does not append
 values already present in the field.
 include::common-options.asciidoc[]
@@ -27,7 +27,7 @@ include::common-options.asciidoc[]
 {
   "append": {
     "field": "tags",
-    "value": ["production", "{{app}}", "{{owner}}"]
+    "value": ["production", "{{{app}}}", "{{{owner}}}"]
   }
 }
 --------------------------------------------------

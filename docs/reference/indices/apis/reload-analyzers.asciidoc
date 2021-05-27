@@ -2,9 +2,6 @@
 [testenv="basic"]
 [[indices-reload-analyzers]]
 == Reload search analyzers API
-++++
-<titleabbrev>Reload search analyzers</titleabbrev>
-++++
 
 Reloads an index's <<search-analyzer,search analyzers>> and their resources.
 For data streams, the API reloads search analyzers and resources for the
@@ -32,6 +29,13 @@ IMPORTANT: After reloading the search analyzers you should clear the request
 
 `GET /<target>/_reload_search_analyzers`
 
+[discrete]
+[[indices-reload-analyzers-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
 
 [discrete]
 [[indices-reload-analyzers-api-desc]]

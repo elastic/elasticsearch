@@ -1,31 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.function.Supplier;
+import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
-public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearchRequest> {
+public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
 
     // TODO: possibly add mutations
     static String defaultTestFilter = "{\n" +
@@ -55,17 +58,25 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
     @Override
     protected EqlSearchRequest createTestInstance() {
         try {
+            List<FieldAndFormat> randomFetchFields = new ArrayList<>();
+            int fetchFieldsCount = randomIntBetween(0, 5);
+            for (int j = 0; j < fetchFieldsCount; j++) {
+                randomFetchFields.add(new FieldAndFormat(randomAlphaOfLength(10), randomAlphaOfLength(10)));
+            }
+            if (randomFetchFields.isEmpty()) {
+                randomFetchFields = null;
+            }
             QueryBuilder filter = parseFilter(defaultTestFilter);
-            EqlSearchRequest request = new EqlSearchRequest()
-                .indices(new String[]{defaultTestIndex})
+            return new EqlSearchRequest()
+                .indices(defaultTestIndex)
                 .filter(filter)
                 .timestampField(randomAlphaOfLength(10))
                 .eventCategoryField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
                 .size(randomInt(50))
-                .query(randomAlphaOfLength(10));
-
-            return request;
+                .query(randomAlphaOfLength(10))
+                .fetchFields(randomFetchFields)
+                .runtimeMappings(randomRuntimeMappings());
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
@@ -83,21 +94,6 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
         return parseInnerQueryBuilder;
     }
 
-    private Object randomValue() {
-        Supplier<Object> value = randomFrom(Arrays.asList(
-            ESTestCase::randomInt,
-            ESTestCase::randomFloat,
-            ESTestCase::randomLong,
-            ESTestCase::randomDouble,
-            () -> randomAlphaOfLengthBetween(5, 20),
-            ESTestCase::randomBoolean,
-            ESTestCase::randomByte,
-            ESTestCase::randomShort,
-            () -> new Text(randomAlphaOfLengthBetween(5, 20)),
-            () -> null));
-        return value.get();
-    }
-
     @Override
     protected Writeable.Reader<EqlSearchRequest> instanceReader() {
         return EqlSearchRequest::new;
@@ -105,6 +101,27 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
 
     @Override
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
-        return EqlSearchRequest.fromXContent(parser).indices(new String[]{defaultTestIndex});
+        return EqlSearchRequest.fromXContent(parser).indices(defaultTestIndex);
+    }
+
+    @Override
+    protected EqlSearchRequest mutateInstanceForVersion(EqlSearchRequest instance, Version version) {
+        EqlSearchRequest mutatedInstance = new EqlSearchRequest();
+        mutatedInstance.indices(instance.indices());
+        mutatedInstance.indicesOptions(instance.indicesOptions());
+        mutatedInstance.filter(instance.filter());
+        mutatedInstance.timestampField(instance.timestampField());
+        mutatedInstance.tiebreakerField(instance.tiebreakerField());
+        mutatedInstance.eventCategoryField(instance.eventCategoryField());
+        mutatedInstance.size(instance.size());
+        mutatedInstance.fetchSize(instance.fetchSize());
+        mutatedInstance.query(instance.query());
+        mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
+        mutatedInstance.keepAlive(instance.keepAlive());
+        mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
+        mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
+        mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
+
+        return mutatedInstance;
     }
 }

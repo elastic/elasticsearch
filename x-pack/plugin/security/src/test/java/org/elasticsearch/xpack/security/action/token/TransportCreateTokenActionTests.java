@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.action.token;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
@@ -283,7 +285,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             authenticationService, securityContext);
         final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
         createTokenRequest.setGrantType("_kerberos");
-        final char[] invalidBase64Chars = "!\"#$%&\\'()*,./:;<>?@[]^_`{|}~\t\n\r".toCharArray();
+        final char[] invalidBase64Chars = "!\"#$%&\\'()*,.:;<>?@[]^_`{|}~\t\n\r".toCharArray();
         final String kerberosTicketValue = Strings.arrayToDelimitedString(
             randomArray(1, 10, Character[]::new,
                 () -> invalidBase64Chars[randomIntBetween(0, invalidBase64Chars.length - 1)]), "");
@@ -295,6 +297,26 @@ public class TransportCreateTokenActionTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("could not decode base64 kerberos ticket"));
         // The code flow should stop after above failure and never reach authenticationService
         Mockito.verifyZeroInteractions(authenticationService);
+    }
+
+    public void testServiceAccountCannotCreateOAuthToken() throws Exception {
+        final TokenService tokenService = new TokenService(SETTINGS, Clock.systemUTC(), client, license, securityContext,
+            securityIndex, securityIndex, clusterService);
+        Authentication authentication = new Authentication(
+            new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
+            new Authentication.RealmRef("_service_account", "_service_account", "node"), null);
+        authentication.writeToContext(threadPool.getThreadContext());
+
+        final TransportCreateTokenAction action = new TransportCreateTokenAction(threadPool,
+            mock(TransportService.class), new ActionFilters(Collections.emptySet()), tokenService,
+            authenticationService, securityContext);
+        final CreateTokenRequest createTokenRequest = new CreateTokenRequest();
+        createTokenRequest.setGrantType("client_credentials");
+
+        PlainActionFuture<CreateTokenResponse> future = new PlainActionFuture<>();
+        action.doExecute(null, createTokenRequest, future);
+        final ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("OAuth2 token creation is not supported for service accounts"));
     }
 
     private static <T> ActionListener<T> assertListenerIsOnlyCalledOnce(ActionListener<T> delegate) {

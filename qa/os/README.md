@@ -23,14 +23,14 @@ See the section in [TESTING.asciidoc](../../TESTING.asciidoc#testing-packaging)
 
 When gradle runs the packaging tests on a VM, it runs the full suite by
 default. To add a test class to the suite, add its `class` to the
-`@SuiteClasses` annotation in [PackagingTests.java](src/main/java/org/elasticsearch/packaging/PackagingTests.java).
+`@SuiteClasses` annotation in [PackagingTestCase.java](src/test/java/org/elasticsearch/packaging/test/PackagingTestCase.java).
 If a test class is added to the project but not to this annotation, it will not
 run in CI jobs. The test classes are run in the order they are listed in the
 annotation.
 
 ## Choosing which distributions to test
 
-Distributions are represented by [enum values](src/main/java/org/elasticsearch/packaging/util/Distribution.java)
+Distributions are represented by [enum values](src/test/java/org/elasticsearch/packaging/util/Distribution.java)
 which know if they are compatible with the platform the tests are currently
 running on. To skip a test if the distribution it's using isn't compatible with
 the current platform, put this [assumption](https://github.com/junit-team/junit4/wiki/assumptions-with-assume)
@@ -41,7 +41,7 @@ assumeTrue(distribution.packaging.compatible);
 ```
 
 Similarly if you write a test that is intended only for particular platforms,
-you can make an assumption using the constants and methods in [Platforms.java](src/main/java/org/elasticsearch/packaging/util/Platforms.java)
+you can make an assumption using the constants and methods in [Platforms.java](src/test/java/org/elasticsearch/packaging/util/Platforms.java)
 
 ```java
 assumeTrue("only run on windows", Platforms.WINDOWS);
@@ -73,14 +73,14 @@ public class MyTestDefaultTar extends MyTestCase {
 ```
 
 That way when a test fails the user gets told explicitly that `MyTestDefaultTar`
-failed, and to reproduce it they should run that class. See [ArchiveTestCase](src/main/java/org/elasticsearch/packaging/test/ArchiveTestCase.java)
+failed, and to reproduce it they should run that class. See [ArchiveTestCase](src/test/java/org/elasticsearch/packaging/test/ArchiveTests.java)
 and its children for an example of this.
 
 ## Running external commands
 
 In general it's probably best to avoid running external commands when a good
 Java alternative exists. For example most filesystem operations can be done with
-the java.nio.file APIs. For those that aren't, use an instance of [Shell](src/main/java/org/elasticsearch/packaging/util/Shell.java)
+the java.nio.file APIs. For those that aren't, use an instance of [Shell](src/test/java/org/elasticsearch/packaging/util/Shell.java)
 
 This class runs scripts in either bash with the `bash -c <script>` syntax,
 or in powershell with the `powershell.exe -Command <script>` syntax.

@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -43,10 +45,10 @@ public class AsyncActionBranchingStep extends AsyncActionStep {
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState, ClusterStateObserver observer,
-                              Listener listener) {
-        stepToExecute.performAction(indexMetadata, currentClusterState, observer, new Listener() {
+                              ActionListener<Boolean> listener) {
+        stepToExecute.performAction(indexMetadata, currentClusterState, observer, new ActionListener<>() {
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 onResponseResult.set(complete);
                 listener.onResponse(complete);
             }
@@ -89,7 +91,7 @@ public class AsyncActionBranchingStep extends AsyncActionStep {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (super.equals(o) == false) {
             return false;
         }
         AsyncActionBranchingStep that = (AsyncActionBranchingStep) o;

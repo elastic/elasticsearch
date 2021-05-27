@@ -1,0 +1,113 @@
+---
+setup:
+  - do:
+      something:
+        here: ok
+---
+teardown:
+  - do:
+      something_else:
+        here: true
+---
+"First test":
+
+  - do:
+      something:
+        that_is: true
+
+  - do:
+      and: again
+
+  - match: { copied.from.real.test.total: 1 }
+  - match: { hits.hits.0._index: "single_doc_index"}
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 0}
+  - match: { _shards.failed: 0 }
+
+  - do:
+      and: again
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._index: "my_remote_cluster:single_doc_index"}
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 0}
+  - match: { _below_is_target_for_tests: 0 }
+  - match: { _type:    foo   }
+
+---
+"Also has _type match":
+
+  - do:
+      something:
+        that_is: true
+
+  - do:
+      and: again
+
+  - match: { hits.total.value: 0 }
+  - match: { _type:    test   }
+  - match: { _below_is_target_for_tests: 0 }
+  - match: { _type: foo }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }
+
+  - do:
+      not_random_but_representive: "of actual test"
+
+  - match: { hits.total.value: 0 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }
+
+---
+"Does not have _type match ":
+
+  - do:
+      something:
+        that_is: true
+
+  - do:
+      and: again
+
+  - match: { hits.total.value: 0 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }
+
+  - do:
+      it: again
+
+  - match: { hits.total.value: 0 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.skipped : 1}
+  - match: { _shards.failed: 0 }
+  - match: { _replace_in_last_test_only: "the value does not matter" }
+
+---
+"Last test":
+
+  - do:
+      something:  中文
+
+  - match: { _index:   test_1 }
+  - match: { _type:    test   }
+  - match: { _id:      中文      }
+  - match: { _source:  { foo: "Hello: 中文" } }
+
+  - do:
+      something_else:  中文
+
+  - match: { _index:   test_1 }
+  - match: { _type:    "the value does not matter" }
+  - match: { _replace_in_last_test_only:    "the value does not matter" }
+  - match: { _id:      中文      }
+  - match: { _source:  { foo: "Hello: 中文" } }
+
+

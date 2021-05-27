@@ -3,8 +3,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   testImplementation project(xpackModule('security'))
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-}
+  testImplementation(testArtifact(project(xpackModule('security'))))}
 
 testFixtures.useFixture ":x-pack:test:smb-fixture"
 

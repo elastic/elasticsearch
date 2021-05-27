@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.index;
@@ -120,6 +109,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+    private Map<String, String> dynamicTemplates = Map.of();
+
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
     }
@@ -156,6 +147,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             requireAlias = in.readBoolean();
         } else {
             requireAlias = false;
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+            dynamicTemplates = in.readMap(StreamInput::readString, StreamInput::readString);
         }
     }
 
@@ -666,6 +660,13 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeBoolean(requireAlias);
         }
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+            out.writeMap(dynamicTemplates, StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            if (dynamicTemplates.isEmpty() == false) {
+                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
+            }
+        }
     }
 
     @Override
@@ -722,5 +723,22 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
         return this;
+    }
+
+    /**
+     * Specifies a map from the full path of field names to the name of dynamic mapping templates
+     */
+    public IndexRequest setDynamicTemplates(Map<String, String> dynamicTemplates) {
+        this.dynamicTemplates = Objects.requireNonNull(dynamicTemplates);
+        return this;
+    }
+
+    /**
+     * Returns a map from the full path of field names to the name of dynamic mapping templates.
+     *
+     * @see #setDynamicTemplates(Map)
+     */
+    public Map<String, String> getDynamicTemplates() {
+        return dynamicTemplates;
     }
 }

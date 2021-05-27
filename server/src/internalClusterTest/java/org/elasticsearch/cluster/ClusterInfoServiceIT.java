@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster;
@@ -39,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -68,6 +58,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -93,7 +84,17 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "System index for [" + getTestClass().getName() + ']'));
+            return List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, "Test system index"));
+        }
+
+        @Override
+        public String getFeatureName() {
+            return ClusterInfoServiceIT.class.getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "test plugin";
         }
     }
 
@@ -152,8 +153,10 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
         ImmutableOpenMap<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
         ImmutableOpenMap<String, Long> shardSizes = info.shardSizes;
+        ImmutableOpenMap<ShardId, Long> shardDataSetSizes = info.shardDataSetSizes;
         assertNotNull(leastUsages);
         assertNotNull(shardSizes);
+        assertNotNull(shardDataSetSizes);
         assertThat("some usages are populated", leastUsages.values().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
         for (ObjectCursor<DiskUsage> usage : leastUsages.values()) {
@@ -168,6 +171,10 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             logger.info("--> shard size: {}", size.value);
             assertThat("shard size is greater than 0", size.value, greaterThanOrEqualTo(0L));
         }
+        for (ObjectCursor<Long> size : shardDataSetSizes.values()) {
+            assertThat("shard data set size is greater than 0", size.value, greaterThanOrEqualTo(0L));
+        }
+
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
         ClusterState state = clusterService.state();
         for (ShardRouting shard : state.routingTable().allShards()) {
@@ -204,8 +211,11 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertNotNull("failed to collect info", originalInfo);
         assertThat("some usages are populated", originalInfo.getNodeLeastAvailableDiskUsages().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", originalInfo.shardSizes.size(), greaterThan(0));
+        assertThat("some shard data set sizes are populated", originalInfo.shardDataSetSizes.size(), greaterThan(0));
         for (ShardRouting shardRouting : shardRoutings) {
             assertThat("size for shard " + shardRouting + " found", originalInfo.getShardSize(shardRouting), notNullValue());
+            assertThat("data set size for shard " + shardRouting + " found",
+                originalInfo.getShardDataSetSize(shardRouting.shardId()).isPresent(), is(true));
         }
 
         MockTransportService mockTransportService = (MockTransportService) internalCluster()
@@ -238,8 +248,12 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat(infoAfterTimeout.getNodeMostAvailableDiskUsages().size(), equalTo(1));
         // indices stats from remote nodes will time out, but the local node's shard will be included
         assertThat(infoAfterTimeout.shardSizes.size(), greaterThan(0));
+        assertThat(infoAfterTimeout.shardDataSetSizes.size(), greaterThan(0));
         assertThat(shardRoutings.stream().filter(shardRouting -> infoAfterTimeout.getShardSize(shardRouting) != null)
                 .collect(Collectors.toList()), hasSize(1));
+        assertThat(shardRoutings.stream().map(ShardRouting::shardId).distinct()
+            .filter(shard -> infoAfterTimeout.getShardDataSetSize(shard).isPresent())
+            .collect(Collectors.toList()), hasSize(1));
 
         // now we cause an exception
         timeout.set(false);
@@ -259,6 +273,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat(infoAfterException.getNodeLeastAvailableDiskUsages().size(), equalTo(0));
         assertThat(infoAfterException.getNodeMostAvailableDiskUsages().size(), equalTo(0));
         assertThat(infoAfterException.shardSizes.size(), equalTo(0));
+        assertThat(infoAfterException.shardDataSetSizes.size(), equalTo(0));
         assertThat(infoAfterException.reservedSpace.size(), equalTo(0));
 
         // check we recover
@@ -269,6 +284,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         assertThat(infoAfterRecovery.getNodeLeastAvailableDiskUsages().size(), equalTo(2));
         assertThat(infoAfterRecovery.getNodeMostAvailableDiskUsages().size(), equalTo(2));
         assertThat(infoAfterRecovery.shardSizes.size(), greaterThan(0));
+        assertThat(infoAfterRecovery.shardDataSetSizes.size(), greaterThan(0));
         for (ShardRouting shardRouting : shardRoutings) {
             assertThat("size for shard " + shardRouting + " found", originalInfo.getShardSize(shardRouting), notNullValue());
         }

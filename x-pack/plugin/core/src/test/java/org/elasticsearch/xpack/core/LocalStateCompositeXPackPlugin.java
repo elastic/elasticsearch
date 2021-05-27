@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core;
 
@@ -18,7 +19,6 @@ import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -372,14 +372,6 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Set<DiscoveryNodeRole> getRoles() {
-        Set<DiscoveryNodeRole> roles = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> roles.addAll(p.getRoles()));
-        roles.addAll(super.getRoles());
-        return roles;
-    }
-
-    @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
         Set<IndexSettingProvider> providers = new HashSet<>();
         filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
@@ -543,6 +535,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
         return suppliers;
     }
 
+    @SuppressWarnings("unchecked")
     private <T> List<T> filterPlugins(Class<T> type) {
         return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
                 .collect(Collectors.toList());
@@ -562,5 +555,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
             .map(MapperPlugin::getMetadataMappers)
             .flatMap (map -> map.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    @Override
+    public String getFeatureName() {
+        return this.getClass().getSimpleName();
+    }
+
+    @Override
+    public String getFeatureDescription() {
+        return this.getClass().getCanonicalName();
     }
 }

@@ -13,6 +13,11 @@ and name.
 
 `GET /_cat/master`
 
+[[cat-master-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-master-api-query-params]]
 ==== {api-query-parms-title}

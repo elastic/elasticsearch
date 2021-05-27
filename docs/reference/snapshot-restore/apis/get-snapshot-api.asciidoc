@@ -34,6 +34,13 @@ GET /_snapshot/my_repository/my_snapshot
 
 `GET /_snapshot/<repository>/<snapshot>`
 
+[[get-snapshot-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor_snapshot`, `create_snapshot`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[get-snapshot-api-desc]]
 ==== {api-description-title}
 
@@ -79,9 +86,17 @@ If `true`, the request ignores snapshots that are unavailable, such as those tha
 
 `verbose`::
 (Optional, Boolean)
-If `true`, returns all available information about a snapshot. Defaults to `true`.
-+
-If `false`, omits additional information about the snapshot, such as version information, start and end times, and the number of snapshotted shards.
+If `true`, returns additional information about each snapshot such as the
+version of Elasticsearch which took the snapshot, the start and end times of
+the snapshot, and the number of shards snapshotted. Defaults to `true`. If
+`false`, omits the additional information.
+
+`index_details`::
+(Optional, Boolean)
+If `true`, returns additional information about each index in the snapshot
+comprising the number of shards in the index, the total size of the index in
+bytes, and the maximum number of segments per shard in the index. Defaults to
+`false`, meaning that this information is omitted.
 
 [role="child_attributes"]
 [[get-snapshot-api-response-body]]
@@ -107,6 +122,33 @@ Build ID of the {es} version used to create the snapshot.
 (array)
 List of indices included in the snapshot.
 
+`index_details`::
+(object)
+Details of each index in the snapshot, keyed by index name. Only present if the
+`?index_details` query parameter is set, and only contains details for indices
+that were completely snapshotted in a sufficiently recent version of {es}.
++
+.Properties of `index_details`
+[%collapsible%open]
+====
+`shard_count`::
+(integer)
+Number of shards in this index.
+
+`size`::
+(string)
+Total size of all shards in this index. Only present if the `?human` query
+paramter is set.
+
+`size_in_bytes`::
+(long)
+Total size of all shards in this index, in bytes.
+
+`max_segments_per_shard`::
+(integer)
+Maximum number of segments per shard in this index snapshot.
+====
+
 `data_streams`::
 (array)
 List of <<data-streams,data streams>> included in the snapshot.
@@ -114,6 +156,15 @@ List of <<data-streams,data streams>> included in the snapshot.
 `include_global_state`::
 (Boolean)
 Indicates whether the current cluster state is included in the snapshot.
+
+[[get-snapshot-api-feature-states]]
+`feature_states`::
+(array)
+List of feature states which were included when the snapshot was taken,
+including the list of system indices included as part of the feature state. The
+`feature_name` field of each can be used in the `feature_states` parameter when
+restoring the snapshot to restore a subset of feature states. Only present if
+the snapshot includes one or more feature states.
 
 `start_time`::
 (string)
@@ -211,6 +262,7 @@ The API returns the following response:
           "version": <version>,
           "indices": [],
           "data_streams": [],
+          "feature_states": [],
           "include_global_state": true,
           "state": "SUCCESS",
           "start_time": "2020-07-06T21:55:18.129Z",

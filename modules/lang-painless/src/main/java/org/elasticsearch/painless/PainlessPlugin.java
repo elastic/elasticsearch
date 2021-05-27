@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -52,6 +41,7 @@ import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -99,6 +89,12 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         ingest.add(ingestWhitelist);
         map.put(IngestScript.CONTEXT, ingest);
 
+        // Functions available to runtime fields
+
+        for (ScriptContext<?> scriptContext : ScriptModule.RUNTIME_FIELDS_CONTEXTS) {
+            map.put(scriptContext, getRuntimeFieldWhitelist(scriptContext.name));
+        }
+
         // Execute context gets everything
         List<Whitelist> test = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         test.add(movFnWhitelist);
@@ -108,6 +104,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         map.put(PainlessExecuteAction.PainlessTestScript.CONTEXT, test);
 
         whitelists = map;
+    }
+
+    private static List<Whitelist> getRuntimeFieldWhitelist(String contextName) {
+        List<Whitelist> scriptField = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        Whitelist whitelist = WhitelistLoader.loadFromResourceFiles(Whitelist.class,
+            "org.elasticsearch.script." + contextName + ".txt");
+        scriptField.add(whitelist);
+        return scriptField;
     }
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();

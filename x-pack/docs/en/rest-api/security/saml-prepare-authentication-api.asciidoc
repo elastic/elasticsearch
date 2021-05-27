@@ -1,6 +1,9 @@
 [role="xpack"]
 [[security-api-saml-prepare-authentication]]
 === SAML prepare authentication API
+++++
+<titleabbrev>SAML prepare authentication</titleabbrev>
+++++
 
 Creates a SAML authentication request (`<AuthnRequest>`) as a URL string, based on the configuration of the respective SAML realm in {es}.
 

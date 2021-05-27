@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql;
@@ -38,7 +39,7 @@ public final class SqlTestUtils {
     private SqlTestUtils() {}
 
     public static final SqlConfiguration TEST_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE,
-            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, Mode.PLAIN,
+            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, null, null, Mode.PLAIN,
             null, null, null, null, false, false);
 
     public static SqlConfiguration randomConfiguration() {
@@ -46,6 +47,7 @@ public final class SqlTestUtils {
                 randomIntBetween(0, 1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
+                null,
                 null,
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),
@@ -62,6 +64,7 @@ public final class SqlTestUtils {
             new TimeValue(randomNonNegativeLong()),
             new TimeValue(randomNonNegativeLong()),
             null,
+            null,
             randomFrom(Mode.values()),
             randomAlphaOfLength(10),
             null,
@@ -76,6 +79,7 @@ public final class SqlTestUtils {
                 randomIntBetween(0, 1000),
                 new TimeValue(randomNonNegativeLong()),
                 new TimeValue(randomNonNegativeLong()),
+                null,
                 null,
                 randomFrom(Mode.values()),
                 randomAlphaOfLength(10),

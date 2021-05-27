@@ -52,6 +52,12 @@ DELETE /_index_template/*
 GET /_data_stream/my-data-stream/_stats
 ----
 
+[[data-stream-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`monitor` or `manage` <<privileges-list-indices,index privilege>>
+for the data stream.
 
 [[data-stream-stats-api-request]]
 ==== {api-request-title}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.search;
 
@@ -117,7 +106,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
             searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                     @Override
@@ -139,8 +128,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         } else {
             assertEquals(0, result.get().get(0).shardId().id());
             assertEquals(1, result.get().get(1).shardId().id());
-            assertEquals(shard1, !result.get().get(0).skip());
-            assertEquals(shard2, !result.get().get(1).skip());
+            assertEquals(shard1, result.get().get(0).skip() == false);
+            assertEquals(shard2, result.get().get(1).skip() == false);
         }
     }
 
@@ -185,7 +174,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             searchTransportService,
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+            Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
             searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
             (iter) -> new SearchPhase("test") {
                 @Override
@@ -199,7 +188,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
 
         assertEquals(0, result.get().get(0).shardId().id());
         assertEquals(1, result.get().get(1).shardId().id());
-        assertEquals(shard1, !result.get().get(0).skip());
+        assertEquals(shard1, result.get().get(0).skip() == false);
         assertFalse(result.get().get(1).skip()); // never skip the failure
     }
 
@@ -247,7 +236,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
             Collections.emptyMap(),
-            EsExecutors.newDirectExecutorService(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             searchRequest,
             null,
             shardsIter,
@@ -350,7 +339,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+                Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -367,7 +356,10 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .sorted(Comparator.comparing(minAndMaxes::get, MinAndMax.getComparator(order)).thenComparing(shardIds::get))
                 .map(shardIds::get)
                 .toArray(ShardId[]::new);
-
+            if (shardToSkip.size() == expected.length) {
+                // we need at least one shard to produce the empty result for aggs
+                shardToSkip.remove(new ShardId("logs", "_na_", 0));
+            }
             int pos = 0;
             for (SearchShardIterator i : result.get()) {
                 assertEquals(shardToSkip.contains(i.shardId()), i.skip());
@@ -427,7 +419,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 searchTransportService,
                 (clusterAlias, node) -> lookup.get(node),
                 Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-                Collections.emptyMap(), EsExecutors.newDirectExecutorService(),
+                Collections.emptyMap(), EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 searchRequest, null, shardsIter, timeProvider, ClusterState.EMPTY_STATE, null,
                 (iter) -> new SearchPhase("test") {
                     @Override
@@ -731,7 +723,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             (clusterAlias, node) -> lookup.get(node),
             aliasFilters,
             Collections.emptyMap(),
-            EsExecutors.newDirectExecutorService(),
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             searchRequest,
             null,
             shardsIter,

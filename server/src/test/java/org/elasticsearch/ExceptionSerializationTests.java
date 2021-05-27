@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch;
 
@@ -684,7 +673,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(7, org.elasticsearch.http.BindHttpException.class);
         ids.put(8, org.elasticsearch.action.search.ReduceSearchPhaseException.class);
         ids.put(9, org.elasticsearch.node.NodeClosedException.class);
-        ids.put(10, org.elasticsearch.index.engine.SnapshotFailedEngineException.class);
+        ids.put(10, null); // SnapshotFailedEngineException, never instantiated in 6.2.0+ and never thrown across clusters
         ids.put(11, org.elasticsearch.index.shard.ShardNotFoundException.class);
         ids.put(12, org.elasticsearch.transport.ConnectTransportException.class);
         ids.put(13, org.elasticsearch.transport.NotSerializableTransportException.class);
@@ -720,7 +709,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(43, org.elasticsearch.index.translog.TruncatedTranslogException.class);
         ids.put(44, org.elasticsearch.indices.recovery.RecoveryFailedException.class);
         ids.put(45, org.elasticsearch.index.shard.IndexShardRelocatedException.class);
-        ids.put(46, org.elasticsearch.transport.NodeShouldNotConnectException.class);
+        ids.put(46, null); // NodeShouldNotConnectException, never instantiated in 5.0+
         ids.put(47, null);
         ids.put(48, org.elasticsearch.index.translog.TranslogCorruptedException.class);
         ids.put(49, org.elasticsearch.cluster.block.ClusterBlockException.class);
@@ -739,7 +728,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(62, org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper.class);
         ids.put(63, org.elasticsearch.indices.AliasFilterParsingException.class);
         ids.put(64, null); // DeleteByQueryFailedEngineException was removed in 3.0
-        ids.put(65, org.elasticsearch.gateway.GatewayException.class);
+        ids.put(65, null); // GatewayException, never instantiated in 5.0+
         ids.put(66, org.elasticsearch.index.shard.IndexShardNotRecoveringException.class);
         ids.put(67, org.elasticsearch.http.HttpException.class);
         ids.put(68, org.elasticsearch.ElasticsearchException.class);

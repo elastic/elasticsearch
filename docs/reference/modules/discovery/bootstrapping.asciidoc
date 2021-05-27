@@ -20,9 +20,10 @@ node:
   to the node's hostname. You must use either the fully-qualified hostname or
   the bare hostname <<modules-discovery-bootstrap-cluster-fqdns,depending on
   your system configuration>>.
-- The IP address of the node's <<modules-transport,publish address>>, if it is
-  not possible to use the `node.name` of the node. This is normally the IP
-  address to which <<common-network-settings,`network.host`>> resolves but
+- The IP address of the node's <<modules-network-binding-publishing,transport
+  publish address>>, if it is not possible to use the `node.name` of the node.
+  This is normally the IP address to which
+  <<common-network-settings,`network.host`>> resolves but
   <<advanced-network-settings,this can be overridden>>.
 - The IP address and port of the node's publish address, in the form `IP:PORT`,
   if it is not possible to use the `node.name` of the node and there are
@@ -112,7 +113,7 @@ automatically bootstrap a cluster based on the nodes that could be discovered to
 be running on the same host within a short time after startup. This means that
 by default it is possible to start up several nodes on a single machine and have
 them automatically form a cluster which is very useful for development
-environments and experimentation.  However, since nodes may not always
+environments and experimentation. However, since nodes may not always
 successfully discover each other quickly enough this automatic bootstrapping
 cannot be relied upon and cannot be used in production deployments.
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.rollup;
 
@@ -24,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
 
@@ -52,8 +52,7 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
     public static final String CALENDAR_INTERVAL = "calendar_interval";
     public static final String TIME_ZONE = "time_zone";
 
-    private static final String DEFAULT_TIMEZONE = "UTC";
-    public static final ZoneId DEFAULT_ZONEID_TIMEZONE = ZoneOffset.UTC;
+    public static final String DEFAULT_TIMEZONE = "UTC";
     private static final String FIELD = "field";
 
     private static final ConstructingObjectParser<RollupActionDateHistogramGroupConfig, Void> PARSER;
@@ -246,21 +245,20 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
                     if (fieldCaps.get(dateType).isAggregatable()) {
                         return;
                     } else {
-                        validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
+                        validationException.addValidationError("The field [" + field + "] must be aggregatable, " +
                             "but is not.");
                     }
                 }
             }
             if (matchesDateType == false) {
                 validationException.addValidationError("The field referenced by a date_histo group must be one of type [" +
-                    Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] across all " +
-                    "indices in the index pattern.  Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "]." +
+                    " Found: " + fieldCaps.keySet().toString() + " for field [" + field + "]");
             }
         } else {
             validationException.addValidationError("Could not find one of [" +
                 Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] fields with name [" +
-                field + "] in any of the indices matching " +
-                "the index pattern.");
+                field + "].");
         }
     }
 

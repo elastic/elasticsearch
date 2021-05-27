@@ -28,7 +28,7 @@ other aggregations instead of documents or fields.
 === Run an aggregation
 
 You can run aggregations as part of a <<search-your-data,search>> by specifying the <<search-search,search API>>'s `aggs` parameter. The
-following search runs  a
+following search runs a
 <<search-aggregations-bucket-terms-aggregation,terms aggregation>> on
 `my-field`:
 
@@ -330,79 +330,66 @@ the aggregated field.
 [[use-scripts-in-an-agg]]
 === Use scripts in an aggregation
 
-Some aggregations support <<modules-scripting,scripts>>. You can
-use a `script` to extract or generate values for the aggregation:
+When a field doesn't exactly match the aggregation you need, you
+should aggregate on a <<runtime,runtime field>>:
 
 [source,console]
 ----
-GET /my-index-000001/_search
+GET /my-index-000001/_search?size=0
 {
+  "runtime_mappings": {
+    "message.length": {
+      "type": "long",
+      "script": "emit(doc['message.keyword'].value.length())"
+    }
+  },
   "aggs": {
-    "my-agg-name": {
+    "message_length": {
       "histogram": {
-        "interval": 1000,
-        "script": {
-          "source": "doc['my-field'].value.length()"
+        "interval": 10,
+        "field": "message.length"
+      }
+    }
+  }
+}
+----
+// TEST[setup:my_index]
+
+////
+[source,console-result]
+----
+{
+  "timed_out": false,
+  "took": "$body.took",
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "hits": "$body.hits",
+  "aggregations": {
+    "message_length": {
+      "buckets": [
+        {
+          "key": 30.0,
+          "doc_count": 5
         }
-      }
+      ]
     }
   }
 }
 ----
-// TEST[setup:my_index]
-// TEST[s/my-field/http.request.method/]
+////
 
-If you also specify a `field`, the `script` modifies the field values used in
-the aggregation. The following aggregation uses a script to modify `my-field`
-values:
+Scripts calculate field values dynamically, which adds a little
+overhead to the aggregation. In addition to the time spent calculating,
+some aggregations like <<search-aggregations-bucket-terms-aggregation,`terms`>>
+and <<search-aggregations-bucket-filters-aggregation,`filters`>> can't use
+some of their optimizations with runtime fields. In total, performance costs
+for using a runtime field varies from aggregation to aggregation.
 
-[source,console]
-----
-GET /my-index-000001/_search
-{
-  "aggs": {
-    "my-agg-name": {
-      "histogram": {
-        "field": "my-field",
-        "interval": 1000,
-        "script": "_value / 1000"
-      }
-    }
-  }
-}
-----
-// TEST[setup:my_index]
-// TEST[s/my-field/http.response.bytes/]
-
-Some aggregations only work on specific data types. Use the `value_type`
-parameter to specify a data type for a script-generated value or an unmapped
-field. `value_type` accepts the following values:
-
-* `boolean`
-* `date`
-* `double`, used for all floating-point numbers
-* `long`, used for all integers
-* `ip`
-* `string`
-
-[source,console]
-----
-GET /my-index-000001/_search
-{
-  "aggs": {
-    "my-agg-name": {
-      "histogram": {
-        "field": "my-field",
-        "interval": 1000,
-        "script": "_value / 1000",
-        "value_type": "long"
-      }
-    }
-  }
-}
-----
-// TEST[setup:my_index]
-// TEST[s/my-field/http.response.bytes/]
+// TODO when we have calculated fields we can link to them here.
 
 [discrete]
 [[agg-caches]]

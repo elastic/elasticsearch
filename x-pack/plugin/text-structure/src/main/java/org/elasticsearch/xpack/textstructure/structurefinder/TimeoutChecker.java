@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
@@ -105,7 +106,7 @@ public class TimeoutChecker implements Closeable {
             return grok.captures(text);
         } finally {
             // If a timeout has occurred then this check will overwrite any timeout exception thrown by Grok.captures() and this
-            // is intentional - the exception from this class makes more sense in the context of the find file structure API
+            // is intentional - the exception from this class makes more sense in the context of the find structure API
             check(where);
         }
     }

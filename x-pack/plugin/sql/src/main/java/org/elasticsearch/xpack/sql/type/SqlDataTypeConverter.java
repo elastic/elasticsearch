@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.type;
@@ -11,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeConverter;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -46,6 +48,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -90,22 +93,23 @@ public final class SqlDataTypeConverter {
                 return right;
             }
         }
-        if (left == DATETIME) {
-            if (right == TIME) {
-                return left;
+        if (isDateTime(left)) {
+            if (right == DATE || right == TIME) {
+                return DATETIME;
             }
             if (isInterval(right)) {
-                return left;
+                return DATETIME;
             }
         }
-        if (right == DATETIME) {
-            if (left == TIME) {
-                return right;
+        if (isDateTime(right)) {
+            if (left == DATE || left == TIME) {
+                return DATETIME;
             }
             if (isInterval(left)) {
-                return right;
+                return DATETIME;
             }
         }
+
         // Interval * integer is a valid operation
         if (isInterval(left)) {
             if (right.isInteger()) {
@@ -300,7 +304,7 @@ public final class SqlDataTypeConverter {
         if (isString(from)) {
             return SqlConverter.STRING_TO_DATE;
         }
-        if (from == DATETIME) {
+        if (DataTypes.isDateTime(from)) {
             return SqlConverter.DATETIME_TO_DATE;
         }
         return null;
@@ -322,7 +326,7 @@ public final class SqlDataTypeConverter {
         if (from == DATE) {
             return SqlConverter.DATE_TO_TIME;
         }
-        if (from == DATETIME) {
+        if (DataTypes.isDateTime(from)) {
             return SqlConverter.DATETIME_TO_TIME;
         }
         return null;

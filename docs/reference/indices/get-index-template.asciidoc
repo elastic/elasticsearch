@@ -41,6 +41,12 @@ GET /_index_template/template_1
 
 `GET /_index_template/<index-template>`
 
+[[get-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[get-template-api-path-params]]
 ==== {api-path-parms-title}

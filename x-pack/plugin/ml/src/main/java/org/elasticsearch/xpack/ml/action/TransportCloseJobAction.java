@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -150,9 +152,19 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                                             // these persistent tasks to disappear.
                                             persistentTasksService.sendRemoveRequest(jobTask.getId(),
                                                 ActionListener.wrap(
-                                                    r -> logger.trace("[{}] removed task to close unassigned job", resolvedJobId),
-                                                    e -> logger.error("[" + resolvedJobId
-                                                        + "] failed to remove task to close unassigned job", e)
+                                                    r -> logger.trace(
+                                                        () -> new ParameterizedMessage(
+                                                            "[{}] removed task to close unassigned job",
+                                                            resolvedJobId
+                                                        )
+                                                    ),
+                                                    e -> logger.error(
+                                                        () -> new ParameterizedMessage(
+                                                            "[{}] failed to remove task to close unassigned job",
+                                                            resolvedJobId
+                                                        ),
+                                                        e
+                                                    )
                                                 ));
                                         }
                                     }
@@ -169,7 +181,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
         }
     }
 
-    class OpenAndClosingIds {
+    static class OpenAndClosingIds {
         OpenAndClosingIds() {
             openJobIds = new ArrayList<>();
             closingJobIds = new ArrayList<>();
@@ -292,7 +304,16 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    if (e instanceof ResourceNotFoundException && Strings.isAllOrWildcard(new String[]{request.getJobId()})) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException
+                        && Strings.isAllOrWildcard(request.getJobId())) {
+                        logger.trace(
+                            () -> new ParameterizedMessage(
+                                "[{}] [{}] failed to close job due to resource not found exception",
+                                jobTask.getJobId(),
+                                jobTask.getId()
+                            ),
+                            e
+                        );
                         jobTask.closeJob("close job (api)");
                         listener.onResponse(new CloseJobAction.Response(true));
                     } else {
@@ -301,12 +322,27 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                 }
 
                 @Override
-                protected void doRun() throws Exception {
+                protected void doRun() {
                     jobTask.closeJob("close job (api)");
                     listener.onResponse(new CloseJobAction.Response(true));
                 }
             });
-        }, listener::onFailure));
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException
+                && Strings.isAllOrWildcard(request.getJobId())) {
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "[{}] [{}] failed to update job to closing due to resource not found exception",
+                        jobTask.getJobId(),
+                        jobTask.getId()
+                    ),
+                    e
+                );
+                listener.onResponse(new CloseJobAction.Response(true));
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
     @Override
@@ -439,16 +475,6 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                 }
             }
             return true;
-        }, request.getCloseTimeout(), new ActionListener<Boolean>() {
-            @Override
-            public void onResponse(Boolean result) {
-                listener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        }, request.getCloseTimeout(), listener.delegateFailure((l, r) -> l.onResponse(response)));
     }
 }

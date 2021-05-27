@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.util;
 
@@ -31,12 +32,13 @@ public final class StringUtils {
     public static final String EMPTY = "";
     public static final String NEW_LINE = "\n";
     public static final String SQL_WILDCARD = "%";
+    public static final String WILDCARD = "*";
 
     private static final String[] INTEGER_ORDINALS = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
 
     //CamelCase to camel_case
     public static String camelCaseToUnderscore(String string) {
-        if (!Strings.hasText(string)) {
+        if (Strings.hasText(string) == false) {
             return EMPTY;
         }
         StringBuilder sb = new StringBuilder();
@@ -47,7 +49,7 @@ public final class StringUtils {
             char ch = s.charAt(i);
             if (Character.isAlphabetic(ch)) {
                 if (Character.isUpperCase(ch)) {
-                    if (i > 0 && !previousCharWasUp) {
+                    if (i > 0 && previousCharWasUp == false) {
                         sb.append("_");
                     }
                     previousCharWasUp = true;
@@ -66,7 +68,7 @@ public final class StringUtils {
 
     //CAMEL_CASE to camelCase
     public static String underscoreToLowerCamelCase(String string) {
-        if (!Strings.hasText(string)) {
+        if (Strings.hasText(string) == false) {
             return EMPTY;
         }
         StringBuilder sb = new StringBuilder();
@@ -102,7 +104,7 @@ public final class StringUtils {
         regex.append('^');
         for (int i = 0; i < pattern.length(); i++) {
             char curr = pattern.charAt(i);
-            if (!escaped && (curr == escape) && escape != 0) {
+            if (escaped == false && (curr == escape) && escape != 0) {
                 escaped = true;
                 if (i + 1 == pattern.length()) {
                     throw new QlIllegalArgumentException(
@@ -167,7 +169,7 @@ public final class StringUtils {
         for (int i = 0; i < pattern.length(); i++) {
             char curr = pattern.charAt(i);
 
-            if (!escaped && (curr == escape) && escape != 0) {
+            if (escaped == false && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
                     throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
                 }
@@ -175,7 +177,7 @@ public final class StringUtils {
             } else {
                 switch (curr) {
                     case '%':
-                        wildcard.append(escaped ? SQL_WILDCARD : "*");
+                        wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
                         break;
                     case '_':
                         wildcard.append(escaped ? "_" : "?");
@@ -213,7 +215,7 @@ public final class StringUtils {
         for (int i = 0; i < pattern.length(); i++) {
             char curr = pattern.charAt(i);
 
-            if (!escaped && (curr == escape) && escape != 0) {
+            if (escaped == false && (curr == escape) && escape != 0) {
                 if (i + 1 == pattern.length()) {
                     throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
                 }
@@ -221,7 +223,7 @@ public final class StringUtils {
             } else {
                 switch (curr) {
                     case '%':
-                        wildcard.append(escaped ? SQL_WILDCARD : "*");
+                        wildcard.append(escaped ? SQL_WILDCARD : WILDCARD);
                         break;
                     case '_':
                         wildcard.append(escaped ? "_" : "*");

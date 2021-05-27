@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -124,10 +126,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     private static final Assignment NO_ASSIGNMENT = new Assignment(null, "no nodes found with data and remote cluster client roles");
 
     @Override
-    public Assignment getAssignment(final ShardFollowTask params, final ClusterState clusterState) {
+    public Assignment getAssignment(final ShardFollowTask params,
+                                    Collection<DiscoveryNode> candidateNodes,
+                                    final ClusterState clusterState) {
         final DiscoveryNode node = selectLeastLoadedNode(
-            clusterState,
-            ((Predicate<DiscoveryNode>) DiscoveryNode::isDataNode).and(DiscoveryNode::isRemoteClusterClient)
+            clusterState, candidateNodes,
+            ((Predicate<DiscoveryNode>) DiscoveryNode::canContainData).and(DiscoveryNode::isRemoteClusterClient)
         );
         if (node == null) {
             return NO_ASSIGNMENT;

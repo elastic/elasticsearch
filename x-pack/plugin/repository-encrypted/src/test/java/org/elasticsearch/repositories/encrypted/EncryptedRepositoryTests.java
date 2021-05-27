@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
@@ -59,9 +60,9 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void setUpMocks() throws Exception {
         this.repoPassword = new SecureString(randomAlphaOfLength(20).toCharArray());
         this.delegatedPath = randomFrom(
-            BlobPath.cleanPath(),
-            BlobPath.cleanPath().add(randomAlphaOfLength(8)),
-            BlobPath.cleanPath().add(randomAlphaOfLength(4)).add(randomAlphaOfLength(4))
+            BlobPath.EMPTY,
+            BlobPath.EMPTY.add(randomAlphaOfLength(8)),
+            BlobPath.EMPTY.add(randomAlphaOfLength(4)).add(randomAlphaOfLength(4))
         );
         this.delegatedBlobStore = mock(BlobStore.class);
         this.delegatedRepository = mock(BlobStoreRepository.class);

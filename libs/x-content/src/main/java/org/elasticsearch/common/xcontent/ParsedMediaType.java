@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -45,7 +33,7 @@ public class ParsedMediaType {
         this.originalHeaderValue = originalHeaderValue;
         this.type = type;
         this.subType = subType;
-        this.parameters = parameters;
+        this.parameters = Map.copyOf(parameters);
     }
 
     /**
@@ -56,7 +44,7 @@ public class ParsedMediaType {
     }
 
     public Map<String, String> getParameters() {
-        return Collections.unmodifiableMap(parameters);
+        return parameters;
     }
 
     /**
@@ -107,9 +95,10 @@ public class ParsedMediaType {
     }
 
     public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
-        ParsedMediaType parsedMediaType = parseMediaType(requestContentType.mediaTypeWithoutParameters());
-        parsedMediaType.parameters.putAll(parameters);
-        return parsedMediaType;
+        ParsedMediaType parsedMediaType = requestContentType.toParsedMediaType();
+
+        return new ParsedMediaType(parsedMediaType.originalHeaderValue,
+            parsedMediaType.type, parsedMediaType.subType, parameters);
     }
 
     // simplistic check for media ranges. do not validate if this is a correct header
@@ -159,8 +148,13 @@ public class ParsedMediaType {
         return originalHeaderValue;
     }
 
+    public String responseContentTypeHeader() {
+        return mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+
+    //used in testing
     public String responseContentTypeHeader(Map<String,String> parameters) {
-        return this.mediaTypeWithoutParameters() + formatParameters(parameters);
+        return mediaTypeWithoutParameters() + formatParameters(parameters);
     }
 
     private String formatParameters(Map<String, String> parameters) {

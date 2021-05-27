@@ -1,15 +1,15 @@
 /*
- *
- *  Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- *  or more contributor license agreements. Licensed under the Elastic License;
- *  you may not use this file except in compliance with the Elastic License.
- *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
@@ -58,9 +58,11 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_OIDC_PATTERN = Set.of("cluster:admin/xpack/security/oidc/*");
     private static final Set<String> MANAGE_TOKEN_PATTERN = Set.of("cluster:admin/xpack/security/token/*");
     private static final Set<String> MANAGE_API_KEY_PATTERN = Set.of("cluster:admin/xpack/security/api_key/*");
+    private static final Set<String> MANAGE_SERVICE_ACCOUNT_PATTERN = Set.of("cluster:admin/xpack/security/service_account/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Set.of(GrantApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Set.of("cluster:monitor/*");
     private static final Set<String> MONITOR_ML_PATTERN = Set.of("cluster:monitor/xpack/ml/*");
+    private static final Set<String> MONITOR_TEXT_STRUCTURE_PATTERN = Set.of("cluster:monitor/text_structure/*");
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Set.of("cluster:monitor/data_frame/*", "cluster:monitor/transform/*");
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
@@ -96,6 +98,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
     public static final NamedClusterPrivilege MONITOR_TRANSFORM_DEPRECATED =
         new ActionClusterPrivilege("monitor_data_frame_transforms", MONITOR_TRANSFORM_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_TEXT_STRUCTURE =
+        new ActionClusterPrivilege("monitor_text_structure", MONITOR_TEXT_STRUCTURE_PATTERN);
     public static final NamedClusterPrivilege MONITOR_TRANSFORM =
             new ActionClusterPrivilege("monitor_transform", MONITOR_TRANSFORM_PATTERN);
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
@@ -122,6 +126,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_SAML = new ActionClusterPrivilege("manage_saml", MANAGE_SAML_PATTERN);
     public static final NamedClusterPrivilege MANAGE_OIDC = new ActionClusterPrivilege("manage_oidc", MANAGE_OIDC_PATTERN);
     public static final NamedClusterPrivilege MANAGE_API_KEY = new ActionClusterPrivilege("manage_api_key", MANAGE_API_KEY_PATTERN);
+    public static final NamedClusterPrivilege MANAGE_SERVICE_ACCOUNT = new ActionClusterPrivilege("manage_service_account",
+        MANAGE_SERVICE_ACCOUNT_PATTERN);
     public static final NamedClusterPrivilege GRANT_API_KEY = new ActionClusterPrivilege("grant_api_key", GRANT_API_KEY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_PIPELINE = new ActionClusterPrivilege("manage_pipeline", Set.of("cluster:admin" +
         "/ingest/pipeline/*"));
@@ -146,11 +152,15 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_LOGSTASH_PIPELINES = new ActionClusterPrivilege("manage_logstash_pipelines",
         Set.of("cluster:admin/logstash/pipeline/*"));
 
+    public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task",
+        Set.of(CancelTasksAction.NAME + "*"));
+
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,
         ALL,
         MONITOR,
         MONITOR_ML,
+        MONITOR_TEXT_STRUCTURE,
         MONITOR_TRANSFORM_DEPRECATED,
         MONITOR_TRANSFORM,
         MONITOR_WATCHER,
@@ -170,6 +180,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_OIDC,
         MANAGE_API_KEY,
         GRANT_API_KEY,
+        MANAGE_SERVICE_ACCOUNT,
         MANAGE_PIPELINE,
         MANAGE_ROLLUP,
         MANAGE_AUTOSCALING,
@@ -184,7 +195,8 @@ public class ClusterPrivilegeResolver {
         DELEGATE_PKI,
         MANAGE_OWN_API_KEY,
         MANAGE_ENRICH,
-        MANAGE_LOGSTASH_PIPELINES));
+        MANAGE_LOGSTASH_PIPELINES,
+        CANCEL_TASK));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

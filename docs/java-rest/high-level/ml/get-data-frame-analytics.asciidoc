@@ -7,7 +7,6 @@
 [id="{upid}-{api}"]
 === Get {dfanalytics-jobs} API
 
-beta::[]
 
 Retrieves one or more {dfanalytics-jobs}.
 The API accepts a +{request}+ object and returns a +{response}+.

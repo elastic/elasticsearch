@@ -21,6 +21,12 @@ GET /my-index-000001/_settings
 
 `GET /<target>/_settings/<setting>`
 
+[[get-index-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata`, `monitor`, or `manage` <<privileges-list-indices,index
+privilege>> for the target data stream, index, or index alias.
 
 [[get-index-settings-api-path-params]]
 ==== {api-path-parms-title}

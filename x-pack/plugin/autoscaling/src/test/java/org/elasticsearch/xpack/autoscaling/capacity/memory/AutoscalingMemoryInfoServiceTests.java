@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.capacity.memory;
@@ -321,7 +322,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
 
     private Set<DiscoveryNodeRole> randomIrrelevantRoles(Set<Set<String>> relevantRoleSets) {
         return randomValueOtherThanMany(relevantRoleSets::contains, AutoscalingTestCase::randomRoles).stream()
-            .map(DiscoveryNode::getRoleFromRoleName)
+            .map(DiscoveryNodeRole::getRoleFromRoleName)
             .collect(Collectors.toSet());
     }
 
@@ -426,7 +427,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             randomFrom(autoscalingMetadata.policies().values()).policy()
                 .roles()
                 .stream()
-                .map(DiscoveryNode::getRoleFromRoleName)
+                .map(DiscoveryNodeRole::getRoleFromRoleName)
                 .collect(Collectors.toSet())
         );
     }

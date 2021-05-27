@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authz;
@@ -28,6 +29,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +38,7 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
-import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
@@ -76,7 +78,6 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -89,7 +90,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.arrayToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction.getApplicationNames;
@@ -308,7 +308,7 @@ public class RBACEngine implements AuthorizationEngine {
             IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request)) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
-                assert !resolvedIndices.isEmpty()
+                assert resolvedIndices.isEmpty() == false
                     : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                 //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                 //'-*' matches no indices so we allow the request to go through, which will yield an empty response
@@ -325,7 +325,7 @@ public class RBACEngine implements AuthorizationEngine {
                 ActionListener.wrap(indexAuthorizationResult -> {
                     if (indexAuthorizationResult.isGranted()) {
                         indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
-                            assert !resolvedIndices.isEmpty()
+                            assert resolvedIndices.isEmpty() == false
                                 : "every indices request needs to have its indices set thus the resolved indices must not be empty";
                             //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
                             //'-*' matches no indices so we allow the request to go through, which will yield an empty response
@@ -360,7 +360,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
+                                      Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
             listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
@@ -520,29 +520,35 @@ public class RBACEngine implements AuthorizationEngine {
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
-    static List<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
+    static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
         Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
-        boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
+        final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
 
         Set<String> indicesAndAliases = new HashSet<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
-        for (Map.Entry<String, IndexAbstraction> entry : lookup.entrySet()) {
-            IndexAbstraction indexAbstraction = entry.getValue();
-            if (predicate.test(indexAbstraction)) {
-                if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM) {
+        if (includeDataStreams) {
+            for (IndexAbstraction indexAbstraction : lookup.values()) {
+                if (predicate.test(indexAbstraction)) {
                     indicesAndAliases.add(indexAbstraction.getName());
-                } else if (includeDataStreams) {
-                    // add data stream and its backing indices for any authorized data streams
+                    if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+                        // add data stream and its backing indices for any authorized data streams
+                        for (IndexMetadata indexMetadata : indexAbstraction.getIndices()) {
+                            indicesAndAliases.add(indexMetadata.getIndex().getName());
+                        }
+                    }
+                }
+            }
+        } else {
+            for (IndexAbstraction indexAbstraction : lookup.values()) {
+                if (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction)) {
                     indicesAndAliases.add(indexAbstraction.getName());
-                    indicesAndAliases.addAll(indexAbstraction.getIndices().stream()
-                        .map(i -> i.getIndex().getName()).collect(Collectors.toList()));
                 }
             }
         }
-        return Collections.unmodifiableList(new ArrayList<>(indicesAndAliases));
+        return Collections.unmodifiableSet(indicesAndAliases);
     }
 
     private void buildIndicesAccessControl(Authentication authentication, String action,

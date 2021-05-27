@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
@@ -42,8 +31,8 @@ import java.util.Objects;
 public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Nullable
-    private String nodeId;
-    private ShardId shardId;
+    private final String nodeId;
+    private final ShardId shardId;
 
     SnapshotShardFailure(StreamInput in) throws IOException {
         nodeId = in.readOptionalString();
@@ -87,6 +76,10 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Nullable
     public String nodeId() {
         return nodeId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
     }
 
     @Override
@@ -162,7 +155,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("index", shardId.getIndexName());
-        builder.field("index_uuid", shardId.getIndexName());
+        builder.field("index_uuid", shardId.getIndex().getUUID());
         builder.field("shard_id", shardId.id());
         builder.field("reason", reason);
         if (nodeId != null) {
@@ -178,9 +171,7 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotShardFailure that = (SnapshotShardFailure) o;
-        // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
-        return shardId.id() == that.shardId.id() &&
-            shardId.getIndexName().equals(shardId.getIndexName()) &&
+        return shardId.equals(that.shardId) &&
             Objects.equals(reason, that.reason) &&
             Objects.equals(nodeId, that.nodeId) &&
             status.getStatus() == that.status.getStatus();
@@ -188,7 +179,6 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Override
     public int hashCode() {
-        // customized to account for discrepancies in shardId/Index toXContent/fromXContent related to uuid
-        return Objects.hash(shardId.id(), shardId.getIndexName(), reason, nodeId, status.getStatus());
+        return Objects.hash(shardId, reason, nodeId, status.getStatus());
     }
 }

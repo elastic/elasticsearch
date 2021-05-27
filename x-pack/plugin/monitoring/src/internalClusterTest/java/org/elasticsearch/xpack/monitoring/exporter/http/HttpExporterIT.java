@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -106,10 +107,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private MockSecureSettings mockSecureSettings  = new MockSecureSettings();
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
 
         Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
             // we do this by default in core, but for monitoring this isn't needed and only adds noise.
             .put("indices.lifecycle.history_index_enabled", false)
@@ -326,7 +327,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                 }
             }
             // opposite of if it existed before
-            enqueuePipelineResponses(secondWebServer, !pipelineExistsAlready);
+            enqueuePipelineResponses(secondWebServer, pipelineExistsAlready == false);
             enqueueWatcherResponses(secondWebServer, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists);
             enqueueResponse(secondWebServer, 200, "{\"errors\": false}");
 
@@ -350,7 +351,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                     assertThat(recordedRequest.getBody(), equalTo(getExternalTemplateRepresentation(template.v2())));
                 }
             }
-            assertMonitorPipelines(secondWebServer, !pipelineExistsAlready, null, null);
+            assertMonitorPipelines(secondWebServer, pipelineExistsAlready == false, null, null);
             assertMonitorWatches(secondWebServer, remoteClusterAllowsWatcher, currentLicenseAllowsWatcher, watcherAlreadyExists,
                                  null, null);
             assertBulk(secondWebServer);

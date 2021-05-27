@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.support;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableSet;
 
@@ -35,13 +37,19 @@ public final class Validation {
         "They can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, and printable symbols in the " +
         "Basic Latin (ASCII) block. Leading or trailing whitespace is not allowed.";
 
+    private static final Pattern VALID_SERVICE_ACCOUNT_TOKEN_NAME = Pattern.compile("^[a-zA-Z0-9-][a-zA-Z0-9_-]{0,255}$");
+
+    public static final String INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE = "service account token name must have at least 1 character " +
+        "and at most 256 characters that are alphanumeric (A-Z, a-z, 0-9) or hyphen (-) or underscore (_). " +
+        "It must not begin with an underscore (_).";
+
     private static boolean isValidUserOrRoleName(String name) {
         if (name.length() < MIN_NAME_LENGTH || name.length() > MAX_NAME_LENGTH) {
             return false;
         }
 
         for (char character : name.toCharArray()) {
-            if (!VALID_NAME_CHARS.contains(character)) {
+            if (VALID_NAME_CHARS.contains(character) == false) {
                 return false;
             }
         }
@@ -61,6 +69,14 @@ public final class Validation {
         return true;
     }
 
+    public static boolean isValidServiceAccountTokenName(String name) {
+        return name != null && VALID_SERVICE_ACCOUNT_TOKEN_NAME.matcher(name).matches();
+    }
+
+    public static String formatInvalidServiceTokenNameErrorMessage(String name) {
+        return "invalid service token name [" + name + "]. " + INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE;
+    }
+
     public static final class Users {
 
         private static final int MIN_PASSWD_LENGTH = 6;
@@ -73,7 +89,7 @@ public final class Validation {
          * @return {@code null} if valid
          */
         public static Error validateUsername(String username, boolean allowReserved, Settings settings) {
-            if (!isValidUserOrRoleName(username)) {
+            if (isValidUserOrRoleName(username) == false) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "User"));
             }
             if (allowReserved == false && ClientReservedRealm.isReserved(username, settings)) {
@@ -97,7 +113,7 @@ public final class Validation {
         }
 
         public static Error validateRoleName(String roleName, boolean allowReserved) {
-            if (!isValidUserOrRoleName(roleName)) {
+            if (isValidUserOrRoleName(roleName) == false) {
                 return new Error(String.format(Locale.ROOT, INVALID_NAME_MESSAGE, "Role"));
             }
             if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {

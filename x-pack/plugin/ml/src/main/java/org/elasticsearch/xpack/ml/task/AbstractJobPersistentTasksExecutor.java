@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.task;
@@ -36,6 +37,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
@@ -126,8 +128,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
                 Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.perceivedCapacityAndMaxFreeMemory(
                     maxMachineMemoryPercent,
                     useAutoMemoryPercentage,
-                    maxOpenJobs,
-                    true
+                    maxOpenJobs
                 );
                 Long previouslyAuditedFreeMemory = auditedJobCapacity.get(getUniqueId(jobId));
                 if (capacityAndFreeMemory.v2().equals(previouslyAuditedFreeMemory) == false) {
@@ -151,10 +152,14 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return true;
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(Params params, ClusterState clusterState) {
-        // If we are waiting for an upgrade to complete, we should not assign to a node
+    public Optional<PersistentTasksCustomMetadata.Assignment> getPotentialAssignment(Params params, ClusterState clusterState,
+                                                                                     boolean isMemoryTrackerRecentlyRefreshed) {
+        // If we are waiting for an upgrade or reset to complete, we should not assign to a node
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return Optional.of(AWAITING_UPGRADE);
+        }
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            return Optional.of(RESET_IN_PROGRESS);
         }
         String jobId = getJobId(params);
 
@@ -164,7 +169,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         if (missingIndices.isPresent()) {
             return missingIndices;
         }
-        Optional<PersistentTasksCustomMetadata.Assignment> staleMemory = checkMemoryFreshness(jobId);
+        Optional<PersistentTasksCustomMetadata.Assignment> staleMemory = checkMemoryFreshness(jobId, isMemoryTrackerRecentlyRefreshed);
         if (staleMemory.isPresent()) {
             return staleMemory;
         }
@@ -211,8 +216,7 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         return Optional.empty();
     }
 
-    public Optional<PersistentTasksCustomMetadata.Assignment> checkMemoryFreshness(String jobId) {
-        boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
+    public Optional<PersistentTasksCustomMetadata.Assignment> checkMemoryFreshness(String jobId, boolean isMemoryTrackerRecentlyRefreshed) {
         if (isMemoryTrackerRecentlyRefreshed == false) {
             boolean scheduledRefresh = memoryTracker.asyncRefresh();
             if (scheduledRefresh) {

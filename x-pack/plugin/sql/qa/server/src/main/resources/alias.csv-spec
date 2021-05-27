@@ -50,6 +50,7 @@ hire_date           |TIMESTAMP      |datetime
 languages           |TINYINT        |byte
 last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
+name                |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
 salary_ul           |NUMERIC        |unsigned_long
@@ -81,6 +82,7 @@ hire_date           |TIMESTAMP      |datetime
 languages           |TINYINT        |byte
 last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
+name                |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
 salary_ul           |NUMERIC        |unsigned_long

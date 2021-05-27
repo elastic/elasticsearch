@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
@@ -89,7 +90,8 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
             nodesBuilder.add(newNode(otherNodesRolesSupplier.get()));
         }
         clusterStateBuilder.nodes(nodesBuilder);
-        final Assignment assignment = executor.getAssignment(mock(ShardFollowTask.class), clusterStateBuilder.build());
+        final Assignment assignment = executor.getAssignment(mock(ShardFollowTask.class),
+            clusterStateBuilder.nodes().getAllNodes(), clusterStateBuilder.build());
         consumer.accept(theSpecial, assignment);
     }
 

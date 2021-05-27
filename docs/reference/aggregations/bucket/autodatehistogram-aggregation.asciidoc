@@ -110,7 +110,7 @@ buckets requested.
 
 ==== Time Zone
 
-Date-times are stored in Elasticsearch in UTC.  By default, all bucketing and
+Date-times are stored in Elasticsearch in UTC. By default, all bucketing and
 rounding is also done in UTC. The `time_zone` parameter can be used to indicate
 that bucketing should use a different time zone.
 
@@ -250,12 +250,6 @@ was daily buckets, the bucket covering that day will only hold data for 23 hours
 instead of the usual 24 hours for other buckets. The same is true for shorter intervals
 like e.g. 12h. Here, we will have only a 11h bucket on the morning of 27 March when the
 DST shift happens.
-
-==== Scripts
-
-Like with the normal <<search-aggregations-bucket-datehistogram-aggregation, `date_histogram`>>, both document level
-scripts and value level scripts are supported. This aggregation does not however, support the `min_doc_count`,
-`extended_bounds`, `hard_bounds` and `order` parameters.
 
 ==== Minimum Interval parameter
 

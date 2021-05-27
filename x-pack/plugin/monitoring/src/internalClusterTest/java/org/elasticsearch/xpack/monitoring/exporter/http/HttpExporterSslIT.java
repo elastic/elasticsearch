@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
@@ -62,7 +63,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Path truststore = getDataPath("/org/elasticsearch/xpack/monitoring/exporter/http/testnode.jks");
         assertThat(Files.exists(truststore), CoreMatchers.is(true));
 
@@ -76,7 +77,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
 
         final String address = "https://" + webServer.getHostName() + ":" + webServer.getPort();
         final Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.monitoring.exporters.plaintext.type", "http")
             .put("xpack.monitoring.exporters.plaintext.enabled", true)
             .put("xpack.monitoring.exporters.plaintext.host", address)

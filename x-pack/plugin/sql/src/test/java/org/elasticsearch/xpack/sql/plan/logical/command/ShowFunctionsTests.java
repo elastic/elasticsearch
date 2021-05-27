@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.plan.logical.command;
@@ -27,8 +28,10 @@ import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
@@ -64,10 +67,12 @@ public class ShowFunctionsTests extends ESTestCase {
         List<List<?>> expect = asList(
             asList("bool",                      JDBCType.BOOLEAN.getName(),   BOOLEAN.typeName()),
             asList("int",                       JDBCType.INTEGER.getName(),   INTEGER.typeName()),
-            asList("unsigned_long",             JDBCType.NUMERIC.getName(),    UNSIGNED_LONG.typeName()),
+            asList("unsigned_long",             JDBCType.NUMERIC.getName(),   UNSIGNED_LONG.typeName()),
+            asList("float",                     JDBCType.REAL.getName(),      FLOAT.typeName()),
             asList("text",                      JDBCType.VARCHAR.getName(),   TEXT.typeName()),
             asList("keyword",                   JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
             asList("date",                      JDBCType.TIMESTAMP.getName(), DATETIME.typeName()),
+            asList("date_nanos",                JDBCType.TIMESTAMP.getName(), DATETIME.typeName()),
             asList("unsupported",               JDBCType.OTHER.getName(),     UNSUPPORTED.typeName()),
             asList("some",                      JDBCType.STRUCT.getName(),    OBJECT.typeName()),
             asList("some.dotted",               JDBCType.STRUCT.getName(),    OBJECT.typeName()),
@@ -81,7 +86,9 @@ public class ShowFunctionsTests extends ESTestCase {
             asList("some.ambiguous.normalized", JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
             asList("foo_type",                  JDBCType.OTHER.getName(),     UNSUPPORTED.typeName()),
             asList("point",                     JDBC_TYPE_GEOMETRY,           GEO_POINT.typeName()),
-            asList("shape",                     JDBC_TYPE_GEOMETRY,           GEO_SHAPE.typeName())
+            asList("shape",                     JDBC_TYPE_GEOMETRY,           GEO_SHAPE.typeName()),
+            asList("nested",                    JDBCType.STRUCT.getName(),    NESTED.typeName()),
+            asList("nested.point",              JDBC_TYPE_GEOMETRY,           GEO_POINT.typeName())
         );
 
 

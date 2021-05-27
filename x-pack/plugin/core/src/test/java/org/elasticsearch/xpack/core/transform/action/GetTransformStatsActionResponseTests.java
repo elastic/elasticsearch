@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.transform.action;
@@ -18,8 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GetTransformStatsActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
-    @Override
-    protected Response createTestInstance() {
+
+    public static Response randomTransformStatsResponse() {
         List<TransformStats> stats = new ArrayList<>();
         int totalStats = randomInt(10);
         for (int i = 0; i < totalStats; ++i) {
@@ -33,6 +34,11 @@ public class GetTransformStatsActionResponseTests extends AbstractWireSerializin
             nodeFailures.add(new FailedNodeException("node1", "message", new Exception("error")));
         }
         return new Response(stats, randomLongBetween(stats.size(), 10_000_000L), taskFailures, nodeFailures);
+    }
+
+    @Override
+    protected Response createTestInstance() {
+        return randomTransformStatsResponse();
     }
 
     @Override

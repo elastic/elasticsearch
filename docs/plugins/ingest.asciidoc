@@ -13,31 +13,4 @@ The core ingest plugins are:
 The ingest attachment plugin lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
 using the Apache text extraction library https://tika.apache.org/[Tika].
 
-<<ingest-geoip>>::
-
-The `geoip` processor adds information about the geographical location of IP
-addresses, based on data from the Maxmind databases. This processor adds this
-information by default under the `geoip` field. The `geoip` processor is no
-longer distributed as a plugin, but is now a module distributed by default with
-Elasticsearch. See {ref}/geoip-processor.html[GeoIP processor] for more
-details.
-
-<<ingest-user-agent>>::
-
-A processor that extracts details from the User-Agent header value. The
-`user_agent` processor is no longer distributed as a plugin, but is now a module
-distributed by default with Elasticsearch. See
-{ref}/user-agent-processor.html[User Agent processor] for more details.
-
-[discrete]
-=== Community contributed ingest plugins
-
-The following plugin has been contributed by our community:
-
-* https://github.com/johtani/elasticsearch-ingest-csv[Ingest CSV Processor Plugin] (by Jun Ohtani)
-
 include::ingest-attachment.asciidoc[]
-
-include::ingest-geoip.asciidoc[]
-
-include::ingest-user-agent.asciidoc[]

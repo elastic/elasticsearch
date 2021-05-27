@@ -6,7 +6,7 @@
 ++++
 
 Deletes one or more <<data-streams,data streams>> and their backing
-indices. See <<delete-a-data-stream>>.
+indices. See <<delete-data-stream>>.
 
 ////
 [source,console]
@@ -39,6 +39,12 @@ DELETE /_index_template/template
 ==== {api-request-title}
 
 `DELETE /_data_stream/<data-stream>`
+
+[[delete-data-stream-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `delete_index`
+or `manage` <<privileges-list-indices,index privilege>> for the data stream.
 
 
 [[delete-data-stream-api-path-params]]

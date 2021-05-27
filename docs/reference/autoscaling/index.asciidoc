@@ -3,7 +3,7 @@
 [[xpack-autoscaling]]
 = Autoscaling
 
-include::autoscaling-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 The autoscaling feature enables an operator to configure tiers of nodes that
 self-monitor whether or not they need to scale based on an operator-defined

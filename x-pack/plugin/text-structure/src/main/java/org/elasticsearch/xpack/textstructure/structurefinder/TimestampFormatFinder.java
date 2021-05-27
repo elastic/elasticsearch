@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
@@ -383,7 +384,7 @@ public final class TimestampFormatFinder {
             char curChar = overrideFormat.charAt(pos);
 
             if (curChar == '\'') {
-                notQuoted = !notQuoted;
+                notQuoted = notQuoted == false;
             } else if (notQuoted && Character.isLetter(curChar)) {
                 int startPos = pos;
                 int endPos = startPos + 1;
@@ -478,25 +479,20 @@ public final class TimestampFormatFinder {
 
             TimestampMatch match = checkCandidate(candidate, generatedTimestamp, null, true, timeoutChecker);
             if (match != null) {
-                return new CandidateTimestampFormat(
-                    example -> {
+                return new CandidateTimestampFormat(example -> {
 
-                        // Modify the built-in candidate so it prefers to return the user supplied format
-                        // if at all possible, and only falls back to standard logic for other situations
-                        try {
-                            // TODO consider support for overriding the locale too
-                            // But since Grok only supports English and German date words ingest
-                            // via Grok will fall down at an earlier stage for other languages...
-                            javaTimeFormatter.parse(example);
-                            return Collections.singletonList(overrideFormat);
-                        } catch (DateTimeException e) {
-                            return candidate.javaTimestampFormatSupplier.apply(example);
-                        }
-                    },
-                    candidate.simplePattern.pattern(),
-                    candidate.strictGrokPattern,
-                    candidate.outputGrokPatternName
-                );
+                    // Modify the built-in candidate so it prefers to return the user supplied format
+                    // if at all possible, and only falls back to standard logic for other situations
+                    try {
+                        // TODO consider support for overriding the locale too
+                        // But since Grok only supports English and German date words ingest
+                        // via Grok will fall down at an earlier stage for other languages...
+                        javaTimeFormatter.parse(example);
+                        return Collections.singletonList(overrideFormat);
+                    } catch (DateTimeException e) {
+                        return candidate.javaTimestampFormatSupplier.apply(example);
+                    }
+                }, candidate.simplePattern.pattern(), candidate.strictGrokPattern, candidate.outputGrokPatternName);
             }
         }
 
@@ -1068,8 +1064,10 @@ public final class TimestampFormatFinder {
         }
     }
 
-    @SuppressForbidden(reason = "DateTimeFormatter.ofLocalizedDate() is forbidden because it uses the default locale, "
-        + "but here we are explicitly setting the locale on the formatter in a subsequent call")
+    @SuppressForbidden(
+        reason = "DateTimeFormatter.ofLocalizedDate() is forbidden because it uses the default locale, "
+            + "but here we are explicitly setting the locale on the formatter in a subsequent call"
+    )
     private static DateTimeFormatter makeShortLocalizedDateTimeFormatterForLocale(Locale locale) {
         return DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale).withZone(ZoneOffset.UTC);
     }
@@ -1144,7 +1142,7 @@ public final class TimestampFormatFinder {
      * so we just need to know if it has nanosecond resolution or not.
      */
     public Map<String, String> getEsDateMappingTypeWithoutFormat() {
-        return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
+        return Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
     }
 
     /**
@@ -1156,10 +1154,10 @@ public final class TimestampFormatFinder {
         List<String> javaTimestampFormats = getJavaTimestampFormats();
         if (javaTimestampFormats.contains("TAI64N")) {
             // There's no format for TAI64N in the timestamp formats used in mappings
-            return Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, "keyword");
+            return Collections.singletonMap(TextStructureUtils.MAPPING_TYPE_SETTING, "keyword");
         }
         Map<String, String> mapping = new LinkedHashMap<>();
-        mapping.put(FileStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
+        mapping.put(TextStructureUtils.MAPPING_TYPE_SETTING, needNanosecondPrecision() ? "date_nanos" : "date");
         String formats = javaTimestampFormats.stream().map(format -> {
             switch (format) {
                 case "ISO8601":
@@ -1173,7 +1171,7 @@ public final class TimestampFormatFinder {
             }
         }).collect(Collectors.joining("||"));
         if (formats.isEmpty() == false) {
-            mapping.put(FileStructureUtils.MAPPING_FORMAT_SETTING, formats);
+            mapping.put(TextStructureUtils.MAPPING_FORMAT_SETTING, formats);
         }
         return mapping;
     }
@@ -1507,7 +1505,7 @@ public final class TimestampFormatFinder {
                     for (int pos = 0; pos < format.length(); ++pos) {
                         char curChar = format.charAt(pos);
                         if (curChar == '\'') {
-                            notQuoted = !notQuoted;
+                            notQuoted = notQuoted == false;
                         } else if (notQuoted && (curChar == 'X' || curChar == 'z')) {
                             return false;
                         }
@@ -1537,7 +1535,7 @@ public final class TimestampFormatFinder {
                             // from off to on or on to off and then back. However, since by definition there
                             // is nothing in between the consecutive single quotes in this case, the net
                             // effect is correct and good enough for what this method is doing.
-                            notQuoted = !notQuoted;
+                            notQuoted = notQuoted == false;
                             consecutiveSs = 0;
                         } else if (notQuoted) {
                             if (curChar == 'S') {
@@ -1841,11 +1839,8 @@ public final class TimestampFormatFinder {
                 format = adjustFractionalSecondsFromEndOfExample(example, format);
             }
 
-            assert Character.isLetter(format.charAt(format.length() - 1)) : "Unexpected format ["
-                + format
-                + "] from example ["
-                + example
-                + "]";
+            assert Character.isLetter(format.charAt(format.length() - 1))
+                : "Unexpected format [" + format + "] from example [" + example + "]";
             assert format.length() == example.length() : "Unexpected format [" + format + "] from example [" + example + "]";
 
             return Collections.singletonList(format);

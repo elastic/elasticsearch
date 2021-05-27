@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_transport_changes]]
-=== Transport changes
+==== Transport changes
 
 //tag::notable-breaking-changes[]
 .Several `transport` settings have been replaced.

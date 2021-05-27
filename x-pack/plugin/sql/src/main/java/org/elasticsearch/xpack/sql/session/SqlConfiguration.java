@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.session;
 
@@ -13,6 +14,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.time.ZoneId;
+import java.util.Map;
 
 // Typed object holding properties for a given query
 public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
@@ -29,7 +31,11 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     @Nullable
     private QueryBuilder filter;
 
+    @Nullable
+    private Map<String, Object> runtimeMappings;
+
     public SqlConfiguration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
+                         Map<String, Object> runtimeMappings,
                          Mode mode, String clientId, SqlVersion version,
                          String username, String clusterName,
                          boolean multiValueFieldLeniency,
@@ -41,6 +47,7 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
         this.filter = filter;
+        this.runtimeMappings = runtimeMappings;
         this.mode = mode == null ? Mode.PLAIN : mode;
         this.clientId = clientId;
         this.version = version != null ? version : SqlVersion.fromId(Version.CURRENT.id);
@@ -63,6 +70,11 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     public QueryBuilder filter() {
         return filter;
     }
+
+    public Map<String, Object> runtimeMappings() {
+        return runtimeMappings;
+    }
+
     public Mode mode() {
         return mode;
     }

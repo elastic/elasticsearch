@@ -65,7 +65,7 @@ SELECT MAX(salary_ul)::STRING AS x FROM test_emp_copy;
 
        x:s
 ---------------
-74999.0
+74999
 ;
 
 selectWithGroupByCountAndOrderBy

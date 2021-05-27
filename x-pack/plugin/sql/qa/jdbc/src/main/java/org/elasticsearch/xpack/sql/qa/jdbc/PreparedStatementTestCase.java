@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -29,6 +30,7 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BOOLEAN;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.BYTE;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.DOUBLE;
@@ -39,7 +41,10 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_TYPE_NAME;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isUnsignedLongSupported;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -152,6 +157,61 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    public void testDatetimeWithNanos() throws IOException, SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+
+        long randomTimestampWitnNanos = randomTimeInNanos();
+        int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
+        setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+                Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertFalse(results.next());
+                }
+
+                ts.setNanos(randomNanosOnly);
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertTrue(results.next());
+                    assertEquals(1002, results.getInt(1));
+                    assertEquals(ts, results.getTimestamp(2));
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
+    public void testDateTimeWithNanosAgainstDriverWithoutSupport() throws IOException, SQLException {
+        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+
+        long randomTimestampWitnNanos = randomTimeInNanos();
+        int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
+        setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+                Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertFalse(results.next());
+                }
+
+                ts.setNanos(randomNanosOnly);
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
     public void testDate() throws IOException, SQLException {
         long randomMillis = randomNonNegativeLong();
         setupIndexForDateTimeTests(randomMillis);
@@ -168,7 +228,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                     for (int i = 1; i <= 3; i++) {
                         assertTrue(results.next());
                         assertEquals(1000 + i, results.getInt(1));
-                        assertEquals(new Timestamp(testMillis(randomMillis, i)), results.getTimestamp(2));
+                        assertEquals(new Timestamp(adjustTimestampForEachDocument(randomMillis, i)), results.getTimestamp(2));
                     }
                     assertFalse(results.next());
                 }
@@ -408,19 +468,40 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
-    private static long testMillis(long randomMillis, int i) {
+    // Each time the tests pass a random time in millis/nanos and this method slightly changes this timestamp
+    // for each document (based on the iteration index i) so that the test can assert that the filtering is working
+    // properly and only the desired docs are returned (id of each doc is also based on i and relates to the adjusted
+    // timestamp).
+    private static long adjustTimestampForEachDocument(long randomMillis, int i) {
         return randomMillis - 2 + i;
     }
 
     private static void setupIndexForDateTimeTests(long randomMillis) throws IOException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"birth_date\":{\"type\":\"date\"}}";
+        setupIndexForDateTimeTests(randomMillis, false);
+    }
+
+    private static void setupIndexForDateTimeTestsWithNanos(long randomNanos) throws IOException {
+        setupIndexForDateTimeTests(randomNanos, true);
+    }
+
+    private static void setupIndexForDateTimeTests(long randomMillisOrNanos, boolean isNanos) throws IOException {
+        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},";
+        if (isNanos) {
+            mapping += "\"test_date_nanos\":{\"type\":\"date_nanos\"}}";
+        } else {
+            mapping += "\"birth_date\":{\"type\":\"date\"}}";
+        }
         createIndex("emps", Settings.EMPTY, mapping);
         for (int i = 1; i <= 3; i++) {
             int id = 1000 + i;
-            long testMillis = testMillis(randomMillis, i);
+            long testMillisOrNanos = adjustTimestampForEachDocument(randomMillisOrNanos, i);
             index("emps", "" + i, builder -> {
                 builder.field("id", id);
-                builder.field("birth_date", testMillis);
+                if (isNanos) {
+                    builder.field("test_date_nanos", JdbcTestUtils.asStringTimestampFromNanos(testMillisOrNanos));
+                } else {
+                    builder.field("birth_date", testMillisOrNanos);
+                }
             });
         }
     }

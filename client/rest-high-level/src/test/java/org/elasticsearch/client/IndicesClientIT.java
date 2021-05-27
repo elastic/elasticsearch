@@ -1542,7 +1542,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertTrue(freeze.isAcknowledged());
 
         ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
-            client.indices()::unfreezeAsync);
+            client.indices()::unfreezeAsync, freezeIndexOptions);
         assertTrue(unfreeze.isShardsAcknowledged());
         assertTrue(unfreeze.isAcknowledged());
     }

@@ -2968,7 +2968,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::unfreeze-index-request-indicesOptions
 
             // tag::unfreeze-index-execute
-            ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, RequestOptions.DEFAULT);
+            final RequestOptions unfreezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
+            ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, unfreezeIndexOptions);
             // end::unfreeze-index-execute
 
             // tag::unfreeze-index-response

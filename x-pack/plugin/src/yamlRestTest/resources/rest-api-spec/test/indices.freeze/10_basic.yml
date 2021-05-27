@@ -34,6 +34,8 @@
 
 # unfreeze
 - do:
+    warnings:
+      - "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. They will be removed in a future release."
     indices.unfreeze:
       index: test
 

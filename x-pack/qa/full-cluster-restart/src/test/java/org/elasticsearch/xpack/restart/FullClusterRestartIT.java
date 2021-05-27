@@ -695,7 +695,14 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             request.addParameter("ignore_throttled", "false");
             assertThat(XContentMapValues.extractValue("hits.total.value", entityAsMap(client().performRequest(request))),
                 equalTo(totalHits));
-            assertOK(client().performRequest(new Request("POST", index + "/_unfreeze")));
+            final Request unfreezeRequest = new Request("POST", index + "/_unfreeze");
+            unfreezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given "
+                        + "improvements in heap memory utilization. They will be removed in a future release."
+                )
+            );
+            assertOK(client().performRequest(unfreezeRequest));
             ensureGreen(index);
             assertNoFileBasedRecovery(index, n -> true);
         }

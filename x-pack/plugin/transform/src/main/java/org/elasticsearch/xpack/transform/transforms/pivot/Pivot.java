@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchStatusException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -20,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -70,9 +70,11 @@ public class Pivot extends AbstractCompositeAggFunction {
     public void validateConfig(ActionListener<Boolean> listener) {
         for (AggregationBuilder agg : config.getAggregationConfig().getAggregatorFactories()) {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
-                // todo: change to ValidationException
                 listener.onFailure(
-                    new ElasticsearchStatusException("Unsupported aggregation type [{}]", RestStatus.BAD_REQUEST, agg.getType())
+                    new ValidationException()
+                        .addValidationError(
+                            new ParameterizedMessage("Unsupported aggregation type [{}]", agg.getType()).getFormattedMessage()
+                        )
                 );
                 return;
             }

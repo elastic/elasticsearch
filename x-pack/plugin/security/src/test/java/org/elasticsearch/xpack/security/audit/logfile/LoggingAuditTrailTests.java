@@ -1115,7 +1115,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String expectedCreateServiceAccountTokenAuditEventString =
             String.format(Locale.ROOT,
-                "\"create\":{\"service_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"token_name\":\"%s\"}}",
+                "\"create\":{\"service_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"name\":\"%s\"}}",
                 namespace, serviceName, tokenName);
         assertThat(generatedCreateServiceAccountTokenAuditEventString, containsString(expectedCreateServiceAccountTokenAuditEventString));
         generatedCreateServiceAccountTokenAuditEventString =
@@ -1142,7 +1142,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
         final String expectedDeleteServiceAccountTokenAuditEventString =
             String.format(Locale.ROOT,
-                "\"delete\":{\"service_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"token_name\":\"%s\"}}",
+                "\"delete\":{\"service_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"name\":\"%s\"}}",
                 namespace, serviceName, tokenName);
         assertThat(generatedDeleteServiceAccountTokenAuditEventString, containsString(expectedDeleteServiceAccountTokenAuditEventString));
         generatedDeleteServiceAccountTokenAuditEventString =

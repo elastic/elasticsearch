@@ -1183,7 +1183,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .startObject("service_token")
                 .field("namespace", createServiceAccountTokenRequest.getNamespace())
                 .field("service", createServiceAccountTokenRequest.getServiceName())
-                .field("token_name", createServiceAccountTokenRequest.getTokenName())
+                .field("name", createServiceAccountTokenRequest.getTokenName())
                 .endObject() // service_token
                 .endObject();
             logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
@@ -1197,7 +1197,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 .startObject("service_token")
                 .field("namespace", deleteServiceAccountTokenRequest.getNamespace())
                 .field("service", deleteServiceAccountTokenRequest.getServiceName())
-                .field("token_name", deleteServiceAccountTokenRequest.getTokenName())
+                .field("name", deleteServiceAccountTokenRequest.getTokenName())
                 .endObject() // service_token
                 .endObject();
             logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));

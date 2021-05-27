@@ -37,8 +37,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.NlpPipeline;
-import org.elasticsearch.xpack.ml.inference.pipelines.nlp.PipelineConfig;
+import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
+import org.elasticsearch.xpack.ml.inference.nlp.NlpTaskConfig;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
@@ -106,46 +106,42 @@ public class DeploymentManager {
 
         ActionListener<SearchResponse> configListener = ActionListener.wrap(
             searchResponse -> {
-                logger.info("search response");
                 if (searchResponse.getHits().getHits().length == 0) {
                     failTask(task, new ResourceNotFoundException(
-                        Messages.getMessage(Messages.PIPELINE_CONFIG_NOT_FOUND, task.getModelId())));
+                        Messages.getMessage(Messages.TASK_CONFIG_NOT_FOUND, task.getModelId())));
                     return;
                 }
 
-                PipelineConfig config = parseModelDefinitionDocLeniently(searchResponse.getHits().getAt(0));
-                NlpPipeline pipeline = NlpPipeline.fromConfig(config);
-                logger.info("loaded pipeline");
-                processContext.pipeline.set(pipeline);
+                NlpTaskConfig config = parseConfigDocLeniently(searchResponse.getHits().getAt(0));
+                NlpTask nlpTask = NlpTask.fromConfig(config);
+                processContext.nlpTask.set(nlpTask);
                 processContext.startProcess();
                 processContext.loadModel(modelLoadedListener);
-
             },
             e -> failTask(task, e)
         );
 
-        logger.info("looking for config " + PipelineConfig.documentId(task.getModelId()));
-        SearchRequest searchRequest = pipelineConfigSearchRequest(task.getModelId(), task.getIndex());
+        SearchRequest searchRequest = taskConfigSearchRequest(task.getModelId(), task.getIndex());
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, configListener);
     }
 
-    private SearchRequest pipelineConfigSearchRequest(String modelId, String index) {
+    private SearchRequest taskConfigSearchRequest(String modelId, String index) {
         return client.prepareSearch(index)
-            .setQuery(new IdsQueryBuilder().addIds(PipelineConfig.documentId(modelId)))
+            .setQuery(new IdsQueryBuilder().addIds(NlpTaskConfig.documentId(modelId)))
             .setSize(1)
             .setTrackTotalHits(false)
             .request();
     }
 
 
-    public PipelineConfig parseModelDefinitionDocLeniently(SearchHit hit) throws IOException {
+    public NlpTaskConfig parseConfigDocLeniently(SearchHit hit) throws IOException {
 
         try (InputStream stream = hit.getSourceRef().streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                  .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
-            return PipelineConfig.fromXContent(parser, true);
+            return NlpTaskConfig.fromXContent(parser, true);
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("failed to parse pipeline config [{}]", hit.getId()), e);
+            logger.error(new ParameterizedMessage("failed to parse NLP task config [{}]", hit.getId()), e);
             throw e;
         }
     }
@@ -156,14 +152,16 @@ public class DeploymentManager {
             processContext = processContextByAllocation.get(task.getAllocationId());
         }
         if (processContext != null) {
-            logger.debug("[{}] Stopping deployment", task.getModelId());
+            logger.info("[{}] Stopping deployment", task.getModelId());
             processContext.stopProcess();
         } else {
-            logger.debug("[{}] No process context to stop", task.getModelId());
+            logger.info("[{}] No process context to stop", task.getModelId());
         }
     }
 
-    public void infer(TrainedModelDeploymentTask task, String input, ActionListener<InferenceResults> listener) {
+    public void infer(TrainedModelDeploymentTask task,
+                      String input, TimeValue timeout,
+                      ActionListener<InferenceResults> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
 
         final String requestId = String.valueOf(requestIdCounter.getAndIncrement());
@@ -177,14 +175,12 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    NlpPipeline.Processor processor = processContext.pipeline.get().createProcessor();
-
-                    logger.info("tokenizing input [{}]",  input);
+                    NlpTask.Processor processor = processContext.nlpTask.get().createProcessor();
                     BytesReference request = processor.getRequestBuilder().buildRequest(requestId, input);
-                    logger.info("Inference Request "+ request.utf8ToString());
+                    logger.trace("Inference Request "+ request.utf8ToString());
                     processContext.process.get().writeInferenceRequest(request);
 
-                    waitForResult(processContext, requestId, processor.getResultProcessor(), listener);
+                    waitForResult(processContext, requestId, timeout, processor.getResultProcessor(), listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
@@ -195,11 +191,10 @@ public class DeploymentManager {
 
     private void waitForResult(ProcessContext processContext,
                                String requestId,
-                               NlpPipeline.ResultProcessor inferenceResultsProcessor,
+                               TimeValue timeout,
+                               NlpTask.ResultProcessor inferenceResultsProcessor,
                                ActionListener<InferenceResults> listener) {
         try {
-            // TODO the timeout value should come from the action
-            TimeValue timeout = TimeValue.timeValueSeconds(5);
             PyTorchResult pyTorchResult = processContext.resultProcessor.waitForResult(requestId, timeout);
             if (pyTorchResult == null) {
                 listener.onFailure(new ElasticsearchStatusException("timeout [{}] waiting for inference result",
@@ -225,7 +220,7 @@ public class DeploymentManager {
         private final String modelId;
         private final String index;
         private final SetOnce<NativePyTorchProcess> process = new SetOnce<>();
-        private final SetOnce<NlpPipeline> pipeline = new SetOnce<>();
+        private final SetOnce<NlpTask> nlpTask = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 

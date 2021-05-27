@@ -28,7 +28,7 @@ public class NlpTask {
         return taskType.createProcessor(tokenizer);
     }
 
-    public static NlpTask fromConfig(TaskConfig config) {
+    public static NlpTask fromConfig(NlpTaskConfig config) {
         return new NlpTask(config.getTaskType(), config.buildTokenizer());
     }
 

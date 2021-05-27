@@ -304,7 +304,7 @@ POST _reindex?slices=5&refresh
 ----------------------------------------------------------------
 // TEST[setup:my_index_big]
 
-You can also this verify works by:
+You can also verify this works by:
 
 [source,console]
 ----------------------------------------------------------------

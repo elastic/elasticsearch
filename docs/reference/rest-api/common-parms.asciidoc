@@ -27,19 +27,18 @@ end::index-alias[]
 
 tag::aliases[]
 `aliases`::
-(Optional, <<indices-aliases,alias object>>) <<indices-aliases,Index aliases>>
-which include the index. Index alias names support <<date-math-index-names,date
-math>>.
+(Optional, <<alias,alias object>>) Index aliases which include the index. Index
+alias names support <<date-math-index-names,date math>>.
 end::aliases[]
 
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)
 If `false`, the request returns an error if any wildcard expression,
-<<indices-aliases,index alias>>, or `_all` value targets only missing or closed
-indices. This behavior applies even if the request targets other open indices.
-For example, a request targeting `foo*,bar*` returns an error if an index
-starts with `foo` but no index starts with `bar`.
+<<alias,index alias>>, or `_all` value targets only missing or closed indices.
+This behavior applies even if the request targets other open indices. For
+example, a request targeting `foo*,bar*` returns an error if an index starts
+with `foo` but no index starts with `bar`.
 end::allow-no-indices[]
 
 tag::allow-no-match-transforms1[]
@@ -215,7 +214,7 @@ tag::ds-expand-wildcards[]
 +
 --
 (Optional, string)
-Type of data stream that wildcard expressions can match. Supports
+Type of data stream that wildcard patterns can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::
@@ -225,7 +224,7 @@ Match any data stream, including <<hidden,hidden>> ones.
 Matches any non-hidden data stream. Data streams cannot be closed.
 
 `none`::
-Wildcard expressions are not accepted.
+Wildcard patterns are not accepted.
 --
 end::ds-expand-wildcards[]
 
@@ -234,10 +233,10 @@ tag::expand-wildcards[]
 +
 --
 (Optional, string)
-Type of index that wildcard expressions can match. If the request can target
-data streams, this argument determines whether wildcard expressions match
-hidden data streams. Supports comma-separated values, such as `open,hidden`.
-Valid values are:
+Type of index that wildcard patterns can match. If the request can target data
+streams, this argument determines whether wildcard expressions match hidden data
+streams. Supports comma-separated values, such as `open,hidden`. Valid values
+are:
 
 `all`::
 Match any data stream or index, including <<hidden,hidden>> ones.
@@ -254,7 +253,7 @@ Match hidden data streams and hidden indices. Must be combined with `open`,
 `closed`, or both.
 
 `none`::
-Wildcard expressions are not accepted.
+Wildcard patterns are not accepted.
 --
 end::expand-wildcards[]
 
@@ -622,15 +621,14 @@ end::memory[]
 tag::bulk-require-alias[]
 `require_alias`::
 (Optional, Boolean)
-If `true`, the action must target an <<indices-aliases,index alias>>. Defaults
-to `false`.
+If `true`, the action must target an <<alias,index alias>>. Defaults to
+`false`.
 end::bulk-require-alias[]
 
 tag::require-alias[]
 `require_alias`::
-(Optional, Boolean)
-If `true`, the destination must be an <<indices-aliases,index alias>>. Defaults to
-`false`.
+(Optional, Boolean) If `true`, the destination must be an <<alias,index alias>>.
+Defaults to `false`.
 end::require-alias[]
 
 tag::bulk-dynamic-templates[]

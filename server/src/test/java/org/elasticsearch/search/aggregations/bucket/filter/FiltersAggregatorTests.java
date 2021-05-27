@@ -928,20 +928,16 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         IntFunction<List<? extends IndexableField>> buildDocWithField
     ) throws IOException {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
-            for (int i = 0; i < 10; i++) {
-                iw.addDocument(buildDocWithField.apply(i));
-            }
-            for (int i = 0; i < 10; i++) {
-                iw.addDocument(org.elasticsearch.common.collect.List.of());
-            }
-        };
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
         debugTestCase(
             builder,
             new MatchAllDocsQuery(),
-            buildIndex,
+            iw -> {
+                for (int i = 0; i < 10; i++) {
+                    iw.addDocument(buildDocWithField.apply(i));
+                }
+            },
             (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(1));
                 assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
@@ -956,7 +952,14 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             fieldType,
             fnft
         );
-        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+        withAggregator(builder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(buildDocWithField.apply(i));
+            }
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(org.elasticsearch.common.collect.List.of());
+            }
+        }, (searcher, aggregator) -> {
             long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
             Map<String, Object> debug = new HashMap<>();
             aggregator.collectDebugInfo(debug::put);

@@ -1,12 +1,10 @@
 [[indices-alias-exists]]
-=== Index alias exists API
+=== Alias exists API
 ++++
-<titleabbrev>Index alias exists</titleabbrev>
+<titleabbrev>Alias exists</titleabbrev>
 ++++
 
-Checks if an index alias exists.
-
-include::{es-repo-dir}/indices/add-alias.asciidoc[tag=index-alias-desc]
+Checks if an <<alias,alias>> exists.
 
 [source,console]
 ----

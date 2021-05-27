@@ -34,7 +34,7 @@ or `manage` <<privileges-list-indices,index privilege>> for the target index.
 delete.
 
 In this parameter, wildcard expressions match only open, concrete indices. You
-cannot delete an index using an <<indices-aliases,alias>>.
+cannot delete an index using an <<alias,alias>>.
 
 To delete all indices, use `_all` or `*` . To disallow the deletion of indices
 with `_all` or wildcard expressions, change the

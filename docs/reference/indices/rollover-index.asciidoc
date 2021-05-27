@@ -4,8 +4,7 @@
 <titleabbrev>Rollover</titleabbrev>
 ++++
 
-Creates a new index for a <<data-streams,data stream>> or
-<<indices-add-alias,index alias>>.
+Creates a new index for a <<data-streams,data stream>> or <<alias,index alias>>.
 
 [source,console]
 ----

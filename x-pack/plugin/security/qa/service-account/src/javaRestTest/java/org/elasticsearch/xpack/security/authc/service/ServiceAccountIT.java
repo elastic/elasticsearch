@@ -50,7 +50,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
         + "  \"email\": null,\n"
         + "  \"token\": {\n"
-        + "    \"name\": \"%s\"\n"
+        + "    \"name\": \"%s\",\n"
+        + "    \"type\": \"_service_account_%s\"\n"
         + "  },\n"
         + "  \"metadata\": {\n"
         + "    \"_elastic_service_account\": true\n"
@@ -176,7 +177,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(response);
         assertThat(responseAsMap(response),
             equalTo(XContentHelper.convertToMap(
-                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1")),
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1", "file")),
                 false, XContentType.JSON).v2()));
     }
 
@@ -254,7 +255,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(response);
         assertThat(responseAsMap(response),
             equalTo(XContentHelper.convertToMap(
-                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1")),
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1", "index")),
                 false, XContentType.JSON).v2()));
     }
 

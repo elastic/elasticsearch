@@ -52,10 +52,11 @@ can match this text by using the following grok expression:
 [[grok-patterns]]
 ==== Use grok patterns in Painless scripts
 You can incorporate predefined grok patterns into Painless scripts to extract
-data. To test your script, use either the {painless}/painless-execute-api.html[field contexts] of the Painless execute API or create a runtime field that
-includes the script. Runtime fields offer greater flexibility and accept
-multiple documents, but the Painless execute API is a great option if you don't
-have write access on a cluster where you're testing a script.
+data. To test your script, use either the {painless}/painless-execute-api.html#painless-execute-runtime-field-context[field contexts] of the Painless
+execute API or create a runtime field that includes the script. Runtime fields
+offer greater flexibility and accept multiple documents, but the Painless
+execute API is a great option if you don't have write access on a cluster
+where you're testing a script.
 
 TIP: If you need help building grok patterns to match your data, use the 
 {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool in {kib}.

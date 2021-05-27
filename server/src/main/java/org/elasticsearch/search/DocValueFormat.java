@@ -368,6 +368,11 @@ public interface DocValueFormat extends NamedWriteable {
         public String format(double value) {
             return format((long) value);
         }
+
+        @Override
+        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            return GeoTileUtils.longEncode(value);
+        }
     };
 
     final class BooleanDocValueFormat implements DocValueFormat {

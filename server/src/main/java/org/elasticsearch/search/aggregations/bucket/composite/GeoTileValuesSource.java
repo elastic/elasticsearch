@@ -14,7 +14,6 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
@@ -42,9 +41,14 @@ class GeoTileValuesSource extends LongValuesSource {
         if (missingBucket && value == null) {
             afterValue = null;
         } else if (value instanceof Number) {
+            // Is it actually possible to hit this case?
             afterValue = ((Number) value).longValue();
         } else {
-            afterValue = GeoTileUtils.longEncode(value.toString());
+            afterValue = format.parseLong(
+                value.toString(),
+                false,
+                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
+            );
         }
     }
 }

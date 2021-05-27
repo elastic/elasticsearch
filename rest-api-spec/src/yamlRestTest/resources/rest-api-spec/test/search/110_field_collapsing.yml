@@ -258,10 +258,8 @@ setup:
 ---
 "field collapsing and search_after":
   - skip:
-      version: all
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/73316"
-      #version: " - 7.13.99"
-      #reason: "support for collapsing with search_after was added in 7.14"
+      version: " - 7.13.99"
+      reason: "support for collapsing with search_after was added in 7.14"
   - do:
       search:
         index: test

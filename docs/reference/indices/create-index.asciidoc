@@ -83,7 +83,7 @@ The object body contains options for the alias. Supports an empty object.
 [%collapsible%open]
 =====
 `filter`::
-(Optional, <<query-dsl,Query DSL object>>) Query used to limit the documents an
+(Optional, <<query-dsl,Query DSL object>>) Query used to limit the documents the
 alias can access.
 
 `index_routing`::
@@ -91,7 +91,7 @@ alias can access.
 If specified, this overwrites the `routing` value for indexing operations.
 
 `is_hidden`::
-(Optional, Boolean) If `true`, the index is <<hidden,hidden>>. Defaults to
+(Optional, Boolean) If `true`, the alias is <<hidden,hidden>>. Defaults to
 `false`.
 
 `is_write_index`::

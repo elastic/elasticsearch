@@ -72,61 +72,43 @@ public class NlpHelpersTests extends ESTestCase {
         }
     }
 
+    public void testTopK_SimpleCase() {
+        int k = 3;
+        double[] data = new double[]{1.0, 0.0, 2.0, 8.0, 9.0, 4.2, 4.2, 3.0};
+
+        NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(k, data);
+        assertEquals(4, scoreAndIndices[0].index);
+        assertEquals(3, scoreAndIndices[1].index);
+        assertEquals(5, scoreAndIndices[2].index);
+        assertEquals(9.0, scoreAndIndices[0].score, 0.001);
+        assertEquals(8.0, scoreAndIndices[1].score, 0.001);
+        assertEquals(4.2, scoreAndIndices[2].score, 0.001);
+    }
+
     public void testTopK() {
-        {
-            int k = 3;
-            double[] data = new double[]{1.0, 0.0, 2.0, 8.0, 9.0, 4.2, 4.2, 3.0};
-            int[] topKIndices = NlpHelpers.topK(k, data);
-            assertArrayEquals(new int[]{4, 3, 5}, topKIndices);
-
-            NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topKWithHeap(k, data);
-            assertEquals(4, scoreAndIndices[0].index);
-            assertEquals(3, scoreAndIndices[1].index);
-            assertEquals(5, scoreAndIndices[2].index);
-            assertEquals(9.0, scoreAndIndices[0].score, 0.001);
-            assertEquals(8.0, scoreAndIndices[1].score, 0.001);
-            assertEquals(4.2, scoreAndIndices[2].score, 0.001);
+        // in this case use the standard java libraries to sort the
+        // doubles and track the starting index of each value
+        int size = randomIntBetween(50, 100);
+        int k = randomIntBetween(1, 10);
+        double[] data = new double[size];
+        for (int i = 0; i < data.length; i++) {
+            data[i] = randomDouble();
         }
-        {
-            int k = 5;
-            double[] data = new double[]{10.0, 0.0, 2.0, 6.0, 9.0, 4.2, 7.6, 6.0, 0.2, 4.2, 3.0, 0.1, 4.0};
-            int[] topKIndices = NlpHelpers.topK(k, data);
 
-            assertArrayEquals(new int[]{0, 4, 6, 7, 3}, topKIndices);
-        }
-        {
-            // in this case use the standard java libraries to sort the
-            // doubles and track the starting index of each value
-            int size = randomIntBetween(50, 100);
-            int k = randomIntBetween(1, 10);
-            double[] data = new double[size];
-            for (int i=0; i<data.length; i++) {
-                data[i] = randomDouble();
-            }
-
-            AtomicInteger index = new AtomicInteger(0);
-            List<NlpHelpers.ScoreAndIndex> sortedByValue =
-                Stream.generate(() -> new NlpHelpers.ScoreAndIndex(data[index.get()], index.getAndIncrement()))
+        AtomicInteger index = new AtomicInteger(0);
+        List<NlpHelpers.ScoreAndIndex> sortedByValue =
+            Stream.generate(() -> new NlpHelpers.ScoreAndIndex(data[index.get()], index.getAndIncrement()))
                 .limit(size)
                 .sorted((o1, o2) -> Double.compare(o2.score, o1.score))
                 .collect(Collectors.toList());
 
-            int[] topKIndices = NlpHelpers.topK(k, data);
+        NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(k, data);
+        assertEquals(k, scoreAndIndices.length);
 
-            // now compare the starting indices in the sorted list
-            // to the top k.
-            for (int i=0; i<topKIndices.length; i++) {
-                assertEquals(sortedByValue.get(i).index, topKIndices[i]);
-            }
-
-            NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topKWithHeap(k, data);
-            assertEquals(k, scoreAndIndices.length);
-
-            // now compare the starting indices in the sorted list
-            // to the top k.
-            for (int i=0; i<scoreAndIndices.length; i++) {
-                assertEquals(sortedByValue.get(i), scoreAndIndices[i]);
-            }
+        // now compare the starting indices in the sorted list
+        // to the top k.
+        for (int i = 0; i < scoreAndIndices.length; i++) {
+            assertEquals(sortedByValue.get(i), scoreAndIndices[i]);
         }
     }
 }

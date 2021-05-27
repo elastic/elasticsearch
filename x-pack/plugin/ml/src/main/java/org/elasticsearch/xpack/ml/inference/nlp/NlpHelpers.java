@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 
+import java.util.Comparator;
 import java.util.Objects;
 import java.util.PriorityQueue;
 
@@ -49,7 +50,11 @@ public final class NlpHelpers {
         return probabilities;
     }
 
-
+    /**
+     * Find the index of the highest value in {@code arr}
+     * @param arr Array to search
+     * @return Index of highest value
+     */
     static int argmax(double[] arr) {
         int maxIndex = 0;
         for (int i = 1; i < arr.length; i++) {
@@ -61,8 +66,20 @@ public final class NlpHelpers {
     }
 
 
-    static ScoreAndIndex[] topKWithHeap(int k, double[] arr) {
-        PriorityQueue<ScoreAndIndex> minHeap = new PriorityQueue<>(k, (o1, o2) -> Double.compare(o1.score, o2.score));
+    /**
+     * Find the top K highest values in {@code arr} and their
+     * index positions. Similar to {@link #argmax(double[])}
+     * but generalised to k instead of just 1.
+     *
+     * The function uses a PriorityQueue of size {@code k} to
+     * track the highest values
+     * @param k Number of values to track
+     * @param arr Array to search
+     * @return Index positions and values of the top k elements.
+     */
+    static ScoreAndIndex[] topK(int k, double[] arr) {
+        PriorityQueue<ScoreAndIndex> minHeap = new PriorityQueue<>(k, Comparator.comparingDouble(o -> o.score));
+        // initialise with the first k values
         for (int i=0; i<k; i++) {
             minHeap.add(new ScoreAndIndex(arr[i], i));
         }
@@ -85,55 +102,7 @@ public final class NlpHelpers {
         return result;
     }
 
-    /**
-     *
-     * @param k
-     * @param arr
-     * @return
-     */
-    static int[] topK(int k, double[] arr) {
-        int[] topK = new int[k];
-        for (int i=0; i<k; i++) {
-            topK[i] = i;
-        }
-
-        int min = indexOfSmallestValue(topK, arr);
-        for (int i = k; i < arr.length; i++) {
-            if (arr[i] > arr[topK[min]]) {
-                topK[min] = i;
-                min = indexOfSmallestValue(topK, arr);
-            }
-        }
-
-        // Sort the result so the largest values are at the beginning
-        insertionSort(topK, arr);
-        return topK;
-    }
-
-    // modifies indices
-    private static void insertionSort(int [] indices, double [] data) {
-        for (int i=1; i< indices.length; i++) {
-            int j = i;
-            while (j > 0 && data[indices[j-1]] < data[indices[j]]) {
-                int tmp = indices[j-1];
-                indices[j-1] = indices[j];
-                indices[j] = tmp;
-                j--;
-            }
-        }
-    }
-
-    private static int indexOfSmallestValue(int [] indices, double [] data) {
-        int minIndex = 0;
-        for (int i=1; i<indices.length; i++) {
-            if (data[indices[i]] < data[indices[minIndex]]) {
-                minIndex = i;
-            }
-        }
-        return minIndex;
-    }
-
-    static class ScoreAndIndex {
+    public static class ScoreAndIndex {
         final double score;
         final int index;
 
@@ -155,5 +124,4 @@ public final class NlpHelpers {
             return Objects.hash(score, index);
         }
     }
-
 }

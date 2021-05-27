@@ -296,8 +296,6 @@ tasks.named("thirdPartyAudit").configure {
     )
   } else {
     ignoreMissingClasses(
-      'com.sun.org.apache.xml.internal.resolver.Catalog',
-      'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
       'javax.activation.DataHandler',
       'javax.activation.DataSource',
       'javax.xml.bind.JAXBElement',
@@ -347,12 +345,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-
-    'reactor.core.publisher.MultiProducerRingBuffer',
-    'reactor.core.publisher.RingBufferFields',
-
-    'javax.activation.MailcapCommandMap',
-    'javax.activation.MimetypesFileTypeMap',
 
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
   )

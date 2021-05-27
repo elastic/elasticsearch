@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.test.rest.ESRestTestCase.expectWarnings;
+
 public class DataLoader {
 
     public static void main(String[] args) throws Exception {
@@ -393,7 +395,14 @@ public class DataLoader {
 
     protected static void freeze(RestClient client, String... indices) throws Exception {
         for (String index : indices) {
-            client.performRequest(new Request("POST", "/" + index + "/_freeze"));
+            Request freezeRequest = new Request("POST", "/" + index + "/_freeze");
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given improvements in "
+                        + "heap memory utilization. They will be removed in a future release."
+                )
+            );
+            client.performRequest(freezeRequest);
         }
     }
 

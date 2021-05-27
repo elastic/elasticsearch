@@ -49,6 +49,7 @@ DELETE /_index_template/foo_data_stream
 ----
 GET /_resolve/index/my-index-*
 ----
+// TEST[skip:unable to ignore deprecation warning]
 
 [[resolve-index-api-request]]
 ==== {api-request-title}

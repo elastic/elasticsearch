@@ -325,7 +325,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
      *
      * @return version
      */
-    public List<SourceDestValidation> getAdditionalValidations() {
+    public List<SourceDestValidation> getAdditionalSourceDestValidations() {
         if ((source.getRuntimeMappings() == null || source.getRuntimeMappings().isEmpty()) == false) {
             SourceDestValidation validation =
                 new SourceDestValidator.RemoteClusterMinimumVersionValidation(
@@ -337,40 +337,19 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        validationException = source.validate(validationException);
+        validationException = dest.validate(validationException);
+        validationException = settings.validate(validationException);
         if (pivotConfig != null) {
             validationException = pivotConfig.validate(validationException);
         }
         if (latestConfig != null) {
             validationException = latestConfig.validate(validationException);
         }
-        validationException = settings.validate(validationException);
-
         if (retentionPolicyConfig != null) {
             validationException = retentionPolicyConfig.validate(validationException);
         }
-
         return validationException;
-    }
-
-    public boolean isValid() {
-        // todo: base this on validate
-        if (pivotConfig != null && pivotConfig.isValid() == false) {
-            return false;
-        }
-
-        if (latestConfig != null && latestConfig.validate(null) != null) {
-            return false;
-        }
-
-        if (syncConfig != null && syncConfig.isValid() == false) {
-            return false;
-        }
-
-        if (retentionPolicyConfig != null && retentionPolicyConfig.validate(null) != null) {
-            return false;
-        }
-
-        return settings.isValid() && source.isValid() && dest.isValid();
     }
 
     @Override

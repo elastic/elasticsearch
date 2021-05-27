@@ -55,7 +55,7 @@ disabled using the `ignore_unavailable=true` parameter.
 
 
 By default, you must explicitly name the indices you are opening or closing.
-To open or close indices with `_all`, `*``, or other wildcard
+To open or close indices with `_all`, `*`, or other wildcard
 expressions, change the `action.destructive_requires_name` setting to `false`.
 This setting can also be changed via the cluster update settings api.
 
@@ -89,7 +89,7 @@ the request. Wildcard (`*`) expressions are supported.
 +
 +
 By default, you must explicitly name the indices you using to limit the request.
-To limit a request using `_all`, `*``, or other wildcard
+To limit a request using `_all`, `*`, or other wildcard
 expressions, change the `action.destructive_requires_name` setting to `false`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.

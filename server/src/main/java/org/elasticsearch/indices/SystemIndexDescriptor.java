@@ -259,6 +259,11 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
 
         this.description = description;
         this.mappings = mappings;
+
+        if (Objects.nonNull(settings) && settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
+            throw new IllegalArgumentException("System indices cannot have " + IndexMetadata.SETTING_INDEX_HIDDEN +
+                " set to true.");
+        }
         this.settings = settings;
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;

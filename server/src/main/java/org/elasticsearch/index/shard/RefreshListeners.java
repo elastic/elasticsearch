@@ -168,7 +168,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
     /**
      * Add a listener for refreshes, calling it immediately if the location is already visible. If this runs out of listener slots then it
-     * forces a refresh and calls the listener immediately as well.
+     * forces a refresh and calls the listener immediately as well. The checkpoint cannot be greater than the processed local checkpoint.
      *
      * @param checkpoint the seqNo checkpoint to listen for
      * @param listener for the refresh.
@@ -178,6 +178,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         assert checkpoint >= SequenceNumbers.NO_OPS_PERFORMED;
         if (checkpoint <= lastRefreshedSeqNo) {
             listener.onResponse(null);
+            return true;
+        }
+        long processedSequenceNumber = processedSeqNoSupplier.getAsLong();
+        if (checkpoint > processedSequenceNumber) {
+            IllegalArgumentException e = new IllegalArgumentException("Cannot wait for unprocessed checkpoint [wait_for_checkpoint="
+                + checkpoint + ", processed_checkpoint=" + processedSequenceNumber + "]");
+            listener.onFailure(e);
             return true;
         }
 

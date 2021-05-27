@@ -75,6 +75,7 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -410,9 +411,14 @@ public class RefreshListenersTests extends ESTestCase {
                         DummyRefreshListener listener = new DummyRefreshListener();
                         listeners.addOrNotify(index.getTranslogLocation(), listener);
                         DummySeqNoListener seqNoListener = new DummySeqNoListener();
-                        listeners.addOrNotify(index.getSeqNo(), seqNoListener);
+                        long processedLocalCheckpoint = engine.getProcessedLocalCheckpoint();
+                        // Cannot listen for a sequence number higher than processed local checkpoint currently.
+                        listeners.addOrNotify(Math.min(index.getSeqNo(), processedLocalCheckpoint), seqNoListener);
                         assertBusy(() -> {
                             assertNotNull("location listener never called", listener.forcedRefresh.get());
+                            if (seqNoListener.error != null) {
+                                logger.error(seqNoListener.error);
+                            }
                             assertTrue("seqNo listener never called", seqNoListener.isDone.get());
                         }, 1, TimeUnit.MINUTES);
                         if ((threadCount * 2) < maxListeners) {
@@ -495,6 +501,18 @@ public class RefreshListenersTests extends ESTestCase {
         assertFalse(listeners.addOrNotify(index("1").getSeqNo(), new DummySeqNoListener()));
         assertEquals(1, listeners.pendingLocationListenerCount());
         assertEquals(1, listeners.pendingSeqNoListenersCount());
+    }
+
+    public void testSequenceNumberMustBeProcessed() throws Exception {
+        assertEquals(0, listeners.pendingLocationListenerCount());
+        assertEquals(0, listeners.pendingSeqNoListenersCount());
+        DummySeqNoListener seqNoListener = new DummySeqNoListener();
+        long processed = index("1").getSeqNo();
+        assertTrue(listeners.addOrNotify(processed + 1, seqNoListener));
+        assertThat(seqNoListener.error, instanceOf(IllegalArgumentException.class));
+        String message = "Cannot wait for unprocessed checkpoint [wait_for_checkpoint="
+            + (processed + 1) + ", processed_checkpoint=" + processed + "]";
+        assertThat(seqNoListener.error.getMessage(), equalTo(message));
     }
 
     private Engine.IndexResult index(String id) throws IOException {

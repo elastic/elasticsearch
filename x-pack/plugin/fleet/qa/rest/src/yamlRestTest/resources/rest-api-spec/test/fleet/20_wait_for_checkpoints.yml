@@ -56,3 +56,13 @@ setup:
   - match: { _shards.successful: 1 }
   - match: { _shards.failed: 1 }
   - match: { hits.total.value: 1 }
+
+---
+"Wait for unprocessed checkpoint fails":
+  - do:
+      catch: bad_request
+      fleet.search:
+        index: "test-after-refresh"
+        allow_partial_search_results: false
+        wait_for_checkpoints: [2]
+        body: { query: { match_all: {} } }

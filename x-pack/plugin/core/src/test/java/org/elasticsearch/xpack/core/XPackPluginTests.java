@@ -7,36 +7,21 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
-import java.util.function.UnaryOperator;
 
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.hamcrest.Matchers.containsString;
 
 public class XPackPluginTests extends ESTestCase {
@@ -97,42 +82,8 @@ public class XPackPluginTests extends ESTestCase {
         }
     }
 
-    public void testCustomRestWrapperDeprecationMessage() throws Exception {
-        Settings settings = Settings.builder()
-            .put("xpack.security.enabled", true)
-            .put("path.home", createTempDir())
-            .build();
-        XPackPlugin xpackPlugin = createXPackPlugin(settings);
-        SettingsModule moduleSettings = new SettingsModule(Settings.EMPTY);
-
-        ThreadPool threadPool = new TestThreadPool("testCustomRestWrapperDeprecationMessage");
-        try {
-            UsageService usageService = new UsageService();
-            new ActionModule(false, moduleSettings.getSettings(),
-                TestIndexNameExpressionResolver.newInstance(),
-                moduleSettings.getIndexScopedSettings(), moduleSettings.getClusterSettings(), moduleSettings.getSettingsFilter(),
-                threadPool, singletonList(xpackPlugin), null, null, usageService, null);
-            assertWarnings("The org.elasticsearch.xpack.core.XPackPluginTests$1 plugin installs a custom REST wrapper. " +
-                "This functionality is deprecated and will not be possible in Elasticsearch 8.0. If this plugin is intended to provide " +
-                "security features for Elasticsearch then you should switch to using the built-in Elasticsearch features instead.");
-        } finally {
-            threadPool.shutdown();
-        }
-    }
-
-    class FakeHandler implements RestHandler {
-        @Override
-        public List<Route> routes() {
-            return singletonList(new Route(GET, "/_dummy"));
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        }
-    }
-
-    private XPackPlugin createXPackPlugin (Settings settings) throws Exception {
-        return new XPackPlugin(settings, null) {
+    private XPackPlugin createXPackPlugin(Settings settings) throws Exception {
+        return new XPackPlugin(settings, null){
 
             @Override
             protected void setSslService(SSLService sslService) {
@@ -143,11 +94,7 @@ public class XPackPluginTests extends ESTestCase {
             protected void setLicenseState(XPackLicenseState licenseState) {
                 // disable
             }
-
-            @Override
-            public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-                return handler -> new FakeHandler();
-            }
         };
     }
+
 }

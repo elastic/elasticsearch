@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
@@ -39,6 +40,7 @@ import org.elasticsearch.usage.UsageService;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -192,6 +194,41 @@ public class ActionModuleTests extends ESTestCase {
                     }
                 }));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void testCustomRestWrapperDeprecationMessage() {
+        class FakeHandler implements RestHandler {
+            @Override
+            public List<Route> routes() {
+                return singletonList(new Route(GET, "/_dummy"));
+            }
+
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            }
+        }
+        ActionPlugin secPlugin = new ActionPlugin() {
+            @Override
+            public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+                return handler -> new FakeHandler();
+            }
+        };
+
+        SettingsModule moduleSettings = new SettingsModule(Settings.EMPTY);
+
+        ThreadPool threadPool = new TestThreadPool("testCustomRestWrapperDeprecationMessage");
+        try {
+            UsageService usageService = new UsageService();
+            new ActionModule(false, moduleSettings.getSettings(),
+                TestIndexNameExpressionResolver.newInstance(),
+                moduleSettings.getIndexScopedSettings(), moduleSettings.getClusterSettings(), moduleSettings.getSettingsFilter(),
+                threadPool, singletonList(secPlugin), null, null, usageService, null);
+            assertWarnings("The org.elasticsearch.action.ActionModuleTests$7 plugin installs a custom REST wrapper. " +
+                "This functionality is deprecated and will not be possible in Elasticsearch 8.0. If this plugin is intended to provide " +
+                "security features for Elasticsearch then you should switch to using the built-in Elasticsearch features instead.");
         } finally {
             threadPool.shutdown();
         }

@@ -357,7 +357,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     @Override
-    protected boolean enableWarningsCheck() {
+    protected final boolean enableWarningsCheck() {
         //In an integ test it doesn't make sense to keep track of warnings: if the cluster is external the warnings are in another jvm,
         //if the cluster is internal the deprecation logger is shared across all nodes
         return false;

@@ -75,8 +75,11 @@ class NerResultProcessor implements NlpTask.ResultProcessor {
                     avgScores[j] += scores[i][j];
                 }
             }
-            for (int i = 0; i < avgScores.length; i++) {
-                avgScores[i] /= endTokenIndex - startTokenIndex + 1;
+            int numTokensInBlock = endTokenIndex - startTokenIndex + 1;
+            if (numTokensInBlock > 1) {
+                for (int i = 0; i < avgScores.length; i++) {
+                    avgScores[i] /= numTokensInBlock;
+                }
             }
             int maxScoreIndex = NlpHelpers.argmax(avgScores);
             double score = avgScores[maxScoreIndex];
@@ -95,7 +98,7 @@ class NerResultProcessor implements NlpTask.ResultProcessor {
      * When multiple tokens are grouped together, the entity score is the
      * mean score of the tokens.
      */
-    private List<NerResults.EntityGroup> groupTaggedTokens(List<TaggedToken> tokens) {
+    static List<NerResults.EntityGroup> groupTaggedTokens(List<TaggedToken> tokens) {
         if (tokens.isEmpty()) {
             return Collections.emptyList();
         }
@@ -130,12 +133,12 @@ class NerResultProcessor implements NlpTask.ResultProcessor {
         return entities;
     }
 
-    private static class TaggedToken {
+    static class TaggedToken {
         private final String word;
         private final NerProcessor.IobTag tag;
         private final double score;
 
-        private TaggedToken(String word, NerProcessor.IobTag tag, double score) {
+        TaggedToken(String word, NerProcessor.IobTag tag, double score) {
             this.word = word;
             this.tag = tag;
             this.score = score;

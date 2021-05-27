@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -1057,21 +1058,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .execute(new ActionListener<>() {
                     @Override
                     public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
-                        clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName)
-                                .execute(
-                                        new ActionListener<>() {
-                                            @Override
-                                            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                                                assertAcked(acknowledgedResponse);
-                                                startSnapshotDeleteLoop(repoName, indexName, snapshotName, doneListener);
-                                            }
-
-                                            @Override
-                                            public void onFailure(Exception e) {
-                                                throw new AssertionError(e);
-                                            }
-                                        }
-                                );
+                        clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute(
+                                ActionTestUtils.assertNoFailureListener(acknowledgedResponse -> {
+                                    assertAcked(acknowledgedResponse);
+                                    startSnapshotDeleteLoop(repoName, indexName, snapshotName, doneListener);
+                                }));
                     }
 
                     @Override

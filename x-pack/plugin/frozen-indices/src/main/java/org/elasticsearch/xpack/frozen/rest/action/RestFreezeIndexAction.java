@@ -33,7 +33,9 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
             Route.builder(POST, "/{index}/_freeze")
                 .deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION)
                 .build(),
-            Route.builder(POST, "/{index}/_unfreeze").build()
+            Route.builder(POST, "/{index}/_unfreeze")
+                .deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION)
+                .build()
         );
     }
 

@@ -724,15 +724,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        long afterCheckpointRefreshed;
-        if (request.getAfterCheckpointsRefreshed().length == 0) {
-            afterCheckpointRefreshed = SequenceNumbers.NO_OPS_PERFORMED;
+        long waitForCheckpoint;
+        if (request.getWaitForCheckpoints().length == 0) {
+            waitForCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         } else {
-            afterCheckpointRefreshed = request.getAfterCheckpointsRefreshed()[shardIndex];
+            waitForCheckpoint = request.getWaitForCheckpoints()[shardIndex];
         }
         ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), shardIndex,
             getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(),
-            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive(), afterCheckpointRefreshed);
+            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive(), waitForCheckpoint);
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.

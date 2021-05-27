@@ -99,7 +99,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    private long[] afterCheckpointsRefreshed = new long[0];
+    private long[] waitForCheckpoints = new long[0];
 
     public SearchRequest() {
         this((Version) null);
@@ -188,7 +188,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.absoluteStartMillis = absoluteStartMillis;
         this.finalReduce = finalReduce;
         this.minCompatibleShardNode = searchRequest.minCompatibleShardNode;
-        this.afterCheckpointsRefreshed = searchRequest.afterCheckpointsRefreshed;
+        this.waitForCheckpoints = searchRequest.waitForCheckpoints;
     }
 
     /**
@@ -235,7 +235,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         // TODO: Change after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            afterCheckpointsRefreshed = in.readLongArray();
+            waitForCheckpoints = in.readLongArray();
         }
     }
 
@@ -272,7 +272,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         // TODO: Change after backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeLongArray(afterCheckpointsRefreshed);
+            out.writeLongArray(waitForCheckpoints);
         }
     }
 
@@ -614,12 +614,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
 
-    public long[] getAfterCheckpointsRefreshed() {
-        return afterCheckpointsRefreshed;
+    public long[] getWaitForCheckpoints() {
+        return waitForCheckpoints;
     }
 
-    public void setAfterCheckpointsRefreshed(long[] afterCheckpointsRefreshed) {
-        this.afterCheckpointsRefreshed = afterCheckpointsRefreshed;
+    public void setWaitForCheckpoints(long[] afterCheckpointsRefreshed) {
+        this.waitForCheckpoints = afterCheckpointsRefreshed;
     }
 
     /**

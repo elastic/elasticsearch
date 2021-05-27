@@ -166,9 +166,17 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         return true;
     }
 
-    public boolean addOrNotify(long seqNo, ActionListener<Void> listener) {
-        assert seqNo >= SequenceNumbers.NO_OPS_PERFORMED;
-        if (seqNo <= lastRefreshedSeqNo) {
+    /**
+     * Add a listener for refreshes, calling it immediately if the location is already visible. If this runs out of listener slots then it
+     * forces a refresh and calls the listener immediately as well.
+     *
+     * @param checkpoint the seqNo checkpoint to listen for
+     * @param listener for the refresh.
+     * @return did we call the listener (true) or register the listener to call later (false)?
+     */
+    public boolean addOrNotify(long checkpoint, ActionListener<Void> listener) {
+        assert checkpoint >= SequenceNumbers.NO_OPS_PERFORMED;
+        if (checkpoint <= lastRefreshedSeqNo) {
             listener.onResponse(null);
             return true;
         }
@@ -188,7 +196,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                     listeners = new ArrayList<>();
                 }
                 // We have a free slot so register the listener
-                listeners.add(new Tuple<>(seqNo, contextPreservingListener));
+                listeners.add(new Tuple<>(checkpoint, contextPreservingListener));
                 seqNoRefreshListeners = listeners;
                 return false;
             }
@@ -441,6 +449,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                     listener.v2().onFailure(exception);
                 } catch (final Exception e) {
                     logger.warn("error firing seqNo refresh listener", e);
+                    assert false;
                 }
             }
         }

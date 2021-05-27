@@ -3466,7 +3466,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void addRefreshListener(long seqNo, ActionListener<Void> listener) {
+    /**
+     * Add a listener for refreshes.
+     *
+     * @param checkpoint the seqNo checkpoint to listen for
+     * @param listener for the refresh.
+     */
+    public void addRefreshListener(long checkpoint, ActionListener<Void> listener) {
         final boolean readAllowed;
         if (isReadAllowed()) {
             readAllowed = true;
@@ -3479,7 +3485,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         if (readAllowed) {
-            refreshListeners.addOrNotify(seqNo, listener);
+            refreshListeners.addOrNotify(checkpoint, listener);
         } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.onFailure(new IllegalStateException("Read not allowed on IndexShard"));

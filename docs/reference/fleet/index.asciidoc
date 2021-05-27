@@ -7,7 +7,9 @@ a datastore for internal agent and action data. These APIS are currently intende
 for internal use only and should be considered experimental.
 
 * <<get-global-checkpoints,Get global checkpoints>>
+* <<fleet-search,Fleet search>>
 
 // top-level
 include::get-global-checkpoints.asciidoc[]
+include::fleet-search.asciidoc[]
 

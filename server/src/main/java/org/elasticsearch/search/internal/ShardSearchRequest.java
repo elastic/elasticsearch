@@ -64,7 +64,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final ShardId shardId;
     private final int shardRequestIndex;
     private final int numberOfShards;
-    private final long afterRefreshedSeqNo;
+    private final long waitForCheckpoint;
     private final SearchType searchType;
     private final Scroll scroll;
     private final float indexBoost;
@@ -133,7 +133,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                               @Nullable String clusterAlias,
                               ShardSearchContextId readerId,
                               TimeValue keepAlive,
-                              long afterRefreshedSeqNo) {
+                              long waitForCheckpoint) {
         this(originalIndices,
             shardId,
             shardRequestIndex,
@@ -149,7 +149,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             clusterAlias,
             readerId,
             keepAlive,
-            afterRefreshedSeqNo);
+            waitForCheckpoint);
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
         assert searchRequest.allowPartialSearchResults() != null;
@@ -177,7 +177,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                                @Nullable String clusterAlias,
                                ShardSearchContextId readerId,
                                TimeValue keepAlive,
-                               long afterRefreshedSeqNo) {
+                               long waitForCheckpoint) {
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.numberOfShards = numberOfShards;
@@ -195,7 +195,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
         this.channelVersion = Version.CURRENT;
-        this.afterRefreshedSeqNo = afterRefreshedSeqNo;
+        this.waitForCheckpoint = waitForCheckpoint;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -239,9 +239,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         channelVersion = Version.min(Version.readVersion(in), in.getVersion());
         // TODO: Update after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            afterRefreshedSeqNo = in.readLong();
+            waitForCheckpoint = in.readLong();
         } else {
-            afterRefreshedSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+            waitForCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
     }
@@ -265,7 +265,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
         this.channelVersion = clone.channelVersion;
-        this.afterRefreshedSeqNo = clone.afterRefreshedSeqNo;
+        this.waitForCheckpoint = clone.waitForCheckpoint;
     }
 
     @Override
@@ -311,7 +311,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         Version.writeVersion(channelVersion, out);
         // TODO: Update after backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeLong(afterRefreshedSeqNo);
+            out.writeLong(waitForCheckpoint);
         }
     }
 
@@ -435,8 +435,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return keepAlive;
     }
 
-    public long afterRefreshedSeqNo() {
-        return afterRefreshedSeqNo;
+    public long waitForCheckpoint() {
+        return waitForCheckpoint;
     }
 
     /**

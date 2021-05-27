@@ -52,13 +52,13 @@ public class RestFleetSearchAction extends BaseRestHandler {
             parser -> RestSearchAction.parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        String[] stringAfterCheckpointsRefreshed = request.paramAsStringArray("after_checkpoints_refreshed", Strings.EMPTY_ARRAY);
-        final long[] afterCheckpointsRefreshed = new long[stringAfterCheckpointsRefreshed.length];
-        for (int i = 0; i < stringAfterCheckpointsRefreshed.length; ++i) {
-            afterCheckpointsRefreshed[i] = Long.parseLong(stringAfterCheckpointsRefreshed[i]);
+        String[] stringWaitForCheckpoints = request.paramAsStringArray("wait_for_checkpoints", Strings.EMPTY_ARRAY);
+        final long[] waitForCheckpoints = new long[stringWaitForCheckpoints.length];
+        for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
+            waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
         }
 
-        searchRequest.setAfterCheckpointsRefreshed(afterCheckpointsRefreshed);
+        searchRequest.setWaitForCheckpoints(waitForCheckpoints);
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

@@ -403,7 +403,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                if (request.afterRefreshedSeqNo() > SequenceNumbers.NO_OPS_PERFORMED) {
+                if (request.waitForCheckpoint() > SequenceNumbers.NO_OPS_PERFORMED) {
                     final AtomicBoolean isDone = new AtomicBoolean(false);
                     final ActionListener<Void> readyListener = new ActionListener<>() {
 
@@ -421,7 +421,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             }
                         }
                     };
-                    shard.addRefreshListener(request.afterRefreshedSeqNo(), readyListener);
+                    shard.addRefreshListener(request.waitForCheckpoint(), readyListener);
                     SearchSourceBuilder source = request.source();
                     final TimeValue timeout;
                     if (source == null) {
@@ -434,7 +434,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             readyListener.onFailure(
                                 new ElasticsearchTimeoutException(
                                     "Wait for seq_no [{}] refreshed timed out [{}]",
-                                    request.afterRefreshedSeqNo(),
+                                    request.waitForCheckpoint(),
                                     timeout)
                             ), timeout, Names.SAME);
                     }

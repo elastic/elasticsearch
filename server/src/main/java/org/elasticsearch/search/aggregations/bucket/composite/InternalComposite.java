@@ -401,30 +401,30 @@ public class InternalComposite
             // Type Jank ahead
             if (obj.getClass() == String.class || obj.getClass() == BytesRef.class) {
                 parsed = format.parseBytesRef(formatted.toString());
+                if (parsed.equals(obj) == false) {
+                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
+                }
             } else if (obj.getClass() == Integer.class || obj.getClass() == Long.class) {
                 parsed = format.parseLong(formatted.toString(), false, () -> {
-                    throw new UnsupportedOperationException();
+                    throw new UnsupportedOperationException("Using now() is not supported in after keys");
                 });
+                if (parsed.equals(((Number) obj).longValue()) == false) {
+                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
+                }
             } else if (obj.getClass() == Float.class || obj.getClass() == Double.class) {
-                parsed = format.parseDouble(formatted.toString(), false, () -> {throw new UnsupportedOperationException();});
+                parsed = format.parseDouble(formatted.toString(), false,
+                    () -> {throw new UnsupportedOperationException("Using now() is not supported in after keys");});
+                if (parsed.equals(((Number) obj).doubleValue()) == false) {
+                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
+                }
             } else {
                 throw new IllegalStateException("Got some weirdo value of type [" + obj.getClass() + "]");
             }
-            if (equivalentTo(parsed, obj) == false) {
-                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
-                + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
-            }
         }
         return formatted;
-    }
-
-    static private boolean equivalentTo(Object a, Object b) {
-        if (a instanceof Long && b instanceof Integer) {
-             return a.equals(((Integer) b).longValue());
-        } else if (a instanceof Integer && b instanceof Long) {
-            return b.equals(((Integer) a).longValue());
-        }
-        return a.equals(b);
     }
 
     static private Object formatObjectUnchecked (Object obj, DocValueFormat format) {

@@ -93,7 +93,19 @@ public interface DocValueFormat extends NamedWriteable {
         return value;
     }
 
-    DocValueFormat RAW = new DocValueFormat() {
+    DocValueFormat RAW = RawDocValueFormat.INSTANCE;
+    DocValueFormat BINARY = BinaryDocValueFormat.INSTANCE;
+    DocValueFormat GEOHASH = GeoHashDocValueFormat.INSTANCE;
+    DocValueFormat GEOTILE = GeoTileDocValueFormat.INSTANCE;
+    DocValueFormat BOOLEAN = BooleanDocValueFormat.INSTANCE;
+    DocValueFormat IP = IpDocValueFormat.INSTANCE;
+    DocValueFormat UNSIGNED_LONG_SHIFTED = UnsignedLongShiftedDocValueFormat.INSTANCE;
+
+    final class RawDocValueFormat implements DocValueFormat{
+
+        static final DocValueFormat INSTANCE = new RawDocValueFormat();
+
+        private RawDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -152,7 +164,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat BINARY = new DocValueFormat() {
+    final class BinaryDocValueFormat implements DocValueFormat {
+
+        static final DocValueFormat INSTANCE = new BinaryDocValueFormat();
+
+        private BinaryDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -302,7 +318,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     }
 
-    DocValueFormat GEOHASH = new DocValueFormat() {
+    final class GeoHashDocValueFormat implements DocValueFormat {
+
+        static final DocValueFormat INSTANCE = new GeoHashDocValueFormat();
+
+        private GeoHashDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -324,7 +344,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat GEOTILE = new DocValueFormat() {
+    final class GeoTileDocValueFormat implements DocValueFormat {
+
+        static final DocValueFormat INSTANCE = new GeoTileDocValueFormat();
+
+        private GeoTileDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -346,7 +370,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat BOOLEAN = new DocValueFormat() {
+    final class BooleanDocValueFormat implements DocValueFormat {
+
+        static final DocValueFormat INSTANCE = new BooleanDocValueFormat();
+
+        private BooleanDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -384,7 +412,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat IP = new DocValueFormat() {
+    final class IpDocValueFormat implements DocValueFormat {
+
+        static final DocValueFormat INSTANCE = new IpDocValueFormat();
+
+        private IpDocValueFormat() {}
 
         @Override
         public String getWriteableName() {
@@ -524,7 +556,11 @@ public interface DocValueFormat extends NamedWriteable {
      * DocValues format for unsigned 64 bit long values,
      * that are stored as shifted signed 64 bit long values.
      */
-    DocValueFormat UNSIGNED_LONG_SHIFTED = new DocValueFormat() {
+    final class UnsignedLongShiftedDocValueFormat implements DocValueFormat {
+
+        static final DocValueFormat INSTANCE = new UnsignedLongShiftedDocValueFormat();
+
+        private UnsignedLongShiftedDocValueFormat() {}
 
         @Override
         public String getWriteableName() {

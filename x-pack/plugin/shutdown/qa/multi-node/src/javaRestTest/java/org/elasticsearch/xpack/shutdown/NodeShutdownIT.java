@@ -72,35 +72,10 @@ public class NodeShutdownIT extends ESRestTestCase {
         assertOK(client().performRequest(createIndexRequest));
 
         // Watch to ensure no shards gets allocated to the node that's shutting down
-        Request checkShardsRequest = new Request("GET", "_cat/shards/" + indexName);
-        checkShardsRequest.addParameter("format", "json");
-        checkShardsRequest.addParameter("h", "index,shard,prirep,id,state");
+        assertUnassignedShard(nodeIdToShutdown, indexName);
 
-        assertBusy(() -> {
-            List<Object> shardsResponse = entityAsList(client().performRequest(checkShardsRequest));
-            int startedShards = 0;
-            int unassignedShards = 0;
-            for (Object shard : shardsResponse) {
-                Map<String, Object> shardMap = (Map<String, Object>) shard;
-                assertThat(
-                    "no shards should be assigned to a node shutting down for removal",
-                    shardMap.get("id"),
-                    not(equalTo(nodeIdToShutdown))
-                );
-
-                if (shardMap.get("id") == null) {
-                    unassignedShards++;
-                } else if (nodeIdToShutdown.equals(shardMap.get("id")) == false) {
-                    assertThat("all other shards should be started", shardMap.get("state"), equalTo("STARTED"));
-                    startedShards++;
-                }
-            }
-            assertThat(unassignedShards, equalTo(1));
-            assertThat(startedShards, equalTo(3));
-        });
         // Now that we know all shards of the test index are assigned except one,
         // make sure it's unassigned because of the allocation decider.
-
         Request allocationExplainRequest = new Request("GET", "_cluster/allocation/explain");
         allocationExplainRequest.setJsonEntity("{\"index\": \"" + indexName + "\", \"shard\":  0, \"primary\":  false}");
         Map<String, Object> allocationExplainMap = entityAsMap(client().performRequest(allocationExplainRequest));
@@ -171,12 +146,64 @@ public class NodeShutdownIT extends ESRestTestCase {
         });
     }
 
+    public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {
+        String nodeIdToShutdown = getRandomNodeId();
+        putNodeShutdown(nodeIdToShutdown, "REMOVE");
+
+        // Create an index with enough replicas to ensure one would normally be allocated to each node
+        final String indexName = "test-idx";
+        Request createIndexRequest = new Request("PUT", indexName);
+        createIndexRequest.setJsonEntity("{\"settings\":  {\"number_of_shards\": 1, \"number_of_replicas\": 3}}");
+        assertOK(client().performRequest(createIndexRequest));
+
+        // Watch to ensure no shards gets allocated to the node that's shutting down
+        assertUnassignedShard(nodeIdToShutdown, indexName);
+
+        // Delete the shutdown
+        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        assertOK(client().performRequest(deleteRequest));
+        assertNoShuttingDownNodes(nodeIdToShutdown);
+
+        // Check that the shard is assigned now
+        ensureGreen(indexName);
+    }
+
     @SuppressWarnings("unchecked")
     private void assertNoShuttingDownNodes(String nodeIdToShutdown) throws IOException {
         Request getShutdownStatus = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
         Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
         List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
         assertThat(nodesArray, empty());
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertUnassignedShard(String nodeIdToShutdown, String indexName) throws Exception {
+        Request checkShardsRequest = new Request("GET", "_cat/shards/" + indexName);
+        checkShardsRequest.addParameter("format", "json");
+        checkShardsRequest.addParameter("h", "index,shard,prirep,id,state");
+
+        assertBusy(() -> {
+            List<Object> shardsResponse = entityAsList(client().performRequest(checkShardsRequest));
+            int startedShards = 0;
+            int unassignedShards = 0;
+            for (Object shard : shardsResponse) {
+                Map<String, Object> shardMap = (Map<String, Object>) shard;
+                assertThat(
+                    "no shards should be assigned to a node shutting down for removal",
+                    shardMap.get("id"),
+                    not(equalTo(nodeIdToShutdown))
+                );
+
+                if (shardMap.get("id") == null) {
+                    unassignedShards++;
+                } else if (nodeIdToShutdown.equals(shardMap.get("id")) == false) {
+                    assertThat("all other shards should be started", shardMap.get("state"), equalTo("STARTED"));
+                    startedShards++;
+                }
+            }
+            assertThat(unassignedShards, equalTo(1));
+            assertThat(startedShards, equalTo(3));
+        });
     }
 
     private void putNodeShutdown(String nodeIdToShutdown, String type) throws IOException {

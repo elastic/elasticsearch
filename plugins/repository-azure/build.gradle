@@ -25,7 +25,6 @@ versions << [
   'azure': '12.11.1',
   'azureCore': '1.16.0',
   'azureCoreHttpNetty': '1.9.1',
-  'azureAvro': '12.0.4',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
@@ -43,7 +42,6 @@ dependencies {
   api "com.azure:azure-storage-blob:${versions.azure}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
-  api "com.azure:azure-storage-internal-avro:${versions.azureAvro}"
 
   // jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
@@ -74,7 +72,6 @@ dependencies {
   api "io.netty:netty-resolver:${versions.azureNetty}"
   api "io.netty:netty-resolver-dns:${versions.azureNetty}"
   api "io.netty:netty-transport:${versions.azureNetty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.azureNetty}"
 
   // reactor
   api "io.projectreactor.netty:reactor-netty:${versions.reactorNetty}"
@@ -115,6 +112,12 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
+    // Only for Query Blob Contents API usage
+    'com.azure.storage.internal.avro.implementation.AvroObject',
+    'com.azure.storage.internal.avro.implementation.AvroReader',
+    'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
+    'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
+
     // from reactory-netty metric collection
     'io.micrometer.core.instrument.Clock',
     'io.micrometer.core.instrument.Counter',
@@ -270,6 +273,11 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.incubator.channel.uring.IOUringEventLoopGroup',
     'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
     'io.netty.incubator.channel.uring.IOUringSocketChannel',
+
+    // Domain sockets are not used
+    'io.netty.channel.unix.DomainSocketAddress',
+    'io.netty.channel.unix.DomainSocketChannel',
+    'io.netty.channel.unix.ServerDomainSocketChannel',
 
     // from reactor.netty.http.server.HttpServer (reactor-netty)
     'io.netty.handler.codec.haproxy.HAProxyMessage',

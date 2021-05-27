@@ -111,7 +111,8 @@ Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is
 `TLSv1.2,TLSv1.1`.
 +
-See <<jdk-tls-versions>>
+Elasticsearch relies on your JDK’s implementation of SSL and TLS, for more
+details see <<jdk-tls-versions>>.
 +
 --
 NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello`

@@ -2210,8 +2210,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         updatedAssignmentsBuilder.put(shardId, updated);
                                     }
                                 }
-                                snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
+                                final SnapshotsInProgress.Entry updatedEntry = entry.withShardStates(updatedAssignmentsBuilder.build());
+                                snapshotEntries.add(updatedEntry);
                                 changed = true;
+                                if (updatedEntry.state().completed()) {
+                                    newFinalizations.add(entry);
+                                }
                             }
                         }
                     } else {

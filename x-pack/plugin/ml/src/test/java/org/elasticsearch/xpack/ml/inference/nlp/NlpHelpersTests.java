@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -108,7 +107,8 @@ public class NlpHelpersTests extends ESTestCase {
             }
 
             AtomicInteger index = new AtomicInteger(0);
-            List<ValueAndStartIndex> sortedByValue = Stream.generate(() -> new ValueAndStartIndex(data[index.get()], index.getAndIncrement()))
+            List<ValueAndStartIndex> sortedByValue =
+                Stream.generate(() -> new ValueAndStartIndex(data[index.get()], index.getAndIncrement()))
                 .limit(size)
                 .sorted((o1, o2) -> Double.compare(o2.value, o1.value))
                 .collect(Collectors.toList());

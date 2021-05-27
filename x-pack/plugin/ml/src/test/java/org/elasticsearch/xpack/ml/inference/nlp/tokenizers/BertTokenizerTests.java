@@ -74,4 +74,20 @@ public class BertTokenizerTests extends ESTestCase {
             assertThat(tokenization.getTokens(), contains("elastic", "##search", "fun"));
         }
     }
+
+    public void testPunctuation() {
+        BertTokenizer tokenizer = BertTokenizer.builder(
+            Arrays.asList("Elastic", "##search", "fun", ".", ",",
+                BertTokenizer.MASK_TOKEN, BertTokenizer.UNKNOWN_TOKEN)).build();
+
+        BertTokenizer.TokenizationResult tokenization = tokenizer.tokenize("Elasticsearch, fun.", false);
+        assertThat(tokenization.getTokens(), contains("Elastic", "##search", ",", "fun", "."));
+        assertArrayEquals(new int[] {0, 1, 4, 2, 3}, tokenization.getTokenIds());
+        assertArrayEquals(new int[] {0, 0, 1, 2, 3}, tokenization.getTokenMap());
+
+        tokenization = tokenizer.tokenize("Elasticsearch, fun [MASK].", false);
+        assertThat(tokenization.getTokens(), contains("Elastic", "##search", ",", "fun", "[MASK]", "."));
+        assertArrayEquals(new int[] {0, 1, 4, 2, 5, 3}, tokenization.getTokenIds());
+        assertArrayEquals(new int[] {0, 0, 1, 2, 3, 4}, tokenization.getTokenMap());
+    }
 }

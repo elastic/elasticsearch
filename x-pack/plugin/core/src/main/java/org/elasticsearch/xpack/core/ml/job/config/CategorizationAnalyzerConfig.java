@@ -171,7 +171,13 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
      */
     public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
+        Map<String, Object> firstLineOnlyCharFilter = new HashMap<>();
+        firstLineOnlyCharFilter.put("type", "pattern_replace");
+        firstLineOnlyCharFilter.put("pattern", "\\\\n.*");
+        firstLineOnlyCharFilter.put("flags", "DOTALL");
+
         return new CategorizationAnalyzerConfig.Builder()
+            .addCharFilter(firstLineOnlyCharFilter)
             .addCategorizationFilters(categorizationFilters)
             .setTokenizer("ml_standard")
             .addDateWordsTokenFilter()

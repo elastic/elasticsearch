@@ -75,18 +75,18 @@ POST _reindex
 security privileges:
 
 ** The `read` <<privileges-list-indices,index privilege>> for the source data
-stream, index, or index alias.
+stream, index, or alias.
 
 ** The `write` index privilege for the destination data stream, index, or index
 alias.
 
 ** To automatically create a data stream or index with an reindex API request,
 you must have the `auto_configure`, `create_index`, or `manage` index
-privilege for the destination data stream, index, or index alias.
+privilege for the destination data stream, index, or alias.
 
 ** If reindexing from a remote cluster, the `source.remote.user` must have the
 `monitor` <<privileges-list-cluster,cluster privilege>> and the `read` index
-privilege for the source data stream, index, or index alias.
+privilege for the source data stream, index, or alias.
 
 * If reindexing from a remote cluster, you must explicitly allow the remote host
 in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
@@ -507,8 +507,8 @@ Defaults to `abort`.
 
 `source`::
 `index`:::
-(Required, string) The name of the data stream, index, or index alias you are copying _from_.
-Also accepts a comma-separated list to reindex from multiple sources.
+(Required, string) The name of the data stream, index, or alias you are copying
+_from_. Also accepts a comma-separated list to reindex from multiple sources.
 
 `max_docs`:::
 (Optional, integer) The maximum number of documents to reindex. If <<conflicts, conflicts>> is equal to

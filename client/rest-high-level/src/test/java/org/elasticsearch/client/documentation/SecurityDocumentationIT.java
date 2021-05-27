@@ -757,7 +757,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String lookupRealmName = response.getLookupRealm().getName(); // <5>
             final String lookupRealmType = response.getLookupRealm().getType(); // <6>
             final String authenticationType = response.getAuthenticationType(); // <7>
-            final Map<String, Object> authMetadata = response.getMetadata(); // <8>
+            final Map<String, Object> tokenInfo = response.getToken(); // <8>
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
@@ -771,7 +771,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(lookupRealmName, is("default_file"));
             assertThat(lookupRealmType, is("file"));
             assertThat(authenticationType, is("realm"));
-            assertThat(authMetadata, anEmptyMap());
+            assertThat(tokenInfo, anEmptyMap());
         }
 
         {
@@ -798,39 +798,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::authenticate-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-
-        {
-            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
-            CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
-                client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
-
-            AuthenticateResponse response = client.security().authenticate(
-                RequestOptions.DEFAULT.toBuilder().addHeader(
-                    "Authorization", "Bearer " + createServiceAccountTokenResponse.getValue().toString()).build());
-
-            User user = response.getUser();
-            boolean enabled = response.enabled();
-            final String authenticationRealmName = response.getAuthenticationRealm().getName();
-            final String authenticationRealmType = response.getAuthenticationRealm().getType();
-            final String lookupRealmName = response.getLookupRealm().getName();
-            final String lookupRealmType = response.getLookupRealm().getType();
-            final String authenticationType = response.getAuthenticationType();
-            final Map<String, Object> authMetadata = response.getMetadata();
-
-            assertThat(user.getUsername(), is("elastic/fleet-server"));
-            assertThat(user.getRoles(), empty());
-            assertThat(user.getFullName(), equalTo("Service account - elastic/fleet-server"));
-            assertThat(user.getEmail(), nullValue());
-            assertThat(user.getMetadata(), equalTo(Map.of("_elastic_service_account", true)));
-            assertThat(enabled, is(true));
-            assertThat(authenticationRealmName, is("service_account"));
-            assertThat(authenticationRealmType, is("service_account"));
-            assertThat(lookupRealmName, is("service_account"));
-            assertThat(lookupRealmType, is("service_account"));
-            assertThat(authenticationType, is("token"));
-            assertThat(authMetadata, equalTo(Map.of("_token_name", "token1")));
         }
     }
 
@@ -2705,6 +2672,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testDeleteServiceAccountToken() throws IOException {
         RestHighLevelClient client = highLevelClient();
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
+        client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
         {
             // tag::delete-service-account-token-request
             DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
@@ -2719,9 +2689,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::delete-service-account-token-response
             final boolean found = deleteServiceAccountTokenResponse.isAcknowledged(); // <1>
             // end::delete-service-account-token-response
-            assertFalse(deleteServiceAccountTokenResponse.isAcknowledged());
+            assertTrue(deleteServiceAccountTokenResponse.isAcknowledged());
         }
 
+        client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
         {
             DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
                 new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
@@ -2748,7 +2719,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::delete-service-account-token-execute-async
 
             assertNotNull(future.actionGet());
-            assertFalse(future.actionGet().isAcknowledged());
+            assertTrue(future.actionGet().isAcknowledged());
         }
     }
 

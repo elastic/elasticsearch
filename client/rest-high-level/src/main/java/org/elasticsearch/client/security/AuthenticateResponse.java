@@ -31,10 +31,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public final class AuthenticateResponse implements ToXContentObject {
 
-    static final String SERVICE_ACCOUNT_REALM_TYPE = "service_account";
-    static final String TOKEN_NAME_FIELD = "_token_name";
-    static final String NAME_FIELD = "name";
-
     static final ParseField USERNAME = new ParseField("username");
     static final ParseField ROLES = new ParseField("roles");
     static final ParseField METADATA = new ParseField("metadata");
@@ -51,19 +47,10 @@ public final class AuthenticateResponse implements ToXContentObject {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<AuthenticateResponse, Void> PARSER = new ConstructingObjectParser<>(
             "client_security_authenticate_response", true,
-            a -> {
-                if (a[9] == null) {
-                    return new AuthenticateResponse(new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
-                        (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7], (String) a[8]);
-                } else {
-                    final AuthenticateResponse response = new AuthenticateResponse(
-                        new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
-                        (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7], (String) a[8],
-                        Map.of(TOKEN_NAME_FIELD, ((Map<String, Object>) a[9]).get(NAME_FIELD)));
-                    assert response.isServiceAccount() : "Authentication must be for a service account, got: " + response;
-                    return response;
-                }
-            });
+            a -> new AuthenticateResponse(
+                new User((String) a[0], ((List<String>) a[1]), (Map<String, Object>) a[2],
+                (String) a[3], (String) a[4]), (Boolean) a[5], (RealmInfo) a[6], (RealmInfo) a[7], (String) a[8],
+                (Map<String, Object>) a[9]));
     static {
         final ConstructingObjectParser<RealmInfo, Void> realmInfoParser = new ConstructingObjectParser<>("realm_info", true,
             a -> new RealmInfo((String) a[0], (String) a[1]));
@@ -78,7 +65,7 @@ public final class AuthenticateResponse implements ToXContentObject {
         PARSER.declareObject(constructorArg(), realmInfoParser, AUTHENTICATION_REALM);
         PARSER.declareObject(constructorArg(), realmInfoParser, LOOKUP_REALM);
         PARSER.declareString(constructorArg(), AUTHENTICATION_TYPE);
-        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, TOKEN);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), Map.of(), TOKEN);
     }
 
     private final User user;
@@ -86,7 +73,7 @@ public final class AuthenticateResponse implements ToXContentObject {
     private final RealmInfo authenticationRealm;
     private final RealmInfo lookupRealm;
     private final String authenticationType;
-    private final Map<String, Object> metadata;
+    private final Map<String, Object> token;
 
     public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
                                 RealmInfo lookupRealm, String authenticationType) {
@@ -94,13 +81,13 @@ public final class AuthenticateResponse implements ToXContentObject {
     }
 
     public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
-                                RealmInfo lookupRealm, String authenticationType, Map<String, Object> metadata) {
+                                RealmInfo lookupRealm, String authenticationType, Map<String, Object> token) {
         this.user = user;
         this.enabled = enabled;
         this.authenticationRealm = authenticationRealm;
         this.lookupRealm = lookupRealm;
         this.authenticationType = authenticationType;
-        this.metadata = metadata == null ? Map.of() : metadata;
+        this.token = token == null ? Map.of() : Map.copyOf(token);
     }
 
     /**
@@ -137,12 +124,8 @@ public final class AuthenticateResponse implements ToXContentObject {
         return authenticationType;
     }
 
-    public Map<String, Object> getMetadata() {
-        return metadata;
-    }
-
-    public boolean isServiceAccount() {
-        return SERVICE_ACCOUNT_REALM_TYPE.equals(getAuthenticationRealm().type) && SERVICE_ACCOUNT_REALM_TYPE.equals(getLookupRealm().type);
+    public Map<String, Object> getToken() {
+        return token;
     }
 
     @Override
@@ -167,8 +150,8 @@ public final class AuthenticateResponse implements ToXContentObject {
         builder.field(AuthenticateResponse.REALM_TYPE.getPreferredName(), lookupRealm.getType());
         builder.endObject();
         builder.field(AuthenticateResponse.AUTHENTICATION_TYPE.getPreferredName(), authenticationType);
-        if (isServiceAccount()) {
-            builder.field("token", Map.of(NAME_FIELD, metadata.get(TOKEN_NAME_FIELD)));
+        if (false == token.isEmpty()) {
+            builder.field(AuthenticateResponse.TOKEN.getPreferredName(), token);
         }
         return builder.endObject();
     }
@@ -183,12 +166,12 @@ public final class AuthenticateResponse implements ToXContentObject {
             Objects.equals(authenticationRealm, that.authenticationRealm) &&
             Objects.equals(lookupRealm, that.lookupRealm) &&
             Objects.equals(authenticationType, that.authenticationType) &&
-            Objects.equals(metadata, that.metadata);
+            Objects.equals(token, that.token);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(user, enabled, authenticationRealm, lookupRealm, authenticationType, metadata);
+        return Objects.hash(user, enabled, authenticationRealm, lookupRealm, authenticationType, token);
     }
 
     public static AuthenticateResponse fromXContent(XContentParser parser) throws IOException {

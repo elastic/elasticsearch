@@ -41,4 +41,9 @@ public class ServiceTokenInfo {
     public int hashCode() {
         return Objects.hash(name, source);
     }
+
+    @Override
+    public String toString() {
+        return "ServiceTokenInfo{" + "name='" + name + '\'' + ", source='" + source + '\'' + '}';
+    }
 }

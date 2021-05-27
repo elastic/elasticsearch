@@ -47,4 +47,9 @@ public final class ServiceAccountInfo {
     public int hashCode() {
         return Objects.hash(principal, role);
     }
+
+    @Override
+    public String toString() {
+        return "ServiceAccountInfo{" + "principal='" + principal + '\'' + ", role=" + role + '}';
+    }
 }

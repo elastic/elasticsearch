@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.security;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -20,8 +23,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -30,15 +36,23 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -51,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
@@ -71,9 +86,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
@@ -82,6 +100,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -511,6 +530,66 @@ public class SecurityTests extends ESTestCase {
         }, this::VerifyBasicAuthenticationHeader));
         if(completed.get()){
             fail("authentication succeeded but it shouldn't");
+        }
+    }
+
+    public void testSecurityHandlerIsAlwaysInstalled() {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+
+        final SSLService sslService = mock(SSLService.class);
+        final SSLConfiguration httpSslConfiguration = new SSLConfiguration(Settings.EMPTY);
+        when(sslService.getHttpTransportSSLConfiguration()).thenReturn(httpSslConfiguration);
+
+        Security security = new Security (settings, null) {
+            @Override
+            protected SSLService getSslService() { return sslService; }
+        };
+
+        XPackPlugin xpackPlugin = new LocalStateCompositeXPackPlugin(settings, null);
+        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+
+        try {
+            UsageService usageService = new UsageService();
+            ActionPlugin xpackAction = new ActionPlugin() {
+                @Override
+                public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+                                                         IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
+                                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
+                    return security.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
+                        indexNameExpressionResolver, nodesInCluster);
+                }
+
+                @Override
+                public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+                    return security.getRestHandlerWrapper(threadContext);
+                }
+            };
+
+            ActionModule actionModule = new ActionModule(settingsModule.getSettings(),
+                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(), threadPool,
+                Arrays.asList(xpackPlugin, xpackAction), null, null, usageService, null);
+            actionModule.initRestHandlers(null);
+
+            // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
+            Exception e = expectThrows(IllegalArgumentException.class, () ->
+                actionModule.getRestController().registerHandler(new RestHandler() {
+                    @Override
+                    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+                    }
+
+                    @Override
+                    public List<Route> routes() {
+                        return List.of(new Route(GET, "/"));
+                    }
+                }));
+            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+        } finally {
+            threadPool.shutdown();
         }
     }
 

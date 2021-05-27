@@ -51,6 +51,137 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         )
     }
 
+    def "hides runtime dependencies and handles shadow dependencies"() {
+        given:
+        buildFile << """
+            plugins {
+                id 'elasticsearch.java'
+                id 'elasticsearch.publish'
+                id 'com.github.johnrengelman.shadow'
+            }
+            
+            repositories {
+                mavenCentral()
+            }
+            
+            dependencies {
+                implementation 'org.slf4j:log4j-over-slf4j:1.7.30'
+                shadow 'org.slf4j:slf4j-api:1.7.30'
+            }
+
+            publishing {
+                 repositories {
+                    maven {
+                        url = "\$buildDir/repo"
+                    }
+                 }
+            }
+            version = "1.0"
+            group = 'org.acme' 
+            description = 'some description'       
+        """
+
+        when:
+        def result = gradleRunner('assemble', '--stacktrace').build()
+
+        then:
+        result.task(":generatePom").outcome == TaskOutcome.SUCCESS
+        file("build/distributions/hello-world-1.0-original.jar").exists()
+        file("build/distributions/hello-world-1.0.jar").exists()
+        file("build/distributions/hello-world-1.0-javadoc.jar").exists()
+        file("build/distributions/hello-world-1.0-sources.jar").exists()
+        file("build/distributions/hello-world-1.0.pom").exists()
+        assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
+            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <!-- This module was also published with a richer model, Gradle metadata,  -->
+              <!-- which should be used instead. Do not delete the following line which  -->
+              <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+              <!-- that they should prefer consuming it instead. -->
+              <!-- do_not_remove: published-with-gradle-metadata -->
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>org.acme</groupId>
+              <artifactId>hello-world</artifactId>
+              <version>1.0</version>
+              <dependencies>
+                <dependency>
+                  <groupId>org.slf4j</groupId>
+                  <artifactId>slf4j-api</artifactId>
+                  <version>1.7.30</version>
+                  <scope>compile</scope>
+                </dependency>
+              </dependencies>
+              <name>hello-world</name>
+              <description>some description</description>
+            </project>"""
+        )
+    }
+
+    def "handles project shadow dependencies"() {
+        given:
+        settingsFile << "include ':someLib'"
+        file('someLib').mkdirs()
+        buildFile << """
+            plugins {
+                id 'elasticsearch.java'
+                id 'elasticsearch.publish'
+                id 'com.github.johnrengelman.shadow'
+            }
+
+            dependencies {
+                shadow project(":someLib")            
+            }
+            publishing {
+                 repositories {
+                    maven {
+                        url = "\$buildDir/repo"
+                    }
+                 }
+            }
+
+            allprojects {
+                apply plugin: 'elasticsearch.java'
+                version = "1.0"
+                group = 'org.acme' 
+            }
+
+            description = 'some description'       
+        """
+
+        when:
+        def result = gradleRunner(':assemble', '--stacktrace').build()
+
+        then:
+        result.task(":generatePom").outcome == TaskOutcome.SUCCESS
+        file("build/distributions/hello-world-1.0-original.jar").exists()
+        file("build/distributions/hello-world-1.0.jar").exists()
+        file("build/distributions/hello-world-1.0-javadoc.jar").exists()
+        file("build/distributions/hello-world-1.0-sources.jar").exists()
+        file("build/distributions/hello-world-1.0.pom").exists()
+        assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
+            <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+              <!-- This module was also published with a richer model, Gradle metadata,  -->
+              <!-- which should be used instead. Do not delete the following line which  -->
+              <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
+              <!-- that they should prefer consuming it instead. -->
+              <!-- do_not_remove: published-with-gradle-metadata -->
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>org.acme</groupId>
+              <artifactId>hello-world</artifactId>
+              <version>1.0</version>
+              <dependencies>
+                <dependency>
+                  <groupId>org.acme</groupId>
+                  <artifactId>someLib</artifactId>
+                  <version>1.0</version>
+                  <scope>compile</scope>
+                </dependency>
+              </dependencies>
+              <name>hello-world</name>
+              <description>some description</description>
+            </project>"""
+        )
+    }
+
     def "generates artifacts for shadowed elasticsearch plugin"() {
         given:
         file('license.txt') << "License file"

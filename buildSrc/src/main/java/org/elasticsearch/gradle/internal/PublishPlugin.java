@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal;
 
-import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.util.Node;
 import groovy.util.NodeList;
@@ -20,7 +19,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.XmlProvider;
-import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.component.AdhocComponentWithVariants;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.BasePluginConvention;
 import org.gradle.api.plugins.JavaPlugin;
@@ -100,24 +99,23 @@ public class PublishPlugin implements Plugin<Project> {
         }));
     }
 
+    @SuppressWarnings("unchecked")
     private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
-        // Workaround for https://github.com/johnrengelman/shadow/issues/334
-        // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
+        AdhocComponentWithVariants javaComponent = (AdhocComponentWithVariants) project.getComponents().findByName("java");
+        javaComponent.addVariantsFromConfiguration(project.getConfigurations().getByName("runtimeElements"), d -> d.skip());
+
+        // Workaround for removing the optional flag from shadow dependencies
         publication.getPom().withXml(xml -> {
             Node root = xml.asNode();
             NodeList dependencies = (NodeList) root.get("dependencies");
             Node dependenciesNode = (dependencies.size() == 0)
                 ? root.appendNode("dependencies")
                 : (Node) ((NodeList) root.get("dependencies")).get(0);
-            project.getConfigurations().getByName(ShadowBasePlugin.getCONFIGURATION_NAME()).getAllDependencies().all(dependency -> {
-                if (dependency instanceof ProjectDependency) {
-                    Node dependencyNode = dependenciesNode.appendNode("dependency");
-                    dependencyNode.appendNode("groupId", dependency.getGroup());
-                    ProjectDependency projectDependency = (ProjectDependency) dependency;
-                    String artifactId = getArchivesBaseName(projectDependency.getDependencyProject());
-                    dependencyNode.appendNode("artifactId", artifactId);
-                    dependencyNode.appendNode("version", dependency.getVersion());
-                    dependencyNode.appendNode("scope", "compile");
+            dependenciesNode.children().forEach(o -> {
+                Node dependencyNode = (Node) o;
+                NodeList optional = (NodeList) dependencyNode.get("optional");
+                if (optional.size() == 1) {
+                    dependencyNode.remove((Node) optional.get(0));
                 }
             });
         });

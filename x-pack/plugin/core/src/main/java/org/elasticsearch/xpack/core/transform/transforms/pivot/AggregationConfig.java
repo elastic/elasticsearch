@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,9 +27,14 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /*
  * Wrapper for the aggregations config part of a composite aggregation.
@@ -70,6 +76,31 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
     public Collection<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
         return aggregations.getPipelineAggregatorFactories();
+    }
+
+    public Collection<String> getUsedNames() {
+        if (aggregations == null) {
+            return Collections.emptyList();
+        }
+        List<String> usedNames = new ArrayList<>();
+        getAggregatorFactories().forEach(agg -> addAggNames("", agg, usedNames));
+        getPipelineAggregatorFactories().forEach(agg -> addAggNames("", agg, usedNames));
+        return usedNames;
+    }
+
+    private static void addAggNames(String namePrefix, AggregationBuilder aggregationBuilder, Collection<String> names) {
+        if (aggregationBuilder.getSubAggregations().isEmpty() && aggregationBuilder.getPipelineAggregations().isEmpty()) {
+            names.add(namePrefix + aggregationBuilder.getName());
+            return;
+        }
+
+        String newNamePrefix = namePrefix + aggregationBuilder.getName() + ".";
+        aggregationBuilder.getSubAggregations().forEach(agg -> addAggNames(newNamePrefix, agg, names));
+        aggregationBuilder.getPipelineAggregations().forEach(agg -> addAggNames(newNamePrefix, agg, names));
+    }
+
+    private static void addAggNames(String namePrefix, PipelineAggregationBuilder pipelineAggregationBuilder, Collection<String> names) {
+        names.add(namePrefix + pipelineAggregationBuilder.getName());
     }
 
     public static AggregationConfig fromXContent(final XContentParser parser, boolean lenient) throws IOException {
@@ -120,7 +151,10 @@ public class AggregationConfig implements Writeable, ToXContentObject {
         return Objects.equals(this.source, that.source) && Objects.equals(this.aggregations, that.aggregations);
     }
 
-    public boolean isValid() {
-        return this.aggregations != null;
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (aggregations == null) {
+            validationException = addValidationError("pivot.aggregations must not be null", validationException);
+        }
+        return validationException;
     }
 }

@@ -66,33 +66,24 @@ POST _render/template
 ==== {api-path-parms-title}
 
 `<template-id>`::
-(Optional, string)
-ID of the search template to render.
-+
-If no `source` is specified, this or the `id` request body parameter is
-required.
+(Optional, string) ID of the search template to render. If no `source` is
+specified, this or the `id` request body parameter is required.
 
 [[render-search-template-api-request-body]]
 ==== {api-request-body-title}
 
 `id`::
-(Required*, string)
-ID of the search template to render.
-+
-If no `source` is specified, this or the `<template-id>` request path parameter
-is required. If you specify both this parameter and the `<template-id>`
-parameter, the API uses only `<template-id>`.
+(Required*, string) ID of the search template to render. If no `source` is
+specified, this or the `<template-id>` request path parameter is required. If
+you specify both this parameter and the `<template-id>` parameter, the API uses
+only `<template-id>`.
 
 `params`::
-(Optional, object)
-Key-value pairs used to replace Mustache variables in the template. The key is
-the variable name. The value is the variable value.
+(Optional, object) Key-value pairs used to replace Mustache variables in the
+template. The key is the variable name. The value is the variable value.
 
 `source`::
-(Required*, object)
-An inline search template. Supports the same parameters as the
-<<search-search,search API>>'s request body. These parameters also support
-https://mustache.github.io/[Mustache] variables.
-+
-If no `id` or `<templated-id>` is specified, this parameter is required.
-
+(Required*, object) An inline search template. Supports the same parameters as
+the <<search-search,search API>>'s request body. These parameters also support
+https://mustache.github.io/[Mustache] variables. If no `id` or `<templated-id>`
+is specified, this parameter is required.

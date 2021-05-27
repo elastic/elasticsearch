@@ -216,6 +216,7 @@ The grok pattern within the Painless script extracted this value from the
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "1iN2a3kBw4xTzEDqyYE0",
         "_score" : 1.0,
         "_source" : {

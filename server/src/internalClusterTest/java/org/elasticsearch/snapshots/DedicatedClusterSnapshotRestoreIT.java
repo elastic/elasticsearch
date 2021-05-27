@@ -1020,9 +1020,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         indexRandomDocs(indexName, 100);
 
         final String repoName = "test-repo";
-        createRepository(repoName, "mock",
-                Settings.builder().put("location", randomRepoPath()).put("random", randomAlphaOfLength(10))
-                        .put("wait_after_unblock", 200));
+        createRepository(repoName, "fs");
 
         final String firstSnapshotName = "test-snap";
         createSnapshot(repoName, firstSnapshotName, List.of(indexName));

@@ -17,5 +17,6 @@ grant {
   // needed by netty dns resolver
   permission java.io.FilePermission "/etc/hosts", "read";
   permission java.io.FilePermission "/etc/resolv.conf", "read";
+  permission java.io.FilePermission "/etc/resolver", "read";
   permission java.io.FilePermission "/etc/resolver/-", "read";
 };

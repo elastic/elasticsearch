@@ -149,7 +149,7 @@ public final class DataStreamTestHelper {
     }
 
     public static DataStreamAlias randomAliasInstance() {
-        List<String> dataStreams = List.of(generateRandomStringArray(5, 5, false));
+        List<String> dataStreams = List.of(generateRandomStringArray(5, 5, false, false));
         return new DataStreamAlias(
             randomAlphaOfLength(5),
             dataStreams,

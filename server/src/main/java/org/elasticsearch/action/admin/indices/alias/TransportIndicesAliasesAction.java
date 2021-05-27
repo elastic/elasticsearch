@@ -107,9 +107,6 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 if (action.searchRouting() != null) {
                     throw new IllegalArgumentException("aliases that point to data streams don't support search_routing");
                 }
-                if (action.writeIndex() != null) {
-                    throw new IllegalArgumentException("aliases that point to data streams don't support is_write_index");
-                }
                 if (action.isHidden() != null) {
                     throw new IllegalArgumentException("aliases that point to data streams don't support is_hidden");
                 }

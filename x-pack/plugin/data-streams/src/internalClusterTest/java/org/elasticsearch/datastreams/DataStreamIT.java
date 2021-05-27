@@ -796,18 +796,6 @@ public class DataStreamIT extends ESIntegTestCase {
         {
             AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*")
                 .aliases("my-alias")
-                .writeIndex(randomBoolean());
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
-            aliasesAddRequest.addAliasAction(addAction);
-            Exception e = expectThrows(
-                IllegalArgumentException.class,
-                () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
-            );
-            assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support is_write_index"));
-        }
-        {
-            AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*")
-                .aliases("my-alias")
                 .isHidden(randomBoolean());
             IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
             aliasesAddRequest.addAliasAction(addAction);

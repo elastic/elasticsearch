@@ -176,7 +176,7 @@ public class DeploymentManager {
             protected void doRun() {
                 try {
                     NlpTask.Processor processor = processContext.nlpTask.get().createProcessor();
-                    BytesReference request = processor.getRequestBuilder().buildRequest(requestId, input);
+                    BytesReference request = processor.getRequestBuilder().buildRequest(input, requestId);
                     logger.trace("Inference Request "+ request.utf8ToString());
                     processContext.process.get().writeInferenceRequest(request);
 

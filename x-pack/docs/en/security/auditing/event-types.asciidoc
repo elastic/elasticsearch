@@ -158,8 +158,8 @@ invoked to create a new index-based token for a service account.
 [source,js]
 {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
 "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
-action":"create_service_account_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
-"create":{"service_token":{"namespace":"elastic","service":"fleet-server","token_name":"token1"}}}`
+action":"create_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+"create":{"service_token":{"namespace":"elastic","service":"fleet-server","name":"token1"}}}`
 ====
 
 [[event-connection-denied]]
@@ -270,8 +270,8 @@ invoked to delete an index-based token for a service account.
 [source,js]
 {"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
 "0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
-action":"delete_service_account_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
-"delete":{"service_token":{"namespace":"elastic","service":"fleet-server","token_name":"token1"}}}
+action":"delete_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+"delete":{"service_token":{"namespace":"elastic","service":"fleet-server","name":"token1"}}}
 ====
 
 [[event-delete-user]]
@@ -633,7 +633,7 @@ request bodies of the corresponding security APIs.
 `apikeys`             ::     An object like `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
                              <boolean>, "user":{"name": <string>, "realm": <string>}}`.
 
-`service_account_token` ::   An object like `{"namespace":<string>,"service":<string>,"token_name":<string>}`.
+`service_token`       ::   An object like `{"namespace":<string>,"service":<string>,"name":<string>}`.
 
 ==== Extra audit event attributes for specific events
 

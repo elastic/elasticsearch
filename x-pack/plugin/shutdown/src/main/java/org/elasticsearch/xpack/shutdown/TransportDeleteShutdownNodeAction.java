@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -18,13 +20,17 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<DeleteShutdownNodeAction.Request> {
+    private static final Logger logger = LogManager.getLogger(TransportDeleteShutdownNodeAction.class);
+
     @Inject
     public TransportDeleteShutdownNodeAction(
         TransportService transportService,
@@ -76,6 +82,22 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                         )
                         .build();
 
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    clusterService.getRerouteService()
+                        .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
+                            @Override
+                            public void onResponse(ClusterState clusterState) {
+                                logger.trace("started reroute after deleting node [" + request.getNodeId() + "] shutdown");
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn("failed to start reroute after deleting node [" + request.getNodeId() + "] shutdown");
+                            }
+                        });
                 }
             }
         );

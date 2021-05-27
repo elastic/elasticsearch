@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 
+import java.util.Objects;
+import java.util.PriorityQueue;
+
 public final class NlpHelpers {
 
     private NlpHelpers() {}
@@ -57,6 +60,37 @@ public final class NlpHelpers {
         return maxIndex;
     }
 
+
+    static ScoreAndIndex[] topKWithHeap(int k, double[] arr) {
+        PriorityQueue<ScoreAndIndex> minHeap = new PriorityQueue<>(k, (o1, o2) -> Double.compare(o1.score, o2.score));
+        for (int i=0; i<k; i++) {
+            minHeap.add(new ScoreAndIndex(arr[i], i));
+        }
+
+        double minValue = minHeap.peek().score;
+        for (int i = k; i < arr.length; i++) {
+            if (arr[i] > minValue) {
+                minHeap.poll();
+                minHeap.add(new ScoreAndIndex(arr[i], i));
+                minValue = minHeap.peek().score;
+            }
+        }
+
+        ScoreAndIndex[] result = new ScoreAndIndex[k];
+        // The result should be ordered highest score first
+        // so reverse the min heap order
+        for (int i=k-1; i>=0; i--) {
+            result[i] = minHeap.poll();
+        }
+        return result;
+    }
+
+    /**
+     *
+     * @param k
+     * @param arr
+     * @return
+     */
     static int[] topK(int k, double[] arr) {
         int[] topK = new int[k];
         for (int i=0; i<k; i++) {
@@ -98,4 +132,28 @@ public final class NlpHelpers {
         }
         return minIndex;
     }
+
+    static class ScoreAndIndex {
+        final double score;
+        final int index;
+
+        ScoreAndIndex(double value, int index) {
+            this.score = value;
+            this.index = index;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ScoreAndIndex that = (ScoreAndIndex) o;
+            return Double.compare(that.score, score) == 0 && index == that.index;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(score, index);
+        }
+    }
+
 }

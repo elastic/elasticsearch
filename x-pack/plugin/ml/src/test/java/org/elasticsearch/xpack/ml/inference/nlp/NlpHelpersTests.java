@@ -77,8 +77,15 @@ public class NlpHelpersTests extends ESTestCase {
             int k = 3;
             double[] data = new double[]{1.0, 0.0, 2.0, 8.0, 9.0, 4.2, 4.2, 3.0};
             int[] topKIndices = NlpHelpers.topK(k, data);
-
             assertArrayEquals(new int[]{4, 3, 5}, topKIndices);
+
+            NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topKWithHeap(k, data);
+            assertEquals(4, scoreAndIndices[0].index);
+            assertEquals(3, scoreAndIndices[1].index);
+            assertEquals(5, scoreAndIndices[2].index);
+            assertEquals(9.0, scoreAndIndices[0].score, 0.001);
+            assertEquals(8.0, scoreAndIndices[1].score, 0.001);
+            assertEquals(4.2, scoreAndIndices[2].score, 0.001);
         }
         {
             int k = 5;
@@ -90,15 +97,6 @@ public class NlpHelpersTests extends ESTestCase {
         {
             // in this case use the standard java libraries to sort the
             // doubles and track the starting index of each value
-            class ValueAndStartIndex {
-                final double value;
-                final int originalIndex;
-                ValueAndStartIndex(double value, int index) {
-                    this.value = value;
-                    this.originalIndex = index;
-                }
-            }
-
             int size = randomIntBetween(50, 100);
             int k = randomIntBetween(1, 10);
             double[] data = new double[size];
@@ -107,10 +105,10 @@ public class NlpHelpersTests extends ESTestCase {
             }
 
             AtomicInteger index = new AtomicInteger(0);
-            List<ValueAndStartIndex> sortedByValue =
-                Stream.generate(() -> new ValueAndStartIndex(data[index.get()], index.getAndIncrement()))
+            List<NlpHelpers.ScoreAndIndex> sortedByValue =
+                Stream.generate(() -> new NlpHelpers.ScoreAndIndex(data[index.get()], index.getAndIncrement()))
                 .limit(size)
-                .sorted((o1, o2) -> Double.compare(o2.value, o1.value))
+                .sorted((o1, o2) -> Double.compare(o2.score, o1.score))
                 .collect(Collectors.toList());
 
             int[] topKIndices = NlpHelpers.topK(k, data);
@@ -118,7 +116,16 @@ public class NlpHelpersTests extends ESTestCase {
             // now compare the starting indices in the sorted list
             // to the top k.
             for (int i=0; i<topKIndices.length; i++) {
-                assertEquals(sortedByValue.get(i).originalIndex, topKIndices[i]);
+                assertEquals(sortedByValue.get(i).index, topKIndices[i]);
+            }
+
+            NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topKWithHeap(k, data);
+            assertEquals(k, scoreAndIndices.length);
+
+            // now compare the starting indices in the sorted list
+            // to the top k.
+            for (int i=0; i<scoreAndIndices.length; i++) {
+                assertEquals(sortedByValue.get(i), scoreAndIndices[i]);
             }
         }
     }

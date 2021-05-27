@@ -6,6 +6,10 @@
 <titleabbrev>Unfreeze index</titleabbrev>
 ++++
 
+// tag::unfreeze-api-dep[]
+deprecated::[7.14, Frozen indices are no longer useful due to https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent improvements in heap memory usage].]
+// end::unfreeze-api-dep[]
+
 Unfreezes an index.
 
 [[unfreeze-index-api-request]]

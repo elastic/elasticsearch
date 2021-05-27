@@ -32,7 +32,6 @@ versions << [
   'stax2API': '4.2',
   'woodstox': '6.2.4',
 
-  'azureNetty': '4.1.63.Final',
   'reactorNetty': '1.0.6',
   'reactorCore': '3.4.5',
   'reactiveStreams': '1.0.3',
@@ -60,19 +59,19 @@ dependencies {
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
 
   // netty
-  api "io.netty:netty-buffer:${versions.azureNetty}"
-  api "io.netty:netty-codec:${versions.azureNetty}"
-  api "io.netty:netty-codec-dns:${versions.azureNetty}"
-  api "io.netty:netty-codec-http:${versions.azureNetty}"
-  api "io.netty:netty-codec-http2:${versions.azureNetty}"
-  api "io.netty:netty-codec-socks:${versions.azureNetty}"
-  api "io.netty:netty-common:${versions.azureNetty}"
-  api "io.netty:netty-handler:${versions.azureNetty}"
-  api "io.netty:netty-handler-proxy:${versions.azureNetty}"
-  api "io.netty:netty-resolver:${versions.azureNetty}"
-  api "io.netty:netty-resolver-dns:${versions.azureNetty}"
-  api "io.netty:netty-transport:${versions.azureNetty}"
-  api "io.netty:netty-transport-native-unix-common:${versions.azureNetty}"
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-codec-dns:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-codec-socks:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-handler-proxy:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-resolver-dns:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 
   // reactor
   api "io.projectreactor.netty:reactor-netty:${versions.reactorNetty}"

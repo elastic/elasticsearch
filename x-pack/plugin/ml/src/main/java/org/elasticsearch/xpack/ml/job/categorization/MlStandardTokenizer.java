@@ -50,7 +50,8 @@ public class MlStandardTokenizer extends AbstractMlTokenizer {
         while ((curChar = getNextChar()) >= 0) {
             ++nextOffset;
             if (Character.isLetterOrDigit(curChar)
-                || (length > 0 && (curChar == '_' || curChar == '.' || curChar == '-' || (curChar == ':' && lettersBeforeColon == length)))
+                || (length > 0 && (curChar == '_' || curChar == '.' || curChar == '-' || curChar == '@' ||
+                    (curChar == ':' && lettersBeforeColon == length)))
                 || curChar == '/'
                 || (curChar == '\\' && (length == 0 || (haveColon && lettersBeforeColon == 1) || firstBackslashPos == 0))) {
                 if (length == 0) {
@@ -90,8 +91,8 @@ public class MlStandardTokenizer extends AbstractMlTokenizer {
 
                 // We don't return tokens that are hex numbers, and it's most efficient to keep a running note of this
                 haveNonHex = haveNonHex ||
-                    // Count dots, dashes and colons as numeric
-                    (Character.digit(curChar, 16) == -1 && curChar != '.' && curChar != '-' && curChar != ':');
+                    // Count dots, dashes, at symbols and colons as numeric
+                    (Character.digit(curChar, 16) == -1 && curChar != '.' && curChar != '-' && curChar != '@' && curChar != ':');
             } else if (length > 0) {
                 // If we get here, we've found a separator character having built up a candidate token
 
@@ -127,9 +128,9 @@ public class MlStandardTokenizer extends AbstractMlTokenizer {
             return false;
         }
 
-        // Strip dots, dashes, underscores and colons at the end of the token
+        // Strip dots, dashes, underscores, at symbols and colons at the end of the token
         char toCheck;
-        while ((toCheck = termAtt.charAt(length - 1)) == '_' || toCheck == '.' || toCheck == '-' || toCheck == ':') {
+        while ((toCheck = termAtt.charAt(length - 1)) == '_' || toCheck == '.' || toCheck == '-' || toCheck == '@' || toCheck == ':') {
             --length;
         }
 

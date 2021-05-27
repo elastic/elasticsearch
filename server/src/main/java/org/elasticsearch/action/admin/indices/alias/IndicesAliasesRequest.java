@@ -361,6 +361,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return this;
         }
 
+        public String routing() {
+            return routing;
+        }
+
         public String indexRouting() {
             return indexRouting == null ? routing : indexRouting;
         }

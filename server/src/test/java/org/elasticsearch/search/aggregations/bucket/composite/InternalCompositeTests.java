@@ -54,8 +54,11 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         if (isLong) {
             // we use specific format only for date histogram on a long/date field
             if (randomBoolean()) {
-                return new DocValueFormat.DateTime(DateFormatter.forPattern("epoch_second"), ZoneOffset.UTC,
-                    DateFieldMapper.Resolution.MILLISECONDS);
+                return new DocValueFormat.DateTime(
+                    DateFormatter.forPattern("epoch_second"),
+                    ZoneOffset.UTC,
+                    DateFieldMapper.Resolution.MILLISECONDS
+                );
             } else {
                 return DocValueFormat.RAW;
             }

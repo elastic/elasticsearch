@@ -12,6 +12,7 @@ public final class ServiceAccountSettings {
     public static final String REALM_TYPE = "_service_account";
     public static final String REALM_NAME = "_service_account";
     public static final String TOKEN_NAME_FIELD = "_token_name";
+    public static final String TOKEN_SOURCE_FIELD = "_token_source";
 
     private ServiceAccountSettings() {}
 }

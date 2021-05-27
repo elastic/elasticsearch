@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,8 +54,13 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
             PARSER.declareObject(Builder::setJobBuilder, Job.STRICT_PARSER, JOB_CONFIG);
         }
 
-        public static Request fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, null).build();
+        public static Request fromXContent(XContentParser parser, @Nullable String datafeedId) {
+            Builder builder = PARSER.apply(parser, null);
+            // We don't need to check for "inconsistent ids" as we don't parse an ID from the body
+            if (datafeedId != null) {
+                builder.setDatafeedId(datafeedId);
+            }
+            return builder.build();
         }
 
         private final String datafeedId;

@@ -12,7 +12,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
@@ -29,7 +29,7 @@ import java.util.Objects;
  * A class representing a Geo-Bounding-Box for use by Geo queries and aggregations
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
-public class GeoBoundingBox implements ToXContentObject, Writeable {
+public class GeoBoundingBox implements ToXContentFragment, Writeable {
     private static final WellKnownText WKT_PARSER = new WellKnownText(true, new StandardValidator(true));
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
@@ -88,7 +88,7 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(BOUNDS_FIELD.getPreferredName());
+        builder.startObject();
         toXContentFragment(builder, true);
         builder.endObject();
         return builder;

@@ -20,6 +20,7 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -69,12 +70,17 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     }
 
     @Override
-    public void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+    public void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         // This is done on the current thread instead of using a dedicated thread pool like API key does
         // because it is not expected to have a large number of service tokens.
         listener.onResponse(Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
-            .map(hash -> Hasher.verifyHash(token.getSecret(), hash))
-            .orElse(false));
+            .map(hash -> new StoreAuthenticationResult(Hasher.verifyHash(token.getSecret(), hash), getTokenSource()))
+            .orElse(new StoreAuthenticationResult(false, getTokenSource())));
+    }
+
+    @Override
+    public TokenSource getTokenSource() {
+        return TokenSource.FILE;
     }
 
     @Override
